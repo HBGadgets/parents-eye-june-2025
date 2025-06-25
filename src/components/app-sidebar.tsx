@@ -12,7 +12,7 @@ import {
   SidebarMenuItem,
   SidebarRail,
 } from "@/components/ui/sidebar";
-import SearchComponent from "./ui/SearchComponent";
+import SearchComponent from "@/components/SearchComponent(appsidebar)";
 
 type UserRole = "superAdmin" | "school" | "branchGroup" | "branch" | null;
 
@@ -157,12 +157,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   return (
     <Sidebar
       {...props}
-      className="bg-[#ffdc00]"
-      style={{ backgroundColor: "#ffdc00" }}
     >
-      <SidebarHeader>
+      <SidebarHeader className="bg-[#ffb100]">
         <SidebarMenu>
-          <SidebarMenuItem>
+          <SidebarMenuItem >
             <SidebarMenuButton size="lg" asChild>
               <SearchComponent
                 data={sidebarData}
