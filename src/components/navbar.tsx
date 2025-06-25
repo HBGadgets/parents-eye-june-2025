@@ -11,7 +11,7 @@ import {
   navigationMenuTriggerStyle,
 } from "@/components/ui/navigation-menu";
 import { LogoutButton } from "./logout-button";
-
+// This component renders a navigation bar with links to different sections of the application.
 export function Navbar() {
   const setActiveSection = useNavigationStore(
     (state) => state.setActiveSection
