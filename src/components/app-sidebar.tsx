@@ -12,7 +12,7 @@ import {
   SidebarMenuItem,
   SidebarRail,
 } from "@/components/ui/sidebar";
-import SearchComponent from "./ui/SearchComponent";
+import SearchComponent from "@/components/SearchComponent(appsidebar)";
 // Define the user roles as a union type
 
 type UserRole = "superAdmin" | "school" | "branchGroup" | "branch" | null;
