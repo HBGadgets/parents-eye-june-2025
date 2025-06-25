@@ -66,7 +66,7 @@ const SearchComponent: React.FC<SearchComponentProps> = ({
   return (
     <div className="w-full max-w-md mx-auto mt-8">
       <Input
-        className="bg-[#FFE58A]"
+        
         type="text"
         placeholder={placeholder}
         icon={<Search className="w-4 h-4" />}
