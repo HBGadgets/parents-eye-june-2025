@@ -24,10 +24,9 @@ export default function DashboardLayout({
               orientation="vertical"
               className="mr-2 data-[orientation=vertical]:h-4"
             />
-            <Breadcrumb>
-              <Navbar />
-            </Breadcrumb>
+            <Breadcrumb />
           </div>
+              <Navbar />
         </header>
         <main className="pt-16 pl-4 pr-4">{children}</main>
       </SidebarInset>

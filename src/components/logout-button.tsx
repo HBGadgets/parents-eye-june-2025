@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/authStore";
 import { Button } from "@/components/ui/button";
+import { LogOut } from "lucide-react";
 
 export function LogoutButton() {
   const logout = useAuthStore((state) => state.logout);
@@ -14,8 +15,8 @@ export function LogoutButton() {
   };
 
   return (
-    <Button variant="outline" onClick={handleLogout} className="cursor-pointer">
+    <span onClick={handleLogout} className="cursor-pointer ml-2">
       Logout
-    </Button>
+    </span>
   );
 }

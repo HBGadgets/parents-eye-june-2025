@@ -15,6 +15,7 @@ import {
   Settings,
   User,
 } from "lucide-react";
+import { LogoutButton } from "./logout-button";
 
 export function ProfileDropdown() {
   return (
@@ -47,8 +48,8 @@ export function ProfileDropdown() {
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem>
-          <LogOut className="mr-2 h-4 w-4" />
-          <span>Log out</span>
+                <LogOut />
+        <LogoutButton/>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
