@@ -18,37 +18,36 @@ export function Navbar() {
   );
 
   return (
-    <div className="flex w-full h-16 items-center justify-between relative px-4">
-      {/* Left placeholder to balance right profile width */}
-      <div className="w-[150px]" /> {/* Adjust based on ProfileDropdown width */}
-
-      {/* Centered nav links */}
-      <div className="flex-1 flex justify-center mr-25">
-        <NavigationMenu>
-          <NavigationMenuList>
-            {["Dashboard", "School", "Users", "Reports"].map((section) => (
-              <NavigationMenuItem key={section}>
-                <NavigationMenuLink
-                  asChild
-                  className={navigationMenuTriggerStyle()}
-                  onClick={() => {
-                    if (section !== "Dashboard") {
-                      setActiveSection(section);
-                    }
-                  }}
-                >
-                  <Link href={section === "Dashboard" ? "/dashboard" : "#"}>
-                    {section}
-                  </Link>
-                </NavigationMenuLink>
-              </NavigationMenuItem>
-            ))}
-          </NavigationMenuList>
-        </NavigationMenu>
+    <div className="w-full h-full flex items-center relative pointer-events-none px-2 sm:px-4">
+      {/* Centered nav links with responsive spacing */}
+      <div className="flex-1 flex justify-center pointer-events-auto">
+        <div className="max-w-[calc(100%-80px)] sm:max-w-none">
+          <NavigationMenu>
+            <NavigationMenuList className="flex-wrap justify-center gap-1 sm:gap-2">
+              {["Dashboard", "School", "Users", "Reports"].map((section) => (
+                <NavigationMenuItem key={section}>
+                  <NavigationMenuLink
+                    asChild
+                    className={`${navigationMenuTriggerStyle()} text-xs sm:text-sm px-1.5 sm:px-3 py-1 sm:py-2 whitespace-nowrap`}
+                    onClick={() => {
+                      if (section !== "Dashboard") {
+                        setActiveSection(section);
+                      }
+                    }}
+                  >
+                    <Link href={section === "Dashboard" ? "/dashboard" : "#"}>
+                      {section}
+                    </Link>
+                  </NavigationMenuLink>
+                </NavigationMenuItem>
+              ))}
+            </NavigationMenuList>
+          </NavigationMenu>
+        </div>
       </div>
 
-      {/* Right: Profile dropdown */}
-      <div className="w-[150px] flex justify-end">
+      {/* Right: Profile dropdown positioned at the right edge */}
+      <div className="absolute right-2 sm:right-4 top-1/2 transform -translate-y-1/2 pointer-events-auto flex-shrink-0">
         <ProfileDropdown />
       </div>
     </div>

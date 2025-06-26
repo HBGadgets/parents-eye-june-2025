@@ -161,8 +161,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       className="bg-[#ffdc00]"
       style={{ backgroundColor: "#ffdc00" }}
     >
-      <SidebarHeader>
-        <SidebarMenu>
+      <SidebarHeader className="bg-primary h-full">
+        <SidebarMenu >
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild>
               <SearchComponent
@@ -174,7 +174,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>
-      <SidebarRail />
+      <SidebarRail className="bg-primary" />
     </Sidebar>
   );
 }

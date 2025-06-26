@@ -36,7 +36,7 @@ export const MyPageTable = () => {
 
   useEffect(() => {
     setLoading(true);
-    fetch("https://dummyjson.com/users?limit=2")
+    fetch("https://dummyjson.com/users?limit=0")
       .then((res) => res.json())
       .then((json) => {
         setData(json.users ?? []);
@@ -207,7 +207,7 @@ export const MyPageTable = () => {
         render: () => (
           <a
             href={`mailto:${row.email}`}
-            className="text-blue-600 hover:text-blue-800 hover:underline truncate block"
+            className="text-blue-600 hover:text-blue-800 hover:underline block break-words"
             title={row.email}
           >
             {row.email}
@@ -215,7 +215,7 @@ export const MyPageTable = () => {
         ),
       }),
       cell: (info) => info.getValue(),
-      meta: { flex: 3, minWidth: 200, maxWidth: 300 },
+      meta: { flex: 3, minWidth: 200 },
     },
     {
        header:"Birth Date",
@@ -227,38 +227,38 @@ export const MyPageTable = () => {
       meta: { flex: 2, minWidth: 150, maxWidth: 200 },
     },
     
-    // {
-    //   header: "Phone",
-    //   accessorFn: (row) => ({
-    //     type: "custom",
-    //     render: () => (
-    //       <a
-    //         href={`tel:${row.phone}`}
-    //         className="text-gray-700 hover:text-gray-900 hover:underline"
-    //         title={`Call ${row.phone}`}
-    //       >
-    //         {row.phone}
-    //       </a>
-    //     ),
-    //   }),
-    //   cell: (info) => info.getValue(),
-    //   meta: { flex: 2, minWidth: 150, maxWidth: 200 },
-    // },
-    // {
-    //   header: "Company",
-    //   accessorFn: (row) => ({
-    //     type: "custom",
-    //     render: () => (
-    //       <div className="flex items-center">
-    //         <span className="truncate" title={row.company?.name ?? "N/A"}>
-    //           {row.company?.name ?? "N/A"}
-    //         </span>
-    //       </div>
-    //     ),
-    //   }),
-    //   cell: (info) => info.getValue(),
-    //   meta: { flex: 2, minWidth: 150, maxWidth: 250 },
-    // },
+    {
+      header: "Phone",
+      accessorFn: (row) => ({
+        type: "custom",
+        render: () => (
+          <a
+            href={`tel:${row.phone}`}
+            className="text-gray-700 hover:text-gray-900 hover:underline"
+            title={`Call ${row.phone}`}
+          >
+            {row.phone}
+          </a>
+        ),
+      }),
+      cell: (info) => info.getValue(),
+      meta: { flex: 2, minWidth: 150, maxWidth: 200 },
+    },
+    {
+      header: "Company",
+      accessorFn: (row) => ({
+        type: "custom",
+        render: () => (
+          <div className="flex items-center">
+            <span className="break-words" title={row.company?.name ?? "N/A"}>
+              {row.company?.name ?? "N/A"}
+            </span>
+          </div>
+        ),
+      }),
+      cell: (info) => info.getValue(),
+      meta: { flex: 2, minWidth: 150, maxWidth: 250 },
+    },
     {
       header: "Actions",
       accessorFn: (row) => ({
@@ -281,7 +281,7 @@ export const MyPageTable = () => {
         ],
       }),
       cell: (info) => info.getValue(),
-      meta: { flex: 1.5, minWidth: 130},
+      meta: { flex: 1.5, minWidth: 150, maxWidth: 200},
       enableSorting: false,
     },
   ];

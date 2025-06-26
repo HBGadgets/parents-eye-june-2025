@@ -19,14 +19,14 @@ import { LogoutButton } from "./logout-button";
 
 export function ProfileDropdown() {
   return (
-    <DropdownMenu >
+    <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Avatar className="cursor-pointer">
           <AvatarImage src="https://github.com/shadcn.png" alt="@shadcn" />
           <AvatarFallback>SC</AvatarFallback>
         </Avatar>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-56">
+      <DropdownMenuContent align="end" side="bottom" className="w-56" sideOffset={5}>
         <DropdownMenuLabel>
           <div className="flex flex-col">
             <span className="font-medium">shadcn</span>

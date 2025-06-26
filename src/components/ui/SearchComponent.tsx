@@ -71,11 +71,12 @@ const SearchComponent: React.FC<SearchComponentProps> = ({
         icon={<Search className="w-4 h-4" />}
         value={query}
         onChange={(e) => setQuery(e.target.value)}
+        className="bg-[#ffdc00]"
       />
 
-      <SidebarContent>
-        <SidebarGroup>
-          <SidebarMenu>
+      <SidebarContent >
+        <SidebarGroup >
+          <SidebarMenu className="h-full overflow-y-auto bg-primary">
             {results.length === 0 ? (
               <div className="p-4 text-gray-500 text-center">
                 No results found.
