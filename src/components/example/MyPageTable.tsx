@@ -5,6 +5,9 @@ import { ColumnDef } from "@tanstack/react-table";
 import { CustomTable, CellContent } from "@/components/ui/CustomTable";
 import { DynamicEditDialog, FieldConfig } from "@/components/ui/EditModal";
 import dynamic from "next/dynamic";
+import { ProfileDropdown } from "../ProfileDropdown";
+import { InfoCard } from "../InfoCard";
+import { Car } from "lucide-react";
 
 const DynamicLeafletMap = dynamic(() => import( "@/components/ui/DynamicLeafletMap"), {
   ssr: false,
@@ -305,7 +308,8 @@ const handleMapClick = (coords: { lat: number; lng: number }) => {
       markers={markers as { id: number; position: [number, number]; popup: string }[]}
       onMapClick={(handleMapClick)}
     />
-
+   <ProfileDropdown/>
+   <InfoCard color="red" icon={<Car/>} key={10}/>
     <div className="space-y-4">
       <CustomTable
       data={data}
