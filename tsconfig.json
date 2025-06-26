@@ -13,6 +13,7 @@
     "isolatedModules": true,
     "jsx": "preserve",
     "incremental": true,
+    "types": ["@tanstack/react-table"],
     "plugins": [
       {
         "name": "next"
@@ -48,10 +49,17 @@
         "sidebar-primary": "var(--sidebar-primary)",
         "sidebar-primary-foreground": "var(--sidebar-primary-foreground)",
         "sidebar-accent": "var(--sidebar-accent)",
-        "sidebar-accent-foreground": "var(--sidebar-accent-foreground)",
-      },
+        "sidebar-accent-foreground": "var(--sidebar-accent-foreground)"
+      }
     }
   },
-  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts", "src/components/ui/MyPageTable.jsx", "src/components/ui/MyPageTable.jsx"],
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts",
+    "src/components/ui/MyPageTable.jsx",
+    "src/components/ui/MyPageTable.jsx"
+  ],
   "exclude": ["node_modules"]
 }
