@@ -18,9 +18,9 @@ export function Navbar() {
   );
 
   return (
-    <div className="w-full h-full flex items-center relative pointer-events-none px-2 sm:px-4">
+    <div className="w-full h-full flex items-center relative px-2 sm:px-4">
       {/* Centered nav links with responsive spacing */}
-      <div className="flex-1 flex justify-center pointer-events-auto">
+      <div className="flex-1 flex justify-center relative z-30">
         <div className="max-w-[calc(100%-80px)] sm:max-w-none">
           <NavigationMenu>
             <NavigationMenuList className="flex-wrap justify-center gap-1 sm:gap-2">
@@ -47,7 +47,7 @@ export function Navbar() {
       </div>
 
       {/* Right: Profile dropdown positioned at the right edge */}
-      <div className="absolute right-2 sm:right-4 top-1/2 transform -translate-y-1/2 pointer-events-auto flex-shrink-0">
+      <div className="absolute right-2 sm:right-4 top-1/2 transform -translate-y-1/2 flex-shrink-0 z-30">
         <ProfileDropdown />
       </div>
     </div>

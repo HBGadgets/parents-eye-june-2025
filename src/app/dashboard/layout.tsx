@@ -18,7 +18,7 @@ export default function DashboardLayout({
       <AppSidebar />
       <SidebarInset className="overflow-hidden">
         <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12 overflow-hidden relative">
-          <div className="flex items-center gap-2 px-4 min-w-0 flex-1 relative z-10">
+          <div className="flex items-center gap-2 px-4 min-w-0 relative z-20">
             <SidebarTrigger className="-ml-1 flex-shrink-0" />
             <Separator
               orientation="vertical"
@@ -28,7 +28,7 @@ export default function DashboardLayout({
               <Breadcrumb />
             </div>
           </div>
-          <div className="absolute inset-0 pointer-events-none">
+          <div className="absolute inset-0 z-10">
             <Navbar />
           </div>
         </header>
