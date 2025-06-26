@@ -36,7 +36,7 @@ export const MyPageTable = () => {
 
   useEffect(() => {
     setLoading(true);
-    fetch("https://dummyjson.com/users")
+    fetch("https://dummyjson.com/users?limit=2")
       .then((res) => res.json())
       .then((json) => {
         setData(json.users ?? []);
@@ -227,38 +227,38 @@ export const MyPageTable = () => {
       meta: { flex: 2, minWidth: 150, maxWidth: 200 },
     },
     
-    {
-      header: "Phone",
-      accessorFn: (row) => ({
-        type: "custom",
-        render: () => (
-          <a
-            href={`tel:${row.phone}`}
-            className="text-gray-700 hover:text-gray-900 hover:underline"
-            title={`Call ${row.phone}`}
-          >
-            {row.phone}
-          </a>
-        ),
-      }),
-      cell: (info) => info.getValue(),
-      meta: { flex: 2, minWidth: 150, maxWidth: 200 },
-    },
-    {
-      header: "Company",
-      accessorFn: (row) => ({
-        type: "custom",
-        render: () => (
-          <div className="flex items-center">
-            <span className="truncate" title={row.company?.name ?? "N/A"}>
-              {row.company?.name ?? "N/A"}
-            </span>
-          </div>
-        ),
-      }),
-      cell: (info) => info.getValue(),
-      meta: { flex: 2, minWidth: 150, maxWidth: 250 },
-    },
+    // {
+    //   header: "Phone",
+    //   accessorFn: (row) => ({
+    //     type: "custom",
+    //     render: () => (
+    //       <a
+    //         href={`tel:${row.phone}`}
+    //         className="text-gray-700 hover:text-gray-900 hover:underline"
+    //         title={`Call ${row.phone}`}
+    //       >
+    //         {row.phone}
+    //       </a>
+    //     ),
+    //   }),
+    //   cell: (info) => info.getValue(),
+    //   meta: { flex: 2, minWidth: 150, maxWidth: 200 },
+    // },
+    // {
+    //   header: "Company",
+    //   accessorFn: (row) => ({
+    //     type: "custom",
+    //     render: () => (
+    //       <div className="flex items-center">
+    //         <span className="truncate" title={row.company?.name ?? "N/A"}>
+    //           {row.company?.name ?? "N/A"}
+    //         </span>
+    //       </div>
+    //     ),
+    //   }),
+    //   cell: (info) => info.getValue(),
+    //   meta: { flex: 2, minWidth: 150, maxWidth: 250 },
+    // },
     {
       header: "Actions",
       accessorFn: (row) => ({
@@ -281,7 +281,7 @@ export const MyPageTable = () => {
         ],
       }),
       cell: (info) => info.getValue(),
-      meta: { flex: 1.5, minWidth: 150, maxWidth: 160},
+      meta: { flex: 1.5, minWidth: 130},
       enableSorting: false,
     },
   ];
@@ -302,20 +302,20 @@ const handleMapClick = (coords: { lat: number; lng: number }) => {
 };
   return (
     <>
-    <DynamicLeafletMap
+    {/* <DynamicLeafletMap
       center={[21.1458, 79.0882]}
       zoom={13}
       markers={markers as { id: number; position: [number, number]; popup: string }[]}
       onMapClick={(handleMapClick)}
     />
    <ProfileDropdown/>
-   <InfoCard color="red" icon={<Car/>} key={10}/>
+   <InfoCard color="red" icon={<Car/>} key={10}/> */}
     <div className="space-y-4">
       <CustomTable
       data={data}
       columns={userColumns}
       pageSizeArray={[10, 20, 30, 50]}
-      showFilters={true}
+      showSerialNumber= {true}
       />
       <DynamicEditDialog
       data={selectedUser as User | null}
@@ -335,6 +335,7 @@ const handleMapClick = (coords: { lat: number; lng: number }) => {
         imageKey: keyof User;
         nameKeys: (keyof User)[];
       }}
+      
       />
     </div>
     </>

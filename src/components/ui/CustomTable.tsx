@@ -1,6 +1,5 @@
 "use client"
 import React, { useEffect, useRef, useState, useMemo } from "react";
-import  IconDropdown  from "@/components/ui/ButtonDropdown";
 import {
   useReactTable,
   getCoreRowModel,
@@ -14,16 +13,8 @@ import {
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { CustomArrowUpDown } from "@/components/ui/customarrowupdown";
 import { Button } from "@/components/ui/button";
-import SearchOnlydata from "@/components/ui/SearchOnlydata";
 import TablePagination from "@/components/ui/TablePagination";
-import { CustomFilter } from "@/components/ui/CustomFilter";
-import DateRangeFilter  from "@/components/ui/DateRangeFilter";
-import { useExport } from '@/hooks/useExport'
-import { FaFileExcel, FaFilePdf } from "react-icons/fa"
-import { Printer } from "lucide-react";
 
-// In your component
-const { exportToPDF, exportToExcel } = useExport()
 export type CellContent =
   | { type: "text"; value: string }
   | { type: "icon"; icon: React.ReactNode }
@@ -35,96 +26,107 @@ interface CustomTableProps<TData extends RowData> {
   data: TData[];
   columns: ColumnDef<TData, any>[];
   pageSizeArray?: number[];
-  height?: number;
+  maxHeight?: number;
+  minHeight?: number;
   rowHeight?: number;
-  showFilters?: boolean;
+  showSerialNumber?: boolean;
+  noDataMessage?: string;
 }
-const renderCellContent = (content: CellContent): React.ReactNode => {
-  switch (content.type) {
-    case "text": return content.value;
-    case "icon": return content.icon;
-    case "button": return <Button size="sm" onClick={content.onClick}>{content.label}</Button>;
-    case "custom": return content.render();
-    case "group":
-      return (
-        <div className="flex flex-row flex-wrap items-center gap-1">
-          {content.items.map((item, idx) => (
-            <div key={idx} className="flex-shrink-0">{renderCellContent(item)}</div>
-          ))}
-        </div>
-      );
-    default: return null;
+
+const renderCellContent = (content: any): React.ReactNode => {
+  if (content === null || content === undefined) return "";
+  if (typeof content === 'string' || typeof content === 'number' || typeof content === 'boolean') {
+    return content.toString();
   }
+  if (React.isValidElement(content)) return content;
+  
+  if (typeof content === 'object' && content.type) {
+    switch (content.type) {
+      case "text": return content.value;
+      case "icon": return content.icon;
+      case "button": return <Button size="sm" onClick={content.onClick}>{content.label}</Button>;
+      case "custom": return content.render();
+      case "group":
+        return (
+          <div className="flex flex-row flex-wrap items-center gap-1">
+            {content.items.map((item: any, idx: number) => (
+              <div key={idx} className="flex-shrink-0 ">{renderCellContent(item)}</div>
+            ))}
+          </div>
+        );
+      default: return content.toString();
+    }
+  }
+  
+  if (typeof content === 'object') return JSON.stringify(content);
+  return content.toString();
 };
-const getNestedValue = (obj: any, path: string): any =>
-  path.split(".").reduce((current, key) => current?.[key], obj);
 
 export function CustomTable<TData extends RowData>({
   data,
   columns,
   pageSizeArray = [10, 20, 30],
-  height = 480,
+  maxHeight = 480,
+  minHeight = 100,
   rowHeight = 48,
-  showFilters = true,
+  showSerialNumber = true,
+  noDataMessage = "No data available",
 }: CustomTableProps<TData>) {
   const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: pageSizeArray[0] });
   const [sorting, setSorting] = useState<SortingState>([]);
-  const [containerWidth, setContainerWidth] = useState(0);
   const [isMobile, setIsMobile] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const tableScrollRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLDivElement>(null);
 
-  // Track scroll position to sync header
-  const [scrollLeft, setScrollLeft] = useState(0);
-
   useEffect(() => {
     const observer = new ResizeObserver(([entry]) => {
-      const width = entry.contentRect.width;
-      setContainerWidth(width);
-      setIsMobile(width < 768);
+      setIsMobile(entry.contentRect.width < 768);
     });
     if (containerRef.current) observer.observe(containerRef.current);
     return () => observer.disconnect();
   }, []);
 
-  // Sync horizontal scroll between header and body
   useEffect(() => {
     const tableScroll = tableScrollRef.current;
     const header = headerRef.current;
-
     if (!tableScroll || !header) return;
 
     const handleScroll = () => {
-      const newScrollLeft = tableScroll.scrollLeft;
-      setScrollLeft(newScrollLeft);
-      header.scrollLeft = newScrollLeft;
+      header.scrollLeft = tableScroll.scrollLeft;
     };
 
     tableScroll.addEventListener('scroll', handleScroll);
     return () => tableScroll.removeEventListener('scroll', handleScroll);
   }, []);
 
-  useEffect(() => setPagination(prev => ({ ...prev, pageIndex: 0 })), []);
-const [filterResults, setFilterResults] = useState<TData[]>(data);
-const [searchResults, setSearchResults] = useState<TData[]>(data);
+  const [searchResults, setSearchResults] = useState<TData[]>(data);
+  const finalData = searchResults;
+  const pageCount = Math.ceil(finalData.length / pagination.pageSize);
+  const paginatedData = finalData.slice(
+    pagination.pageIndex * pagination.pageSize, 
+    (pagination.pageIndex + 1) * pagination.pageSize
+  );
 
-const handleFilter = (results: TData[]) => {
-  setFilterResults(results);
-  setSearchResults(results); // Reset search on new filter
+ const serialNumberColumn: ColumnDef<TData, any> = {
+  id: "serialNumber",
+  header: () => <div className="text-center w-full">S.No.</div>,
+  cell: ({ row }) => {
+    const serialNumber = pagination.pageIndex * pagination.pageSize + row.index + 1;
+    return <div className="text-center w-full font-medium">{serialNumber}</div>;
+  },
+  enableSorting: false,
+  meta: { minWidth: 60, maxWidth: 80, flex: 0 },
 };
 
-const handleSearch = (results: TData[]) => {
-  setSearchResults(results); // Search applies on top of filtered data
-};
 
-const finalData = searchResults;
-  const pageCount = Math.ceil(finalData .length / pagination.pageSize);
-  const paginatedData = finalData.slice(pagination.pageIndex * pagination.pageSize, (pagination.pageIndex + 1) * pagination.pageSize);
+  const finalColumns = useMemo(() => {
+    return showSerialNumber ? [serialNumberColumn, ...columns] : columns;
+  }, [showSerialNumber, columns, pagination.pageIndex, pagination.pageSize]);
 
   const table = useReactTable({
     data: paginatedData,
-    columns,
+    columns: finalColumns,
     state: { pagination, sorting },
     onPaginationChange: setPagination,
     onSortingChange: setSorting,
@@ -135,6 +137,16 @@ const finalData = searchResults;
   });
 
   const rows = table.getRowModel().rows;
+  
+  const adaptiveHeight = useMemo(() => {
+    if (finalData.length === 0) return Math.max(minHeight, 150);
+    const actualRowHeight = isMobile ? Math.max(rowHeight, 60) : rowHeight;
+    const calculatedHeight = rows.length * actualRowHeight;
+    const headerHeight = 48;
+    const totalContentHeight = calculatedHeight + headerHeight;
+    return Math.max(minHeight, Math.min(maxHeight, totalContentHeight));
+  }, [rows.length, rowHeight, isMobile, minHeight, maxHeight, finalData.length]);
+
   const rowVirtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => tableScrollRef.current,
@@ -156,167 +168,32 @@ const finalData = searchResults;
     };
   };
 
-  // Calculate consistent table width
-  const tableWidth = useMemo(() => {
-    if (!containerWidth) return "100%";
+  const headers = table.getHeaderGroups()[0]?.headers || [];
+  const totalMinWidth = headers.reduce((sum, header) => {
+    return sum + parseInt(getColumnStyle(header.column).minWidth || '120');
+  }, 0);
+  const tableWidth = totalMinWidth + headers.length * 2;
 
-    const headers = table.getHeaderGroups()[0]?.headers || [];
-    const totalMinWidth = headers.reduce((sum, header) => {
-      const minWidth = parseInt(getColumnStyle(header.column).minWidth || '120');
-      return sum + minWidth;
-    }, 0);
 
-    const padding = headers.length * 2; // Border spacing
-    const requiredWidth = totalMinWidth + padding;
-
-    // Always use the larger of container width or required width
-    return Math.max(containerWidth - 32, requiredWidth) + "px";
-  }, [containerWidth, table, isMobile]);
-
-  function handleDateRangeChange(start: Date | null, end: Date | null): void {
-    if (!start && !end) {
-      // Reset to original data if no date range is selected
-      setFilterResults(data);
-      setSearchResults(data);
-      return;
-    }
-
-    // Assuming your data has a 'date' field (adjust as needed)
-    const filtered = data.filter((item: any) => {
-      const itemDate = item.birthDate ? new Date(item.birthDate) : null;
-      console.log( `Filtering item: ${item.firstName}, Date: ${itemDate}, Start: ${start}, End: ${end}`);
-      if (!itemDate) return false;
-      if (start && end) {
-        return itemDate >= start && itemDate <= end;
-      }
-      if (start) {
-        return itemDate >= start;
-      }
-      if (end) {
-        return itemDate <= end;
-      }
-      return true;
-    });
-
-    setFilterResults(filtered);
-    setSearchResults(filtered);
-  }
-interface ExportColumn<T = any> {
-  key: string;
-  header: string;
-  width: number;
-  formatter?: (val: T) => string;
-}
-
-const exportColumns: ExportColumn[] = [
-  { key: 'id', header: 'ID', width: 10 },
-  { key: 'firstName', header: 'Name', width: 25 },
-  { key: 'email', header: 'Email', width: 30 },
-  { key: 'company.name', header: 'Company', width: 25 },
-  { key: 'phone', header: 'Phone', width: 20 },
-  { key: 'age', header: 'Age', width: 10, formatter: (val: number) => val ? `${val} years` : '--' },
-  { key: 'birthDate', header: 'Birth Date', width: 20, formatter: (val: string | Date) => val ? new Date(val).toLocaleDateString() : '--' }
-];
-
-// Export configuration
-const exportConfig = {
-  title: 'User Data Report',
-  companyName: 'Parents Eye',
-  metadata: {
-    'Total Records': finalData.length.toString(),
-    'Exported By': 'Admin User',
-  }
-}
-
-// Export functions
-const handleExportPDF = () => {
-  exportToPDF(finalData, exportColumns, exportConfig)
-}
-
-const handleExportExcel = () => {
-  exportToExcel(finalData, exportColumns, exportConfig)
-}
-
- const handlePrintPage = () => {
-    // Add the landscape style to the page temporarily
-    const style = document.createElement('style')
-    style.innerHTML = `
-    @page {
-      size: landscape;
-    }
-  `
-    document.head.appendChild(style)
-
-    // Zoom out for full content
-    document.body.style.zoom = '50%'
-
-    // Print the page
-    window.print()
-
-    // Remove the landscape style and reset zoom after printing
-    document.head.removeChild(style)
-    document.body.style.zoom = '100%'
-  }
-
-// Add these to your dropdown items
-const dropdownItems = [
-  {
-    icon:FaFilePdf ,
-    label: 'Download PDF',
-    onClick: handleExportPDF,
-  },
-  {
-    icon: FaFileExcel,
-    label: 'Download Excel',
-    onClick: handleExportExcel,
-  },
-  {
-    icon: Printer,
-    label: 'Print',
-    onClick: handlePrintPage,
-  }
-]
   return (
     <div ref={containerRef} className="w-full space-y-4">
-      <div className="flex gap-1 items-center">
-        <SearchOnlydata
-          data={filterResults as any[]}
-          onResults={(e)=>{handleSearch(e as TData[])
-          }}
-          displayKey={["name", "email", "company.name","phone","gender","age"]}
-          placeholder="Search..."
-        />
-        <CustomFilter
-          data={data as any[]}
-          filterFields={["gender"]}
-          onFilter={(e)=>{handleFilter(e as TData[])}}
-        />
-        <DateRangeFilter
-  title="Select Date Range"
-  onDateRangeChange={handleDateRangeChange}
-/>
-        <IconDropdown items={dropdownItems} />
- 
-      </div>
-
-      <div className="rounded-md border bg-background w-full ">
-        {/* Fixed Header */}
+      <div className="rounded-md border bg-background w-full overflow-x-auto">
         <div 
           ref={headerRef}
-          className="overflow-hidden border-b bg-muted"
-          style={{ width: "100%" ,position: "sticky"}}
+          className="overflow-x-auto border-b bg-muted"
+          style={{ width: "100%" }}
         >
-          <div style={{ width: tableWidth }}>
+          <div style={{ width: tableWidth + "px", minWidth: "100%" }}>
             {table.getHeaderGroups().map((hg) => (
               <div key={hg.id} className="flex">
                 {hg.headers.map((header) => (
                   <div
                     key={header.id}
-                    className="flex bg-primary items-center px-2 py-2 sm:px-4 sm:py-3 text-xs sm:text-sm font-medium uppercase tracking-wider border-r last:border-r-0"
+                    className="flex bg-primary items-center px-2 py-2 sm:px-4 sm:py-3 text-xs sm:text-sm font-medium uppercase tracking-wider border-r last:border-r-0 text-white"
                     style={getColumnStyle(header.column)}
                   >
                     <div
-                      className={`flex  items-center justify-center gap-1 w-full ${
+                      className={`flex items-center justify-center gap-1 w-full ${
                         header.column.getCanSort() ? "cursor-pointer select-none" : ""
                       }`}
                       onClick={header.column.getToggleSortingHandler()}
@@ -335,40 +212,54 @@ const dropdownItems = [
           </div>
         </div>
 
-        {/* Scrollable Body */}
         <div
           ref={tableScrollRef}
           className="overflow-auto"
           style={{ 
-            height: height + "px", 
+            height: adaptiveHeight + "px", 
             WebkitOverflowScrolling: "touch"
           }}
         >
-          <div style={{ width: tableWidth }}>
-            {paddingTop > 0 && <div style={{ height: paddingTop + "px" }} />}
-            {virtualRows.map((vr) => {
-              const row = rows[vr.index];
-              return (
-                <div 
-                  key={row.id} 
-                  className="flex border-b hover:bg-muted/50" 
-                  style={{ height: vr.size + "px" }}
-                >
-                  {row.getVisibleCells().map((cell) => (
-                    <div 
-                      key={cell.id} 
-                      className="flex items-center px-2 py-2 sm:px-4 sm:py-2 text-xs sm:text-sm border-r last:border-r-0" 
-                      style={getColumnStyle(cell.column)}
-                    >
-                      <div className="truncate w-full text-ellipsis whitespace-nowrap overflow-hidden">
-                        {renderCellContent(cell.getValue() as CellContent)}
-                      </div>
-                    </div>
-                  ))}
+          <div style={{ width: tableWidth + "px", minWidth: "100%" }}>
+            {finalData.length === 0 ? (
+              <div className="flex items-center justify-center h-full min-h-[100px]">
+                <div className="text-center text-muted-foreground">
+                  <div className="text-lg font-medium mb-2">{noDataMessage}</div>
+                  <div className="text-sm">No records found to display</div>
                 </div>
-              );
-            })}
-            {paddingBottom > 0 && <div style={{ height: paddingBottom + "px" }} />}
+              </div>
+            ) : (
+              <>
+                {paddingTop > 0 && <div style={{ height: paddingTop + "px" }} />}
+                {virtualRows.map((vr) => {
+                  const row = rows[vr.index];
+                  return (
+                    <div 
+                      key={row.id} 
+                      className="flex border-b hover:bg-muted/50" 
+                      style={{ height: vr.size + "px" }}
+                    >
+                      {row.getVisibleCells().map((cell) => (
+                        <div 
+                          key={cell.id} 
+                          className="flex items-center px-2 py-2 sm:px-4 sm:py-2 text-xs sm:text-sm border-r last:border-r-0" 
+                          style={getColumnStyle(cell.column)}
+                        >
+                          <div className={`
+                              truncate w-full text-ellipsis whitespace-nowrap overflow-hidden flex items-center justify-center
+                            `}>
+                            {cell.column.id === "serialNumber"
+                            ? flexRender(cell.column.columnDef.cell, cell.getContext())
+                            : renderCellContent(cell.getValue())}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })}
+                {paddingBottom > 0 && <div style={{ height: paddingBottom + "px" }} />}
+              </>
+            )}
           </div>
         </div>
 
@@ -377,7 +268,6 @@ const dropdownItems = [
           pageSizeArray={pageSizeArray}
           totalRecords={finalData.length}
         />
-
       </div>
     </div>
   );
