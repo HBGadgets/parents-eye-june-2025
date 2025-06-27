@@ -156,12 +156,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   console.log(userRole, "userRole");
 
   return (
-    <Sidebar
-      {...props}
-    >
+    <Sidebar {...props}>
       <SidebarHeader>
         <SidebarMenu>
-          <SidebarMenuItem >
+          <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild>
               <SearchComponent
                 data={sidebarData}

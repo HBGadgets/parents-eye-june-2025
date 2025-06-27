@@ -53,7 +53,10 @@ const SearchComponent: React.FC<SearchComponentProps> = ({
             } else {
               // Handle single key, including nested ones like "company.name"
               const value = getNestedValue(item, displayKey);
-              return value?.toString().toLowerCase().includes(query.toLowerCase());
+              return value
+                ?.toString()
+                .toLowerCase()
+                .includes(query.toLowerCase());
             }
           }
           return item?.toString().toLowerCase().includes(query.toLowerCase());
@@ -71,13 +74,13 @@ const SearchComponent: React.FC<SearchComponentProps> = ({
     <div className={`relative ${className}`}>
       <div className="relative">
         <Input
-        type="text"
-        placeholder={placeholder}
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        className="w-full border rounded px-3 py-2 bg-[#FFE58A]"
-        icon={<SearchIcon />}
-      />
+          type="text"
+          placeholder={placeholder}
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          className="w-full border rounded px-3 py-2 bg-[#FFE58A]"
+          icon={<SearchIcon />}
+        />
       </div>
     </div>
   );

@@ -17,7 +17,7 @@ export default function DashboardLayout({
     <SidebarProvider>
       <AppSidebar />
       <SidebarInset>
-        <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">
+        <header className="bg-primary flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">
           <div className="flex items-center gap-2 px-4">
             <SidebarTrigger className="-ml-1" />
             <Separator
@@ -26,7 +26,7 @@ export default function DashboardLayout({
             />
             <Breadcrumb />
           </div>
-              <Navbar />
+          <Navbar />
         </header>
         <main className="pt-16 pl-4 pr-4">{children}</main>
       </SidebarInset>

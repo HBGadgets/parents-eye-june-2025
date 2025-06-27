@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "@/services/apiService";
 import { CustomTable, CellContent } from "@/components/ui/CustomTable";
 import type { ColumnDef } from "@tanstack/react-table";
+import SearchComponent from "@/components/ui/SearchOnlydata";
 
 interface Student {
   _id: string;
@@ -34,12 +35,20 @@ export default function StudentDetails() {
       const res = await api.get<{ children: Student[] }>("/child");
       return res.children;
     },
-    staleTime: 5 * 60 * 1000,
   });
 
   const columns: ColumnDef<Student, CellContent>[] = [
     {
-      header: "Name",
+      header: "Student Name",
+      accessorFn: (row) => ({
+        type: "text",
+        value: row.childName,
+      }),
+      cell: (info) => info.getValue(),
+      meta: { minWidth: 200 },
+    },
+    {
+      header: "Class",
       accessorFn: (row) => ({
         type: "text",
         value: row.childName,
@@ -47,7 +56,24 @@ export default function StudentDetails() {
       cell: (info) => info.getValue(),
     },
     {
-      header: "Email",
+      header: "Route No",
+      accessorFn: (row) => ({
+        type: "text",
+        value: row.childName,
+      }),
+      cell: (info) => info.getValue(),
+      meta: { minWidth: 150 },
+    },
+    {
+      header: "Section",
+      accessorFn: (row) => ({
+        type: "text",
+        value: row.childName,
+      }),
+      cell: (info) => info.getValue(),
+    },
+    {
+      header: "School",
       accessorFn: (row) => ({
         type: "custom",
         render: () => (
@@ -60,9 +86,10 @@ export default function StudentDetails() {
         ),
       }),
       cell: (info) => info.getValue(),
+      meta: { minWidth: 300 },
     },
     {
-      header: "School",
+      header: "Branch",
       accessorFn: (row) => ({
         type: "text",
         value: row.schoolId.schoolName,
@@ -70,7 +97,7 @@ export default function StudentDetails() {
       cell: (info) => info.getValue(),
     },
     {
-      header: "Branch",
+      header: "DOB",
       accessorFn: (row) => ({
         type: "text",
         value: row.branchId.branchName,
@@ -78,7 +105,7 @@ export default function StudentDetails() {
       cell: (info) => info.getValue(),
     },
     {
-      header: "Parent",
+      header: "Age",
       accessorFn: (row) => ({
         type: "text",
         value: row.parentId?.parentName ?? "N/A",
@@ -86,7 +113,71 @@ export default function StudentDetails() {
       cell: (info) => info.getValue(),
     },
     {
-      header: "Role",
+      header: "Parent Name",
+      accessorFn: (row) => ({
+        type: "text",
+        value: row.role,
+      }),
+      cell: (info) => info.getValue(),
+    },
+    {
+      header: "Contact No",
+      accessorFn: (row) => ({
+        type: "text",
+        value: row.role,
+      }),
+      cell: (info) => info.getValue(),
+    },
+    {
+      header: "Gender",
+      accessorFn: (row) => ({
+        type: "text",
+        value: row.role,
+      }),
+      cell: (info) => info.getValue(),
+    },
+    {
+      header: "Device ID",
+      accessorFn: (row) => ({
+        type: "text",
+        value: row.role,
+      }),
+      cell: (info) => info.getValue(),
+    },
+    {
+      header: "Bus No.",
+      accessorFn: (row) => ({
+        type: "text",
+        value: row.role,
+      }),
+      cell: (info) => info.getValue(),
+    },
+    {
+      header: "Pickup Point",
+      accessorFn: (row) => ({
+        type: "text",
+        value: row.role,
+      }),
+      cell: (info) => info.getValue(),
+    },
+    {
+      header: "Registration Date",
+      accessorFn: (row) => ({
+        type: "text",
+        value: row.role,
+      }),
+      cell: (info) => info.getValue(),
+    },
+    {
+      header: "UserName",
+      accessorFn: (row) => ({
+        type: "text",
+        value: row.role,
+      }),
+      cell: (info) => info.getValue(),
+    },
+    {
+      header: "Password",
       accessorFn: (row) => ({
         type: "text",
         value: row.role,
@@ -104,14 +195,33 @@ export default function StudentDetails() {
     );
 
   return (
-    <div>
-      <CustomTable
-        data={students || []}
-        columns={columns}
-        pageSizeArray={[10, 20, 50]}
-        showFilters={true}
-        tableClass="bg-white rounded shadow"
-      />
-    </div>
+    <main>
+      <section>
+        {/* <SearchComponent
+          data={filterResults as any[]}
+          onResults={(e) => {
+            handleSearch(e as TData[]);
+          }}
+          displayKey={[
+            "name",
+            "email",
+            "company.name",
+            "phone",
+            "gender",
+            "age",
+          ]}
+          placeholder="Search..."
+        /> */}
+      </section>
+      <section>
+        <CustomTable
+          data={students || []}
+          columns={columns}
+          pageSizeArray={[10, 20, 50]}
+          showFilters={true}
+          tableClass="bg-white rounded shadow"
+        />
+      </section>
+    </main>
   );
 }

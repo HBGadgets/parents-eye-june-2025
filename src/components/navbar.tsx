@@ -30,7 +30,7 @@ export function Navbar() {
               <NavigationMenuItem key={section}>
                 <NavigationMenuLink
                   asChild
-                  className={navigationMenuTriggerStyle()}
+                  className="font-semibold"
                   onClick={() => {
                     if (section !== "Dashboard") {
                       setActiveSection(section);
