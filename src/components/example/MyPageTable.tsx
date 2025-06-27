@@ -1,17 +1,16 @@
 "use client";
-
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState, useMemo } from "react";
 import { ColumnDef } from "@tanstack/react-table";
 import { CustomTable, CellContent } from "@/components/ui/CustomTable";
 import { DynamicEditDialog, FieldConfig } from "@/components/ui/EditModal";
 import dynamic from "next/dynamic";
-import { ProfileDropdown } from "../ProfileDropdown";
-import { InfoCard } from "../InfoCard";
-import { Car } from "lucide-react";
+import { CustomFilter } from "../ui/CustomFilter";
+import SearchComponent from "../ui/SearchOnlydata";
 
 const DynamicLeafletMap = dynamic(() => import( "@/components/ui/DynamicLeafletMap"), {
   ssr: false,
 });
+
 interface User {
   id: number;
   firstName: string;
@@ -29,26 +28,43 @@ interface User {
 }
 
 export const MyPageTable = () => {
-  const [data, setData] = useState<User[]>([]);
+  const [originalData, setOriginalData] = useState<User[]>([]); // Store original data
+const [filterResults, setFilterResults] = useState<User[]>([]);
+const [filteredData, setFilteredData] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
-
+  
   useEffect(() => {
     setLoading(true);
-    fetch("https://dummyjson.com/users?limit=2")
+    fetch("https://dummyjson.com/users?limit=0")
       .then((res) => res.json())
       .then((json) => {
-        setData(json.users ?? []);
+        const users = json.users ?? [];
+        setOriginalData(users); // Store original
+        setFilteredData(users); // Initialize filtered with all data
+        setFilterResults(users); // I used this sto implement search on filtered data
         setLoading(false);
       })
       .catch((error) => {
         console.error("Error fetching users:", error);
-        setData([]);
+        setOriginalData([]);
+        setFilteredData([]);
+        setFilterResults([]);
         setLoading(false);
       });
   }, []);
 
+  // Handle filter results - this will be called by CustomFilter
+  const handleCustomFilter = useCallback((filtered: User[]) => {
+     setFilterResults(filtered);
+  setFilteredData(filtered);
+  }, []);
+
+  // Handle Search results - this will be called by SearchComponent
+  const handleSearchResults = useCallback((results: User[]) => {
+    setFilteredData(results);
+  }, []);
   // Dynamic field configuration for the edit dialog
   const editFieldConfigs: FieldConfig[] = [
     {
@@ -67,7 +83,6 @@ export const MyPageTable = () => {
       placeholder: "Enter last name",
       validation: { minLength: 2, message: "Last name must be at least 2 characters" }
     },
-  
     {
       key: "age",
       label: "Age",
@@ -120,16 +135,25 @@ export const MyPageTable = () => {
   ];
 
   // Handle edit action
-  const handleEdit = (user: User) => {
+  const handleEdit = useCallback((user: User) => {
     setSelectedUser(user);
     setEditDialogOpen(true);
-  };
+  }, []);
 
   // Handle save from dialog
-  const handleSave = (updatedData: any) => {
+  const handleSave = useCallback((updatedData: any) => {
     if (selectedUser) {
-      setData(prevData => 
-        prevData.map(user => 
+      const updatedUsers = originalData.map(user => 
+        user.id === selectedUser.id 
+          ? { ...user, ...updatedData, id: selectedUser.id }
+          : user
+      );
+      
+      setOriginalData(updatedUsers);
+      
+      // Also update filtered data if the user exists in current filtered view
+      setFilteredData(prevFiltered => 
+        prevFiltered.map(user => 
           user.id === selectedUser.id 
             ? { ...user, ...updatedData, id: selectedUser.id }
             : user
@@ -139,8 +163,10 @@ export const MyPageTable = () => {
       console.log("Updated user data:", updatedData);
       alert(`Successfully updated ${updatedData.firstName} ${updatedData.lastName}`);
     }
-  };
-  const userColumns: ColumnDef<User, CellContent>[] = [
+  }, [selectedUser, originalData]);
+
+  // Memoized columns to prevent unnecessary re-renders
+  const userColumns: ColumnDef<User, CellContent>[] = useMemo(() => [
     {
       header: "Profile",
       accessorFn: (row) => ({
@@ -207,7 +233,7 @@ export const MyPageTable = () => {
         render: () => (
           <a
             href={`mailto:${row.email}`}
-            className="text-blue-600 hover:text-blue-800 hover:underline truncate block"
+            className="text-blue-600 hover:text-blue-800 hover:underline block break-words"
             title={row.email}
           >
             {row.email}
@@ -215,7 +241,7 @@ export const MyPageTable = () => {
         ),
       }),
       cell: (info) => info.getValue(),
-      meta: { flex: 3, minWidth: 200, maxWidth: 300 },
+      meta: { flex: 3, minWidth: 200 },
     },
     {
        header:"Birth Date",
@@ -226,39 +252,38 @@ export const MyPageTable = () => {
       cell: (info) => info.getValue(),
       meta: { flex: 2, minWidth: 150, maxWidth: 200 },
     },
-    
-    // {
-    //   header: "Phone",
-    //   accessorFn: (row) => ({
-    //     type: "custom",
-    //     render: () => (
-    //       <a
-    //         href={`tel:${row.phone}`}
-    //         className="text-gray-700 hover:text-gray-900 hover:underline"
-    //         title={`Call ${row.phone}`}
-    //       >
-    //         {row.phone}
-    //       </a>
-    //     ),
-    //   }),
-    //   cell: (info) => info.getValue(),
-    //   meta: { flex: 2, minWidth: 150, maxWidth: 200 },
-    // },
-    // {
-    //   header: "Company",
-    //   accessorFn: (row) => ({
-    //     type: "custom",
-    //     render: () => (
-    //       <div className="flex items-center">
-    //         <span className="truncate" title={row.company?.name ?? "N/A"}>
-    //           {row.company?.name ?? "N/A"}
-    //         </span>
-    //       </div>
-    //     ),
-    //   }),
-    //   cell: (info) => info.getValue(),
-    //   meta: { flex: 2, minWidth: 150, maxWidth: 250 },
-    // },
+    {
+      header: "Phone",
+      accessorFn: (row) => ({
+        type: "custom",
+        render: () => (
+          <a
+            href={`tel:${row.phone}`}
+            className="text-gray-700 hover:text-gray-900 hover:underline"
+            title={`Call ${row.phone}`}
+          >
+            {row.phone}
+          </a>
+        ),
+      }),
+      cell: (info) => info.getValue(),
+      meta: { flex: 2, minWidth: 150, maxWidth: 200 },
+    },
+    {
+      header: "Company",
+      accessorFn: (row) => ({
+        type: "custom",
+        render: () => (
+          <div className="flex items-center">
+            <span className="break-words" title={row.company?.name ?? "N/A"}>
+              {row.company?.name ?? "N/A"}
+            </span>
+          </div>
+        ),
+      }),
+      cell: (info) => info.getValue(),
+      meta: { flex: 2, minWidth: 150, maxWidth: 250 },
+    },
     {
       header: "Actions",
       accessorFn: (row) => ({
@@ -281,10 +306,11 @@ export const MyPageTable = () => {
         ],
       }),
       cell: (info) => info.getValue(),
-      meta: { flex: 1.5, minWidth: 130},
+      meta: { flex: 1.5, minWidth: 150, maxWidth: 200},
       enableSorting: false,
     },
-  ];
+  ], [handleEdit]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -293,51 +319,57 @@ export const MyPageTable = () => {
       </div>
     );
   }
-  const markers = [
-  { id: 1, position: [21.148467, 79.079014] as [number, number], popup: 'We are here' },
-  { id: 2, position: [21.3856, 78.9218] as [number, number], popup: 'Savner' },
-];
-const handleMapClick = (coords: { lat: number; lng: number }) => {
-  console.log(coords.lat, coords.lng);
-};
+
   return (
     <>
-    {/* <DynamicLeafletMap
-      center={[21.1458, 79.0882]}
-      zoom={13}
-      markers={markers as { id: number; position: [number, number]; popup: string }[]}
-      onMapClick={(handleMapClick)}
-    />
-   <ProfileDropdown/>
-   <InfoCard color="red" icon={<Car/>} key={10}/> */}
-    <div className="space-y-4">
+      {/* Filters Section */}
+      <div className="flex gap-4 mb-4 flex-wrap">
+        <SearchComponent
+  data={filterResults}  // always search on filtered data
+  displayKey={["firstName", "lastName","age","gender","email","phone"]} // Use an array for multiple fields to be included as searching criteria.
+  onResults={handleSearchResults}
+  className="w-[200px]"
+  debounceDelay={300}
+/>
+        <CustomFilter
+          data={originalData} // Always pass original data
+          originalData={originalData} // Explicitly pass original data
+          filterFields={["gender","age"]}
+          onFilter={handleCustomFilter}
+          placeholder={(field) => `Filter by ${field}`}
+          className="w-[180px]"
+        />
+      </div>
+
+      {/* Custom Table with filtered data */}
       <CustomTable
-      data={data}
-      columns={userColumns}
-      pageSizeArray={[10, 20, 30, 50]}
-      showSerialNumber= {true}
+        data={filteredData}
+        columns={userColumns}
+        pageSizeArray={[10, 20, 30, 50]}
+        showSerialNumber={true}
+        noDataMessage="No users found matching your search criteria"
       />
+
+      {/* Edit Dialog */}
       <DynamicEditDialog
-      data={selectedUser as User | null}
-      isOpen={editDialogOpen}
-      onClose={(): void => {
-        setEditDialogOpen(false);
-        setSelectedUser(null);
-      }}
-      onSave={handleSave as (updatedData: any) => void}
-      fields={editFieldConfigs as FieldConfig[]}
-      title="Edit User Details"
-      description="Update the user information below. Fields marked with * are required."
-      avatarConfig={{
-        imageKey: "image",
-        nameKeys: ["firstName", "lastName"]
-      } as {
-        imageKey: keyof User;
-        nameKeys: (keyof User)[];
-      }}
-      
+        data={selectedUser as User | null}
+        isOpen={editDialogOpen}
+        onClose={() => {
+          setEditDialogOpen(false);
+          setSelectedUser(null);
+        }}
+        onSave={handleSave}
+        fields={editFieldConfigs}
+        title="Edit User Details"
+        description="Update the user information below. Fields marked with * are required."
+        avatarConfig={{
+          imageKey: "image",
+          nameKeys: ["firstName", "lastName"]
+        } as {
+          imageKey: keyof User;
+          nameKeys: (keyof User)[];
+        }}
       />
-    </div>
     </>
   );
 };

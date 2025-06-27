@@ -60,9 +60,9 @@ const renderCellContent = (content: any): React.ReactNode => {
         return content.render();
       case "group":
         return (
-          <div className="flex flex-row flex-wrap items-center gap-1">
+          <div className="flex flex-row items-center gap-1 flex-nowrap">
             {content.items.map((item: any, idx: number) => (
-              <div key={idx} className="flex-shrink-0 ">
+              <div key={idx} className="flex-shrink-0">
                 {renderCellContent(item)}
               </div>
             ))}
@@ -95,31 +95,31 @@ export function CustomTable<TData extends RowData>({
   const [isMobile, setIsMobile] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const tableScrollRef = useRef<HTMLDivElement>(null);
-  const headerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    const updateWidth = () => {
+      if (containerRef.current) {
+        setContainerWidth(containerRef.current.offsetWidth);
+      }
+    };
+
     const observer = new ResizeObserver(([entry]) => {
       setIsMobile(entry.contentRect.width < 768);
+      setContainerWidth(entry.contentRect.width);
     });
-    if (containerRef.current) observer.observe(containerRef.current);
+
+    if (containerRef.current) {
+      observer.observe(containerRef.current);
+      updateWidth();
+    }
+
     return () => observer.disconnect();
   }, []);
 
+  const finalData = data;
   useEffect(() => {
-    const tableScroll = tableScrollRef.current;
-    const header = headerRef.current;
-    if (!tableScroll || !header) return;
-
-    const handleScroll = () => {
-      header.scrollLeft = tableScroll.scrollLeft;
-    };
-
-    tableScroll.addEventListener("scroll", handleScroll);
-    return () => tableScroll.removeEventListener("scroll", handleScroll);
-  }, []);
-
-  const [searchResults, setSearchResults] = useState<TData[]>(data);
-  const finalData = searchResults;
+    setPagination((prev) => ({ ...prev, pageIndex: 0 }));
+  }, [data]);
   const pageCount = Math.ceil(finalData.length / pagination.pageSize);
   const paginatedData = finalData.slice(
     pagination.pageIndex * pagination.pageSize,
@@ -160,7 +160,9 @@ export function CustomTable<TData extends RowData>({
 
   const adaptiveHeight = useMemo(() => {
     if (finalData.length === 0) return Math.max(minHeight, 150);
-    const actualRowHeight = isMobile ? Math.max(rowHeight, 60) : rowHeight;
+    const actualRowHeight = isMobile
+      ? Math.max(rowHeight, 80)
+      : Math.max(rowHeight, 60);
     const calculatedHeight = rows.length * actualRowHeight;
     const headerHeight = 48;
     const totalContentHeight = calculatedHeight + headerHeight;
@@ -177,7 +179,8 @@ export function CustomTable<TData extends RowData>({
   const rowVirtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => tableScrollRef.current,
-    estimateSize: () => (isMobile ? Math.max(rowHeight, 60) : rowHeight),
+    estimateSize: () =>
+      isMobile ? Math.max(rowHeight, 80) : Math.max(rowHeight, 60),
     overscan: 5,
   });
 
@@ -188,63 +191,55 @@ export function CustomTable<TData extends RowData>({
 
   const getColumnStyle = (col: any) => {
     const meta = col.columnDef?.meta || {};
+    const baseWidth = meta.minWidth || (isMobile ? 80 : 100);
+    const maxWidth = meta.maxWidth || 300;
     return {
-      flex: meta.flex || 1,
-      minWidth: (meta.minWidth || (isMobile ? 100 : 120)) + "px",
-      maxWidth: meta.maxWidth ? meta.maxWidth + "px" : undefined,
+      width: baseWidth + "px",
+      minWidth: baseWidth + "px",
+      maxWidth: maxWidth + "px",
+      flexGrow: meta.flex || 1,
+      flexShrink: 0,
     };
   };
 
+  // Calculate if table should expand to fill container
   const headers = table.getHeaderGroups()[0]?.headers || [];
-  const totalMinWidth = headers.reduce((sum, header) => {
-    return sum + parseInt(getColumnStyle(header.column).minWidth || "120");
-  }, 0);
-  const tableWidth = totalMinWidth + headers.length * 2;
+  const totalMinWidth = useMemo(() => {
+    return headers.reduce((sum, header) => {
+      const meta = header.column.columnDef?.meta || {};
+      const width = meta.minWidth || (isMobile ? 80 : 100);
+      return sum + width;
+    }, 0);
+  }, [headers, isMobile]);
+
+  const [containerWidth, setContainerWidth] = useState(0);
+
+  useEffect(() => {
+    const updateWidth = () => {
+      if (containerRef.current) {
+        setContainerWidth(containerRef.current.offsetWidth);
+      }
+    };
+
+    const observer = new ResizeObserver(([entry]) => {
+      setIsMobile(entry.contentRect.width < 768);
+      setContainerWidth(entry.contentRect.width);
+    });
+
+    if (containerRef.current) {
+      observer.observe(containerRef.current);
+      updateWidth();
+    }
+
+    return () => observer.disconnect();
+  }, []);
+
+  const shouldExpand = containerWidth > totalMinWidth;
+  const tableWidth = shouldExpand ? "100%" : totalMinWidth + "px";
 
   return (
-    <div ref={containerRef} className="w-full space-y-4">
-      <div className="rounded-md border bg-background w-full overflow-x-auto">
-        <div
-          ref={headerRef}
-          className="overflow-x-auto border-b bg-muted"
-          style={{ width: "100%", overflow: "hidden" }}
-        >
-          <div style={{ width: tableWidth + "px", minWidth: "100%" }}>
-            {table.getHeaderGroups().map((hg) => (
-              <div key={hg.id} className="flex">
-                {hg.headers.map((header) => (
-                  <div
-                    key={header.id}
-                    className="flex bg-primary items-center px-2 py-2 sm:px-4 sm:py-3 text-xs sm:text-sm font-medium uppercase tracking-wider border-r last:border-r-0 text-black"
-                    style={getColumnStyle(header.column)}
-                  >
-                    <div
-                      className={`flex items-center justify-center gap-1 w-full ${
-                        header.column.getCanSort()
-                          ? "cursor-pointer select-none"
-                          : ""
-                      }`}
-                      onClick={header.column.getToggleSortingHandler()}
-                    >
-                      <span className="truncate">
-                        {flexRender(
-                          header.column.columnDef.header,
-                          header.getContext()
-                        )}
-                      </span>
-                      {header.column.getCanSort() && (
-                        <CustomArrowUpDown
-                          direction={header.column.getIsSorted()}
-                        />
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ))}
-          </div>
-        </div>
-
+    <div ref={containerRef} className="w-full space-y-4 overflow-hidden">
+      <div className="rounded-md border bg-background w-full overflow-hidden">
         <div
           ref={tableScrollRef}
           className="overflow-auto"
@@ -253,7 +248,44 @@ export function CustomTable<TData extends RowData>({
             WebkitOverflowScrolling: "touch",
           }}
         >
-          <div style={{ width: tableWidth + "px", minWidth: "100%" }}>
+          <div style={{ width: tableWidth, minWidth: totalMinWidth + "px" }}>
+            {/* Header */}
+            <div className="sticky top-0 z-10 bg-muted border-b">
+              {table.getHeaderGroups().map((hg) => (
+                <div key={hg.id} className={shouldExpand ? "flex" : "flex"}>
+                  {hg.headers.map((header) => (
+                    <div
+                      key={header.id}
+                      className="flex bg-primary items-center px-2 py-2 sm:px-4 sm:py-3 text-xs sm:text-sm font-medium uppercase tracking-wider border-r last:border-r-0 text-white"
+                      style={getColumnStyle(header.column)}
+                    >
+                      <div
+                        className={`flex items-center justify-center gap-1 w-full ${
+                          header.column.getCanSort()
+                            ? "cursor-pointer select-none"
+                            : ""
+                        }`}
+                        onClick={header.column.getToggleSortingHandler()}
+                      >
+                        <span className="truncate">
+                          {flexRender(
+                            header.column.columnDef.header,
+                            header.getContext()
+                          )}
+                        </span>
+                        {header.column.getCanSort() && (
+                          <CustomArrowUpDown
+                            direction={header.column.getIsSorted()}
+                          />
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+
+            {/* Body */}
             {finalData.length === 0 ? (
               <div className="flex items-center justify-center h-full min-h-[100px]">
                 <div className="text-center text-muted-foreground">
@@ -273,26 +305,28 @@ export function CustomTable<TData extends RowData>({
                   return (
                     <div
                       key={row.id}
-                      className="flex border-b hover:bg-muted/50"
+                      className={
+                        shouldExpand
+                          ? "flex border-b hover:bg-muted/50"
+                          : "flex border-b hover:bg-muted/50"
+                      }
                       style={{ height: vr.size + "px" }}
                     >
                       {row.getVisibleCells().map((cell) => (
                         <div
                           key={cell.id}
-                          className="flex items-center px-2 py-2 sm:px-4 sm:py-2 text-xs sm:text-sm border-r last:border-r-0"
+                          className="flex items-start px-2 py-2 sm:px-4 sm:py-2 text-xs sm:text-sm border-r last:border-r-0"
                           style={getColumnStyle(cell.column)}
                         >
-                          <div
-                            className={`
-                              truncate w-full text-ellipsis whitespace-nowrap overflow-hidden flex items-center justify-center
-                            `}
-                          >
-                            {cell.column.id === "serialNumber"
-                              ? flexRender(
-                                  cell.column.columnDef.cell,
-                                  cell.getContext()
-                                )
-                              : renderCellContent(cell.getValue())}
+                          <div className="w-full text-left">
+                            <div className="break-words overflow-wrap-anywhere leading-relaxed">
+                              {cell.column.id === "serialNumber"
+                                ? flexRender(
+                                    cell.column.columnDef.cell,
+                                    cell.getContext()
+                                  )
+                                : renderCellContent(cell.getValue())}
+                            </div>
                           </div>
                         </div>
                       ))}

@@ -16,19 +16,23 @@ export default function DashboardLayout({
   return (
     <SidebarProvider>
       <AppSidebar />
-      <SidebarInset>
-        <header className="bg-primary flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">
-          <div className="flex items-center gap-2 px-4">
-            <SidebarTrigger className="-ml-1" />
+      <SidebarInset className="overflow-hidden">
+        <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12 overflow-hidden relative">
+          <div className="flex items-center gap-2 px-4 min-w-0 relative z-20">
+            <SidebarTrigger className="-ml-1 flex-shrink-0" />
             <Separator
               orientation="vertical"
-              className="mr-2 data-[orientation=vertical]:h-4"
+              className="mr-2 data-[orientation=vertical]:h-4 flex-shrink-0"
             />
-            <Breadcrumb />
+            <div className="min-w-0 flex-1">
+              <Breadcrumb />
+            </div>
           </div>
-          <Navbar />
+          <div className="absolute inset-0 z-10">
+            <Navbar />
+          </div>
         </header>
-        <main className="pt-16 pl-4 pr-4">{children}</main>
+        <main className="pt-4 px-4 overflow-hidden flex-1">{children}</main>
       </SidebarInset>
     </SidebarProvider>
   );

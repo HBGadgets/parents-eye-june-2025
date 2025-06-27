@@ -156,8 +156,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   console.log(userRole, "userRole");
 
   return (
-    <Sidebar {...props}>
-      <SidebarHeader>
+    <Sidebar
+      {...props}
+      className="bg-[#ffdc00]"
+      style={{ backgroundColor: "#ffdc00" }}
+    >
+      <SidebarHeader className="bg-primary h-full">
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild>
@@ -170,7 +174,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>
-      <SidebarRail />
+      <SidebarRail className="bg-primary" />
     </Sidebar>
   );
 }

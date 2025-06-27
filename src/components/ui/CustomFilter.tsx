@@ -20,23 +20,54 @@ import {
 
 type DataItem = Record<string, any> | string | number;
 
+interface FilterState {
+  [field: string]: string;
+}
+
 interface CustomFilterProps {
   data: DataItem[];
-  filterFields: [string]; // ONLY one field allowed
-  onFilter: (filtered: DataItem[]) => void;
+  filterFields: string[]; // Now supports multiple fields
+  onFilter: (filtered: any[]) => void;
+  originalData?: DataItem[]; // Pass the original unfiltered data
+  placeholder?: string | ((field: string) => string); // Can be string or function
+  className?: string;
 }
 
 export const CustomFilter: React.FC<CustomFilterProps> = ({
   data,
   filterFields,
   onFilter,
+  originalData,
+  placeholder,
+  className = "w-[200px]",
 }) => {
-  const field = filterFields[0]; // we only support one filter field
-  const [selectedValue, setSelectedValue] = React.useState<string>("");
-  const [open, setOpen] = React.useState(false);
+  const [selectedFilters, setSelectedFilters] = React.useState<FilterState>({});
+  const [openPopover, setOpenPopover] = React.useState<string | null>(null);
+  
+  // Use original data if provided, otherwise use current data
+  const sourceData = originalData || data;
 
-  const getUniqueValues = (): string[] => {
-    const values = data
+  // Get unique values for each field based on currently filtered data
+  const getUniqueValuesForField = React.useCallback((field: string): string[] => {
+    // For nested filtering, use data that's already been filtered by other fields
+    let dataToUse = sourceData;
+    
+    // Apply all filters except the current field to get available options
+    const otherFilters = Object.entries(selectedFilters).filter(([key]) => key !== field);
+    
+    if (otherFilters.length > 0) {
+      dataToUse = sourceData.filter((item) => {
+        return otherFilters.every(([filterField, filterValue]) => {
+          if (typeof item === "object" && item !== null) {
+            const val = item[filterField];
+            return val?.toString().toLowerCase() === filterValue.toLowerCase();
+          }
+          return true;
+        });
+      });
+    }
+
+    const values = dataToUse
       .map((item) => {
         if (typeof item === "object" && item !== null) {
           return item[field]?.toString();
@@ -45,74 +76,122 @@ export const CustomFilter: React.FC<CustomFilterProps> = ({
       })
       .filter(Boolean) as string[];
 
-    return Array.from(new Set(values));
-  };
+    return Array.from(new Set(values)).sort();
+  }, [sourceData, selectedFilters]);
 
-  // Apply filter whenever selectedValue changes
-  React.useEffect(() => {
-    if (!selectedValue) {
-      onFilter(data); // reset
-    } else {
-      const filtered = data.filter((item) => {
-        if (typeof item === "object" && item !== null) {
-          const val = item[field];
-          return val?.toString().toLowerCase() === selectedValue.toLowerCase();
-        }
-        return true;
-      });
-      onFilter(filtered);
+  // Apply nested filtering
+  const applyNestedFilter = React.useCallback((filters: FilterState) => {
+    if (Object.keys(filters).length === 0) {
+      onFilter(sourceData); // Reset to original data if no filters
+      return;
     }
-  }, [selectedValue, data]);
+
+    const filtered = sourceData.filter((item) => {
+      if (typeof item === "object" && item !== null) {
+        return Object.entries(filters).every(([field, value]) => {
+          const itemValue = item[field];
+          return itemValue?.toString().toLowerCase() === value.toLowerCase();
+        });
+      }
+      return true;
+    });
+
+    onFilter(filtered);
+  }, [sourceData, onFilter]);
+
+  // Apply filters whenever selectedFilters changes
+  React.useEffect(() => {
+    applyNestedFilter(selectedFilters);
+  }, [selectedFilters, applyNestedFilter]);
+
+  // Handle filter selection
+  const handleSelect = React.useCallback((field: string, value: string) => {
+    setSelectedFilters(prev => ({
+      ...prev,
+      [field]: value
+    }));
+    setOpenPopover(null);
+  }, []);
+
+  // Handle clearing a specific filter
+  const handleClearField = React.useCallback((field: string) => {
+    setSelectedFilters(prev => {
+      const newFilters = { ...prev };
+      delete newFilters[field];
+      return newFilters;
+    });
+    setOpenPopover(null);
+  }, []);
+
+  // Get placeholder text for a field
+  const getPlaceholder = React.useCallback((field: string): string => {
+    if (typeof placeholder === 'function') {
+      return placeholder(field);
+    }
+    return placeholder || `Filter by ${field}`;
+  }, [placeholder]);
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button variant="outline" role="combobox" className="w-[200px] justify-between">
-          {selectedValue || `Filter by ${field}`}
-          <ChevronsUpDown className="ml-2 h-4 w-4 opacity-50" />
-        </Button>
-      </PopoverTrigger>
+    <div className="flex flex-wrap gap-2">
+      {filterFields.map((field) => {
+        const uniqueValues = getUniqueValuesForField(field);
+        const selectedValue = selectedFilters[field];
+        const isOpen = openPopover === field;
 
-      <PopoverContent className="w-[200px] p-0 ">
-        <Command>
-          <CommandInput placeholder={`Search ${field}...`} />
-          <CommandList>
-            <CommandEmpty>No value found.</CommandEmpty>
-            <CommandGroup>
-              <CommandItem
-                value="__clear__"
-                className="text-red-600"
-                onSelect={() => {
-                  setSelectedValue("");
-                  setOpen(false);
-                }}
+        return (
+          <Popover 
+            key={field}
+            open={isOpen} 
+            onOpenChange={(open) => setOpenPopover(open ? field : null)}
+          >
+            <PopoverTrigger asChild>
+              <Button 
+                variant="outline" 
+                role="combobox" 
+                className={cn("justify-between", className)}
               >
-                <Trash2 className="mr-2 h-4 w-4" />
-                Clear Filter
-              </CommandItem>
+                {selectedValue || getPlaceholder(field)}
+                <ChevronsUpDown className="ml-2 h-4 w-4 opacity-50" />
+              </Button>
+            </PopoverTrigger>
 
-              {getUniqueValues().map((val) => (
-                <CommandItem
-                  key={val}
-                  value={val}
-                  onSelect={() => {
-                    setSelectedValue(val);
-                    setOpen(false);
-                  }}
-                >
-                  {val}
-                  <Check
-                    className={cn(
-                      "ml-auto h-4 w-4",
-                      selectedValue === val ? "opacity-100" : "opacity-0"
-                    )}
-                  />
-                </CommandItem>
-              ))}
-            </CommandGroup>
-          </CommandList>
-        </Command>
-      </PopoverContent>
-    </Popover>
+            <PopoverContent className={cn("p-0", className)}>
+              <Command>
+                <CommandInput placeholder={`Search ${field}...`} />
+                <CommandList>
+                  <CommandEmpty>No value found.</CommandEmpty>
+                  <CommandGroup>
+                    <CommandItem
+                      value="__clear__"
+                      className="text-red-600"
+                      onSelect={() => handleClearField(field)}
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Clear Filter
+                    </CommandItem>
+
+                    {uniqueValues.map((val) => (
+                      <CommandItem
+                        key={val}
+                        value={val}
+                        onSelect={() => handleSelect(field, val)}
+                      >
+                        {val}
+                        <Check
+                          className={cn(
+                            "ml-auto h-4 w-4",
+                            selectedValue === val ? "opacity-100" : "opacity-0"
+                          )}
+                        />
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
+        );
+      })}
+    </div>
   );
 };
