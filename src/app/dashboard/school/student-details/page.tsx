@@ -10,17 +10,43 @@ import SearchComponent from "@/components/ui/SearchOnlydata";
 interface Student {
   _id: string;
   childName: string;
+  className: string;
+  section: string;
+  DOB: string; // ISO date string
+  age: number;
+  gender: string;
+  geofenceId: {
+    _id: string;
+    name: string;
+  };
+  deviceId: {
+    _id: string;
+    name: string;
+    routeNo: string;
+  };
+  assignDevice: boolean;
+  parentId: {
+    _id: string;
+    parentName: string;
+    contactNo: string;
+    userName: string;
+    password: string;
+  };
+  parentName: string;
   email: string;
+  schoolMobile: string;
   schoolId: {
+    _id: string;
     schoolName: string;
   };
   branchId: {
+    _id: string;
     branchName: string;
   };
-  parentId?: {
-    parentName: string;
-  } | null;
-  role: string;
+  statusOfRegister: string; // e.g., "registered"
+  role: string; // e.g., "child"
+  createdAt: string; // ISO timestamp
+  updatedAt: string; // ISO timestamp
 }
 
 export default function StudentDetails() {
@@ -42,7 +68,7 @@ export default function StudentDetails() {
       header: "Student Name",
       accessorFn: (row) => ({
         type: "text",
-        value: row.childName,
+        value: row.childName ?? "",
       }),
       cell: (info) => info.getValue(),
       meta: { minWidth: 200 },
@@ -51,15 +77,16 @@ export default function StudentDetails() {
       header: "Class",
       accessorFn: (row) => ({
         type: "text",
-        value: row.childName,
+        value: row.className ?? "",
       }),
       cell: (info) => info.getValue(),
+      meta: { minWidth: 150 },
     },
     {
       header: "Route No",
       accessorFn: (row) => ({
         type: "text",
-        value: row.childName,
+        value: row.deviceId?.routeNo ?? "",
       }),
       cell: (info) => info.getValue(),
       meta: { minWidth: 150 },
@@ -68,121 +95,160 @@ export default function StudentDetails() {
       header: "Section",
       accessorFn: (row) => ({
         type: "text",
-        value: row.childName,
+        value: row.section ?? "",
       }),
       cell: (info) => info.getValue(),
+      meta: { minWidth: 150 },
     },
     {
       header: "School",
       accessorFn: (row) => ({
-        type: "custom",
-        render: () => (
-          <a
-            href={`mailto:${row.email}`}
-            className="text-blue-600 hover:underline"
-          >
-            {row.email}
-          </a>
-        ),
+        type: "text",
+        value: row.schoolId?.schoolName ?? "",
       }),
       cell: (info) => info.getValue(),
-      meta: { minWidth: 300 },
+      meta: { minWidth: 150 },
     },
     {
       header: "Branch",
       accessorFn: (row) => ({
         type: "text",
-        value: row.schoolId.schoolName,
+        value: row.branchId?.branchName ?? "",
       }),
       cell: (info) => info.getValue(),
+      meta: { minWidth: 150 },
     },
     {
       header: "DOB",
       accessorFn: (row) => ({
         type: "text",
-        value: row.branchId.branchName,
+        value: row.DOB
+          ? new Date(row.createdAt).toLocaleDateString("en-GB", {
+              day: "2-digit",
+              month: "short",
+              year: "numeric",
+            })
+          : "",
       }),
       cell: (info) => info.getValue(),
+      meta: { minWidth: 150 },
     },
     {
       header: "Age",
       accessorFn: (row) => ({
         type: "text",
-        value: row.parentId?.parentName ?? "N/A",
+        value: row.age?.toString() ?? "",
       }),
       cell: (info) => info.getValue(),
+      meta: { minWidth: 150 },
     },
     {
       header: "Parent Name",
       accessorFn: (row) => ({
         type: "text",
-        value: row.role,
+        value: row.parentId?.parentName ?? "",
       }),
       cell: (info) => info.getValue(),
+      meta: { minWidth: 200 },
     },
     {
       header: "Contact No",
       accessorFn: (row) => ({
         type: "text",
-        value: row.role,
+        value: row.parentId?.contactNo ?? "",
       }),
       cell: (info) => info.getValue(),
+      meta: { minWidth: 200 },
     },
     {
       header: "Gender",
       accessorFn: (row) => ({
         type: "text",
-        value: row.role,
+        value: row.gender ?? "",
       }),
       cell: (info) => info.getValue(),
-    },
-    {
-      header: "Device ID",
-      accessorFn: (row) => ({
-        type: "text",
-        value: row.role,
-      }),
-      cell: (info) => info.getValue(),
+      meta: { minWidth: 200 },
     },
     {
       header: "Bus No.",
       accessorFn: (row) => ({
         type: "text",
-        value: row.role,
+        value: row.deviceId?.name ?? "",
       }),
       cell: (info) => info.getValue(),
+      meta: { minWidth: 200 },
     },
     {
       header: "Pickup Point",
       accessorFn: (row) => ({
         type: "text",
-        value: row.role,
+        value: row.geofenceId?.name ?? "",
       }),
       cell: (info) => info.getValue(),
+      meta: { minWidth: 200 },
     },
     {
       header: "Registration Date",
       accessorFn: (row) => ({
         type: "text",
-        value: row.role,
+        value: row.createdAt
+          ? new Date(row.createdAt).toLocaleDateString("en-GB", {
+              day: "2-digit",
+              month: "short",
+              year: "numeric",
+            })
+          : "",
       }),
       cell: (info) => info.getValue(),
+      meta: { minWidth: 250 },
     },
     {
       header: "UserName",
       accessorFn: (row) => ({
         type: "text",
-        value: row.role,
+        value: row.parentId?.userName ?? "",
       }),
       cell: (info) => info.getValue(),
+      meta: { minWidth: 150 },
     },
     {
       header: "Password",
       accessorFn: (row) => ({
         type: "text",
-        value: row.role,
+        value: row.parentId?.password ?? "",
       }),
       cell: (info) => info.getValue(),
+      meta: { minWidth: 200 },
+    },
+    {
+      header: "Action",
+      accessorFn: (row) => ({
+        type: "group",
+        items: [
+          {
+            type: "button",
+            label: "Edit",
+            onClick: () => {
+              alert(`Edit student: ${row.childName}`);
+            },
+          },
+          {
+            type: "button",
+            label: "Delete",
+            onClick: () => {
+              if (
+                confirm(`Are you sure you want to delete ${row.childName}?`)
+              ) {
+                // Call delete API here
+                alert(`Deleted student: ${row.childName}`);
+              }
+            },
+          },
+        ],
+      }),
+      cell: (info) => info.getValue(),
+      meta: { flex: 1.5, minWidth: 150, maxWidth: 200 },
+      enableSorting: false,
     },
   ];
 

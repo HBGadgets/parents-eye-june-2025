@@ -18,7 +18,7 @@ export function Navbar() {
   );
 
   return (
-    <div className="w-full h-full flex items-center relative px-2 sm:px-4">
+    <div className="w-full h-full flex items-center relative px-2 sm:px-4 bg-primary">
       {/* Centered nav links with responsive spacing */}
       <div className="flex-1 flex justify-center relative z-30">
         <div className="max-w-[calc(100%-80px)] sm:max-w-none">
@@ -28,7 +28,7 @@ export function Navbar() {
                 <NavigationMenuItem key={section}>
                   <NavigationMenuLink
                     asChild
-                    className={`${navigationMenuTriggerStyle()} text-xs sm:text-sm px-1.5 sm:px-3 py-1 sm:py-2 whitespace-nowrap`}
+                    className={`text-xs sm:text-sm px-1.5 sm:px-3 py-1 sm:py-2 whitespace-nowrap font-semibold hover:font-bold transition-colors duration-200 focus:font-bold`}
                     onClick={() => {
                       if (section !== "Dashboard") {
                         setActiveSection(section);
