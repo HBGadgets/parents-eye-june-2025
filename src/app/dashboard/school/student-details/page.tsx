@@ -1,18 +1,28 @@
 "use client";
 
-import React from "react";
-import { useQuery } from "@tanstack/react-query";
+import React, { useState } from "react";
+import {
+  AlertDialog,
+  AlertDialogTrigger,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogFooter,
+  AlertDialogCancel,
+  AlertDialogAction,
+  AlertDialogTitle,
+  AlertDialogDescription,
+} from "@/components/ui/alert-dialog";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/services/apiService";
 import { CustomTable, CellContent } from "@/components/ui/CustomTable";
 import type { ColumnDef } from "@tanstack/react-table";
-import SearchComponent from "@/components/ui/SearchOnlydata";
 
 interface Student {
   _id: string;
   childName: string;
   className: string;
   section: string;
-  DOB: string; // ISO date string
+  DOB: string;
   age: number;
   gender: string;
   geofenceId: {
@@ -32,9 +42,6 @@ interface Student {
     userName: string;
     password: string;
   };
-  parentName: string;
-  email: string;
-  schoolMobile: string;
   schoolId: {
     _id: string;
     schoolName: string;
@@ -43,13 +50,14 @@ interface Student {
     _id: string;
     branchName: string;
   };
-  statusOfRegister: string; // e.g., "registered"
-  role: string; // e.g., "child"
-  createdAt: string; // ISO timestamp
-  updatedAt: string; // ISO timestamp
+  createdAt: string;
+  updatedAt: string;
 }
 
 export default function StudentDetails() {
+  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+  const queryClient = useQueryClient();
+
   const {
     data: students,
     isLoading,
@@ -60,6 +68,19 @@ export default function StudentDetails() {
     queryFn: async () => {
       const res = await api.get<{ children: Student[] }>("/child");
       return res.children;
+    },
+  });
+
+  const deleteStudentMutation = useMutation({
+    mutationFn: async (studentId: string) => {
+      return await api.delete(`/child/${studentId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["students"] });
+    },
+    onError: (err) => {
+      console.error(err);
+      alert("Failed to delete student.");
     },
   });
 
@@ -123,7 +144,7 @@ export default function StudentDetails() {
       accessorFn: (row) => ({
         type: "text",
         value: row.DOB
-          ? new Date(row.createdAt).toLocaleDateString("en-GB", {
+          ? new Date(row.DOB).toLocaleDateString("en-GB", {
               day: "2-digit",
               month: "short",
               year: "numeric",
@@ -235,14 +256,8 @@ export default function StudentDetails() {
           {
             type: "button",
             label: "Delete",
-            onClick: () => {
-              if (
-                confirm(`Are you sure you want to delete ${row.childName}?`)
-              ) {
-                // Call delete API here
-                alert(`Deleted student: ${row.childName}`);
-              }
-            },
+            onClick: () => setSelectedStudent(row),
+            disabled: deleteStudentMutation.isPending,
           },
         ],
       }),
@@ -262,23 +277,7 @@ export default function StudentDetails() {
 
   return (
     <main>
-      <section>
-        {/* <SearchComponent
-          data={filterResults as any[]}
-          onResults={(e) => {
-            handleSearch(e as TData[]);
-          }}
-          displayKey={[
-            "name",
-            "email",
-            "company.name",
-            "phone",
-            "gender",
-            "age",
-          ]}
-          placeholder="Search..."
-        /> */}
-      </section>
+      <section>{/* Optional search here */}</section>
       <section>
         <CustomTable
           data={students || []}
@@ -288,6 +287,33 @@ export default function StudentDetails() {
           tableClass="bg-white rounded shadow"
         />
       </section>
+      {selectedStudent && (
+        <AlertDialog
+          open={!!selectedStudent}
+          onOpenChange={() => setSelectedStudent(null)}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This action cannot be undone and will permanently delete the
+                student record along with all associated data.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => {
+                  deleteStudentMutation.mutate(selectedStudent._id);
+                  setSelectedStudent(null);
+                }}
+              >
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
     </main>
   );
 }
