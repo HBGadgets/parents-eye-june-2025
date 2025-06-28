@@ -137,7 +137,7 @@ export function CustomTable<TData extends RowData>({
       );
     },
     enableSorting: false,
-    meta: { minWidth: 60, maxWidth: 80, flex: 0 },
+    meta: { minWidth: 70, maxWidth: 80, flex: 0 },
   };
 
   const finalColumns = useMemo(() => {
