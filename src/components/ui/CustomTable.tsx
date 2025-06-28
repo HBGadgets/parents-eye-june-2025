@@ -128,7 +128,7 @@ export function CustomTable<TData extends RowData>({
 
   const serialNumberColumn: ColumnDef<TData, any> = {
     id: "serialNumber",
-    header: () => <div className="text-center w-full text-black">S.No.</div>,
+    header: () => <div className="text-center w-full">S.No.</div>,
     cell: ({ row }) => {
       const serialNumber =
         pagination.pageIndex * pagination.pageSize + row.index + 1;
