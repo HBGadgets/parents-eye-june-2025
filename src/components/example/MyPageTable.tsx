@@ -69,6 +69,7 @@ export const MyPageTable = () => {
   const handleSearchResults = useCallback((results: User[]) => {
     setFilteredData(results);
   }, []);
+
   // Dynamic field configuration for the edit dialog
   const editFieldConfigs: FieldConfig[] = [
     {

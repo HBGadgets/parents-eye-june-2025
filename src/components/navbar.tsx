@@ -8,9 +8,9 @@ import {
   NavigationMenuItem,
   NavigationMenuLink,
   NavigationMenuList,
-  navigationMenuTriggerStyle,
 } from "@/components/ui/navigation-menu";
 import { ProfileDropdown } from "@/components/ProfileDropdown";
+import Image from "next/image";
 
 export function Navbar() {
   const setActiveSection = useNavigationStore(
@@ -19,6 +19,16 @@ export function Navbar() {
 
   return (
     <div className="w-full h-full flex items-center relative px-2 sm:px-4 bg-primary">
+      {/* Left: Logo and title */}
+      <div className="flex items-center flex-shrink-0">
+        <Image
+          width={150}
+          height={150}
+          src="/logo.svg"
+          alt="Logo"
+          className="relative left-10 -top-2.5"
+        />
+      </div>
       {/* Centered nav links with responsive spacing */}
       <div className="flex-1 flex justify-center relative z-30">
         <div className="max-w-[calc(100%-80px)] sm:max-w-none">

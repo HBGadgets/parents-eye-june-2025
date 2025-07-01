@@ -20,12 +20,18 @@ type UserRole = "superAdmin" | "school" | "branchGroup" | "branch" | null;
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const [userRole, setUserRole] = React.useState<UserRole>(null);
   const activeSection = useNavigationStore((state) => state.activeSection);
+  const [userInfo, setUserInfo] = React.useState<string>("");
 
   // Ensure role decoding runs only on the client
   React.useEffect(() => {
     const token = Cookies.get("token");
     const decoded = token ? getDecodedToken(token) : null;
     const role = decoded?.role;
+    const user = decoded?.username;
+
+    if (user) {
+      setUserInfo(user);
+    }
 
     if (
       typeof role === "string" &&
