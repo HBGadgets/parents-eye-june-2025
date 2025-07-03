@@ -19,7 +19,7 @@ export interface Student {
   parentId: {
     _id: string;
     parentName: string;
-    contactNo: string;
+    mobileNo: string;
     userName: string;
     password: string;
   };

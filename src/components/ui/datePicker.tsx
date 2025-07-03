@@ -18,6 +18,7 @@ interface DatePickerProps {
   setOpen: (open: boolean) => void;
   date: Date | undefined;
   setDate: (date: Date | undefined) => void;
+  className?: string;
 }
 
 export const DatePicker: React.FC<DatePickerProps> = ({
@@ -26,6 +27,7 @@ export const DatePicker: React.FC<DatePickerProps> = ({
   setOpen,
   date,
   setDate,
+  className,
 }) => {
   return (
     <div className="flex flex-col gap-3">
@@ -37,7 +39,7 @@ export const DatePicker: React.FC<DatePickerProps> = ({
           <Button
             variant="outline"
             id="date"
-            className="w-48 justify-between font-normal"
+            className={`w-48 justify-between font-normal ${className || ""}`}
           >
             {date ? date.toLocaleDateString("en-GB") : "Select date"}
             <ChevronDownIcon />

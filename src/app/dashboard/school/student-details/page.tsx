@@ -15,7 +15,6 @@ import {
   Dialog,
   DialogClose,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -32,17 +31,22 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Student } from "@/interface/modal";
 import { DatePicker } from "@/components/ui/datePicker";
+import { SearchableSelect } from "@/components/custom-select";
 
 export default function StudentDetails() {
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [filteredData, setFilteredData] = useState<Student[]>([]);
   const [filterResults, setFilterResults] = useState<Student[]>([]);
-  const [addDialogOpen, setAddDialogOpen] = useState<boolean>(false);
-  const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<Student | null>(null);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [open, setOpen] = useState(false);
   const [dob, setDob] = useState<Date | undefined>(undefined);
   const queryClient = useQueryClient();
+  const [gender, setGender] = useState<string | undefined>(undefined);
+  const [pickupPoint, setPickupPoint] = useState<string | undefined>(undefined);
+  const [busNumber, setBusNumber] = useState<string | undefined>(undefined);
+  const [school, setSchool] = useState<string | undefined>(undefined);
+  const [branch, setBranch] = useState<string | undefined>(undefined);
 
   // Fetch students data
   const {
@@ -65,9 +69,24 @@ export default function StudentDetails() {
     }
   }, [students]);
 
-  const handleSearchResults = useCallback((results: Student[]) => {
-    setFilteredData(results);
-  }, []);
+  // Mutation to add a new student
+  const addStudentMutation = useMutation({
+    mutationFn: async (newStudent: any) => {
+      return await api.post("/child", newStudent);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["students"] });
+      // Reset form state if needed
+      setGender(undefined);
+      setDob(undefined);
+      setPickupPoint(undefined);
+      setBusNumber(undefined);
+    },
+    onError: (err) => {
+      console.error(err);
+      alert("Failed to add student.");
+    },
+  });
 
   // Mutation to delete a student
   const deleteStudentMutation = useMutation({
@@ -83,18 +102,30 @@ export default function StudentDetails() {
     },
   });
 
+  // Mutation to add a new student
+  const updateStudentMutation = useMutation({
+    mutationFn: async (updatedStudent: Student) => {
+      return await api.put(`/child/${updatedStudent._id}`, updatedStudent);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["students"] });
+      setEditDialogOpen(false);
+      setSelectedUser(null);
+    },
+    onError: (err) => {
+      console.error(err);
+      alert("Failed to update student.");
+    },
+  });
+
   // Dynamic field configuration for the edit dialog
   const editFieldConfigs: FieldConfig[] = [
     {
       key: "childName",
       label: "Student Name",
       type: "text",
-      placeholder: "Student Name",
+      placeholder: "Enter student name",
       required: true,
-      validation: {
-        minLength: 2,
-        message: "Student name must be at least 2 characters",
-      },
     },
     {
       key: "className",
@@ -105,7 +136,7 @@ export default function StudentDetails() {
     {
       key: "deviceId.routeNo",
       label: "Route No",
-      type: "number",
+      type: "text",
       placeholder: "Enter route number",
     },
     {
@@ -124,21 +155,60 @@ export default function StudentDetails() {
       key: "branchId.branchName",
       label: "Branch",
       type: "text",
-      placeholder: "Enter phone number",
+      placeholder: "Enter Branch Name",
     },
-    // {
-    //   key: "DOB",
-    //   label: "Date of Birth",
-    //   type: "text",
-    //   required: true,
-    //   placeholder: "Enter company name",
-    // },
+    { key: "DOB", label: "Date of Birth", type: "date" },
+    { key: "age", label: "Age", type: "number", placeholder: "Enter age" },
     {
-      key: "image",
-      label: "Profile Image URL",
-      type: "url",
-      placeholder: "https://example.com/image.jpg",
-      gridCols: 1, // Full width
+      key: "parentId.parentName",
+      label: "Parent Name",
+      type: "text",
+      placeholder: "Enter parent name",
+    },
+    {
+      key: "parentId.contactNo",
+      label: "Contact No",
+      type: "text",
+      placeholder: "Enter contact number",
+    },
+    {
+      key: "gender",
+      label: "Gender",
+      type: "select",
+      options: [
+        { label: "Male", value: "male" },
+        { label: "Female", value: "female" },
+      ],
+    },
+    {
+      key: "deviceId.name",
+      label: "Bus No.",
+      type: "text",
+      placeholder: "Enter bus number",
+    },
+    {
+      key: "geofenceId.name",
+      label: "Pickup Point",
+      type: "text",
+      placeholder: "Enter pickup point",
+    },
+    {
+      key: "createdAt",
+      label: "Registration Date",
+      type: "text",
+      disabled: true,
+    },
+    {
+      key: "parentId.userName",
+      label: "Username",
+      type: "text",
+      placeholder: "Enter username",
+    },
+    {
+      key: "parentId.password",
+      label: "Password",
+      type: "text",
+      placeholder: "Enter password",
     },
   ];
 
@@ -308,9 +378,7 @@ export default function StudentDetails() {
           {
             type: "button",
             label: "Edit",
-            onClick: () => {
-              alert(`Edit student: ${row.childName}`);
-            },
+            onClick: () => handleEdit(row),
           },
           {
             type: "button",
@@ -325,16 +393,109 @@ export default function StudentDetails() {
       enableSorting: false,
     },
   ];
+
   // Handle edit action
   const handleEdit = useCallback((user: Student) => {
     setSelectedUser(user);
     setEditDialogOpen(true);
   }, []);
 
-  const handleAddStudent = () => {
-    setAddDialogOpen(true);
-    alert("Add student functionality is not implemented yet.");
+  const handleSave = (updatedData: Partial<Student>) => {
+    if (!selectedUser) return;
+
+    const updatedStudent: Student = {
+      ...selectedUser,
+      ...updatedData,
+      // nested updates if needed:
+      deviceId: {
+        ...selectedUser.deviceId,
+        ...(updatedData.deviceId ?? {}),
+      },
+      geofenceId: {
+        ...selectedUser.geofenceId,
+        ...(updatedData.geofenceId ?? {}),
+      },
+      parentId: {
+        ...selectedUser.parentId,
+        ...(updatedData.parentId ?? {}),
+      },
+      schoolId: {
+        ...selectedUser.schoolId,
+        ...(updatedData.schoolId ?? {}),
+      },
+      branchId: {
+        ...selectedUser.branchId,
+        ...(updatedData.branchId ?? {}),
+      },
+    };
+
+    // Optimistic update or API call
+    updateStudentMutation.mutate(updatedStudent);
   };
+
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+
+    const formData = new FormData(e.currentTarget);
+    const data = Object.fromEntries(formData.entries());
+
+    // payload
+    const newStudent = {
+      childName: data.childName,
+      className: data.className,
+      section: data.section,
+      gender: gender,
+      DOB: dob?.toISOString().split("T")[0], // format: YYYY-MM-DD
+      age: Number(data.age),
+      geofenceId: pickupPoint, // must be the ID, not name
+      deviceId: busNumber, // must be the ID
+      deviceName: busNumber, // also include the name if required
+      parentId: data.parentId, // from select (if available) or input
+      parentName: data.parent,
+      email: data.email,
+      schoolMobile: data.mobileNo,
+      username: data.username,
+      password: data.password,
+      schoolId: data.schoolId, // should be ID
+      branchId: data.branchId, // should be ID
+      // statusOfRegister: "registered",
+    };
+
+    addStudentMutation.mutate(newStudent);
+  };
+
+  const handleSearchResults = useCallback((results: Student[]) => {
+    setFilteredData(results);
+  }, []);
+
+  const genderOptions = [
+    { label: "male", value: "male" },
+    { label: "female", value: "female" },
+  ];
+
+  const pickupPointOptions = students
+    ? Array.from(
+        new Set(students.map((s) => s.geofenceId?.name).filter(Boolean))
+      ).map((name) => ({ label: name, value: name }))
+    : [];
+
+  const busNumberOptions = students
+    ? Array.from(
+        new Set(students.map((s) => s.deviceId?.name).filter(Boolean))
+      ).map((name) => ({ label: name, value: name }))
+    : [];
+
+  const schoolOptions = students
+    ? Array.from(
+        new Set(students.map((s) => s.schoolId?.schoolName).filter(Boolean))
+      ).map((name) => ({ label: name, value: name }))
+    : [];
+
+  const branchOptions = students
+    ? Array.from(
+        new Set(students.map((s) => s.branchId?.branchName).filter(Boolean))
+      ).map((name) => ({ label: name, value: name }))
+    : [];
 
   if (isLoading) return <p className="p-4">Loading student details...</p>;
   if (isError)
@@ -366,26 +527,70 @@ export default function StudentDetails() {
             onResults={handleSearchResults}
             className="w-[300px] mb-4"
           />
+
           {/* Add student button */}
           <Dialog>
-            <form>
-              <DialogTrigger asChild>
-                <Button variant="default">Add student</Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-[425px]">
+            <DialogTrigger asChild>
+              <Button variant="default">Add student</Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
+              <form onSubmit={handleSubmit} className="space-y-4">
                 <DialogHeader>
                   <DialogTitle>Add Student</DialogTitle>
                 </DialogHeader>
-                <div className="grid gap-4">
-                  <div className="grid gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Student Name */}
+                  <div className="grid gap-2">
                     <Label htmlFor="childName">Student Name</Label>
                     <Input
                       id="childName"
                       name="childName"
                       placeholder="Enter student name"
+                      required
                     />
                   </div>
-                  <div className="grid gap-3">
+
+                  {/* Gender */}
+                  <div className="grid gap-2">
+                    <Label htmlFor="gender">Gender</Label>
+                    <SearchableSelect
+                      value={gender}
+                      onChange={setGender}
+                      options={genderOptions}
+                      placeholder="Select gender"
+                      allowClear={true}
+                      className=""
+                    />
+                  </div>
+
+                  {/* School */}
+                  <div className="grid gap-2">
+                    <Label htmlFor="schoolId">School</Label>
+                    <SearchableSelect
+                      value={school}
+                      onChange={setSchool}
+                      options={schoolOptions}
+                      placeholder="Select school"
+                      allowClear={true}
+                      className=""
+                    />
+                  </div>
+
+                  {/* Branch */}
+                  <div className="grid gap-2">
+                    <Label htmlFor="branchId">Branch</Label>
+                    <SearchableSelect
+                      value={branch}
+                      onChange={setBranch}
+                      options={branchOptions}
+                      placeholder="Select branch"
+                      allowClear={true}
+                      className=""
+                    />
+                  </div>
+
+                  {/* Class */}
+                  <div className="grid gap-2">
                     <Label htmlFor="className">Class</Label>
                     <Input
                       id="className"
@@ -393,7 +598,9 @@ export default function StudentDetails() {
                       placeholder="Enter class name"
                     />
                   </div>
-                  <div className="grid gap-3">
+
+                  {/* Section */}
+                  <div className="grid gap-2">
                     <Label htmlFor="section">Section</Label>
                     <Input
                       id="section"
@@ -401,16 +608,21 @@ export default function StudentDetails() {
                       placeholder="Enter section"
                     />
                   </div>
-                  <div className="grid gap-3">
+
+                  {/* Date of Birth */}
+                  <div className="grid gap-2">
                     <DatePicker
                       label="Date of Birth"
                       open={open}
                       setOpen={setOpen}
                       date={dob}
                       setDate={setDob}
+                      className="w-full"
                     />
                   </div>
-                  <div className="grid gap-3">
+
+                  {/* Age */}
+                  <div className="grid gap-2">
                     <Label htmlFor="age">Age</Label>
                     <Input
                       id="age"
@@ -418,50 +630,102 @@ export default function StudentDetails() {
                       type="number"
                       min={0}
                       placeholder="Enter age"
-                      // defaultValue="@peduarte"
                     />
                   </div>
-                  <div className="grid gap-3">
+
+                  {/* Pickup Point */}
+                  <div className="grid gap-2">
                     <Label htmlFor="geofenceId">Pickup Point</Label>
-                    <Input
-                      id="geofenceId"
-                      name="geofenceId"
-                      placeholder="Enter pickup point"
+                    <SearchableSelect
+                      value={pickupPoint}
+                      onChange={setPickupPoint}
+                      options={pickupPointOptions}
+                      placeholder="Select pickup point"
+                      allowClear={true}
+                      className=""
                     />
                   </div>
-                  <div className="grid gap-3">
-                    <Label htmlFor="section">Section</Label>
-                    <Input
-                      id="section"
-                      name="section"
-                      // defaultValue="@peduarte"
+
+                  {/* Bus Number */}
+                  <div className="grid gap-2">
+                    <Label htmlFor="deviceId">Bus Number</Label>
+                    <SearchableSelect
+                      value={busNumber}
+                      onChange={setBusNumber}
+                      options={busNumberOptions}
+                      placeholder="Select bus number"
+                      allowClear={true}
+                      className=""
                     />
                   </div>
-                  <div className="grid gap-3">
-                    <Label htmlFor="section">Section</Label>
+
+                  {/* Parent Name */}
+                  <div className="grid gap-2">
+                    <Label htmlFor="parent">Parent Name</Label>
                     <Input
-                      id="section"
-                      name="section"
-                      // defaultValue="@peduarte"
+                      id="parent"
+                      name="parent"
+                      placeholder="Enter parent name"
                     />
                   </div>
-                  <div className="grid gap-3">
-                    <Label htmlFor="section">Section</Label>
+
+                  {/* Email */}
+                  <div className="grid gap-2">
+                    <Label htmlFor="email">Email</Label>
                     <Input
-                      id="section"
-                      name="section"
-                      // defaultValue="@peduarte"
+                      id="email"
+                      name="email"
+                      type="email"
+                      placeholder="Enter email address"
+                    />
+                  </div>
+
+                  {/* Mobile No */}
+                  <div className="grid gap-2">
+                    <Label htmlFor="mobileNo">Mobile No</Label>
+                    <Input
+                      id="mobileNo"
+                      name="mobileNo"
+                      type="tel"
+                      placeholder="Enter mobile number"
+                      pattern="[0-9]{10}"
+                      maxLength={10}
+                      autoComplete="tel"
+                    />
+                  </div>
+
+                  {/* Username and Password */}
+                  <div className="grid gap-2">
+                    <Label htmlFor="username">Username</Label>
+                    <Input
+                      id="username"
+                      name="username"
+                      type="text"
+                      placeholder="Enter username"
+                      required
+                    />
+                  </div>
+
+                  <div className="grid gap-2">
+                    <Label htmlFor="password">Password</Label>
+                    <Input
+                      id="password"
+                      name="password"
+                      type="text"
+                      placeholder="Enter password"
+                      required
                     />
                   </div>
                 </div>
+
                 <DialogFooter>
                   <DialogClose asChild>
                     <Button variant="outline">Cancel</Button>
                   </DialogClose>
                   <Button type="submit">Save changes</Button>
                 </DialogFooter>
-              </DialogContent>
-            </form>
+              </form>
+            </DialogContent>
           </Dialog>
         </div>
       </section>
@@ -502,6 +766,26 @@ export default function StudentDetails() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+      )}
+
+      {/* Edit Dialog */}
+      {selectedUser && (
+        <DynamicEditDialog
+          data={selectedUser}
+          isOpen={editDialogOpen}
+          onClose={() => {
+            setEditDialogOpen(false);
+            setSelectedUser(null);
+          }}
+          onSave={handleSave}
+          fields={editFieldConfigs}
+          title="Edit Student"
+          description="Update the student information below. Fields marked with * are required."
+          avatarConfig={{
+            imageKey: "image",
+            nameKeys: ["childName"],
+          }}
+        />
       )}
     </main>
   );

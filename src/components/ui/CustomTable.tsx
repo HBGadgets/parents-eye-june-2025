@@ -256,7 +256,7 @@ export function CustomTable<TData extends RowData>({
                   {hg.headers.map((header) => (
                     <div
                       key={header.id}
-                      className="flex bg-primary items-center px-2 py-2 sm:px-4 sm:py-3 text-xs sm:text-sm font-medium uppercase tracking-wider border-r last:border-r-0 text-white"
+                      className="flex bg-primary items-center px-2 py-2 sm:px-4 sm:py-3 text-xs sm:text-sm font-medium uppercase tracking-wider border-r last:border-r-0 text-black"
                       style={getColumnStyle(header.column)}
                     >
                       <div

@@ -13,7 +13,7 @@ import {
   SidebarRail,
 } from "@/components/ui/sidebar";
 import SearchComponent from "@/components/SearchComponent(appsidebar)";
-// Define the user roles as a union type
+import { useRouter } from "next/navigation";
 
 type UserRole = "superAdmin" | "school" | "branchGroup" | "branch" | null;
 
@@ -21,6 +21,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const [userRole, setUserRole] = React.useState<UserRole>(null);
   const activeSection = useNavigationStore((state) => state.activeSection);
   const [userInfo, setUserInfo] = React.useState<string>("");
+  const router = useRouter();
 
   // Ensure role decoding runs only on the client
   React.useEffect(() => {
@@ -156,6 +157,16 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     if (!activeSection || !userRole) return [];
     return getSidebarData(activeSection, userRole);
   }, [activeSection, userRole, getSidebarData]);
+
+  // ✅ Prefetch all sidebar routes when sidebarData updates
+  React.useEffect(() => {
+    if (!sidebarData || sidebarData.length === 0) return;
+
+    sidebarData.forEach((item) => {
+      router.prefetch(item.url); // prefetch route
+      console.log(`Prefetched: ${item.url}`); // log the prefetch action
+    });
+  }, [sidebarData, router]);
 
   if (!userRole) return null; // prevent mismatch on initial SSR render
 
