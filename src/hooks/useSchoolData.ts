@@ -1,11 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
-import axios from "axios";
+import { api } from "@/services/apiService";
+import { School } from "@/interface/modal";
 
 export const useSchoolData = () =>
-  useQuery({
-    queryKey: ["schools"],
+  useQuery<School[]>({
+    queryKey: ["schoolData"],
     queryFn: async () => {
-      const { data } = await axios.get("/api/schools");
-      return data;
+      const response = await api.get<School[]>("/school");
+      return response;
     },
   });

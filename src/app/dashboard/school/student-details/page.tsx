@@ -32,6 +32,10 @@ import { Input } from "@/components/ui/input";
 import { Student } from "@/interface/modal";
 import { DatePicker } from "@/components/ui/datePicker";
 import { SearchableSelect } from "@/components/custom-select";
+import { useSchoolData } from "@/hooks/useSchoolData";
+import { useBranchData } from "@/hooks/useBranchData";
+import { useDeviceData } from "@/hooks/useDeviceData";
+import { useGeofenceData } from "@/hooks/useGeofenceData";
 
 export default function StudentDetails() {
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
@@ -47,6 +51,10 @@ export default function StudentDetails() {
   const [busNumber, setBusNumber] = useState<string | undefined>(undefined);
   const [school, setSchool] = useState<string | undefined>(undefined);
   const [branch, setBranch] = useState<string | undefined>(undefined);
+  interface SelectOption {
+    label: string;
+    value: string;
+  }
 
   // Fetch students data
   const {
@@ -57,10 +65,20 @@ export default function StudentDetails() {
   } = useQuery<Student[]>({
     queryKey: ["students"],
     queryFn: async () => {
-      const res = await api.get<{ children: Student[] }>("/child");
-      return res.children;
+      const res = await api.get<Student[]>("/child");
+      return res;
     },
   });
+
+  const { data: schoolData } = useSchoolData();
+  const { data: branchData } = useBranchData();
+  const { data: deviceData } = useDeviceData();
+  const { data: geofenceData } = useGeofenceData();
+
+  console.log("School Data:", schoolData);
+  console.log("Branch Data:", branchData);
+  console.log("Device Data:", deviceData);
+  console.log("Geofence Data:", geofenceData);
 
   useEffect(() => {
     if (students && students.length > 0) {
@@ -305,7 +323,7 @@ export default function StudentDetails() {
       header: "Contact No",
       accessorFn: (row) => ({
         type: "text",
-        value: row.parentId?.contactNo ?? "",
+        value: row.parentId?.mobileNo ?? "",
       }),
       cell: (info) => info.getValue(),
       meta: { flex: 1, minWidth: 180, maxWidth: 300 },
@@ -356,7 +374,7 @@ export default function StudentDetails() {
       header: "UserName",
       accessorFn: (row) => ({
         type: "text",
-        value: row.parentId?.userName ?? "",
+        value: row.parentId?.username ?? "",
       }),
       cell: (info) => info.getValue(),
       meta: { flex: 1, minWidth: 150, maxWidth: 300 },
@@ -473,28 +491,44 @@ export default function StudentDetails() {
     { label: "female", value: "female" },
   ];
 
-  const pickupPointOptions = students
+  const pickupPointOptions: SelectOption[] = geofenceData
     ? Array.from(
-        new Set(students.map((s) => s.geofenceId?.name).filter(Boolean))
-      ).map((name) => ({ label: name, value: name }))
+        new Map(
+          geofenceData
+            .filter((s) => s._id && s.name)
+            .map((s) => [s._id, { label: s.name, value: s._id }])
+        ).values()
+      )
     : [];
 
-  const busNumberOptions = students
+  const busNumberOptions: SelectOption[] = deviceData
     ? Array.from(
-        new Set(students.map((s) => s.deviceId?.name).filter(Boolean))
-      ).map((name) => ({ label: name, value: name }))
+        new Map(
+          deviceData
+            .filter((d) => d._id && d.name)
+            .map((d) => [d._id, { label: d.name, value: d._id }])
+        ).values()
+      )
     : [];
 
-  const schoolOptions = students
+  const schoolOptions: SelectOption[] = schoolData
     ? Array.from(
-        new Set(students.map((s) => s.schoolId?.schoolName).filter(Boolean))
-      ).map((name) => ({ label: name, value: name }))
+        new Map(
+          schoolData
+            .filter((s) => s._id && s.schoolName)
+            .map((s) => [s._id, { label: s.schoolName, value: s._id }])
+        ).values()
+      )
     : [];
 
-  const branchOptions = students
+  const branchOptions: SelectOption[] = branchData
     ? Array.from(
-        new Set(students.map((s) => s.branchId?.branchName).filter(Boolean))
-      ).map((name) => ({ label: name, value: name }))
+        new Map(
+          branchData
+            .filter((b) => b._id && b.branchName)
+            .map((b) => [b._id, { label: b.branchName, value: b._id }])
+        ).values()
+      )
     : [];
 
   if (isLoading) return <p className="p-4">Loading student details...</p>;

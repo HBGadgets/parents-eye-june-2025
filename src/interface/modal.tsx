@@ -20,7 +20,7 @@ export interface Student {
     _id: string;
     parentName: string;
     mobileNo: string;
-    userName: string;
+    username: string;
     password: string;
   };
   schoolId: {
@@ -33,4 +33,71 @@ export interface Student {
   };
   createdAt: string;
   updatedAt: string;
+}
+
+export interface School {
+  _id: string;
+  schoolName: string;
+  username: string;
+  password: string;
+  email: string;
+  schoolMobile: string;
+  fullAccess: boolean;
+  role: string;
+}
+
+export interface Branch {
+  _id: string;
+  branchName: string;
+  schoolId: {
+    _id: string;
+    schoolName: string;
+  };
+  mobileNo: string;
+  username: string;
+  password: string;
+  email: string;
+  role: string;
+}
+
+export interface Device {
+  _id: string;
+  name: string;
+  uniqueId: string;
+  sim: string;
+  speed: string;
+  average: string;
+  Driver: string;
+  geofences: string[];
+  model: string;
+  category: string;
+  installationdate: string;
+  subStart: string;
+  expirationdate: string;
+  extenddate: string;
+  inactiveDate: string;
+  modifiedDate: string;
+  deviceId: string;
+  routeNo: string;
+  positionId: string;
+  status: string;
+  lastUpdate: string;
+  TD: number;
+  TDTime: string;
+  schoolId: string | null;
+  branchId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Geofence {
+  _id: string;
+  name: string;
+  area: string;
+  busStopTime: string;
+  isCrossed: boolean;
+  deviceName: string;
+  schoolId: string | null;
+  branchId: string | null;
+  parentId: string | null;
 }
