@@ -239,12 +239,12 @@ export function CustomTable<TData extends RowData>({
 
   return (
     <div ref={containerRef} className="w-full space-y-4 overflow-hidden">
-      <div className="rounded-md border bg-background w-full h-screen flex flex-col overflow-hidden">
+      <div className="rounded-md border bg-background w-full flex flex-col overflow-hidden">
         <div
           ref={tableScrollRef}
           className="flex-1 overflow-auto"
           style={{
-            // height: adaptiveHeight + "px",
+            height: adaptiveHeight + "px",
             WebkitOverflowScrolling: "touch",
           }}
         >
