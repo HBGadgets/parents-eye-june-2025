@@ -9,6 +9,7 @@ export interface Student {
   geofenceId: {
     _id: string;
     name: string;
+    busStopTime: string;
   };
   deviceId: {
     _id: string;
@@ -100,4 +101,18 @@ export interface Geofence {
   schoolId: string | null;
   branchId: string | null;
   parentId: string | null;
+}
+
+export interface Parent {
+  _id: string;
+  parentName: string;
+  username: string;
+  password: string;
+  email: string;
+  schoolMobile: string;
+  fullAccess: boolean;
+  schoolId: string | null;
+  branchId: string | null;
+  contactNo: string;
+  role: string;
 }

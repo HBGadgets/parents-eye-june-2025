@@ -36,6 +36,7 @@ import { useSchoolData } from "@/hooks/useSchoolData";
 import { useBranchData } from "@/hooks/useBranchData";
 import { useDeviceData } from "@/hooks/useDeviceData";
 import { useGeofenceData } from "@/hooks/useGeofenceData";
+import DateRangeFilter from "@/components/ui/DateRangeFilter";
 
 export default function StudentDetails() {
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
@@ -55,7 +56,6 @@ export default function StudentDetails() {
     label: string;
     value: string;
   }
-
   // Fetch students data
   const {
     data: students,
@@ -69,16 +69,16 @@ export default function StudentDetails() {
       return res;
     },
   });
-
   const { data: schoolData } = useSchoolData();
   const { data: branchData } = useBranchData();
   const { data: deviceData } = useDeviceData();
   const { data: geofenceData } = useGeofenceData();
 
-  console.log("School Data:", schoolData);
-  console.log("Branch Data:", branchData);
-  console.log("Device Data:", deviceData);
-  console.log("Geofence Data:", geofenceData);
+  // console.log("School Data:", schoolData);
+  // console.log("Branch Data:", branchData);
+  // console.log("Device Data:", deviceData);
+  // console.log("Geofence Data:", geofenceData);
+  console.log("handle date range filter:", filteredData);
 
   useEffect(() => {
     if (students && students.length > 0) {
@@ -86,7 +86,6 @@ export default function StudentDetails() {
       setFilterResults(students); // For search base
     }
   }, [students]);
-
   // Mutation to add a new student
   const addStudentMutation = useMutation({
     mutationFn: async (newStudent: any) => {
@@ -105,7 +104,6 @@ export default function StudentDetails() {
       alert("Failed to add student.");
     },
   });
-
   // Mutation to delete a student
   const deleteStudentMutation = useMutation({
     mutationFn: async (studentId: string) => {
@@ -119,7 +117,6 @@ export default function StudentDetails() {
       alert("Failed to delete student.");
     },
   });
-
   // Mutation to add a new student
   const updateStudentMutation = useMutation({
     mutationFn: async (updatedStudent: Student) => {
@@ -135,7 +132,6 @@ export default function StudentDetails() {
       alert("Failed to update student.");
     },
   });
-
   // Dynamic field configuration for the edit dialog
   const editFieldConfigs: FieldConfig[] = [
     {
@@ -229,7 +225,6 @@ export default function StudentDetails() {
       placeholder: "Enter password",
     },
   ];
-
   // Define the columns for the table
   const columns: ColumnDef<Student, CellContent>[] = [
     {
@@ -411,13 +406,11 @@ export default function StudentDetails() {
       enableSorting: false,
     },
   ];
-
   // Handle edit action
   const handleEdit = useCallback((user: Student) => {
     setSelectedUser(user);
     setEditDialogOpen(true);
   }, []);
-
   const handleSave = (updatedData: Partial<Student>) => {
     if (!selectedUser) return;
 
@@ -450,7 +443,6 @@ export default function StudentDetails() {
     // Optimistic update or API call
     updateStudentMutation.mutate(updatedStudent);
   };
-
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
@@ -467,17 +459,17 @@ export default function StudentDetails() {
       age: Number(data.age),
       geofenceId: pickupPoint, // must be the ID, not name
       deviceId: busNumber, // must be the ID
-      deviceName: busNumber, // also include the name if required
       parentId: data.parentId, // from select (if available) or input
       parentName: data.parent,
       email: data.email,
       schoolMobile: data.mobileNo,
       username: data.username,
       password: data.password,
-      schoolId: data.schoolId, // should be ID
-      branchId: data.branchId, // should be ID
+      schoolId: school, // should be ID
+      branchId: branch, // should be ID
       // statusOfRegister: "registered",
     };
+    console.log("Form Data:", newStudent);
 
     addStudentMutation.mutate(newStudent);
   };
@@ -486,11 +478,29 @@ export default function StudentDetails() {
     setFilteredData(results);
   }, []);
 
+  const handleDateFilter = useCallback(
+    (start: Date | null, end: Date | null) => {
+      if (!students || (!start && !end)) {
+        setFilteredData(students || []);
+        return;
+      }
+
+      const filtered = students.filter((student) => {
+        if (!student.createdAt) return false;
+
+        const createdDate = new Date(student.createdAt);
+        return (!start || createdDate >= start) && (!end || createdDate <= end);
+      });
+
+      setFilteredData(filtered);
+    },
+    [students]
+  );
+
   const genderOptions = [
     { label: "male", value: "male" },
     { label: "female", value: "female" },
   ];
-
   const pickupPointOptions: SelectOption[] = geofenceData
     ? Array.from(
         new Map(
@@ -500,7 +510,6 @@ export default function StudentDetails() {
         ).values()
       )
     : [];
-
   const busNumberOptions: SelectOption[] = deviceData
     ? Array.from(
         new Map(
@@ -510,7 +519,6 @@ export default function StudentDetails() {
         ).values()
       )
     : [];
-
   const schoolOptions: SelectOption[] = schoolData
     ? Array.from(
         new Map(
@@ -520,7 +528,6 @@ export default function StudentDetails() {
         ).values()
       )
     : [];
-
   const branchOptions: SelectOption[] = branchData
     ? Array.from(
         new Map(
@@ -530,7 +537,11 @@ export default function StudentDetails() {
         ).values()
       )
     : [];
-
+  /////////////////////////////////////////////////////////
+  useEffect(() => {
+    console.log("selectedbusNumber:", busNumber);
+  }, [busNumber]);
+  //////////////////////////////////////////////////////
   if (isLoading) return <p className="p-4">Loading student details...</p>;
   if (isError)
     return (
@@ -543,25 +554,28 @@ export default function StudentDetails() {
     <main>
       <section>
         <div className="flex items-center justify-between mb-4">
-          {/* Search component */}
-          <SearchComponent
-            data={filterResults}
-            displayKey={[
-              "childName",
-              "className",
-              "section",
-              "gender",
-              "schoolId.schoolName",
-              "branchId.branchName",
-              "parentId.parentName",
-              "parentId.contactNo",
-              "deviceId.routeNo",
-              "geofenceId.name",
-            ]}
-            onResults={handleSearchResults}
-            className="w-[300px] mb-4"
-          />
-
+          <div className="flex space-x-4">
+            {/* Search component */}
+            <SearchComponent
+              data={filterResults}
+              displayKey={[
+                "childName",
+                "className",
+                "section",
+                "gender",
+                "schoolId.schoolName",
+                "branchId.branchName",
+                "parentId.parentName",
+                "parentId.contactNo",
+                "deviceId.routeNo",
+                "geofenceId.name",
+              ]}
+              onResults={handleSearchResults}
+              className="w-[300px] mb-4"
+            />
+            {/* Date range picker */}
+            <DateRangeFilter onDateRangeChange={handleDateFilter} />
+          </div>
           {/* Add student button */}
           <Dialog>
             <DialogTrigger asChild>
@@ -763,6 +777,7 @@ export default function StudentDetails() {
           </Dialog>
         </div>
       </section>
+
       <section>
         {/* Table component */}
         <CustomTable

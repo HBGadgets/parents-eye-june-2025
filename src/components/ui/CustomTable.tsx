@@ -239,12 +239,12 @@ export function CustomTable<TData extends RowData>({
 
   return (
     <div ref={containerRef} className="w-full space-y-4 overflow-hidden">
-      <div className="rounded-md border bg-background w-full overflow-hidden">
+      <div className="rounded-md border bg-background w-full h-screen flex flex-col overflow-hidden">
         <div
           ref={tableScrollRef}
-          className="overflow-auto"
+          className="flex-1 overflow-auto"
           style={{
-            height: adaptiveHeight + "px",
+            // height: adaptiveHeight + "px",
             WebkitOverflowScrolling: "touch",
           }}
         >
@@ -318,7 +318,7 @@ export function CustomTable<TData extends RowData>({
                           className="flex items-start px-2 py-2 sm:px-4 sm:py-2 text-xs sm:text-sm border-r last:border-r-0"
                           style={getColumnStyle(cell.column)}
                         >
-                          <div className="w-full text-left">
+                          <div className="w-full text-center">
                             <div className="break-words overflow-wrap-anywhere leading-relaxed">
                               {cell.column.id === "serialNumber"
                                 ? flexRender(
