@@ -20,23 +20,32 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api } from "@/services/apiService";
-import { CustomTable, CellContent } from "@/components/ui/CustomTable";
+import {
+  CustomTableServerSidePagination,
+  CellContent,
+} from "@/components/ui/customTable(serverSidePagination)";
 import { DynamicEditDialog, FieldConfig } from "@/components/ui/EditModal";
-import type { ColumnDef } from "@tanstack/react-table";
 import SearchComponent from "@/components/ui/SearchOnlydata";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Student } from "@/interface/modal";
 import { DatePicker } from "@/components/ui/datePicker";
 import { SearchableSelect } from "@/components/custom-select";
+import DateRangeFilter from "@/components/ui/DateRangeFilter";
+import { FloatingMenu } from "@/components/floatingMenu";
+import type {
+  ColumnDef,
+  SortingState,
+  PaginationState,
+} from "@tanstack/react-table";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { api } from "@/services/apiService";
 import { useSchoolData } from "@/hooks/useSchoolData";
 import { useBranchData } from "@/hooks/useBranchData";
 import { useDeviceData } from "@/hooks/useDeviceData";
 import { useGeofenceData } from "@/hooks/useGeofenceData";
-import DateRangeFilter from "@/components/ui/DateRangeFilter";
+import { Student } from "@/interface/modal";
+import { useExport } from "@/hooks/useExport";
 
 export default function StudentDetails() {
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
@@ -52,40 +61,93 @@ export default function StudentDetails() {
   const [busNumber, setBusNumber] = useState<string | undefined>(undefined);
   const [school, setSchool] = useState<string | undefined>(undefined);
   const [branch, setBranch] = useState<string | undefined>(undefined);
+  const [pagination, setPagination] = useState({
+    pageIndex: 0,
+    pageSize: 10,
+  });
+  const [sorting, setSorting] = useState([]);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [pageCount, setPageCount] = useState(0);
+  const [showStudent, setShowStudent] = useState(false);
+
   interface SelectOption {
     label: string;
     value: string;
   }
+
+  // columns for export
+  const columnsForExport = [
+    { key: "childName", header: "Student Name" },
+    { key: "className", header: "Class" },
+    { key: "deviceId.routeNo", header: "Route No" },
+    { key: "section", header: "Section" },
+    { key: "schoolId.schoolName", header: "School" },
+    { key: "branchId.branchName", header: "Branch" },
+    {
+      key: "DOB",
+      header: "DOB",
+      formatter: (val: string) =>
+        new Date(val).toLocaleDateString("en-GB", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+        }),
+    },
+    { key: "age", header: "Age" },
+    { key: "parentId.parentName", header: "Parent Name" },
+    { key: "mobileNo", header: "Contact No" }, // Fix: this is at root, not under parentId
+    { key: "gender", header: "Gender" },
+    { key: "deviceId.name", header: "Bus No." },
+    { key: "geofenceId.name", header: "Pickup Point" },
+    {
+      key: "createdAt",
+      header: "Registration Date",
+      formatter: (val: string) =>
+        new Date(val).toLocaleDateString("en-GB", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+        }),
+    },
+    { key: "parentId.username", header: "UserName" },
+    { key: "parentId.password", header: "Password" },
+  ];
+
   // Fetch students data
   const {
     data: students,
     isLoading,
     isError,
     error,
+    refetch,
   } = useQuery<Student[]>({
-    queryKey: ["students"],
+    queryKey: ["students", pagination, sorting],
     queryFn: async () => {
-      const res = await api.get<Student[]>("/child");
+      const params = new URLSearchParams({
+        page: (pagination.pageIndex + 1).toString(),
+        limit: pagination.pageSize.toString(),
+      });
+      const res = await api.get(`/child?${params.toString()}`);
+      console.log("params", params.toString());
       return res;
     },
   });
+
+  console.log("students", filteredData);
+
   const { data: schoolData } = useSchoolData();
   const { data: branchData } = useBranchData();
   const { data: deviceData } = useDeviceData();
   const { data: geofenceData } = useGeofenceData();
+  const { exportToPDF, exportToExcel } = useExport();
 
-  // console.log("School Data:", schoolData);
-  // console.log("Branch Data:", branchData);
-  // console.log("Device Data:", deviceData);
-  // console.log("Geofence Data:", geofenceData);
-  console.log("handle date range filter:", filteredData);
-
+  // fetch students every time there is some change in student
   useEffect(() => {
-    if (students && students.length > 0) {
-      setFilteredData(students);
-      setFilterResults(students); // For search base
+    if (students && students) {
+      setFilteredData(students.children);
     }
   }, [students]);
+
   // Mutation to add a new student
   const addStudentMutation = useMutation({
     mutationFn: async (newStudent: any) => {
@@ -104,6 +166,7 @@ export default function StudentDetails() {
       alert("Failed to add student.");
     },
   });
+
   // Mutation to delete a student
   const deleteStudentMutation = useMutation({
     mutationFn: async (studentId: string) => {
@@ -117,7 +180,8 @@ export default function StudentDetails() {
       alert("Failed to delete student.");
     },
   });
-  // Mutation to add a new student
+
+  // Mutation to edit a new student
   const updateStudentMutation = useMutation({
     mutationFn: async (updatedStudent: Student) => {
       return await api.put(`/child/${updatedStudent._id}`, updatedStudent);
@@ -132,6 +196,7 @@ export default function StudentDetails() {
       alert("Failed to update student.");
     },
   });
+
   // Dynamic field configuration for the edit dialog
   const editFieldConfigs: FieldConfig[] = [
     {
@@ -225,15 +290,17 @@ export default function StudentDetails() {
       placeholder: "Enter password",
     },
   ];
+
   // Define the columns for the table
   const columns: ColumnDef<Student, CellContent>[] = [
-    {
+    showStudent && {
+      id: "studentName",
       header: "Student Name",
       accessorFn: (row) => ({
         type: "text",
         value: row.childName ?? "",
       }),
-      cell: (info) => info.getValue(),
+      cell: (info) => info.getValue().value,
       meta: { flex: 1, minWidth: 200, maxWidth: 300 },
     },
     {
@@ -242,7 +309,7 @@ export default function StudentDetails() {
         type: "text",
         value: row.className ?? "",
       }),
-      cell: (info) => info.getValue(),
+      cell: (info) => info.getValue().value,
       meta: { flex: 1, minWidth: 150, maxWidth: 300 },
     },
     {
@@ -251,7 +318,7 @@ export default function StudentDetails() {
         type: "text",
         value: row.deviceId?.routeNo ?? "",
       }),
-      cell: (info) => info.getValue(),
+      cell: (info) => info.getValue().value,
       meta: { flex: 1, minWidth: 150, maxWidth: 300 },
     },
     {
@@ -260,7 +327,7 @@ export default function StudentDetails() {
         type: "text",
         value: row.section ?? "",
       }),
-      cell: (info) => info.getValue(),
+      cell: (info) => info.getValue().value,
       meta: { flex: 1, minWidth: 150, maxWidth: 300 },
     },
     {
@@ -269,7 +336,7 @@ export default function StudentDetails() {
         type: "text",
         value: row.schoolId?.schoolName ?? "",
       }),
-      cell: (info) => info.getValue(),
+      cell: (info) => info.getValue().value,
       meta: { flex: 1, minWidth: 150, maxWidth: 300 },
     },
     {
@@ -278,7 +345,7 @@ export default function StudentDetails() {
         type: "text",
         value: row.branchId?.branchName ?? "",
       }),
-      cell: (info) => info.getValue(),
+      cell: (info) => info.getValue().value,
       meta: { flex: 1, minWidth: 150, maxWidth: 300 },
     },
     {
@@ -293,7 +360,7 @@ export default function StudentDetails() {
             })
           : "",
       }),
-      cell: (info) => info.getValue(),
+      cell: (info) => info.getValue().value,
       meta: { flex: 1, minWidth: 150, maxWidth: 300 },
     },
     {
@@ -302,7 +369,7 @@ export default function StudentDetails() {
         type: "text",
         value: row.age?.toString() ?? "",
       }),
-      cell: (info) => info.getValue(),
+      cell: (info) => info.getValue().value,
       meta: { flex: 1, minWidth: 100, maxWidth: 300 },
     },
     {
@@ -311,7 +378,7 @@ export default function StudentDetails() {
         type: "text",
         value: row.parentId?.parentName ?? "",
       }),
-      cell: (info) => info.getValue(),
+      cell: (info) => info.getValue().value,
       meta: { flex: 1, minWidth: 180, maxWidth: 300 },
     },
     {
@@ -320,7 +387,7 @@ export default function StudentDetails() {
         type: "text",
         value: row.parentId?.mobileNo ?? "",
       }),
-      cell: (info) => info.getValue(),
+      cell: (info) => info.getValue().value,
       meta: { flex: 1, minWidth: 180, maxWidth: 300 },
     },
     {
@@ -329,7 +396,7 @@ export default function StudentDetails() {
         type: "text",
         value: row.gender ?? "",
       }),
-      cell: (info) => info.getValue(),
+      cell: (info) => info.getValue().value,
       meta: { flex: 1, minWidth: 150, maxWidth: 300 },
     },
     {
@@ -338,7 +405,7 @@ export default function StudentDetails() {
         type: "text",
         value: row.deviceId?.name ?? "",
       }),
-      cell: (info) => info.getValue(),
+      cell: (info) => info.getValue().value,
       meta: { flex: 1, minWidth: 150, maxWidth: 300 },
     },
     {
@@ -347,7 +414,7 @@ export default function StudentDetails() {
         type: "text",
         value: row.geofenceId?.name ?? "",
       }),
-      cell: (info) => info.getValue(),
+      cell: (info) => info.getValue().value,
       meta: { flex: 1, minWidth: 180, maxWidth: 300 },
     },
     {
@@ -362,7 +429,7 @@ export default function StudentDetails() {
             })
           : "",
       }),
-      cell: (info) => info.getValue(),
+      cell: (info) => info.getValue().value,
       meta: { flex: 1, minWidth: 220, maxWidth: 300 },
     },
     {
@@ -371,7 +438,7 @@ export default function StudentDetails() {
         type: "text",
         value: row.parentId?.username ?? "",
       }),
-      cell: (info) => info.getValue(),
+      cell: (info) => info.getValue().value,
       meta: { flex: 1, minWidth: 150, maxWidth: 300 },
     },
     {
@@ -380,7 +447,7 @@ export default function StudentDetails() {
         type: "text",
         value: row.parentId?.password ?? "",
       }),
-      cell: (info) => info.getValue(),
+      cell: (info) => info.getValue().value,
       meta: { flex: 1, minWidth: 150, maxWidth: 300 },
     },
     {
@@ -401,16 +468,19 @@ export default function StudentDetails() {
           },
         ],
       }),
-      cell: (info) => info.getValue(),
+      cell: (info) => info.getValue().value,
       meta: { flex: 1.5, minWidth: 150, maxWidth: 200 },
       enableSorting: false,
     },
-  ];
+  ].filter(Boolean);
+
   // Handle edit action
   const handleEdit = useCallback((user: Student) => {
     setSelectedUser(user);
     setEditDialogOpen(true);
   }, []);
+
+  // Handle save action for edit student
   const handleSave = (updatedData: Partial<Student>) => {
     if (!selectedUser) return;
 
@@ -443,6 +513,8 @@ export default function StudentDetails() {
     // Optimistic update or API call
     updateStudentMutation.mutate(updatedStudent);
   };
+
+  // Handle form submission
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
@@ -474,10 +546,12 @@ export default function StudentDetails() {
     addStudentMutation.mutate(newStudent);
   };
 
-  const handleSearchResults = useCallback((results: Student[]) => {
-    setFilteredData(results);
-  }, []);
+  // Handle search
+  // const handleSearchResults = useCallback((results: Student[]) => {
+  //   setFilteredData(results);
+  // }, []);
 
+  // Handle date filter
   const handleDateFilter = useCallback(
     (start: Date | null, end: Date | null) => {
       if (!students || (!start && !end)) {
@@ -537,11 +611,7 @@ export default function StudentDetails() {
         ).values()
       )
     : [];
-  /////////////////////////////////////////////////////////
-  useEffect(() => {
-    console.log("selectedbusNumber:", busNumber);
-  }, [busNumber]);
-  //////////////////////////////////////////////////////
+
   if (isLoading) return <p className="p-4">Loading student details...</p>;
   if (isError)
     return (
@@ -553,10 +623,10 @@ export default function StudentDetails() {
   return (
     <main>
       <section>
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex space-x-4">
+        <section className="flex items-center justify-between mb-4">
+          <section className="flex space-x-4">
             {/* Search component */}
-            <SearchComponent
+            {/* <SearchComponent
               data={filterResults}
               displayKey={[
                 "childName",
@@ -572,10 +642,11 @@ export default function StudentDetails() {
               ]}
               onResults={handleSearchResults}
               className="w-[300px] mb-4"
-            />
+            /> */}
+            <p>Add column selector</p>
             {/* Date range picker */}
             <DateRangeFilter onDateRangeChange={handleDateFilter} />
-          </div>
+          </section>
           {/* Add student button */}
           <Dialog>
             <DialogTrigger asChild>
@@ -775,20 +846,50 @@ export default function StudentDetails() {
               </form>
             </DialogContent>
           </Dialog>
-        </div>
+        </section>
       </section>
 
-      <section>
-        {/* Table component */}
-        <CustomTable
+      {/* Table component */}
+      <section className="mb-4">
+        <CustomTableServerSidePagination
           data={filteredData || []}
           columns={columns}
-          pageSizeArray={[10, 20, 50]}
-          showFilters={true}
-          tableClass="bg-white rounded shadow"
+          pagination={pagination}
+          totalCount={students?.total || 0}
+          loading={isLoading}
+          onPaginationChange={setPagination}
+          onSortingChange={setSorting}
+          sorting={sorting}
+          emptyMessage="No students found"
+          pageSizeOptions={[5, 10, 20, 30, 50]}
         />
       </section>
-      {/* Delete student modal */}
+
+      {/* Floating action menu */}
+      <FloatingMenu
+        onExportPdf={() => {
+          console.log("Export PDF triggered"); // ✅ Add this for debugging
+          exportToPDF(filteredData, columnsForExport, {
+            title: "Student Report",
+            companyName: "Parents Eye",
+            metadata: {
+              Total: `${filteredData.length} students`,
+            },
+          });
+        }}
+        onExportExcel={() => {
+          console.log("Export Excel triggered"); // ✅ Add this too
+          exportToExcel(filteredData, columnsForExport, {
+            title: "Student Report",
+            companyName: "Parents Eye",
+            metadata: {
+              Total: `${filteredData.length} students`,
+            },
+          });
+        }}
+      />
+
+      {/* Delete student alert box */}
       {selectedStudent && (
         <AlertDialog
           open={!!selectedStudent}

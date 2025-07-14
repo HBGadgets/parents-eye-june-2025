@@ -52,15 +52,17 @@ const renderCellContent = (content: any): React.ReactNode => {
         return content.icon;
       case "button":
         return (
-          <Button size="sm" onClick={content.onClick}>
-            {content.label}
-          </Button>
+          <div className="flex justify-center items-center w-full">
+            <Button size="sm" onClick={content.onClick}>
+              {content.label}
+            </Button>
+          </div>
         );
       case "custom":
         return content.render();
       case "group":
         return (
-          <div className="flex flex-row items-center gap-1 flex-nowrap">
+          <div className="flex flex-row justify-center items-center gap-1 w-full">
             {content.items.map((item: any, idx: number) => (
               <div key={idx} className="flex-shrink-0">
                 {renderCellContent(item)}

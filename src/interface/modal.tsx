@@ -1,4 +1,7 @@
 export interface Student {
+  total: number;
+  page: number;
+  limit: number;
   _id: string;
   childName: string;
   className: string;
