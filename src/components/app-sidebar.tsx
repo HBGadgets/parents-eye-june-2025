@@ -124,7 +124,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   // Optional reset loader after short delay (or use router events)
   React.useEffect(() => {
     if (isRouting) {
-      const timer = setTimeout(() => setIsRouting(false), 1000);
+      const timer = setTimeout(() => setIsRouting(false), 300);
       return () => clearTimeout(timer);
     }
   }, [isRouting]);
