@@ -55,6 +55,9 @@ export default function SchoolMaster() {
     },
   });
 
+  const cachedSchools = queryClient.getQueryData<School[]>(["schools"]);
+  console.log("Cached Schools:", cachedSchools);
+
   useEffect(() => {
     if (schools && schools.length > 0) {
       setFilteredData(schools);
@@ -193,11 +196,31 @@ export default function SchoolMaster() {
 
   // Mutation for edit school data
   const updateSchoolMutation = useMutation({
-    mutationFn: async (updatedFields: Partial<School> & { _id: string }) => {
-      return await api.put(`/school/${updatedFields._id}`, updatedFields);
+    mutationFn: async ({
+      schoolId,
+      data,
+    }: {
+      schoolId: string;
+      data: Partial<School>;
+    }) => {
+      return await api.put(`/school/${schoolId}`, data); // Payload is just the edited fields
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["schools"] });
+    onSuccess: (_, { schoolId, data }) => {
+      queryClient.setQueryData<School[]>(["schools"], (oldData) => {
+        if (!oldData) return [];
+
+        return oldData.map((school) =>
+          school._id === schoolId ? { ...school, ...data } : school
+        );
+      });
+
+      // Update filteredData manually to reflect changes in UI
+      setFilteredData((prev) =>
+        prev.map((school) =>
+          school._id === schoolId ? { ...school, ...data } : school
+        )
+      );
+
       setEditDialogOpen(false);
       setEditTarget(null);
     },
@@ -212,8 +235,10 @@ export default function SchoolMaster() {
     mutationFn: async (schoolId: string) => {
       return await api.delete(`/school/${schoolId}`);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["schools"] });
+    onSuccess: (_, deletedId) => {
+      queryClient.setQueryData<School[]>(["schools"], (oldData) =>
+        oldData?.filter((school) => school._id !== deletedId)
+      );
     },
     onError: (err) => {
       console.error(err);
@@ -230,27 +255,27 @@ export default function SchoolMaster() {
   const handleSave = (updatedData: Partial<School>) => {
     if (!editTarget) return;
 
-    const changedFields: Partial<School> = {};
+    const changedFields: Partial<Record<keyof School, unknown>> = {};
 
     for (const key in updatedData) {
       const newValue = updatedData[key as keyof School];
       const oldValue = editTarget[key as keyof School];
 
-      // Only include keys where value has actually changed
+      // Only include keys that have changed
       if (newValue !== undefined && newValue !== oldValue) {
         changedFields[key as keyof School] = newValue;
       }
     }
 
     if (Object.keys(changedFields).length === 0) {
-      console.log("No changes detected");
+      console.log("No changes detected.");
       return;
     }
 
-    // Only send _id + changed fields
+    // Pass _id separately to the mutation, not in the payload
     updateSchoolMutation.mutate({
-      _id: editTarget._id,
-      ...changedFields,
+      schoolId: editTarget._id,
+      data: changedFields,
     });
   };
 
