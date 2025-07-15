@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import {
@@ -8,7 +9,6 @@ import {
   SidebarMenuItem,
 } from "./ui/sidebar";
 import { Search } from "lucide-react";
-import Link from "next/link";
 
 type DataItem = Record<string, any> | string | number;
 
@@ -17,6 +17,7 @@ interface SearchComponentProps {
   placeholder?: string;
   displayKey?: string | string[];
   debounceDelay?: number;
+  onSelect?: (item: DataItem) => void;
 }
 
 const SearchComponent: React.FC<SearchComponentProps> = ({
@@ -24,6 +25,7 @@ const SearchComponent: React.FC<SearchComponentProps> = ({
   placeholder = "Search...",
   displayKey = "name",
   debounceDelay = 300,
+  onSelect,
 }) => {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<DataItem[]>(data);
@@ -60,13 +62,13 @@ const SearchComponent: React.FC<SearchComponentProps> = ({
         );
       }
     }, debounceDelay);
+
     return () => clearTimeout(debounce);
   }, [query, data, displayKey, debounceDelay]);
 
   return (
     <div className="w-full max-w-md mx-auto mt-8">
       <Input
-        
         type="text"
         placeholder={placeholder}
         icon={<Search className="w-4 h-4" />}
@@ -75,8 +77,8 @@ const SearchComponent: React.FC<SearchComponentProps> = ({
         className="bg-[#ffdc00]"
       />
 
-      <SidebarContent >
-        <SidebarGroup >
+      <SidebarContent>
+        <SidebarGroup>
           <SidebarMenu className="h-full overflow-y-auto bg-primary">
             {results.length === 0 ? (
               <div className="p-4 text-gray-500 text-center">
@@ -102,7 +104,12 @@ const SearchComponent: React.FC<SearchComponentProps> = ({
                   <SidebarMenuItem key={displayText + idx}>
                     <SidebarMenuButton asChild>
                       {url ? (
-                        <Link href={url}>{displayText}</Link>
+                        <button
+                          onClick={() => onSelect?.(item)}
+                          className="w-full text-left"
+                        >
+                          {displayText}
+                        </button>
                       ) : (
                         <span>{displayText}</span>
                       )}
