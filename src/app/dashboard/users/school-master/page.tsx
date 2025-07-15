@@ -2,16 +2,6 @@
 
 import React, { useCallback, useEffect, useState } from "react";
 import {
-  AlertDialog,
-  AlertDialogContent,
-  AlertDialogHeader,
-  AlertDialogFooter,
-  AlertDialogCancel,
-  AlertDialogAction,
-  AlertDialogTitle,
-  AlertDialogDescription,
-} from "@/components/ui/alert-dialog";
-import {
   Dialog,
   DialogClose,
   DialogContent,
@@ -33,21 +23,23 @@ import { FloatingMenu } from "@/components/floatingMenu";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/services/apiService";
-import { useSchoolData } from "@/hooks/useSchoolData";
-import { useBranchData } from "@/hooks/useBranchData";
-import { useDeviceData } from "@/hooks/useDeviceData";
-import { useGeofenceData } from "@/hooks/useGeofenceData";
 import { School } from "@/interface/modal";
 import { useExport } from "@/hooks/useExport";
+import { Alert } from "@/components/Alert";
+type SchoolAccess = {
+  _id: string;
+  schoolName: string;
+  fullAccess: boolean;
+};
 
 export default function SchoolMaster() {
   const queryClient = useQueryClient();
   const [filteredData, setFilteredData] = useState<School[]>([]);
   const [filterResults, setFilterResults] = useState<School[]>([]);
-  const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [accessTarget, setAccessTarget] = useState<School | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<School | null>(null);
-  const [editTarget, setEditTarget] = useState<School | null>(null); // Optional
+  const [editTarget, setEditTarget] = useState<School | null>(null);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
 
   // Fetch school data
   const {
@@ -135,7 +127,10 @@ export default function SchoolMaster() {
           {
             type: "button",
             label: "Edit",
-            onClick: () => setEditTarget(row),
+            onClick: () => {
+              setEditTarget(row);
+              setEditDialogOpen(true);
+            },
             disabled: accessMutation.isPending,
           },
           {
@@ -149,6 +144,34 @@ export default function SchoolMaster() {
       cell: (info) => info.getValue(),
       meta: { flex: 1.5, minWidth: 150, maxWidth: 200 },
       enableSorting: false,
+    },
+  ];
+
+  // Define the fields for the edit dialog
+  const schoolFieldConfigs: FieldConfig[] = [
+    {
+      label: "School Name",
+      key: "schoolName",
+      type: "text",
+      required: true,
+    },
+    {
+      label: "Mobile Number",
+      key: "schoolMobile",
+      type: "text",
+      required: true,
+    },
+    {
+      label: "Username",
+      key: "username",
+      type: "text",
+      required: true,
+    },
+    {
+      label: "Password",
+      key: "password",
+      type: "text",
+      required: true,
     },
   ];
 
@@ -170,17 +193,17 @@ export default function SchoolMaster() {
 
   // Mutation for edit school data
   const updateSchoolMutation = useMutation({
-    mutationFn: async (updatedSchool: School) => {
-      return await api.put(`/school/${updatedSchool._id}`, updatedSchool);
+    mutationFn: async (updatedFields: Partial<School> & { _id: string }) => {
+      return await api.put(`/school/${updatedFields._id}`, updatedFields);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["schools"] });
       setEditDialogOpen(false);
-      setSelectedSchool(null);
+      setEditTarget(null);
     },
     onError: (err) => {
       console.error(err);
-      alert("Failed to update student.");
+      alert("Failed to update school.");
     },
   });
 
@@ -204,16 +227,32 @@ export default function SchoolMaster() {
   }, []);
 
   // Handle save action for edit school
-  // const handleSave = (updatedData: Partial<School>) => {
-  //   if (!selectedSchool) return;
+  const handleSave = (updatedData: Partial<School>) => {
+    if (!editTarget) return;
 
-  //   const updateSchool: School = {
-  //     ...selectedSchool,
-  //     ...updatedData,
+    const changedFields: Partial<School> = {};
 
-  //   };
-  //   }
-  // };
+    for (const key in updatedData) {
+      const newValue = updatedData[key as keyof School];
+      const oldValue = editTarget[key as keyof School];
+
+      // Only include keys where value has actually changed
+      if (newValue !== undefined && newValue !== oldValue) {
+        changedFields[key as keyof School] = newValue;
+      }
+    }
+
+    if (Object.keys(changedFields).length === 0) {
+      console.log("No changes detected");
+      return;
+    }
+
+    // Only send _id + changed fields
+    updateSchoolMutation.mutate({
+      _id: editTarget._id,
+      ...changedFields,
+    });
+  };
 
   return (
     <main>
@@ -233,8 +272,8 @@ export default function SchoolMaster() {
           </section>
         </section>
       </section>
+      {/* Table component */}
       <section className="mb-4">
-        {/* Table component */}
         <CustomTable
           data={filteredData || []}
           columns={columns}
@@ -247,67 +286,59 @@ export default function SchoolMaster() {
       <section>
         {/* Access controll alert box*/}
         <div>
-          <AlertDialog
-            open={!!accessTarget}
-            onOpenChange={() => setAccessTarget(null)}
-          >
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  You are about to give {accessTarget?.schoolName}{" "}
-                  {accessTarget?.fullAccess ? "limited" : "full"} access.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction
-                  onClick={() => {
-                    if (accessTarget) {
-                      accessMutation.mutate({
-                        _id: accessTarget._id,
-                        fullAccess: !accessTarget.fullAccess,
-                      });
-                    }
-                    setAccessTarget(null);
-                  }}
-                >
-                  Confirm
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+          <Alert<SchoolAccess>
+            title="Are you absolutely sure?"
+            description={`You are about to give ${accessTarget?.schoolName} ${
+              accessTarget?.fullAccess ? "limited" : "full"
+            } access.`}
+            actionButton={(target) => {
+              accessMutation.mutate({
+                _id: target._id,
+                fullAccess: !target.fullAccess,
+              });
+            }}
+            target={accessTarget}
+            setTarget={setAccessTarget}
+            butttonText="Confirm"
+          />
         </div>
         {/* Delete school alert box */}
         <div>
           {deleteTarget && (
-            <AlertDialog
-              open={!!deleteTarget}
-              onOpenChange={() => setDeleteTarget(null)}
-            >
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    This will permanently delete {deleteTarget?.schoolName} and
-                    all associated data.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction
-                    onClick={() => {
-                      deleteSchoolMutation.mutate(deleteTarget._id);
-                      setDeleteTarget(null);
-                    }}
-                  >
-                    Delete
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
+            <Alert<School>
+              title="Are you absolutely sure?"
+              description={`This will permanently delete ${deleteTarget?.schoolName} and all associated data.`}
+              actionButton={(target) => {
+                deleteSchoolMutation.mutate(target._id);
+                setDeleteTarget(null);
+              }}
+              target={deleteTarget}
+              setTarget={setDeleteTarget}
+              butttonText="Delete"
+            />
           )}
         </div>
+      </section>
+      <section>
+        {/* Edit Dialog */}
+        {editTarget && (
+          <DynamicEditDialog
+            data={editTarget}
+            isOpen={editDialogOpen}
+            onClose={() => {
+              setEditDialogOpen(false);
+              setEditTarget(null);
+            }}
+            onSave={handleSave}
+            fields={schoolFieldConfigs}
+            title="Edit School"
+            description="Update the school information below. Fields marked with * are required."
+            avatarConfig={{
+              imageKey: "logo", // change to your actual image key if any
+              nameKeys: ["schoolName"],
+            }}
+          />
+        )}
       </section>
     </main>
   );
