@@ -3,6 +3,7 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { Navbar } from "@/components/navbar";
 import { Breadcrumb } from "@/components/ui/breadcrumb";
 import { Separator } from "@/components/ui/separator";
+import RouteTransitionWrapper from "@/components/RouteTransitionWrapper";
 import {
   SidebarInset,
   SidebarProvider,
@@ -33,7 +34,10 @@ export default function DashboardLayout({
             <Navbar />
           </div>
         </header>
-        <main className="pt-4 px-4 overflow-hidden flex-1">{children}</main>
+        
+        <main className="pt-4 px-4 overflow-hidden flex-1"><RouteTransitionWrapper>
+            {children}
+          </RouteTransitionWrapper></main>
       </SidebarInset>
     </SidebarProvider>
   );
