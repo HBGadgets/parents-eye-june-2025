@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from "react";
@@ -19,11 +20,11 @@ import RouteLoader from "@/components/RouteLoader";
 type UserRole = "superAdmin" | "school" | "branchGroup" | "branch" | null;
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
-  const [userRole, setUserRvigationStore((state) => state.activeSection);
+  const [userRole, setUserRole] = React.useState<UserRole>(null);
+  const activeSection = useNavigationStore((state) => state.activeSection);
   const [userInfo, setUserInfo] = React.useState<string>("");
   const [isRouting, setIsRouting] = React.useState(false); // Loader flag
-  const router = useRouter();ole] = React.useState<UserRole>(null);
-  const activeSection = useNa
+  const router = useRouter();
 
   React.useEffect(() => {
     const token = Cookies.get("token");
