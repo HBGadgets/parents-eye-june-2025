@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState, useRef } from "react";
 import {
   Dialog,
   DialogClose,
@@ -34,6 +34,7 @@ type SchoolAccess = {
 
 export default function SchoolMaster() {
   const queryClient = useQueryClient();
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
   const [filteredData, setFilteredData] = useState<School[]>([]);
   const [filterResults, setFilterResults] = useState<School[]>([]);
   const [accessTarget, setAccessTarget] = useState<School | null>(null);
@@ -54,9 +55,6 @@ export default function SchoolMaster() {
       return res;
     },
   });
-
-  const cachedSchools = queryClient.getQueryData<School[]>(["schools"]);
-  console.log("Cached Schools:", cachedSchools);
 
   useEffect(() => {
     if (schools && schools.length > 0) {
@@ -178,19 +176,43 @@ export default function SchoolMaster() {
     },
   ];
 
-  // Mutation for Access access
-  const accessMutation = useMutation({
-    mutationFn: async (school: { _id: string; fullAccess: boolean }) => {
-      return await api.put(`/school/accessgrant/${school?._id}`, {
-        fullAccess: school?.fullAccess,
-      });
+  // Mutation to add a new school
+  const addSchoolMutation = useMutation({
+    mutationFn: async (newSchool: any) => {
+      const school = await api.post("/school", newSchool);
+      console.log("school", school.school);
+      return school.school; // not res.data.school
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["schools"] });
+    onSuccess: (createdSchool) => {
+      queryClient.setQueryData<School[]>(["schools"], (oldSchools = []) => {
+        return [...oldSchools, createdSchool];
+      });
+      alert("School added successfully.");
     },
     onError: (err) => {
-      console.error(err);
-      alert("Failed to update student.");
+      alert("Failed to add school.\nerror: " + err);
+    },
+  });
+
+  // Mutation for Access control
+  const accessMutation = useMutation({
+    mutationFn: async (school: { _id: string; fullAccess: boolean }) => {
+      return await api.put(`/school/accessgrant/${school._id}`, {
+        fullAccess: school.fullAccess,
+      });
+    },
+    onSuccess: (updated, variables) => {
+      queryClient.setQueryData<School[]>(["schools"], (oldData) =>
+        oldData?.map((school) =>
+          school._id === variables._id
+            ? { ...school, fullAccess: variables.fullAccess }
+            : school
+        )
+      );
+      alert("Access updated successfully.");
+    },
+    onError: (err) => {
+      alert("Failed to update access.\nerror: " + err);
     },
   });
 
@@ -223,10 +245,10 @@ export default function SchoolMaster() {
 
       setEditDialogOpen(false);
       setEditTarget(null);
+      alert("School updated successfully.");
     },
     onError: (err) => {
-      console.error(err);
-      alert("Failed to update school.");
+      alert("Failed to update school.\nerror: " + err);
     },
   });
 
@@ -239,10 +261,10 @@ export default function SchoolMaster() {
       queryClient.setQueryData<School[]>(["schools"], (oldData) =>
         oldData?.filter((school) => school._id !== deletedId)
       );
+      alert("School deleted successfully.");
     },
     onError: (err) => {
-      console.error(err);
-      alert("Failed to delete student.");
+      alert("Failed to delete student.\nerror: " + err);
     },
   });
 
@@ -279,6 +301,28 @@ export default function SchoolMaster() {
     });
   };
 
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const form = e.currentTarget;
+    const data = {
+      schoolName: form.schoolName.value,
+      username: form.username.value,
+      password: form.password.value,
+      email: form.email.value,
+      schoolMobile: form.schoolMobile.value,
+      fullAccess: form.fullAccess.checked,
+    };
+
+    try {
+      await addSchoolMutation.mutateAsync(data);
+      closeButtonRef.current?.click();
+      form.reset();
+      alert("School added successfully.");
+    } catch (err) {
+      alert("Failed to add school.\nerror: " + err);
+    }
+  };
+
   return (
     <main>
       <section>
@@ -294,6 +338,112 @@ export default function SchoolMaster() {
             {/* <p>Add column selector</p> */}
             {/* Date range picker */}
             {/* <DateRangeFilter onDateRangeChange={handleDateFilter} /> */}
+
+            {/* Add School */}
+            {/* <section> */}
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button variant="default">Add School</Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[600px]">
+                <form onSubmit={handleSubmit} className="space-y-4">
+                  <DialogHeader>
+                    <DialogTitle>Add School</DialogTitle>
+                  </DialogHeader>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* School Name */}
+                    <div className="grid gap-2">
+                      <Label htmlFor="schoolName">School Name</Label>
+                      <Input
+                        id="schoolName"
+                        name="schoolName"
+                        placeholder="Enter school name"
+                        required
+                      />
+                    </div>
+
+                    {/* Email */}
+                    <div className="grid gap-2">
+                      <Label htmlFor="email">Email</Label>
+                      <Input
+                        id="email"
+                        name="email"
+                        type="email"
+                        placeholder="Enter email address"
+                        required
+                      />
+                    </div>
+
+                    {/* Mobile */}
+                    <div className="grid gap-2">
+                      <Label htmlFor="schoolMobile">Mobile No</Label>
+                      <Input
+                        id="schoolMobile"
+                        name="schoolMobile"
+                        type="tel"
+                        placeholder="Enter school mobile number"
+                        pattern="[0-9]{10}"
+                        maxLength={10}
+                        autoComplete="tel"
+                        required
+                      />
+                    </div>
+
+                    {/* Username */}
+                    <div className="grid gap-2">
+                      <Label htmlFor="username">Username</Label>
+                      <Input
+                        id="username"
+                        name="username"
+                        type="text"
+                        placeholder="Enter username"
+                        required
+                      />
+                    </div>
+
+                    {/* Password */}
+                    <div className="grid gap-2">
+                      <Label htmlFor="password">Password</Label>
+                      <Input
+                        id="password"
+                        name="password"
+                        type="text"
+                        placeholder="Enter password"
+                        required
+                      />
+                    </div>
+
+                    {/* Full Access Toggle */}
+                    <div className="flex items-center gap-3 mt-6">
+                      <input
+                        type="checkbox"
+                        id="fullAccess"
+                        name="fullAccess"
+                        className="h-5 w-5"
+                      />
+                      <Label htmlFor="fullAccess">Full Access</Label>
+                    </div>
+                  </div>
+
+                  <DialogFooter>
+                    <DialogClose asChild>
+                      <Button ref={closeButtonRef} variant="outline">
+                        Cancel
+                      </Button>
+                    </DialogClose>
+                    <Button
+                      type="submit"
+                      disabled={addSchoolMutation.isPending}
+                    >
+                      {addSchoolMutation.isPending
+                        ? "Saving..."
+                        : "Save School"}
+                    </Button>
+                  </DialogFooter>
+                </form>
+              </DialogContent>
+            </Dialog>
+            {/* </section> */}
           </section>
         </section>
       </section>

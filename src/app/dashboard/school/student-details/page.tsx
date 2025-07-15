@@ -541,7 +541,6 @@ export default function StudentDetails() {
       branchId: branch, // should be ID
       // statusOfRegister: "registered",
     };
-    console.log("Form Data:", newStudent);
 
     addStudentMutation.mutate(newStudent);
   };
