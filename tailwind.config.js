@@ -43,6 +43,24 @@ module.exports = {
         lg: "var(--radius-lg)",
         xl: "var(--radius-xl)",
       },
+      keyframes: {
+        stepProgress: {
+          '0%': { width: '10%' },
+          '10%': { width: '20%' },
+          '20%': { width: '30%' },
+          '30%': { width: '40%' },
+          '40%': { width: '50%' },
+          '50%': { width: '60%' },
+          '60%': { width: '70%' },
+          '70%': { width: '80%' },
+          '80%': { width: '90%' },
+          '100%': { width: '100%' },
+        },
+      },
+     animation: {
+        stepProgress: 'stepProgress 2.5s ease-in-out forwards',
+},
+
     },
   },
   plugins: [require("tailwindcss-animate")],

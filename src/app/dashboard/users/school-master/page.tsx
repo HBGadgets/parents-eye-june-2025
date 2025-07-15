@@ -26,6 +26,7 @@ import { api } from "@/services/apiService";
 import { School } from "@/interface/modal";
 import { useExport } from "@/hooks/useExport";
 import { Alert } from "@/components/Alert";
+import ResponseLoader from "@/components/ResponseLoader";
 type SchoolAccess = {
   _id: string;
   schoolName: string;
@@ -448,6 +449,18 @@ export default function SchoolMaster() {
         </section>
       </section>
       {/* Table component */}
+      {/* <section className="mb-4">
+        <CustomTable
+          data={filteredData || []}
+          columns={columns}
+          pageSizeArray={[10, 20, 50]}
+          showFilters={true}
+          tableClass="bg-white rounded shadow"
+        />
+      </section> */}
+        {isLoading ? (
+      <ResponseLoader />
+    ) : (
       <section className="mb-4">
         <CustomTable
           data={filteredData || []}
@@ -457,6 +470,7 @@ export default function SchoolMaster() {
           tableClass="bg-white rounded shadow"
         />
       </section>
+    )}
       {/* Alert Boxes */}
       <section>
         {/* Access controll alert box*/}
