@@ -13,12 +13,13 @@ import {
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { CustomArrowUpDown } from "@/components/ui/customarrowupdown";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import TablePagination from "@/components/ui/TablePagination";
 
 export type CellContent =
   | { type: "text"; value: string }
   | { type: "icon"; icon: React.ReactNode }
-  | { type: "button"; label: string; onClick: () => void }
+  | { type: "button"; label: string; onClick: () => void; className?: string }
   | { type: "custom"; render: () => React.ReactNode }
   | { type: "group"; items: CellContent[] };
 
@@ -31,6 +32,7 @@ interface CustomTableProps<TData extends RowData> {
   rowHeight?: number;
   showSerialNumber?: boolean;
   noDataMessage?: string;
+  isLoading?: boolean;
 }
 
 const renderCellContent = (content: any): React.ReactNode => {
@@ -53,7 +55,11 @@ const renderCellContent = (content: any): React.ReactNode => {
       case "button":
         return (
           <div className="flex justify-center items-center w-full">
-            <Button size="sm" onClick={content.onClick}>
+            <Button
+              size="sm"
+              onClick={content.onClick}
+              className={content.className || ""}
+            >
               {content.label}
             </Button>
           </div>
@@ -88,6 +94,7 @@ export function CustomTable<TData extends RowData>({
   rowHeight = 48,
   showSerialNumber = true,
   noDataMessage = "No data available",
+  isLoading = false,
 }: CustomTableProps<TData>) {
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
@@ -288,7 +295,16 @@ export function CustomTable<TData extends RowData>({
             </div>
 
             {/* Body */}
-            {finalData.length === 0 ? (
+            {isLoading ? (
+              <div className="flex flex-col gap-2 px-4 py-4">
+                {[...Array(6)].map((_, i) => (
+                  <div key={i} className="flex gap-4 items-center">
+                    <Skeleton className="h-6 w-10 flex-shrink-0" />
+                    <Skeleton className="h-6 w-full" />
+                  </div>
+                ))}
+              </div>
+            ) : finalData.length === 0 ? (
               <div className="flex items-center justify-center h-full min-h-[100px]">
                 <div className="text-center text-muted-foreground">
                   <div className="text-lg font-medium mb-2">
@@ -307,11 +323,7 @@ export function CustomTable<TData extends RowData>({
                   return (
                     <div
                       key={row.id}
-                      className={
-                        shouldExpand
-                          ? "flex border-b hover:bg-muted/50"
-                          : "flex border-b hover:bg-muted/50"
-                      }
+                      className="flex border-b hover:bg-muted/50"
                       style={{ height: vr.size + "px" }}
                     >
                       {row.getVisibleCells().map((cell) => (
