@@ -324,24 +324,44 @@ export default function SchoolMaster() {
     }
   };
 
+  const handleDateFilter = useCallback(
+    (start: Date | null, end: Date | null) => {
+      if (!schools || (!start && !end)) {
+        setFilteredData(schools || []);
+        return;
+      }
+
+      const filtered = schools.filter((school) => {
+        if (!school.createdAt) return false;
+
+        const createdDate = new Date(school.createdAt);
+        return (!start || createdDate >= start) && (!end || createdDate <= end);
+      });
+
+      setFilteredData(filtered);
+    },
+    [schools]
+  );
+
   return (
     <main>
       <section>
         <section className="flex items-center justify-between mb-4">
+          {/* Search component */}
           <section className="flex space-x-4">
-            {/* Search component */}
             <SearchComponent
               data={filterResults}
               displayKey={["schoolName", "username", "email", "schoolMobile"]}
               onResults={handleSearchResults}
               className="w-[300px] mb-4"
             />
-            {/* <p>Add column selector</p> */}
             {/* Date range picker */}
-            {/* <DateRangeFilter onDateRangeChange={handleDateFilter} /> */}
+            <DateRangeFilter onDateRangeChange={handleDateFilter} />
+          </section>
+          {/* <p>Add column selector</p> */}
 
-            {/* Add School */}
-            {/* <section> */}
+          {/* Add School */}
+          <section>
             <Dialog>
               <DialogTrigger asChild>
                 <Button variant="default">Add School</Button>
@@ -444,23 +464,10 @@ export default function SchoolMaster() {
                 </form>
               </DialogContent>
             </Dialog>
-            {/* </section> */}
           </section>
         </section>
       </section>
       {/* Table component */}
-      {/* <section className="mb-4">
-        <CustomTable
-          data={filteredData || []}
-          columns={columns}
-          pageSizeArray={[10, 20, 50]}
-          showFilters={true}
-          tableClass="bg-white rounded shadow"
-        />
-      </section> */}
-        {isLoading ? (
-      <ResponseLoader />
-    ) : (
       <section className="mb-4">
         <CustomTable
           data={filteredData || []}
@@ -470,7 +477,19 @@ export default function SchoolMaster() {
           tableClass="bg-white rounded shadow"
         />
       </section>
-    )}
+      {/* {isLoading ? (
+        <ResponseLoader />
+      ) : (
+        <section className="mb-4">
+          <CustomTable
+            data={filteredData || []}
+            columns={columns}
+            pageSizeArray={[10, 20, 50]}
+            showFilters={true}
+            tableClass="bg-white rounded shadow"
+          />
+        </section>
+      )} */}
       {/* Alert Boxes */}
       <section>
         {/* Access controll alert box*/}
