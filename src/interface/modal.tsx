@@ -119,3 +119,18 @@ export interface Parent {
   contactNo: string;
   role: string;
 }
+
+export interface Driver {
+  isApproved: boolean;
+  _id: string;
+  driverName: string;
+  username: string;
+  password: string;
+  email: string;
+  driverMobile: string;
+  schoolId: string | null;
+  branchId: string | null;
+  role: string;
+  createdAt: string;
+  updatedAt: string;
+}
