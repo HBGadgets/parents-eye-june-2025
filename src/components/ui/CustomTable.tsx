@@ -299,8 +299,10 @@ export function CustomTable<TData extends RowData>({
               <div className="flex flex-col gap-2 px-4 py-4">
                 {[...Array(6)].map((_, i) => (
                   <div key={i} className="flex gap-4 items-center">
-                    <Skeleton className="h-6 w-10 flex-shrink-0" />
-                    <Skeleton className="h-6 w-full" />
+                    <Skeleton key={i} className="h-6 w-16 flex-shrink-0" />
+                    {columns.map((_, i) => (
+                      <Skeleton key={i} className="h-6 w-full" />
+                    ))}
                   </div>
                 ))}
               </div>
