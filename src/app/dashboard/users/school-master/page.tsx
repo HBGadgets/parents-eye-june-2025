@@ -111,10 +111,13 @@ export default function SchoolMaster() {
           {
             type: "button",
             label: row.fullAccess
-              ? `Grant Limited Access`
-              : ` Grant Full Access`,
+              ? "Grant Limited Access"
+              : "Grant Full Access",
             onClick: () => setAccessTarget(row),
             disabled: accessMutation.isPending,
+            className: `bg-yellow-400 hover:bg-yellow-500 font-semibold rounded-full px-4 py-2 ${
+              row.fullAccess ? "text-red-600" : "text-emerald-600"
+            }`,
           },
         ],
       }),
@@ -469,21 +472,10 @@ export default function SchoolMaster() {
           pageSizeArray={[10, 20, 50]}
           showFilters={true}
           tableClass="bg-white rounded shadow"
+          isLoading={isLoading}
         />
       </section>
-      {/* {isLoading ? (
-        <ResponseLoader />
-      ) : (
-        <section className="mb-4">
-          <CustomTable
-            data={filteredData || []}
-            columns={columns}
-            pageSizeArray={[10, 20, 50]}
-            showFilters={true}
-            tableClass="bg-white rounded shadow"
-          />
-        </section>
-      )} */}
+
       {/* Alert Boxes */}
       <section>
         <div>
