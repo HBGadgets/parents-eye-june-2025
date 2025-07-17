@@ -48,6 +48,7 @@ export interface School {
   schoolMobile: string;
   fullAccess: boolean;
   role: string;
+  createdAt: string;
 }
 
 export interface Branch {

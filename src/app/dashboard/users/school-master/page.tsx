@@ -16,8 +16,6 @@ import SearchComponent from "@/components/ui/SearchOnlydata";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { DatePicker } from "@/components/ui/datePicker";
-import { SearchableSelect } from "@/components/custom-select";
 import DateRangeFilter from "@/components/ui/DateRangeFilter";
 import { FloatingMenu } from "@/components/floatingMenu";
 import type { ColumnDef } from "@tanstack/react-table";
@@ -25,6 +23,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/services/apiService";
 import { School } from "@/interface/modal";
 import { useExport } from "@/hooks/useExport";
+import { formatDate } from "@/util/formatDate";
 import { Alert } from "@/components/Alert";
 import ResponseLoader from "@/components/ResponseLoader";
 
@@ -43,6 +42,7 @@ export default function SchoolMaster() {
   const [deleteTarget, setDeleteTarget] = useState<School | null>(null);
   const [editTarget, setEditTarget] = useState<School | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const { exportToPDF, exportToExcel } = useExport();
 
   // Fetch school data
   const {
@@ -104,6 +104,15 @@ export default function SchoolMaster() {
       meta: { flex: 1, minWidth: 150, maxWidth: 300 },
     },
     {
+      header: "Registration Date",
+      accessorFn: (row) => ({
+        type: "text",
+        value: formatDate(row.createdAt) ?? "",
+      }),
+      cell: (info) => info.getValue(),
+      meta: { flex: 1, minWidth: 150, maxWidth: 300 },
+    },
+    {
       header: "Access",
       accessorFn: (row) => ({
         type: "group",
@@ -115,7 +124,7 @@ export default function SchoolMaster() {
               : "Grant Full Access",
             onClick: () => setAccessTarget(row),
             disabled: accessMutation.isPending,
-            className: `bg-yellow-400 hover:bg-yellow-500 font-semibold rounded-full px-4 py-2 ${
+            className: `w-38 text-center text-xs bg-yellow-400 hover:bg-yellow-500 font-semibold rounded-full px-4 py-2 ${
               row.fullAccess ? "text-red-600" : "text-emerald-600"
             }`,
           },
@@ -150,6 +159,19 @@ export default function SchoolMaster() {
       cell: (info) => info.getValue(),
       meta: { flex: 1.5, minWidth: 150, maxWidth: 200 },
       enableSorting: false,
+    },
+  ];
+
+  // columns for export
+  const columnsForExport = [
+    { key: "schoolName", header: "School Name" },
+    { key: "schoolMobile", header: "Mobile" },
+    { key: "username", header: "School Username" },
+    { key: "password", header: "School Password" },
+    {
+      key: "fullAccess",
+      header: "Access Level",
+      formatter: (val: boolean) => (val ? "Full Access" : "Limited Access"),
     },
   ];
 
@@ -512,7 +534,7 @@ export default function SchoolMaster() {
           )}
         </div>
       </section>
-
+      {/* Edit Dialog */}
       <section>
         {editTarget && (
           <DynamicEditDialog
@@ -532,6 +554,31 @@ export default function SchoolMaster() {
             }}
           />
         )}
+      </section>
+      {/* Floating Menu */}
+      <section>
+        <FloatingMenu
+          onExportPdf={() => {
+            console.log("Export PDF triggered"); // ✅ Add this for debugging
+            exportToPDF(filteredData, columnsForExport, {
+              title: "School Master Report",
+              companyName: "Parents Eye",
+              metadata: {
+                Total: `${filteredData.length} schools`,
+              },
+            });
+          }}
+          onExportExcel={() => {
+            console.log("Export Excel triggered"); // ✅ Add this too
+            exportToExcel(filteredData, columnsForExport, {
+              title: "School Master Report",
+              companyName: "Parents Eye",
+              metadata: {
+                Total: `${filteredData.length} schools`,
+              },
+            });
+          }}
+        />
       </section>
     </main>
   );
