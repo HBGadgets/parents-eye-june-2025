@@ -334,7 +334,7 @@ export function CustomTable<TData extends RowData>({
                           className="flex items-start px-2 py-2 sm:px-4 sm:py-2 text-xs sm:text-sm border-r last:border-r-0"
                           style={getColumnStyle(cell.column)}
                         >
-                          <div className="w-full text-center py-4">
+                          <div className="w-full text-center">
                             <div className="break-words overflow-wrap-anywhere leading-relaxed">
                               {cell.column.id === "serialNumber"
                                 ? flexRender(
