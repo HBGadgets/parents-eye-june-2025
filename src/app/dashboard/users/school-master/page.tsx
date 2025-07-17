@@ -26,6 +26,7 @@ import { useExport } from "@/hooks/useExport";
 import { formatDate } from "@/util/formatDate";
 import { Alert } from "@/components/Alert";
 import ResponseLoader from "@/components/ResponseLoader";
+import { CustomFilter } from "@/components/ui/CustomFilter";
 
 type SchoolAccess = {
   _id: string;
@@ -124,7 +125,7 @@ export default function SchoolMaster() {
               : "Grant Full Access",
             onClick: () => setAccessTarget(row),
             disabled: accessMutation.isPending,
-            className: `w-38 text-center text-xs bg-yellow-400 hover:bg-yellow-500 font-semibold rounded-full px-4 py-2 ${
+            className: `w-38 text-center text-sm bg-yellow-400 hover:bg-yellow-500 font-semibold rounded-full px-4 py-2 ${
               row.fullAccess ? "text-red-600" : "text-emerald-600"
             }`,
           },
@@ -365,134 +366,149 @@ export default function SchoolMaster() {
     [schools]
   );
 
+  const handleCustomFilter = useCallback((filtered: School[]) => {
+    setFilteredData(filtered);
+  }, []);
+
   return (
     <main>
       {/* Progress loader at the top */}
       <ResponseLoader isLoading={isLoading} />
 
-      <section>
-        <section className="flex items-center justify-between mb-4">
+      <header className="flex items-center justify-between mb-4">
+        <section className="flex space-x-4">
           {/* Search component */}
-          <section className="flex space-x-4">
-            <SearchComponent
-              data={filterResults}
-              displayKey={["schoolName", "username", "email", "schoolMobile"]}
-              onResults={handleSearchResults}
-              className="w-[300px] mb-4"
-            />
-            {/* Date range picker */}
-            <DateRangeFilter onDateRangeChange={handleDateFilter} />
-          </section>
-          {/* <p>Add column selector</p> */}
+          <SearchComponent
+            data={filterResults}
+            displayKey={["schoolName", "username", "email", "schoolMobile"]}
+            onResults={handleSearchResults}
+            className="w-[300px] mb-4"
+          />
+          {/* Date range picker */}
+          <DateRangeFilter
+            onDateRangeChange={handleDateFilter}
+            title="Search by Registration Date"
+          />
+          {/* Access Filter*/}
+          <CustomFilter
+            data={filterResults}
+            originalData={filterResults}
+            filterFields={["fullAccess"]}
+            onFilter={handleCustomFilter}
+            placeholder={"Filter by Access"}
+            className="w-[180px]"
+            valueFormatter={(value) =>
+              value ? "Full Access" : "Limited Access"
+            }
+            booleanToLable={"fullAccess"}
+            trueValue={"Full Access"}
+            falseValue={"Limited Access"}
+          />
+        </section>
 
-          {/* Add School */}
-          <section>
-            <Dialog>
-              <DialogTrigger asChild>
-                <Button variant="default">Add School</Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-[600px]">
-                <form onSubmit={handleSubmit} className="space-y-4">
-                  <DialogHeader>
-                    <DialogTitle>Add School</DialogTitle>
-                  </DialogHeader>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="grid gap-2">
-                      <Label htmlFor="schoolName">School Name</Label>
-                      <Input
-                        id="schoolName"
-                        name="schoolName"
-                        placeholder="Enter school name"
-                        required
-                      />
-                    </div>
-
-                    <div className="grid gap-2">
-                      <Label htmlFor="email">Email</Label>
-                      <Input
-                        id="email"
-                        name="email"
-                        type="email"
-                        placeholder="Enter email address"
-                        required
-                      />
-                    </div>
-
-                    <div className="grid gap-2">
-                      <Label htmlFor="schoolMobile">Mobile No</Label>
-                      <Input
-                        id="schoolMobile"
-                        name="schoolMobile"
-                        type="tel"
-                        placeholder="Enter school mobile number"
-                        pattern="[0-9]{10}"
-                        maxLength={10}
-                        autoComplete="tel"
-                        required
-                      />
-                    </div>
-
-                    <div className="grid gap-2">
-                      <Label htmlFor="username">Username</Label>
-                      <Input
-                        id="username"
-                        name="username"
-                        type="text"
-                        placeholder="Enter username"
-                        required
-                      />
-                    </div>
-
-                    <div className="grid gap-2">
-                      <Label htmlFor="password">Password</Label>
-                      <Input
-                        id="password"
-                        name="password"
-                        type="text"
-                        placeholder="Enter password"
-                        required
-                      />
-                    </div>
-
-                    <div className="flex items-center gap-3 mt-6">
-                      <input
-                        type="checkbox"
-                        id="fullAccess"
-                        name="fullAccess"
-                        className="h-5 w-5"
-                      />
-                      <Label htmlFor="fullAccess">Full Access</Label>
-                    </div>
+        {/* Add School */}
+        <section>
+          <Dialog>
+            <DialogTrigger asChild>
+              <Button variant="default">Add School</Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[600px]">
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <DialogHeader>
+                  <DialogTitle>Add School</DialogTitle>
+                </DialogHeader>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="grid gap-2">
+                    <Label htmlFor="schoolName">School Name</Label>
+                    <Input
+                      id="schoolName"
+                      name="schoolName"
+                      placeholder="Enter school name"
+                      required
+                    />
                   </div>
 
-                  <DialogFooter>
-                    <DialogClose asChild>
-                      <Button ref={closeButtonRef} variant="outline">
-                        Cancel
-                      </Button>
-                    </DialogClose>
-                    <Button
-                      type="submit"
-                      disabled={addSchoolMutation.isPending}
-                    >
-                      {addSchoolMutation.isPending
-                        ? "Saving..."
-                        : "Save School"}
+                  <div className="grid gap-2">
+                    <Label htmlFor="email">Email</Label>
+                    <Input
+                      id="email"
+                      name="email"
+                      type="email"
+                      placeholder="Enter email address"
+                      required
+                    />
+                  </div>
+
+                  <div className="grid gap-2">
+                    <Label htmlFor="schoolMobile">Mobile No</Label>
+                    <Input
+                      id="schoolMobile"
+                      name="schoolMobile"
+                      type="tel"
+                      placeholder="Enter school mobile number"
+                      pattern="[0-9]{10}"
+                      maxLength={10}
+                      autoComplete="tel"
+                      required
+                    />
+                  </div>
+
+                  <div className="grid gap-2">
+                    <Label htmlFor="username">Username</Label>
+                    <Input
+                      id="username"
+                      name="username"
+                      type="text"
+                      placeholder="Enter username"
+                      required
+                    />
+                  </div>
+
+                  <div className="grid gap-2">
+                    <Label htmlFor="password">Password</Label>
+                    <Input
+                      id="password"
+                      name="password"
+                      type="text"
+                      placeholder="Enter password"
+                      required
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-3 mt-6">
+                    <input
+                      type="checkbox"
+                      id="fullAccess"
+                      name="fullAccess"
+                      className="h-5 w-5"
+                    />
+                    <Label htmlFor="fullAccess">Full Access</Label>
+                  </div>
+                </div>
+
+                <DialogFooter>
+                  <DialogClose asChild>
+                    <Button ref={closeButtonRef} variant="outline">
+                      Cancel
                     </Button>
-                  </DialogFooter>
-                </form>
-              </DialogContent>
-            </Dialog>
-          </section>
+                  </DialogClose>
+                  <Button type="submit" disabled={addSchoolMutation.isPending}>
+                    {addSchoolMutation.isPending ? "Saving..." : "Save School"}
+                  </Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
         </section>
-      </section>
+      </header>
+
       {/* Table component */}
       <section className="mb-4">
         <CustomTable
           data={filteredData || []}
           columns={columns}
           pageSizeArray={[10, 20, 50]}
-          showFilters={true}
+          // showFilters={true}
           tableClass="bg-white rounded shadow"
           isLoading={isLoading}
         />

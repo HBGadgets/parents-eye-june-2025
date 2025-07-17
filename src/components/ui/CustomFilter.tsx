@@ -31,6 +31,10 @@ interface CustomFilterProps {
   originalData?: DataItem[]; // Pass the original unfiltered data
   placeholder?: string | ((field: string) => string); // Can be string or function
   className?: string;
+  valueFormatter?: (value: any) => string;
+  booleanToLable?: (value: any) => string;
+  trueValue?: string;
+  falseValue?: string;
 }
 
 export const CustomFilter: React.FC<CustomFilterProps> = ({
@@ -39,65 +43,100 @@ export const CustomFilter: React.FC<CustomFilterProps> = ({
   onFilter,
   originalData,
   placeholder,
+  valueFormatter,
+  booleanToLable,
+  trueValue,
+  falseValue,
   className = "w-[200px]",
 }) => {
   const [selectedFilters, setSelectedFilters] = React.useState<FilterState>({});
   const [openPopover, setOpenPopover] = React.useState<string | null>(null);
-  
+
   // Use original data if provided, otherwise use current data
   const sourceData = originalData || data;
 
   // Get unique values for each field based on currently filtered data
-  const getUniqueValuesForField = React.useCallback((field: string): string[] => {
-    // For nested filtering, use data that's already been filtered by other fields
-    let dataToUse = sourceData;
-    
-    // Apply all filters except the current field to get available options
-    const otherFilters = Object.entries(selectedFilters).filter(([key]) => key !== field);
-    
-    if (otherFilters.length > 0) {
-      dataToUse = sourceData.filter((item) => {
-        return otherFilters.every(([filterField, filterValue]) => {
-          if (typeof item === "object" && item !== null) {
-            const val = item[filterField];
-            return val?.toString().toLowerCase() === filterValue.toLowerCase();
-          }
-          return true;
-        });
-      });
-    }
+  const getUniqueValuesForField = React.useCallback(
+    (field: string): string[] => {
+      // For nested filtering, use data that's already been filtered by other fields
+      let dataToUse = sourceData;
 
-    const values = dataToUse
-      .map((item) => {
-        if (typeof item === "object" && item !== null) {
-          return item[field]?.toString();
-        }
-        return undefined;
-      })
-      .filter(Boolean) as string[];
+      // Apply all filters except the current field to get available options
+      const otherFilters = Object.entries(selectedFilters).filter(
+        ([key]) => key !== field
+      );
 
-    return Array.from(new Set(values)).sort();
-  }, [sourceData, selectedFilters]);
-
-  // Apply nested filtering
-  const applyNestedFilter = React.useCallback((filters: FilterState) => {
-    if (Object.keys(filters).length === 0) {
-      onFilter(sourceData); // Reset to original data if no filters
-      return;
-    }
-
-    const filtered = sourceData.filter((item) => {
-      if (typeof item === "object" && item !== null) {
-        return Object.entries(filters).every(([field, value]) => {
-          const itemValue = item[field];
-          return itemValue?.toString().toLowerCase() === value.toLowerCase();
+      if (otherFilters.length > 0) {
+        dataToUse = sourceData.filter((item) => {
+          return otherFilters.every(([filterField, filterValue]) => {
+            if (typeof item === "object" && item !== null) {
+              const val = item[filterField];
+              return (
+                val?.toString().toLowerCase() === filterValue.toLowerCase()
+              );
+            }
+            return true;
+          });
         });
       }
-      return true;
-    });
 
-    onFilter(filtered);
-  }, [sourceData, onFilter]);
+      const values = dataToUse
+        .map((item) => {
+          if (typeof item === "object" && item !== null) {
+            const rawValue = item[field];
+            return valueFormatter
+              ? valueFormatter(rawValue)
+              : rawValue?.toString();
+          }
+          return undefined;
+        })
+        .filter(Boolean) as string[];
+
+      return Array.from(new Set(values)).sort();
+    },
+    [sourceData, selectedFilters, valueFormatter]
+  );
+
+  // Apply nested filtering
+  const applyNestedFilter = React.useCallback(
+    (filters: FilterState) => {
+      if (Object.keys(filters).length === 0) {
+        onFilter(sourceData); // Reset to original data if no filters
+        return;
+      }
+
+      // const filtered = sourceData.filter((item) => {
+      //   if (typeof item === "object" && item !== null) {
+      //     return Object.entries(filters).every(([field, value]) => {
+      //       const itemValue = item[field];
+      //       return itemValue?.toString().toLowerCase() === value.toLowerCase();
+      //     });
+      //   }
+      //   return true;
+      // });
+      const filtered = sourceData.filter((item) => {
+        if (typeof item === "object" && item !== null) {
+          return Object.entries(filters).every(([field, value]) => {
+            let actualValue = item[field];
+
+            // Handle boolean-to-label mapping
+            if (field === `${booleanToLable}`) {
+              const formatted = actualValue ? `${trueValue}` : `${falseValue}`;
+              return formatted.toLowerCase() === value.toLowerCase();
+            }
+
+            return (
+              actualValue?.toString().toLowerCase() === value.toLowerCase()
+            );
+          });
+        }
+        return true;
+      });
+
+      onFilter(filtered);
+    },
+    [sourceData, onFilter]
+  );
 
   // Apply filters whenever selectedFilters changes
   React.useEffect(() => {
@@ -106,16 +145,16 @@ export const CustomFilter: React.FC<CustomFilterProps> = ({
 
   // Handle filter selection
   const handleSelect = React.useCallback((field: string, value: string) => {
-    setSelectedFilters(prev => ({
+    setSelectedFilters((prev) => ({
       ...prev,
-      [field]: value
+      [field]: value,
     }));
     setOpenPopover(null);
   }, []);
 
   // Handle clearing a specific filter
   const handleClearField = React.useCallback((field: string) => {
-    setSelectedFilters(prev => {
+    setSelectedFilters((prev) => {
       const newFilters = { ...prev };
       delete newFilters[field];
       return newFilters;
@@ -124,12 +163,15 @@ export const CustomFilter: React.FC<CustomFilterProps> = ({
   }, []);
 
   // Get placeholder text for a field
-  const getPlaceholder = React.useCallback((field: string): string => {
-    if (typeof placeholder === 'function') {
-      return placeholder(field);
-    }
-    return placeholder || `Filter by ${field}`;
-  }, [placeholder]);
+  const getPlaceholder = React.useCallback(
+    (field: string): string => {
+      if (typeof placeholder === "function") {
+        return placeholder(field);
+      }
+      return placeholder || `Filter by ${field}`;
+    },
+    [placeholder]
+  );
 
   return (
     <div className="flex flex-wrap gap-2">
@@ -139,15 +181,15 @@ export const CustomFilter: React.FC<CustomFilterProps> = ({
         const isOpen = openPopover === field;
 
         return (
-          <Popover 
+          <Popover
             key={field}
-            open={isOpen} 
+            open={isOpen}
             onOpenChange={(open) => setOpenPopover(open ? field : null)}
           >
             <PopoverTrigger asChild>
-              <Button 
-                variant="outline" 
-                role="combobox" 
+              <Button
+                variant="outline"
+                role="combobox"
                 className={cn("justify-between", className)}
               >
                 {selectedValue || getPlaceholder(field)}
