@@ -18,7 +18,12 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import DateRangeFilter from "@/components/ui/DateRangeFilter";
 import { FloatingMenu } from "@/components/floatingMenu";
-import type { ColumnDef } from "@tanstack/react-table";
+import {
+  getCoreRowModel,
+  useReactTable,
+  VisibilityState,
+  type ColumnDef,
+} from "@tanstack/react-table";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/services/apiService";
 import { School } from "@/interface/modal";
@@ -27,12 +32,21 @@ import { formatDate } from "@/util/formatDate";
 import { Alert } from "@/components/Alert";
 import ResponseLoader from "@/components/ResponseLoader";
 import { CustomFilter } from "@/components/ui/CustomFilter";
+import { ColumnVisibilitySelector } from "@/components/column-visibility-selector";
 
 type SchoolAccess = {
   _id: string;
   schoolName: string;
   fullAccess: boolean;
 };
+
+declare module "@tanstack/react-table" {
+  interface ColumnMeta<TData, TValue> {
+    flex?: number;
+    minWidth?: number;
+    maxWidth?: number;
+  }
+}
 
 export default function SchoolMaster() {
   const queryClient = useQueryClient();
@@ -43,6 +57,8 @@ export default function SchoolMaster() {
   const [deleteTarget, setDeleteTarget] = useState<School | null>(null);
   const [editTarget, setEditTarget] = useState<School | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [columnVisibility, setColumnVisibility] =
+    React.useState<VisibilityState>({});
   const { exportToPDF, exportToExcel } = useExport();
 
   // Fetch school data
@@ -74,8 +90,9 @@ export default function SchoolMaster() {
         type: "text",
         value: row.schoolName ?? "",
       }),
-      cell: (info) => info.getValue(),
+      // cell: (info) => info.getValue(),
       meta: { flex: 1, minWidth: 200, maxWidth: 300 },
+      enableHiding: true,
     },
     {
       header: "Mobile",
@@ -83,8 +100,9 @@ export default function SchoolMaster() {
         type: "text",
         value: row.schoolMobile ?? "",
       }),
-      cell: (info) => info.getValue(),
+      // cell: (info) => info.getValue(),
       meta: { flex: 1, minWidth: 150, maxWidth: 300 },
+      enableHiding: true,
     },
     {
       header: "Username",
@@ -92,8 +110,9 @@ export default function SchoolMaster() {
         type: "text",
         value: row.username ?? "",
       }),
-      cell: (info) => info.getValue(),
+      // cell: (info) => info.getValue(),
       meta: { flex: 1, minWidth: 150, maxWidth: 300 },
+      enableHiding: true,
     },
     {
       header: "Password",
@@ -101,8 +120,9 @@ export default function SchoolMaster() {
         type: "text",
         value: row.password ?? "",
       }),
-      cell: (info) => info.getValue(),
+      // cell: (info) => info.getValue(),
       meta: { flex: 1, minWidth: 150, maxWidth: 300 },
+      enableHiding: true,
     },
     {
       header: "Registration Date",
@@ -110,8 +130,9 @@ export default function SchoolMaster() {
         type: "text",
         value: formatDate(row.createdAt) ?? "",
       }),
-      cell: (info) => info.getValue(),
+      // cell: (info) => info.getValue(),
       meta: { flex: 1, minWidth: 150, maxWidth: 300 },
+      enableHiding: true,
     },
     {
       header: "Access",
@@ -131,9 +152,10 @@ export default function SchoolMaster() {
           },
         ],
       }),
-      cell: (info) => info.getValue(),
+      // cell: (info) => info.getValue(),
       meta: { flex: 1.5, minWidth: 150, maxWidth: 200 },
       enableSorting: false,
+      enableHiding: true,
     },
     {
       header: "Action",
@@ -157,9 +179,10 @@ export default function SchoolMaster() {
           },
         ],
       }),
-      cell: (info) => info.getValue(),
+      // cell: (info) => info.getValue(),
       meta: { flex: 1.5, minWidth: 150, maxWidth: 200 },
       enableSorting: false,
+      enableHiding: true,
     },
   ];
 
@@ -214,10 +237,6 @@ export default function SchoolMaster() {
       queryClient.setQueryData<School[]>(["schools"], (oldSchools = []) => {
         return [...oldSchools, createdSchool];
       });
-      alert("School added successfully.");
-    },
-    onError: (err) => {
-      alert("Failed to add school.\nerror: " + err);
     },
   });
 
@@ -370,6 +389,14 @@ export default function SchoolMaster() {
     setFilteredData(filtered);
   }, []);
 
+  const table = useReactTable({
+    data: filteredData,
+    columns,
+    state: { columnVisibility },
+    onColumnVisibilityChange: setColumnVisibility,
+    getCoreRowModel: getCoreRowModel(),
+  });
+
   return (
     <main>
       {/* Progress loader at the top */}
@@ -403,6 +430,12 @@ export default function SchoolMaster() {
             booleanToLable={"fullAccess"}
             trueValue={"Full Access"}
             falseValue={"Limited Access"}
+          />
+          {/* Column visibility selector */}
+          <ColumnVisibilitySelector
+            columns={table.getAllColumns()}
+            buttonVariant="outline"
+            buttonSize="default"
           />
         </section>
 
@@ -507,9 +540,13 @@ export default function SchoolMaster() {
         <CustomTable
           data={filteredData || []}
           columns={columns}
+          columnVisibility={columnVisibility}
+          onColumnVisibilityChange={setColumnVisibility}
           pageSizeArray={[10, 20, 50]}
-          // showFilters={true}
-          tableClass="bg-white rounded shadow"
+          maxHeight={600}
+          minHeight={200}
+          showSerialNumber={true}
+          noDataMessage="No schools found"
           isLoading={isLoading}
         />
       </section>
