@@ -547,8 +547,6 @@ export default function SchoolMaster() {
           minHeight={200}
           showSerialNumber={true}
           noDataMessage="No schools found"
-          // showFilters={true}
-          // tableClass="bg-white rounded shadow"
           isLoading={isLoading}
         />
       </section>
