@@ -9,6 +9,7 @@ import {
   RowData,
   PaginationState,
   SortingState,
+  VisibilityState,
 } from "@tanstack/react-table";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { CustomArrowUpDown } from "@/components/ui/customarrowupdown";
@@ -33,6 +34,8 @@ interface CustomTableProps<TData extends RowData> {
   showSerialNumber?: boolean;
   noDataMessage?: string;
   isLoading?: boolean;
+  columnVisibility?: VisibilityState;
+  onColumnVisibilityChange?: (visibility: VisibilityState) => void;
 }
 
 const renderCellContent = (content: any): React.ReactNode => {
@@ -95,15 +98,25 @@ export function CustomTable<TData extends RowData>({
   showSerialNumber = true,
   noDataMessage = "No data available",
   isLoading = false,
+  columnVisibility,
+  onColumnVisibilityChange,
 }: CustomTableProps<TData>) {
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
     pageSize: pageSizeArray[0],
   });
   const [sorting, setSorting] = useState<SortingState>([]);
+  const [internalColumnVisibility, setInternalColumnVisibility] =
+    useState<VisibilityState>({});
   const [isMobile, setIsMobile] = useState(false);
+  const [containerWidth, setContainerWidth] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const tableScrollRef = useRef<HTMLDivElement>(null);
+
+  // Use controlled visibility if provided, otherwise use internal state
+  const currentColumnVisibility = columnVisibility ?? internalColumnVisibility;
+  const handleColumnVisibilityChange =
+    onColumnVisibilityChange ?? setInternalColumnVisibility;
 
   useEffect(() => {
     const updateWidth = () => {
@@ -146,6 +159,7 @@ export function CustomTable<TData extends RowData>({
       );
     },
     enableSorting: false,
+    enableHiding: false,
     meta: { minWidth: 70, maxWidth: 80, flex: 0 },
   };
 
@@ -156,9 +170,14 @@ export function CustomTable<TData extends RowData>({
   const table = useReactTable({
     data: paginatedData,
     columns: finalColumns,
-    state: { pagination, sorting },
+    state: {
+      pagination,
+      sorting,
+      columnVisibility: currentColumnVisibility,
+    },
     onPaginationChange: setPagination,
     onSortingChange: setSorting,
+    onColumnVisibilityChange: handleColumnVisibilityChange,
     pageCount,
     manualPagination: true,
     getCoreRowModel: getCoreRowModel(),
@@ -220,28 +239,6 @@ export function CustomTable<TData extends RowData>({
       return sum + width;
     }, 0);
   }, [headers, isMobile]);
-
-  const [containerWidth, setContainerWidth] = useState(0);
-
-  useEffect(() => {
-    const updateWidth = () => {
-      if (containerRef.current) {
-        setContainerWidth(containerRef.current.offsetWidth);
-      }
-    };
-
-    const observer = new ResizeObserver(([entry]) => {
-      setIsMobile(entry.contentRect.width < 768);
-      setContainerWidth(entry.contentRect.width);
-    });
-
-    if (containerRef.current) {
-      observer.observe(containerRef.current);
-      updateWidth();
-    }
-
-    return () => observer.disconnect();
-  }, []);
 
   const shouldExpand = containerWidth > totalMinWidth;
   const tableWidth = shouldExpand ? "100%" : totalMinWidth + "px";
