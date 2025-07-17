@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useCallback, useEffect, useState, useRef } from "react";
@@ -17,62 +16,67 @@ import SearchComponent from "@/components/ui/SearchOnlydata";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { DatePicker } from "@/components/ui/datePicker";
-import { SearchableSelect } from "@/components/custom-select";
 import DateRangeFilter from "@/components/ui/DateRangeFilter";
 import { FloatingMenu } from "@/components/floatingMenu";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/services/apiService";
-import { School } from "@/interface/modal";
+import { Branch } from "@/interface/modal";
 import { useExport } from "@/hooks/useExport";
+import { formatDate } from "@/util/formatDate";
 import { Alert } from "@/components/Alert";
 import ResponseLoader from "@/components/ResponseLoader";
+import { CustomFilter } from "@/components/ui/CustomFilter";
 
-type SchoolAccess = {
-  _id: string;
-  schoolName: string;
-  fullAccess: boolean;
-};
 
 export default function BranchMaster() {
   const queryClient = useQueryClient();
   const closeButtonRef = useRef<HTMLButtonElement>(null);
-  const [filteredData, setFilteredData] = useState<School[]>([]);
-  const [filterResults, setFilterResults] = useState<School[]>([]);
-  const [accessTarget, setAccessTarget] = useState<School | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<School | null>(null);
-  const [editTarget, setEditTarget] = useState<School | null>(null);
-  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [filteredData, setFilteredData] = useState<Branch[]>([]);
+  const [filterResults, setFilterResults] = useState<Branch[]>([]);
 
-  // Fetch school data
+  const [deleteTarget, setDeleteTarget] = useState<Branch | null>(null);
+  const [editTarget, setEditTarget] = useState<Branch | null>(null);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const { exportToPDF, exportToExcel } = useExport();
+
+  // Fetch Branch data
   const {
-    data: schools,
+    data: Branchs,
     isLoading,
     isError,
     error,
-  } = useQuery<School[]>({
-    queryKey: ["schools"],
+  } = useQuery<Branch[]>({
+    queryKey: ["Branchs"],
     queryFn: async () => {
-      const res = await api.get<School[]>("/school");
+      const res = await api.get<Branch[]>("/branch");
       return res;
     },
   });
-  
+
   useEffect(() => {
-    if (schools && schools.length > 0) {
-      setFilteredData(schools);
-      setFilterResults(schools); // For search base
+    if (Branchs && Branchs.length > 0) {
+      setFilteredData(Branchs);
+      setFilterResults(Branchs); // For search base
     }
-  }, [schools]);
+  }, [Branchs]);
 
   // Define the columns for the table
-  const columns: ColumnDef<School, CellContent>[] = [
+  const columns: ColumnDef<Branch, CellContent>[] = [
     {
+      header: "Branch Name",
+      accessorFn: (row) => ({
+        type: "text",
+        value: row.branchName ?? "",
+      }),
+      cell: (info) => info.getValue(),
+      meta: { flex: 1, minWidth: 200, maxWidth: 300 },
+    },
+     {
       header: "School Name",
       accessorFn: (row) => ({
         type: "text",
-        value: row.schoolName ?? "",
+        value: row.schoolId.schoolName ?? "",
       }),
       cell: (info) => info.getValue(),
       meta: { flex: 1, minWidth: 200, maxWidth: 300 },
@@ -81,7 +85,7 @@ export default function BranchMaster() {
       header: "Mobile",
       accessorFn: (row) => ({
         type: "text",
-        value: row.schoolMobile ?? "",
+        value: row.mobileNo ?? "",
       }),
       cell: (info) => info.getValue(),
       meta: { flex: 1, minWidth: 150, maxWidth: 300 },
@@ -104,64 +108,50 @@ export default function BranchMaster() {
       cell: (info) => info.getValue(),
       meta: { flex: 1, minWidth: 150, maxWidth: 300 },
     },
-    {
-      header: "Access",
+     {
+      header: "Email",
       accessorFn: (row) => ({
-        type: "group",
-        items: [
-          {
-            type: "button",
-            label: row.fullAccess
-              ? `Grant Limited Access`
-              : ` Grant Full Access`,
-            onClick: () => setAccessTarget(row),
-            disabled: accessMutation.isPending,
-          },
-        ],
+        type: "text",
+        value: row.email ?? "",
       }),
       cell: (info) => info.getValue(),
-      meta: { flex: 1.5, minWidth: 150, maxWidth: 200 },
-      enableSorting: false,
+      meta: { flex: 1, minWidth: 150, maxWidth: 300 },
     },
     {
-      header: "Action",
+      header: "Registration Date",
       accessorFn: (row) => ({
-        type: "group",
-        items: [
-          {
-            type: "button",
-            label: "Edit",
-            onClick: () => {
-              setEditTarget(row);
-              setEditDialogOpen(true);
-            },
-            disabled: accessMutation.isPending,
-          },
-          {
-            type: "button",
-            label: "Delete",
-            onClick: () => setDeleteTarget(row),
-            disabled: deleteSchoolMutation.isPending,
-          },
-        ],
+        type: "text",
+        value: formatDate(row.createdAt) ?? "",
       }),
       cell: (info) => info.getValue(),
-      meta: { flex: 1.5, minWidth: 150, maxWidth: 200 },
-      enableSorting: false,
+      meta: { flex: 1, minWidth: 150, maxWidth: 300 },
     },
+   
+  ];
+
+  // columns for export
+  const columnsForExport = [
+    { key: "branchName", header: "Branch Name" },
+    {key:"schoolId.schoolName", header: "school Name"},
+    { key: "mobileNo", header: "Mobile No." },
+   
+    { key: "username", header: "Branch Username" },
+    { key: "password", header: "Branch Password" },
+    { key: "email", header: "Branch Email" },
+  
   ];
 
   // Define the fields for the edit dialog
-  const schoolFieldConfigs: FieldConfig[] = [
+  const BranchFieldConfigs: FieldConfig[] = [
     {
-      label: "School Name",
-      key: "schoolName",
+      label: "Branch Name",
+      key: "branchName",
       type: "text",
       required: true,
     },
     {
       label: "Mobile Number",
-      key: "schoolMobile",
+      key: "BranchMobile",
       type: "text",
       required: true,
     },
@@ -179,90 +169,69 @@ export default function BranchMaster() {
     },
   ];
 
-  // Mutation to add a new school
-  const addSchoolMutation = useMutation({
-    mutationFn: async (newSchool: any) => {
-      const school = await api.post("/school", newSchool);
-      return school.school;
+  // Mutation to add a new Branch
+  const addBranchMutation = useMutation({
+    mutationFn: async (newBranch: any) => {
+      const Branch = await api.post("/branch", newBranch);
+      return Branch.Branch;
     },
-    onSuccess: (createdSchool) => {
-      queryClient.setQueryData<School[]>(["schools"], (oldSchools = []) => {
-        return [...oldSchools, createdSchool];
+    onSuccess: (createdBranch) => {
+      queryClient.setQueryData<Branch[]>(["Branchs"], (oldBranchs = []) => {
+        return [...oldBranchs, createdBranch];
       });
-      alert("School added successfully.");
+      alert("Branch added successfully.");
     },
     onError: (err) => {
-      alert("Failed to add school.\nerror: " + err);
+      alert("Failed to add Branch.\nerror: " + err);
     },
   });
 
-  // Mutation for Access control
-  const accessMutation = useMutation({
-    mutationFn: async (school: { _id: string; fullAccess: boolean }) => {
-      return await api.put(`/school/accessgrant/${school._id}`, {
-        fullAccess: school.fullAccess,
-      });
-    },
-    onSuccess: (updated, variables) => {
-      queryClient.setQueryData<School[]>(["schools"], (oldData) =>
-        oldData?.map((school) =>
-          school._id === variables._id
-            ? { ...school, fullAccess: variables.fullAccess }
-            : school
-        )
-      );
-      alert("Access updated successfully.");
-    },
-    onError: (err) => {
-      alert("Failed to update access.\nerror: " + err);
-    },
-  });
-
-  // Mutation for edit school data
-  const updateSchoolMutation = useMutation({
+ 
+  // Mutation for edit Branch data
+  const updateBranchMutation = useMutation({
     mutationFn: async ({
-      schoolId,
+      BranchId,
       data,
     }: {
-      schoolId: string;
-      data: Partial<School>;
+      BranchId: string;
+      data: Partial<Branch>;
     }) => {
-      return await api.put(`/school/${schoolId}`, data);
+      return await api.put(`/Branch/${BranchId}`, data);
     },
-    onSuccess: (_, { schoolId, data }) => {
-      queryClient.setQueryData<School[]>(["schools"], (oldData) => {
+    onSuccess: (_, { BranchId, data }) => {
+      queryClient.setQueryData<Branch[]>(["Branchs"], (oldData) => {
         if (!oldData) return [];
-        return oldData.map((school) =>
-          school._id === schoolId ? { ...school, ...data } : school
+        return oldData.map((Branch) =>
+          Branch._id === BranchId ? { ...Branch, ...data } : Branch
         );
       });
 
       // Update filteredData manually
       setFilteredData((prev) =>
-        prev.map((school) =>
-          school._id === schoolId ? { ...school, ...data } : school
+        prev.map((Branch) =>
+          Branch._id === BranchId ? { ...Branch, ...data } : Branch
         )
       );
 
       setEditDialogOpen(false);
       setEditTarget(null);
-      alert("School updated successfully.");
+      alert("Branch updated successfully.");
     },
     onError: (err) => {
-      alert("Failed to update school.\nerror: " + err);
+      alert("Failed to update Branch.\nerror: " + err);
     },
   });
 
-  // Mutation to delete a school
-  const deleteSchoolMutation = useMutation({
-    mutationFn: async (schoolId: string) => {
-      return await api.delete(`/school/${schoolId}`);
+  // Mutation to delete a Branch
+  const deleteBranchMutation = useMutation({
+    mutationFn: async (BranchId: string) => {
+      return await api.delete(`/Branch/${BranchId}`);
     },
     onSuccess: (_, deletedId) => {
-      queryClient.setQueryData<School[]>(["schools"], (oldData) =>
-        oldData?.filter((school) => school._id !== deletedId)
+      queryClient.setQueryData<Branch[]>(["Branchs"], (oldData) =>
+        oldData?.filter((Branch) => Branch._id !== deletedId)
       );
-      alert("School deleted successfully.");
+      alert("Branch deleted successfully.");
     },
     onError: (err) => {
       alert("Failed to delete student.\nerror: " + err);
@@ -270,22 +239,22 @@ export default function BranchMaster() {
   });
 
   // Handle search
-  const handleSearchResults = useCallback((results: School[]) => {
+  const handleSearchResults = useCallback((results: Branch[]) => {
     setFilteredData(results);
   }, []);
 
-  // Handle save action for edit school
-  const handleSave = (updatedData: Partial<School>) => {
+  // Handle save action for edit Branch
+  const handleSave = (updatedData: Partial<Branch>) => {
     if (!editTarget) return;
 
-    const changedFields: Partial<Record<keyof School, unknown>> = {};
+    const changedFields: Partial<Record<keyof Branch, unknown>> = {};
 
     for (const key in updatedData) {
-      const newValue = updatedData[key as keyof School];
-      const oldValue = editTarget[key as keyof School];
+      const newValue = updatedData[key as keyof Branch];
+      const oldValue = editTarget[key as keyof Branch];
 
       if (newValue !== undefined && newValue !== oldValue) {
-        changedFields[key as keyof School] = newValue;
+        changedFields[key as keyof Branch] = newValue;
       }
     }
 
@@ -294,8 +263,8 @@ export default function BranchMaster() {
       return;
     }
 
-    updateSchoolMutation.mutate({
-      schoolId: editTarget._id,
+    updateBranchMutation.mutate({
+      BranchId: editTarget._id,
       data: changedFields,
     });
   };
@@ -304,201 +273,179 @@ export default function BranchMaster() {
     e.preventDefault();
     const form = e.currentTarget;
     const data = {
-      schoolName: form.schoolName.value,
+      branchName: form.branchName.value,
       username: form.username.value,
       password: form.password.value,
       email: form.email.value,
-      schoolMobile: form.schoolMobile.value,
-      fullAccess: form.fullAccess.checked,
+      BranchMobile: form.BranchMobile.value,
+      // fullAccess: form.fullAccess.checked,
     };
 
     try {
-      await addSchoolMutation.mutateAsync(data);
+      await addBranchMutation.mutateAsync(data);
       closeButtonRef.current?.click();
       form.reset();
-      alert("School added successfully.");
+      alert("Branch added successfully.");
     } catch (err) {
-      alert("Failed to add school.\nerror: " + err);
+      alert("Failed to add Branch.\nerror: " + err);
     }
   };
 
   const handleDateFilter = useCallback(
     (start: Date | null, end: Date | null) => {
-      if (!schools || (!start && !end)) {
-        setFilteredData(schools || []);
+      if (!Branchs || (!start && !end)) {
+        setFilteredData(Branchs || []);
         return;
       }
 
-      const filtered = schools.filter((school) => {
-        if (!school.createdAt) return false;
+      const filtered = Branchs.filter((Branch) => {
+        if (!Branch.createdAt) return false;
 
-        const createdDate = new Date(school.createdAt);
+        const createdDate = new Date(Branch.createdAt);
         return (!start || createdDate >= start) && (!end || createdDate <= end);
       });
 
       setFilteredData(filtered);
     },
-    [schools]
+    [Branchs]
   );
+
+
 
   return (
     <main>
       {/* Progress loader at the top */}
       <ResponseLoader isLoading={isLoading} />
-      
-      <section>
-        <section className="flex items-center justify-between mb-4">
+
+      <header className="flex items-center justify-between mb-4">
+        <section className="flex space-x-4">
           {/* Search component */}
-          <section className="flex space-x-4">
-            <SearchComponent
-              data={filterResults}
-              displayKey={["schoolName", "username", "email", "schoolMobile"]}
-              onResults={handleSearchResults}
-              className="w-[300px] mb-4"
-            />
-            {/* Date range picker */}
-            <DateRangeFilter onDateRangeChange={handleDateFilter} />
-          </section>
-          {/* <p>Add column selector</p> */}
+          <SearchComponent
+            data={filterResults}
+            displayKey={["branchName", "username", "email", "BranchMobile"]}
+            onResults={handleSearchResults}
+            className="w-[300px] mb-4"
+          />
+          {/* Date range picker */}
+          <DateRangeFilter
+            onDateRangeChange={handleDateFilter}
+            title="Search by Registration Date"
+          />
+         
+        
+        </section>
 
-          {/* Add School */}
-          <section>
-            <Dialog>
-              <DialogTrigger asChild>
-                <Button variant="default">Add School</Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-[600px]">
-                <form onSubmit={handleSubmit} className="space-y-4">
-                  <DialogHeader>
-                    <DialogTitle>Add Branch</DialogTitle>
-                  </DialogHeader>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="grid gap-2">
-                      <Label htmlFor="schoolName">School Name</Label>
-                      <Input
-                        id="schoolName"
-                        name="schoolName"
-                        placeholder="Enter school name"
-                        required
-                      />
-                    </div>
-
-                    <div className="grid gap-2">
-                      <Label htmlFor="email">Email</Label>
-                      <Input
-                        id="email"
-                        name="email"
-                        type="email"
-                        placeholder="Enter email address"
-                        required
-                      />
-                    </div>
-
-                    <div className="grid gap-2">
-                      <Label htmlFor="schoolMobile">Mobile No</Label>
-                      <Input
-                        id="schoolMobile"
-                        name="schoolMobile"
-                        type="tel"
-                        placeholder="Enter school mobile number"
-                        pattern="[0-9]{10}"
-                        maxLength={10}
-                        autoComplete="tel"
-                        required
-                      />
-                    </div>
-
-                    <div className="grid gap-2">
-                      <Label htmlFor="username">Username</Label>
-                      <Input
-                        id="username"
-                        name="username"
-                        type="text"
-                        placeholder="Enter username"
-                        required
-                      />
-                    </div>
-
-                    <div className="grid gap-2">
-                      <Label htmlFor="password">Password</Label>
-                      <Input
-                        id="password"
-                        name="password"
-                        type="text"
-                        placeholder="Enter password"
-                        required
-                      />
-                    </div>
-
-                    <div className="flex items-center gap-3 mt-6">
-                      <input
-                        type="checkbox"
-                        id="fullAccess"
-                        name="fullAccess"
-                        className="h-5 w-5"
-                      />
-                      <Label htmlFor="fullAccess">Full Access</Label>
-                    </div>
+        {/* Add Branch */}
+        <section>
+          <Dialog>
+            <DialogTrigger asChild>
+              <Button variant="default">Add Branch</Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[600px]">
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <DialogHeader>
+                  <DialogTitle>Add Branch</DialogTitle>
+                </DialogHeader>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="grid gap-2">
+                    <Label htmlFor="branchName">Branch Name</Label>
+                    <Input
+                      id="branchName"
+                      name="branchName"
+                      placeholder="Enter Branch name"
+                      required
+                    />
                   </div>
 
-                  <DialogFooter>
-                    <DialogClose asChild>
-                      <Button ref={closeButtonRef} variant="outline">
-                        Cancel
-                      </Button>
-                    </DialogClose>
-                    <Button
-                      type="submit"
-                      disabled={addSchoolMutation.isPending}
-                    >
-                      {addSchoolMutation.isPending
-                        ? "Saving..."
-                        : "Save School"}
+                  <div className="grid gap-2">
+                    <Label htmlFor="email">Email</Label>
+                    <Input
+                      id="email"
+                      name="email"
+                      type="email"
+                      placeholder="Enter email address"
+                      required
+                    />
+                  </div>
+
+                  <div className="grid gap-2">
+                    <Label htmlFor="BranchMobile">Mobile No</Label>
+                    <Input
+                      id="BranchMobile"
+                      name="BranchMobile"
+                      type="tel"
+                      placeholder="Enter Branch mobile number"
+                      pattern="[0-9]{10}"
+                      maxLength={10}
+                      autoComplete="tel"
+                      required
+                    />
+                  </div>
+
+                  <div className="grid gap-2">
+                    <Label htmlFor="username">Username</Label>
+                    <Input
+                      id="username"
+                      name="username"
+                      type="text"
+                      placeholder="Enter username"
+                      required
+                    />
+                  </div>
+
+                  <div className="grid gap-2">
+                    <Label htmlFor="password">Password</Label>
+                    <Input
+                      id="password"
+                      name="password"
+                      type="text"
+                      placeholder="Enter password"
+                      required
+                    />
+                  </div>
+
+                 
+                </div>
+
+                <DialogFooter>
+                  <DialogClose asChild>
+                    <Button ref={closeButtonRef} variant="outline">
+                      Cancel
                     </Button>
-                  </DialogFooter>
-                </form>
-              </DialogContent>
-            </Dialog>
-          </section>
+                  </DialogClose>
+                  <Button type="submit" disabled={addBranchMutation.isPending}>
+                    {addBranchMutation.isPending ? "Saving..." : "Save Branch"}
+                  </Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
         </section>
-      </section>
+      </header>
+
       {/* Table component */}
       <section className="mb-4">
         <CustomTable
           data={filteredData || []}
           columns={columns}
           pageSizeArray={[10, 20, 50]}
-          showFilters={true}
+          // showFilters={true}
           tableClass="bg-white rounded shadow"
+          isLoading={isLoading}
         />
       </section>
-     
+
+      {/* Alert Boxes */}
       <section>
-        <div>
-          <Alert<SchoolAccess>
-            title="Are you absolutely sure?"
-            description={`You are about to give ${accessTarget?.schoolName} ${
-              accessTarget?.fullAccess ? "limited" : "full"
-            } access.`}
-            actionButton={(target) => {
-              accessMutation.mutate({
-                _id: target._id,
-                fullAccess: !target.fullAccess,
-              });
-            }}
-            target={accessTarget}
-            setTarget={setAccessTarget}
-            butttonText="Confirm"
-          />
-        </div>
-        
+       
+
         <div>
           {deleteTarget && (
-            <Alert<School>
+            <Alert<Branch>
               title="Are you absolutely sure?"
-              description={`This will permanently delete ${deleteTarget?.schoolName} and all associated data.`}
+              description={`This will permanently delete ${deleteTarget?.branchName} and all associated data.`}
               actionButton={(target) => {
-                deleteSchoolMutation.mutate(target._id);
+                deleteBranchMutation.mutate(target._id);
                 setDeleteTarget(null);
               }}
               target={deleteTarget}
@@ -508,7 +455,7 @@ export default function BranchMaster() {
           )}
         </div>
       </section>
-      
+      {/* Edit Dialog */}
       <section>
         {editTarget && (
           <DynamicEditDialog
@@ -519,15 +466,40 @@ export default function BranchMaster() {
               setEditTarget(null);
             }}
             onSave={handleSave}
-            fields={schoolFieldConfigs}
-            title="Edit School"
-            description="Update the school information below. Fields marked with * are required."
+            fields={BranchFieldConfigs}
+            title="Edit Branch"
+            description="Update the Branch information below. Fields marked with * are required."
             avatarConfig={{
               imageKey: "logo",
-              nameKeys: ["schoolName"],
+              nameKeys: ["branchName"],
             }}
           />
         )}
+      </section>
+      {/* Floating Menu */}
+      <section>
+        <FloatingMenu
+          onExportPdf={() => {
+            console.log("Export PDF triggered"); // ✅ Add this for debugging
+            exportToPDF(filteredData, columnsForExport, {
+              title: "Branch Master Report",
+              companyName: "Parents Eye",
+              metadata: {
+                Total: `${filteredData.length} Branchs`,
+              },
+            });
+          }}
+          onExportExcel={() => {
+            console.log("Export Excel triggered"); // ✅ Add this too
+            exportToExcel(filteredData, columnsForExport, {
+              title: "Branch Master Report",
+              companyName: "Parents Eye",
+              metadata: {
+                Total: `${filteredData.length} Branchs`,
+              },
+            });
+          }}
+        />
       </section>
     </main>
   );

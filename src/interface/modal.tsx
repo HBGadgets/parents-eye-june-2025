@@ -63,6 +63,7 @@ export interface Branch {
   password: string;
   email: string;
   role: string;
+  createdAt: string;
 }
 
 export interface Device {
