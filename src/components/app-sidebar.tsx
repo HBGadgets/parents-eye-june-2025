@@ -16,6 +16,7 @@
 // import SearchComponent from "@/components/SearchComponent(appsidebar)";
 // import { useRouter } from "next/navigation";
 // import RouteLoader from "@/components/RouteLoader";
+// import { useTransition } from "react"; // Import for transition handling
 
 // type UserRole = "superAdmin" | "school" | "branchGroup" | "branch" | null;
 
@@ -23,8 +24,8 @@
 //   const [userRole, setUserRole] = React.useState<UserRole>(null);
 //   const activeSection = useNavigationStore((state) => state.activeSection);
 //   const [userInfo, setUserInfo] = React.useState<string>("");
-//   const [isRouting, setIsRouting] = React.useState(false); // Loader flag
 //   const router = useRouter();
+//   const [isPending, startTransition] = useTransition(); // Navigation state tracker
 
 //   React.useEffect(() => {
 //     const token = Cookies.get("token");
@@ -121,19 +122,12 @@
 //     });
 //   }, [sidebarData, router]);
 
-//   // Optional reset loader after short delay (or use router events)
-//   React.useEffect(() => {
-//     if (isRouting) {
-//       const timer = setTimeout(() => setIsRouting(false), 300);
-//       return () => clearTimeout(timer);
-//     }
-//   }, [isRouting]);
-
 //   if (!userRole) return null;
 
 //   return (
 //     <>
-//       {isRouting && <RouteLoader />}
+//       {/* Show loader only during actual page transition */}
+//       {isPending && <RouteLoader />}
 
 //       <Sidebar
 //         {...props}
@@ -144,16 +138,17 @@
 //           <SidebarMenu>
 //             <SidebarMenuItem>
 //               <SidebarMenuButton size="lg" asChild>
-//                <SearchComponent
-//   data={sidebarData}
-//   displayKey={["title"]}
-//   debounceDelay={500}
-//   onSelect={(item) => {
-//     setIsRouting(true); // show loader
-//     router.push(item.url); // navigate
-//   }}
-// />
-
+//                 <SearchComponent
+//                   data={sidebarData}
+//                   displayKey={["title"]}
+//                   debounceDelay={500}
+//                   onSelect={(item) => {
+//                     // Wrap navigation in transition to track loading state
+//                     startTransition(() => {
+//                       router.push(item.url);
+//                     });
+//                   }}
+//                 />
 //               </SidebarMenuButton>
 //             </SidebarMenuItem>
 //           </SidebarMenu>
@@ -180,7 +175,8 @@ import {
 import SearchComponent from "@/components/SearchComponent(appsidebar)";
 import { useRouter } from "next/navigation";
 import RouteLoader from "@/components/RouteLoader";
-import { useTransition } from "react"; // Import for transition handling
+import { useTransition } from "react";
+import { Skeleton } from "@/components/ui/skeleton"; // Import skeleton component
 
 type UserRole = "superAdmin" | "school" | "branchGroup" | "branch" | null;
 
@@ -189,7 +185,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const activeSection = useNavigationStore((state) => state.activeSection);
   const [userInfo, setUserInfo] = React.useState<string>("");
   const router = useRouter();
-  const [isPending, startTransition] = useTransition(); // Navigation state tracker
+  const [isPending, startTransition] = useTransition();
+  const [isLoading, setIsLoading] = React.useState(true); // Track loading state
 
   React.useEffect(() => {
     const token = Cookies.get("token");
@@ -207,6 +204,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     ) {
       setUserRole(role as UserRole);
     }
+    
+    setIsLoading(false); // Data fetching complete
   }, []);
 
   const getSidebarData = React.useCallback(
@@ -286,11 +285,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     });
   }, [sidebarData, router]);
 
-  if (!userRole) return null;
-
+  // Always render sidebar structure with loading state
   return (
     <>
-      {/* Show loader only during actual page transition */}
       {isPending && <RouteLoader />}
 
       <Sidebar
@@ -298,25 +295,38 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         className="bg-[#ffdc00]"
         style={{ backgroundColor: "#ffdc00" }}
       >
-        <SidebarHeader className="bg-primary h-full">
-          <SidebarMenu>
-            <SidebarMenuItem>
-              <SidebarMenuButton size="lg" asChild>
-                <SearchComponent
-                  data={sidebarData}
-                  displayKey={["title"]}
-                  debounceDelay={500}
-                  onSelect={(item) => {
-                    // Wrap navigation in transition to track loading state
-                    startTransition(() => {
-                      router.push(item.url);
-                    });
-                  }}
-                />
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          </SidebarMenu>
-        </SidebarHeader>
+       <SidebarHeader className="bg-primary h-full">
+  {isLoading || !userRole || sidebarData.length === 0 ? (
+   <div className="flex flex-col gap-3 p-4">
+  <Skeleton className="h-10 w-full rounded-md bg-yellow-300/60" /> {/* Search bar */}
+  <Skeleton className="h-6 w-3/4 rounded bg-yellow-300/60" />
+  <Skeleton className="h-6 w-2/3 rounded bg-yellow-300/60" />
+  <Skeleton className="h-6 w-4/5 rounded bg-yellow-300/60" />
+  <Skeleton className="h-6 w-1/2 rounded bg-yellow-300/60" />
+  <Skeleton className="h-6 w-3/4 rounded bg-yellow-300/60" />
+  <Skeleton className="h-6 w-2/3 rounded bg-yellow-300/60" />
+</div>
+
+  ) : (
+    <SidebarMenu>
+      <SidebarMenuItem>
+        <SidebarMenuButton size="lg" asChild>
+          <SearchComponent
+            data={sidebarData}
+            displayKey={["title"]}
+            debounceDelay={500}
+            onSelect={(item) => {
+              startTransition(() => {
+                router.push(item.url);
+              });
+            }}
+          />
+        </SidebarMenuButton>
+      </SidebarMenuItem>
+    </SidebarMenu>
+  )}
+</SidebarHeader>
+
         <SidebarRail className="bg-primary" />
       </Sidebar>
     </>
