@@ -31,14 +31,14 @@ import { useExport } from "@/hooks/useExport";
 import { formatDate } from "@/util/formatDate";
 import { Alert } from "@/components/Alert";
 import ResponseLoader from "@/components/ResponseLoader";
-import { CustomFilter } from "@/components/ui/CustomFilter";
+// import { CustomFilter } from "@/components/ui/CustomFilter";
 import { ColumnVisibilitySelector } from "@/components/column-visibility-selector";
 
-type SchoolAccess = {
-  _id: string;
-  schoolName: string;
-  fullAccess: boolean;
-};
+// type SchoolAccess = {
+//   _id: string;
+//   schoolName: string;
+//   fullAccess: boolean;
+// };
 
 declare module "@tanstack/react-table" {
   interface ColumnMeta<TData, TValue> {
@@ -53,7 +53,7 @@ export default function SchoolMaster() {
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const [filteredData, setFilteredData] = useState<School[]>([]);
   const [filterResults, setFilterResults] = useState<School[]>([]);
-  const [accessTarget, setAccessTarget] = useState<School | null>(null);
+  // const [accessTarget, setAccessTarget] = useState<School | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<School | null>(null);
   const [editTarget, setEditTarget] = useState<School | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -131,32 +131,33 @@ export default function SchoolMaster() {
         value: formatDate(row.createdAt) ?? "",
       }),
       // cell: (info) => info.getValue(),
-      meta: { flex: 1, minWidth: 150, maxWidth: 300 },
+      meta: { flex: 1, minWidth: 200 },
       enableHiding: true,
     },
-    {
-      header: "Access",
-      accessorFn: (row) => ({
-        type: "group",
-        items: [
-          {
-            type: "button",
-            label: row.fullAccess
-              ? "Grant Limited Access"
-              : "Grant Full Access",
-            onClick: () => setAccessTarget(row),
-            disabled: accessMutation.isPending,
-            className: `w-38 text-center text-sm bg-yellow-400 hover:bg-yellow-500 font-semibold rounded-full px-4 py-2 ${
-              row.fullAccess ? "text-red-600" : "text-emerald-600"
-            }`,
-          },
-        ],
-      }),
-      // cell: (info) => info.getValue(),
-      meta: { flex: 1.5, minWidth: 150, maxWidth: 200 },
-      enableSorting: false,
-      enableHiding: true,
-    },
+    // No need to add this in school master add this in branch master
+    // {
+    //   header: "Access",
+    //   accessorFn: (row) => ({
+    //     type: "group",
+    //     items: [
+    //       {
+    //         type: "button",
+    //         label: row.fullAccess
+    //           ? "Grant Limited Access"
+    //           : "Grant Full Access",
+    //         onClick: () => setAccessTarget(row),
+    //         disabled: accessMutation.isPending,
+    //         className: `w-38 text-center text-sm bg-yellow-400 hover:bg-yellow-500 font-semibold rounded-full px-4 py-2 ${
+    //           row.fullAccess ? "text-red-600" : "text-emerald-600"
+    //         }`,
+    //       },
+    //     ],
+    //   }),
+    //   // cell: (info) => info.getValue(),
+    //   meta: { flex: 1.5, minWidth: 150, maxWidth: 200 },
+    //   enableSorting: false,
+    //   enableHiding: true,
+    // },
     {
       header: "Action",
       accessorFn: (row) => ({
@@ -169,7 +170,7 @@ export default function SchoolMaster() {
               setEditTarget(row);
               setEditDialogOpen(true);
             },
-            disabled: accessMutation.isPending,
+            disabled: updateSchoolMutation.isPending,
           },
           {
             type: "button",
@@ -192,11 +193,6 @@ export default function SchoolMaster() {
     { key: "schoolMobile", header: "Mobile" },
     { key: "username", header: "School Username" },
     { key: "password", header: "School Password" },
-    {
-      key: "fullAccess",
-      header: "Access Level",
-      formatter: (val: boolean) => (val ? "Full Access" : "Limited Access"),
-    },
   ];
 
   // Define the fields for the edit dialog
@@ -241,26 +237,26 @@ export default function SchoolMaster() {
   });
 
   // Mutation for Access control
-  const accessMutation = useMutation({
-    mutationFn: async (school: { _id: string; fullAccess: boolean }) => {
-      return await api.put(`/school/accessgrant/${school._id}`, {
-        fullAccess: school.fullAccess,
-      });
-    },
-    onSuccess: (updated, variables) => {
-      queryClient.setQueryData<School[]>(["schools"], (oldData) =>
-        oldData?.map((school) =>
-          school._id === variables._id
-            ? { ...school, fullAccess: variables.fullAccess }
-            : school
-        )
-      );
-      alert("Access updated successfully.");
-    },
-    onError: (err) => {
-      alert("Failed to update access.\nerror: " + err);
-    },
-  });
+  // const accessMutation = useMutation({
+  //   mutationFn: async (school: { _id: string; fullAccess: boolean }) => {
+  //     return await api.put(`/school/accessgrant/${school._id}`, {
+  //       fullAccess: school.fullAccess,
+  //     });
+  //   },
+  //   onSuccess: (updated, variables) => {
+  //     queryClient.setQueryData<School[]>(["schools"], (oldData) =>
+  //       oldData?.map((school) =>
+  //         school._id === variables._id
+  //           ? { ...school, fullAccess: variables.fullAccess }
+  //           : school
+  //       )
+  //     );
+  //     alert("Access updated successfully.");
+  //   },
+  //   onError: (err) => {
+  //     alert("Failed to update access.\nerror: " + err);
+  //   },
+  // });
 
   // Mutation for edit school data
   const updateSchoolMutation = useMutation({
@@ -385,9 +381,9 @@ export default function SchoolMaster() {
     [schools]
   );
 
-  const handleCustomFilter = useCallback((filtered: School[]) => {
-    setFilteredData(filtered);
-  }, []);
+  // const handleCustomFilter = useCallback((filtered: School[]) => {
+  //   setFilteredData(filtered);
+  // }, []);
 
   const table = useReactTable({
     data: filteredData,
@@ -417,7 +413,7 @@ export default function SchoolMaster() {
             title="Search by Registration Date"
           />
           {/* Access Filter*/}
-          <CustomFilter
+          {/* <CustomFilter
             data={filterResults}
             originalData={filterResults}
             filterFields={["fullAccess"]}
@@ -430,7 +426,7 @@ export default function SchoolMaster() {
             booleanToLable={"fullAccess"}
             trueValue={"Full Access"}
             falseValue={"Limited Access"}
-          />
+          /> */}
           {/* Column visibility selector */}
           <ColumnVisibilitySelector
             columns={table.getAllColumns()}
@@ -508,7 +504,7 @@ export default function SchoolMaster() {
                     />
                   </div>
 
-                  <div className="flex items-center gap-3 mt-6">
+                  {/* <div className="flex items-center gap-3 mt-6">
                     <input
                       type="checkbox"
                       id="fullAccess"
@@ -516,7 +512,7 @@ export default function SchoolMaster() {
                       className="h-5 w-5"
                     />
                     <Label htmlFor="fullAccess">Full Access</Label>
-                  </div>
+                  </div> */}
                 </div>
 
                 <DialogFooter>
@@ -553,7 +549,8 @@ export default function SchoolMaster() {
 
       {/* Alert Boxes */}
       <section>
-        <div>
+        {/* Access Alert */}
+        {/* <div>
           <Alert<SchoolAccess>
             title="Are you absolutely sure?"
             description={`You are about to give ${accessTarget?.schoolName} ${
@@ -569,7 +566,7 @@ export default function SchoolMaster() {
             setTarget={setAccessTarget}
             butttonText="Confirm"
           />
-        </div>
+        </div> */}
 
         <div>
           {deleteTarget && (
