@@ -46,7 +46,7 @@ export interface School {
   password: string;
   email: string;
   schoolMobile: string;
-  fullAccess: boolean;
+  // fullAccess: boolean;
   role: string;
   createdAt: string;
 }
@@ -90,8 +90,14 @@ export interface Device {
   lastUpdate: string;
   TD: number;
   TDTime: string;
-  schoolId: string | null;
-  branchId: string | null;
+  schoolId: {
+    _id: string;
+    schoolName: string;
+  };
+  branchId: {
+    _id: string;
+    branchName: string;
+  };
   createdAt: string;
   updatedAt: string;
 }

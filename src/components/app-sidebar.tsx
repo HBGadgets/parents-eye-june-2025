@@ -1,4 +1,3 @@
-
 // "use client";
 
 // import * as React from "react";
@@ -204,7 +203,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     ) {
       setUserRole(role as UserRole);
     }
-    
+
     setIsLoading(false); // Data fetching complete
   }, []);
 
@@ -213,24 +212,46 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       switch (section) {
         case "School":
           return [
-            { title: "Student Details", url: "/dashboard/school/student-details" },
+            {
+              title: "Student Details",
+              url: "/dashboard/school/student-details",
+            },
             { title: "Geofence", url: "/dashboard/school/geofence" },
             { title: "Pickup And Drop", url: "/dashboard/school/pickup-drop" },
             { title: "Absent", url: "/dashboard/school/absent" },
             { title: "Present", url: "/dashboard/school/present" },
             { title: "Leave Request", url: "/dashboard/school/leave-request" },
             { title: "Status", url: "/dashboard/school/status" },
-            { title: "Approved Request", url: "/dashboard/school/approved-request" },
-            { title: "Denied Request", url: "/dashboard/school/denied-request" },
+            {
+              title: "Approved Request",
+              url: "/dashboard/school/approved-request",
+            },
+            {
+              title: "Denied Request",
+              url: "/dashboard/school/denied-request",
+            },
           ];
         case "Users":
           if (role === "superAdmin") {
             return [
               { title: "School Master", url: "/dashboard/users/school-master" },
               { title: "Branch Master", url: "/dashboard/users/branch-master" },
-              { title: "Driver Approve", url: "/dashboard/users/driver-approve" },
-              { title: "Student Approve", url: "/dashboard/users/student-approve" },
-              { title: "Supervisor Approve", url: "/dashboard/users/supervisor-approve" },
+              {
+                title: "Parents Master",
+                url: "/dashboard/users/parents-master",
+              },
+              {
+                title: "Driver Approve",
+                url: "/dashboard/users/driver-approve",
+              },
+              {
+                title: "Student Approve",
+                url: "/dashboard/users/student-approve",
+              },
+              {
+                title: "Supervisor Approve",
+                url: "/dashboard/users/supervisor-approve",
+              },
               { title: "Add Device", url: "/dashboard/users/add-device" },
               { title: "Read Device", url: "/dashboard/users/read-device" },
               { title: "User Access", url: "/dashboard/users/user-access" },
@@ -239,30 +260,64 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           } else if (role === "school" || role === "branchGroup") {
             return [
               { title: "Branch Master", url: "/dashboard/users/branch-master" },
-              { title: "Driver Approve", url: "/dashboard/users/driver-approve" },
-              { title: "Student Approve", url: "/dashboard/users/student-approve" },
-              { title: "Supervisor Approve", url: "/dashboard/users/supervisor-approve" },
+              {
+                title: "Parents Master",
+                url: "/dashboard/users/parents-master",
+              },
+              {
+                title: "Driver Approve",
+                url: "/dashboard/users/driver-approve",
+              },
+              {
+                title: "Student Approve",
+                url: "/dashboard/users/student-approve",
+              },
+              {
+                title: "Supervisor Approve",
+                url: "/dashboard/users/supervisor-approve",
+              },
               { title: "Read Device", url: "/dashboard/users/read-device" },
             ];
           } else {
             return [
-              { title: "Driver Approve", url: "/dashboard/users/driver-approve" },
-              { title: "Student Approve", url: "/dashboard/users/student-approve" },
-              { title: "Supervisor Approve", url: "/dashboard/users/supervisor-approve" },
-              { title: "Read Device", url: "/dashboard/users/read-device" },
+              // {
+              //   title: "Driver Approve",
+              //   url: "/dashboard/users/driver-approve",
+              // },
+              // {
+              //   title: "Student Approve",
+              //   url: "/dashboard/users/student-approve",
+              // },
+              // {
+              //   title: "Supervisor Approve",
+              //   url: "/dashboard/users/supervisor-approve",
+              // },
+              // { title: "Read Device", url: "/dashboard/users/read-device" },
             ];
           }
         case "Reports":
           return [
             { title: "Status Report", url: "/dashboard/reports/status-report" },
-            { title: "Distance Report", url: "/dashboard/reports/distance-report" },
-            { title: "History Report", url: "/dashboard/reports/history-report" },
+            {
+              title: "Distance Report",
+              url: "/dashboard/reports/distance-report",
+            },
+            {
+              title: "History Report",
+              url: "/dashboard/reports/history-report",
+            },
             { title: "Stop Report", url: "/dashboard/reports/stop-report" },
-            { title: "Travel Summary", url: "/dashboard/reports/travel-summary" },
+            {
+              title: "Travel Summary",
+              url: "/dashboard/reports/travel-summary",
+            },
             { title: "Trip Report", url: "/dashboard/reports/trip-report" },
             { title: "Idle Report", url: "/dashboard/reports/idle-report" },
             { title: "Alerts/Events", url: "/dashboard/reports/events" },
-            { title: "Geofence Report", url: "/dashboard/reports/geofence-report" },
+            {
+              title: "Geofence Report",
+              url: "/dashboard/reports/geofence-report",
+            },
           ];
         default:
           return [];
@@ -295,37 +350,37 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         className="bg-[#ffdc00]"
         style={{ backgroundColor: "#ffdc00" }}
       >
-       <SidebarHeader className="bg-primary h-full">
-  {isLoading || !userRole || sidebarData.length === 0 ? (
-   <div className="flex flex-col gap-3 p-4">
-  <Skeleton className="h-10 w-full rounded-md bg-yellow-300/60" /> {/* Search bar */}
-  <Skeleton className="h-6 w-3/4 rounded bg-yellow-300/60" />
-  <Skeleton className="h-6 w-2/3 rounded bg-yellow-300/60" />
-  <Skeleton className="h-6 w-4/5 rounded bg-yellow-300/60" />
-  <Skeleton className="h-6 w-1/2 rounded bg-yellow-300/60" />
-  <Skeleton className="h-6 w-3/4 rounded bg-yellow-300/60" />
-  <Skeleton className="h-6 w-2/3 rounded bg-yellow-300/60" />
-</div>
-
-  ) : (
-    <SidebarMenu>
-      <SidebarMenuItem>
-        <SidebarMenuButton size="lg" asChild>
-          <SearchComponent
-            data={sidebarData}
-            displayKey={["title"]}
-            debounceDelay={500}
-            onSelect={(item) => {
-              startTransition(() => {
-                router.push(item.url);
-              });
-            }}
-          />
-        </SidebarMenuButton>
-      </SidebarMenuItem>
-    </SidebarMenu>
-  )}
-</SidebarHeader>
+        <SidebarHeader className="bg-primary h-full">
+          {isLoading || !userRole || sidebarData.length === 0 ? (
+            <div className="flex flex-col gap-3 p-4">
+              <Skeleton className="h-10 w-full rounded-md bg-yellow-300/60" />{" "}
+              {/* Search bar */}
+              <Skeleton className="h-6 w-3/4 rounded bg-yellow-300/60" />
+              <Skeleton className="h-6 w-2/3 rounded bg-yellow-300/60" />
+              <Skeleton className="h-6 w-4/5 rounded bg-yellow-300/60" />
+              <Skeleton className="h-6 w-1/2 rounded bg-yellow-300/60" />
+              <Skeleton className="h-6 w-3/4 rounded bg-yellow-300/60" />
+              <Skeleton className="h-6 w-2/3 rounded bg-yellow-300/60" />
+            </div>
+          ) : (
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton size="lg" asChild>
+                  <SearchComponent
+                    data={sidebarData}
+                    displayKey={["title"]}
+                    debounceDelay={500}
+                    onSelect={(item) => {
+                      startTransition(() => {
+                        router.push(item.url);
+                      });
+                    }}
+                  />
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          )}
+        </SidebarHeader>
 
         <SidebarRail className="bg-primary" />
       </Sidebar>

@@ -3,7 +3,6 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { Navbar } from "@/components/navbar";
 import { Breadcrumb } from "@/components/ui/breadcrumb";
 import { Separator } from "@/components/ui/separator";
-// import RouteTransitionWrapper from "@/components/RouteTransitionWrapper";
 import {
   SidebarInset,
   SidebarProvider,
@@ -18,8 +17,8 @@ export default function DashboardLayout({
   return (
     <SidebarProvider>
       <AppSidebar />
-      <SidebarInset className="overflow-hidden">
-        <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12 overflow-hidden relative">
+      <SidebarInset className="overflow-hidden flex flex-col h-screen">
+        <header className="sticky top-0 z-20 flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12 overflow-hidden bg-background border-b">
           <div className="flex items-center gap-2 px-4 min-w-0 relative z-20">
             <SidebarTrigger className="-ml-1 flex-shrink-0" />
             <Separator
@@ -34,10 +33,10 @@ export default function DashboardLayout({
             <Navbar />
           </div>
         </header>
-        
-        <main className="pt-4 px-4 overflow-hidden flex-1">
-            {children}
-          </main>
+
+        <main className="pt-4 px-4 overflow-auto flex-1 min-h-0">
+          {children}
+        </main>
       </SidebarInset>
     </SidebarProvider>
   );
