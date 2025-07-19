@@ -170,12 +170,14 @@ export default function SchoolMaster() {
               setEditTarget(row);
               setEditDialogOpen(true);
             },
+            className: "cursor-pointer",
             disabled: updateSchoolMutation.isPending,
           },
           {
             type: "button",
             label: "Delete",
             onClick: () => setDeleteTarget(row),
+            className: "text-red-600 cursor-pointer",
             disabled: deleteSchoolMutation.isPending,
           },
         ],
