@@ -60,9 +60,11 @@ export interface Branch {
   };
   mobileNo: string;
   username: string;
+  fullAccess: boolean;
   password: string;
   email: string;
   role: string;
+
   createdAt: string;
 }
 
