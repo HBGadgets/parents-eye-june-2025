@@ -5,6 +5,7 @@ import { ColumnDef } from "@tanstack/react-table";
 import { useDevices } from "@/hooks/useDevice";
 import { Device } from "@/interface/modal";
 import { CustomTableServerSidePagination } from "@/components/ui/customTable(serverSidePagination)";
+import ResponseLoader from "@/components/ResponseLoader";
 
 const DevicesPage = () => {
   const [pagination, setPagination] = useState({
@@ -37,8 +38,6 @@ const DevicesPage = () => {
     sorting,
     deviceName: debouncedDeviceName,
   });
-
-  console.log("device data", devicesData);
 
   const columns: ColumnDef<Device>[] = [
     {
@@ -155,27 +154,55 @@ const DevicesPage = () => {
       enableHiding: true,
       enableSorting: true,
     },
+    {
+      id: "actions",
+      header: "Action",
+      accessorFn: (row) => ({
+        type: "group",
+        items: [
+          {
+            type: "button",
+            label: "Edit",
+            // onClick: () => {
+            //   setEditTarget(row);
+            //   setEditDialogOpen(true);
+            // },
+            className: "cursor-pointer",
+            // disabled: updateSchoolMutation.isPending,
+          },
+          {
+            type: "button",
+            label: "Delete",
+            // onClick: () => setDeleteTarget(row),
+            className: "text-red-600 cursor-pointer",
+            // disabled: deleteSchoolMutation.isPending,
+          },
+        ],
+      }),
+      // cell: (info) => info.getValue(),
+      meta: { flex: 1.5, minWidth: 150, maxWidth: 200 },
+      enableSorting: false,
+      enableHiding: true,
+    },
   ];
 
   return (
     <div className="p-4">
-      {/* Search Input */}
-      <div className="mb-4">
-        <input
-          type="text"
-          placeholder="Search by device name..."
-          value={deviceName}
-          onChange={(e) => setDeviceName(e.target.value)}
-          className="px-3 py-2 border rounded-md w-full md:w-1/2"
-        />
-      </div>
+      {/* Progress loader at the top */}
+      <ResponseLoader isLoading={isLoading} />
 
-      {/* Error State */}
-      {isError && (
-        <div className="text-red-600 mb-4">
-          Error loading devices: {error?.message || "Unknown error"}
+      <header>
+        {/* Search Input */}
+        <div className="mb-4">
+          <input
+            type="text"
+            placeholder="Search by device name..."
+            value={deviceName}
+            onChange={(e) => setDeviceName(e.target.value)}
+            className="px-3 py-2 border rounded-md w-full md:w-1/2"
+          />
         </div>
-      )}
+      </header>
 
       {/* Table Section */}
       <section>
