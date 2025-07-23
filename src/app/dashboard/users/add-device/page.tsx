@@ -13,6 +13,8 @@ import { Alert } from "@/components/Alert";
 import { DynamicEditDialog, FieldConfig } from "@/components/ui/EditModal";
 import { useSchoolData } from "@/hooks/useSchoolData";
 import { useBranchData } from "@/hooks/useBranchData";
+import { FloatingMenu } from "@/components/floatingMenu";
+import { useExport } from "@/hooks/useExport";
 
 const DevicesPage = () => {
   const queryClient = useQueryClient();
@@ -29,6 +31,10 @@ const DevicesPage = () => {
   const [debouncedDeviceName, setDebouncedDeviceName] = useState(deviceName);
   const { data: schoolData } = useSchoolData();
   const { data: branchData } = useBranchData();
+  const [selectedSchoolId, setSelectedSchoolId] = useState<string | null>(null);
+  const [selectedBranchId, setSelectedBranchId] = useState<string | null>(null);
+  const [filteredBranches, setFilteredBranches] = useState<any[]>([]);
+  const { exportToPDF, exportToExcel } = useExport();
 
   // Debounce deviceName search input
   useEffect(() => {
@@ -39,6 +45,38 @@ const DevicesPage = () => {
 
     return () => clearTimeout(handler);
   }, [deviceName]);
+
+  // Add this useEffect to filter branches when school is selected
+
+  useEffect(() => {
+    if (selectedSchoolId && branchData) {
+      const filtered = branchData.filter(
+        (branch: any) => branch.schoolId._id === selectedSchoolId
+      );
+      setFilteredBranches(filtered);
+    } else {
+      setFilteredBranches([]);
+    }
+  }, [selectedSchoolId, branchData]);
+
+  // Add this useEffect to handle branch reset when school changes
+  useEffect(() => {
+    if (editTarget && selectedSchoolId && filteredBranches.length > 0) {
+      // Check if current branch belongs to the selected school
+      const currentBranchId = editTarget.branchId?._id;
+      const branchBelongsToSchool = filteredBranches.some(
+        (branch) => branch._id === currentBranchId
+      );
+
+      // If current branch doesn't belong to selected school, reset it
+      if (currentBranchId && !branchBelongsToSchool) {
+        setEditTarget((prev) => ({
+          ...prev!,
+          branchId: { _id: "", branchName: "" },
+        }));
+      }
+    }
+  }, [filteredBranches, selectedSchoolId]);
 
   const {
     data: devicesData,
@@ -177,8 +215,21 @@ const DevicesPage = () => {
             <button
               className="bg-yellow-400 hover:bg-yellow-500 text-[#733e0a] font-semibold py-1 px-3 rounded-md cursor-pointer"
               onClick={() => {
-                setEditTarget(row.original);
+                const device = row.original;
+                setEditTarget(device);
                 setEditDialogOpen(true);
+
+                // Initialize selectedSchoolId with the current school
+                const currentSchoolId = device.schoolId?._id || null;
+                setSelectedSchoolId(currentSchoolId);
+
+                // Initialize filtered branches based on current school
+                if (currentSchoolId && branchData) {
+                  const filtered = branchData.filter(
+                    (branch: any) => branch.schoolId._id === currentSchoolId
+                  );
+                  setFilteredBranches(filtered);
+                }
               }}
             >
               Edit
@@ -200,7 +251,27 @@ const DevicesPage = () => {
     },
   ];
 
-  console.log("schoolData", schoolData);
+  // console.log("schoolData", schoolData);
+  // console.log("branchData", branchData);
+  // console.log("devicesData", devicesData);
+
+  // columns for export
+  const columnsForExport = [
+    { key: "name", header: "Device Name" },
+    { key: "uniqueId", header: "IMEI Number" },
+    { key: "sim", header: "Sim Number" },
+    { key: "speed", header: "Speed" },
+    { key: "average", header: "Average Speed" },
+    { key: "Driver", header: "Driver" },
+    { key: "model", header: "Model" },
+    { key: "category", header: "Category" },
+    { key: "deviceId", header: "Device ID" },
+    { key: "status", header: "Status" },
+    { key: "lastUpdate", header: "Last Updated" },
+    { key: "schoolId.schoolName", header: "School Name" },
+    { key: "branchId.branchName", header: "Branch Name" },
+    { key: "createdAt", header: "Registration Date" },
+  ];
 
   // Define the fields for the edit dialog
   const deviceFieldConfigs: FieldConfig[] = [
@@ -253,29 +324,18 @@ const DevicesPage = () => {
       label: "School Name",
       key: "schoolId._id",
       type: "searchable-select",
-
-      options: [
-        { label: "parentseye", value: "68788528f8911140870e7a32" },
-        { label: "sbjainschool", value: "6878856c7fe7ec5e0429bb4a" },
-        { label: "crtrack", value: "68788bcf7fe7ec5e0429bbe9" },
-        { label: "HB Gadget", value: "6878b8eeee5c33d4eaa589d6" },
-        { label: "rocketsales", value: "6878b94fee5c33d4eaa589e1" },
-        { label: "fgdms", value: "6878b982ee5c33d4eaa589f4" },
-        { label: "karmanya", value: "6878b9efee5c33d4eaa58a03" },
-        { label: "jain international", value: "6878d8de6431914c981c70b8" },
-        { label: "Sunbeam School", value: "687a088cb62b4867cc41e027" },
-        { label: "Model High School", value: "687a088cb62b4867cc41e031" },
-      ],
+      options: schoolData || [],
+      labelKey: "schoolName",
+      valueKey: "_id",
     },
     {
       label: "Branch Name",
       key: "branchId._id",
       type: "searchable-select",
-      options:
-        branchData?.map((branch) => ({
-          label: branch.branchName,
-          value: branch._id,
-        })) || [],
+      options: filteredBranches || [],
+      labelKey: "branchName",
+      valueKey: "_id",
+      disabled: !selectedSchoolId || filteredBranches.length === 0, // Enable when school is selected and branches are available
     },
   ];
 
@@ -305,12 +365,7 @@ const DevicesPage = () => {
       return await api.put(`/device/${deviceId}`, data);
     },
     onSuccess: (_, { deviceId, data }) => {
-      queryClient.setQueryData<Device[]>(["devices"], (oldData) => {
-        if (!oldData) return [];
-        return oldData.map((device) =>
-          device._id === deviceId ? { ...device, ...data } : device
-        );
-      });
+      queryClient.invalidateQueries({ queryKey: ["devices"] });
 
       // Update filteredData manually
       setFilteredData((prev) =>
@@ -355,6 +410,43 @@ const DevicesPage = () => {
     });
   };
 
+  const handleSchoolChange = (key: string, value: any, option?: any) => {
+    console.log("handleSchoolChange", key, value, option);
+
+    // Handle school selection
+    if (key === "schoolId._id") {
+      const previousSchoolId = selectedSchoolId;
+      setSelectedSchoolId(value);
+
+      // Only reset branch selection if school actually changed
+      if (editTarget && previousSchoolId !== value) {
+        setEditTarget({
+          ...editTarget,
+          schoolId: { _id: value, schoolName: option?.schoolName || "" },
+          branchId: { _id: "", branchName: "" }, // Reset branch selection only when school changes
+        });
+      } else if (editTarget) {
+        // Just update the school without resetting branch
+        setEditTarget({
+          ...editTarget,
+          schoolId: { _id: value, schoolName: option?.schoolName || "" },
+        });
+      }
+    }
+
+    // Handle branch selection
+    if (key === "branchId._id" && editTarget) {
+      setEditTarget({
+        ...editTarget,
+        branchId: { _id: value, branchName: option?.branchName || "" },
+      });
+    }
+
+    if (option) {
+      console.log("Selected option:", option);
+    }
+  };
+  console.log("filtered data", devicesData);
   return (
     <div className="p-4">
       {/* Progress loader at the top */}
@@ -415,18 +507,46 @@ const DevicesPage = () => {
               onClose={() => {
                 setEditDialogOpen(false);
                 setEditTarget(null);
+                setSelectedSchoolId(null);
+                setFilteredBranches([]);
               }}
               onSave={handleSave}
               fields={deviceFieldConfigs}
-              title="Edit School"
-              description="Update the school information below. Fields marked with * are required."
+              title="Edit Device"
+              description="Update the device information below. Fields marked with * are required."
               avatarConfig={{
                 imageKey: "logo",
-                nameKeys: ["schoolName"],
+                nameKeys: ["name"],
               }}
+              onFieldChange={handleSchoolChange}
             />
           )}
         </section>
+      </section>
+      {/* Floating Menu */}
+      <section>
+        <FloatingMenu
+          onExportPdf={() => {
+            console.log("Export PDF triggered"); // ✅ Add this for debugging
+            exportToPDF(devicesData?.devices, columnsForExport, {
+              title: "All Devices Data",
+              companyName: "Parents Eye",
+              metadata: {
+                Total: `${devicesData?.devices?.length} devices`,
+              },
+            });
+          }}
+          onExportExcel={() => {
+            console.log("Export Excel triggered"); // ✅ Add this too
+            exportToExcel(devicesData?.devices, columnsForExport, {
+              title: "All Devices Data",
+              companyName: "Parents Eye",
+              metadata: {
+                Total: `${devicesData?.devices.length} devices`,
+              },
+            });
+          }}
+        />
       </section>
     </div>
   );
