@@ -307,7 +307,7 @@ export default function SchoolMaster() {
       alert("School deleted successfully.");
     },
     onError: (err) => {
-      alert("Failed to delete student.\nerror: " + err);
+      alert("Failed to delete school.\nerror: " + err);
     },
   });
 

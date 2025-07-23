@@ -20,6 +20,17 @@ export const metadata: Metadata = {
   description: "School Bus Tracking Solutions",
 };
 
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker
+    .register("/firebase-messaging-sw.js")
+    .then((registration) => {
+      console.log("✅ Service Worker registered:", registration);
+    })
+    .catch((err) => {
+      console.error("❌ Service Worker registration failed:", err);
+    });
+}
+
 export default function RootLayout({
   children,
 }: {
@@ -32,11 +43,11 @@ export default function RootLayout({
       >
         <Providers>
           {/* <RouteTransitionWrapper> */}
-            {children}
+          {children}
           {/* </RouteTransitionWrapper> */}
-            {/* {children} */}
+          {/* {children} */}
         </Providers>
-        <Toaster position="top-center" richColors />
+        <Toaster position="bottom-right" richColors />
       </body>
     </html>
   );

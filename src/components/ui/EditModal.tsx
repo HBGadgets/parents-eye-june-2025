@@ -2,26 +2,76 @@
 
 import React, { useEffect } from "react";
 import { useForm } from "react-hook-form";
+import { format } from "date-fns";
+import { CalendarIcon, Loader2 } from "lucide-react";
 import {
-  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Loader2 } from "lucide-react";
+import { Calendar } from "@/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import { Check, ChevronsUpDown } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 export interface FieldConfig {
   key: string;
   label: string;
-  type: "text" | "email" | "tel" | "number" | "url" | "select" | "textarea";
+  type:
+    | "text"
+    | "email"
+    | "tel"
+    | "number"
+    | "url"
+    | "select"
+    | "textarea"
+    | "date"
+    | "searchable-select";
   required?: boolean;
   placeholder?: string;
   options?: string[] | { value: string; label: string }[];
   validation?: {
-    min?: number; max?: number; minLength?: number; maxLength?: number;
-    pattern?: RegExp; message?: string;
+    min?: number;
+    max?: number;
+    minLength?: number;
+    maxLength?: number;
+    pattern?: RegExp;
+    message?: string;
+    minDate?: Date;
+    maxDate?: Date;
   };
   disabled?: boolean;
   hidden?: boolean;
@@ -39,14 +89,14 @@ interface DynamicEditDialogProps<T = any> {
   avatarConfig?: { imageKey: string; nameKeys: string[] };
 }
 
-const getNestedValue = (obj: any, path: string): any => 
-  path.split('.').reduce((current, key) => current?.[key], obj);
+const getNestedValue = (obj: any, path: string): any =>
+  path.split(".").reduce((current, key) => current?.[key], obj);
 
 const setNestedValue = (obj: any, path: string, value: any): any => {
-  const keys = path.split('.');
+  const keys = path.split(".");
   const result = { ...obj };
   let current = result;
-  
+
   for (let i = 0; i < keys.length - 1; i++) {
     current[keys[i]] = current[keys[i]] ? { ...current[keys[i]] } : {};
     current = current[keys[i]];
@@ -56,31 +106,59 @@ const setNestedValue = (obj: any, path: string, value: any): any => {
 };
 
 const validateField = (value: any, config: FieldConfig): string | undefined => {
-  if (config.required && (!value || value === '')) return `${config.label} is required`;
+  if (config.required && (!value || value === ""))
+    return `${config.label} is required`;
   if (!config.validation || !value) return undefined;
-  
-  const { min, max, minLength, maxLength, pattern, message } = config.validation;
-  
-  if (config.type === 'number') {
+
+  const { min, max, minLength, maxLength, pattern, message, minDate, maxDate } =
+    config.validation;
+
+  if (config.type === "number") {
     const numValue = Number(value);
-    if (min !== undefined && numValue < min) return message || `${config.label} must be at least ${min}`;
-    if (max !== undefined && numValue > max) return message || `${config.label} must be at most ${max}`;
+    if (min !== undefined && numValue < min)
+      return message || `${config.label} must be at least ${min}`;
+    if (max !== undefined && numValue > max)
+      return message || `${config.label} must be at most ${max}`;
   }
-  
-  if (typeof value === 'string') {
-    if (minLength !== undefined && value.length < minLength) return message || `${config.label} must be at least ${minLength} characters`;
-    if (maxLength !== undefined && value.length > maxLength) return message || `${config.label} must be at most ${maxLength} characters`;
-    if (pattern && !pattern.test(value)) return message || `${config.label} format is invalid`;
-    if (config.type === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) return `Please enter a valid email address`;
-    if (config.type === 'url' && !/^https?:\/\/.+/.test(value)) return `Please enter a valid URL`;
+
+  if (config.type === "date" && value instanceof Date) {
+    if (minDate && value < minDate)
+      return (
+        message || `${config.label} must be after ${format(minDate, "PPP")}`
+      );
+    if (maxDate && value > maxDate)
+      return (
+        message || `${config.label} must be before ${format(maxDate, "PPP")}`
+      );
   }
-  
+
+  if (typeof value === "string") {
+    if (minLength !== undefined && value.length < minLength)
+      return (
+        message || `${config.label} must be at least ${minLength} characters`
+      );
+    if (maxLength !== undefined && value.length > maxLength)
+      return (
+        message || `${config.label} must be at most ${maxLength} characters`
+      );
+    if (pattern && !pattern.test(value))
+      return message || `${config.label} format is invalid`;
+    if (config.type === "email" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value))
+      return `Please enter a valid email address`;
+    if (config.type === "url" && !/^https?:\/\/.+/.test(value))
+      return `Please enter a valid URL`;
+  }
+
   return undefined;
 };
 
 export const DynamicEditDialog: React.FC<DynamicEditDialogProps> = ({
-  data, isOpen, onClose, onSave, fields, 
-  title = "Edit Record", 
+  data,
+  isOpen,
+  onClose,
+  onSave,
+  fields,
+  title = "Edit Record",
   description = "Update the information below. Fields marked with * are required.",
   avatarConfig,
 }) => {
@@ -90,9 +168,16 @@ export const DynamicEditDialog: React.FC<DynamicEditDialogProps> = ({
   useEffect(() => {
     if (data && isOpen) {
       const formData: any = {};
-      
-      fields.forEach(field => {
-        formData[field.key] = getNestedValue(data, field.key) ?? '';
+
+      fields.forEach((field) => {
+        const value = getNestedValue(data, field.key);
+        if (field.type === "date" && value) {
+          // Convert string dates to Date objects
+          formData[field.key] =
+            typeof value === "string" ? new Date(value) : value;
+        } else {
+          formData[field.key] = value ?? "";
+        }
       });
       form.reset(formData);
     }
@@ -102,27 +187,31 @@ export const DynamicEditDialog: React.FC<DynamicEditDialogProps> = ({
     setIsSubmitting(true);
     try {
       const errors: { [key: string]: string } = {};
-      fields.forEach(field => {
+      fields.forEach((field) => {
         const error = validateField(formData[field.key], field);
         if (error) errors[field.key] = error;
       });
-      
+
       if (Object.keys(errors).length > 0) {
         Object.entries(errors).forEach(([key, message]) => {
-          form.setError(key as any, { type: 'manual', message });
+          form.setError(key as any, { type: "manual", message });
         });
         return;
       }
-      
+
       let transformedData = { ...formData };
-      fields.forEach(field => {
-        if (field.key.includes('.')) {
-          transformedData = setNestedValue(transformedData, field.key, formData[field.key]);
+      fields.forEach((field) => {
+        if (field.key.includes(".")) {
+          transformedData = setNestedValue(
+            transformedData,
+            field.key,
+            formData[field.key]
+          );
           delete transformedData[field.key];
         }
       });
-      
-      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      await new Promise((resolve) => setTimeout(resolve, 1000));
       onSave(transformedData);
       onClose();
     } catch (error) {
@@ -149,22 +238,117 @@ export const DynamicEditDialog: React.FC<DynamicEditDialogProps> = ({
           <FormItem className={field.gridCols === 1 ? "col-span-full" : ""}>
             <FormLabel>
               {field.label}
-              {field.required && <span className="text-red-500 ml-1">*</span>}
+              {field.required && (
+                <span className="text-destructive ml-1">*</span>
+              )}
             </FormLabel>
             <FormControl>
               {field.type === "select" ? (
-                <Select onValueChange={formField.onChange} value={formField.value} disabled={field.disabled}>
+                <Select
+                  onValueChange={formField.onChange}
+                  value={formField.value}
+                  disabled={field.disabled}
+                >
                   <SelectTrigger>
-                    <SelectValue placeholder={field.placeholder || `Select ${field.label.toLowerCase()}`} />
+                    <SelectValue
+                      placeholder={
+                        field.placeholder ||
+                        `Select ${field.label.toLowerCase()}`
+                      }
+                    />
                   </SelectTrigger>
                   <SelectContent>
                     {field.options?.map((option) => {
-                      const value = typeof option === 'string' ? option : option.value;
-                      const label = typeof option === 'string' ? option : option.label;
-                      return <SelectItem key={value} value={value}>{label}</SelectItem>;
+                      const value =
+                        typeof option === "string" ? option : option.value;
+                      const label =
+                        typeof option === "string" ? option : option.label;
+                      return (
+                        <SelectItem key={value} value={value}>
+                          {label}
+                        </SelectItem>
+                      );
                     })}
                   </SelectContent>
                 </Select>
+              ) : field.type === "searchable-select" ? (
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      className={cn(
+                        "w-full justify-between",
+                        !formField.value && "text-muted-foreground"
+                      )}
+                      disabled={field.disabled}
+                    >
+                      {formField.value
+                        ? (() => {
+                            const foundOption = field.options?.find(
+                              (option) => {
+                                const value =
+                                  typeof option === "string"
+                                    ? option
+                                    : option.value;
+                                return value === formField.value;
+                              }
+                            );
+                            return foundOption
+                              ? typeof foundOption === "string"
+                                ? foundOption
+                                : foundOption.label
+                              : formField.value;
+                          })()
+                        : field.placeholder ||
+                          `Select ${field.label.toLowerCase()}`}
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-full p-0">
+                    <Command>
+                      <CommandInput
+                        placeholder={`Search ${field.label.toLowerCase()}...`}
+                      />
+                      <CommandList>
+                        <CommandEmpty>No results found.</CommandEmpty>
+                        <CommandGroup>
+                          {field.options?.map((option) => {
+                            const value =
+                              typeof option === "string"
+                                ? option
+                                : option.value;
+                            const label =
+                              typeof option === "string"
+                                ? option
+                                : option.label;
+                            return (
+                              <CommandItem
+                                key={value}
+                                value={value}
+                                onSelect={() => {
+                                  formField.onChange(
+                                    value === formField.value ? "" : value
+                                  );
+                                }}
+                              >
+                                <Check
+                                  className={cn(
+                                    "mr-2 h-4 w-4",
+                                    formField.value === value
+                                      ? "opacity-100"
+                                      : "opacity-0"
+                                  )}
+                                />
+                                {label}
+                              </CommandItem>
+                            );
+                          })}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
               ) : field.type === "textarea" ? (
                 <textarea
                   {...formField}
@@ -172,6 +356,42 @@ export const DynamicEditDialog: React.FC<DynamicEditDialogProps> = ({
                   disabled={field.disabled}
                   className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                 />
+              ) : field.type === "date" ? (
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "w-full justify-start text-left font-normal",
+                        !formField.value && "text-muted-foreground"
+                      )}
+                      disabled={field.disabled}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {formField.value ? (
+                        format(formField.value, "PPP")
+                      ) : (
+                        <span>{field.placeholder || "Pick a date"}</span>
+                      )}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={formField.value}
+                      onSelect={formField.onChange}
+                      disabled={(date) => {
+                        if (field.disabled) return true;
+                        const { minDate, maxDate } = field.validation || {};
+                        if (minDate && date < minDate) return true;
+                        if (maxDate && date > maxDate) return true;
+                        return false;
+                      }}
+                      initialFocus
+                      className={cn("p-3 pointer-events-auto")}
+                    />
+                  </PopoverContent>
+                </Popover>
               ) : (
                 <Input
                   {...formField}
@@ -179,8 +399,12 @@ export const DynamicEditDialog: React.FC<DynamicEditDialogProps> = ({
                   placeholder={field.placeholder}
                   disabled={field.disabled}
                   onChange={(e) => {
-                    const value = field.type === 'number' ? 
-                      (e.target.value === '' ? '' : Number(e.target.value)) : e.target.value;
+                    const value =
+                      field.type === "number"
+                        ? e.target.value === ""
+                          ? ""
+                          : Number(e.target.value)
+                        : e.target.value;
                     formField.onChange(value);
                   }}
                 />
@@ -193,13 +417,19 @@ export const DynamicEditDialog: React.FC<DynamicEditDialogProps> = ({
     );
   };
 
- if (!isOpen) return null;
+  if (!isOpen) return null;
 
   const avatarDisplay = avatarConfig && (
     <Avatar className="h-10 w-10">
-      <AvatarImage src={getNestedValue(data, avatarConfig.imageKey)} alt="User Avatar" />
+      <AvatarImage
+        src={getNestedValue(data, avatarConfig.imageKey)}
+        alt="User Avatar"
+      />
       <AvatarFallback>
-        {avatarConfig.nameKeys.map(key => getNestedValue(data, key)?.charAt(0) || '').join('').toUpperCase()}
+        {avatarConfig.nameKeys
+          .map((key) => getNestedValue(data, key)?.charAt(0) || "")
+          .join("")
+          .toUpperCase()}
       </AvatarFallback>
     </Avatar>
   );
@@ -222,7 +452,12 @@ export const DynamicEditDialog: React.FC<DynamicEditDialogProps> = ({
             </div>
 
             <DialogFooter className="gap-2 pt-4">
-              <Button type="button" variant="outline" onClick={handleClose} disabled={isSubmitting}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleClose}
+                disabled={isSubmitting}
+              >
                 Cancel
               </Button>
               <Button type="submit" disabled={isSubmitting}>
