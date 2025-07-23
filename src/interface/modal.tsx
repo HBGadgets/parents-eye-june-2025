@@ -64,7 +64,7 @@ export interface Branch {
   password: string;
   email: string;
   role: string;
-
+subscriptionExpirationDate:string;
   createdAt: string;
 }
 

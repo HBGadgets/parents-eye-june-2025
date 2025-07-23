@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useCallback, useEffect, useState, useRef } from "react";
@@ -35,6 +36,11 @@ import { Alert } from "@/components/Alert";
 import ResponseLoader from "@/components/ResponseLoader";
 import { CustomFilter } from "@/components/ui/CustomFilter";
 import { ColumnVisibilitySelector } from "@/components/column-visibility-selector";
+import DatePicker from 'react-datepicker';
+import { CalendarDays } from 'lucide-react';
+
+import 'react-datepicker/dist/react-datepicker.css';
+import ExpirationDatePicker from "@/components/ui/ExpirationDatePicker";
 
 type branchAccess = {
   _id: string;
@@ -65,8 +71,9 @@ export default function BranchMaster() {
   const [columnVisibility, setColumnVisibility] =
     React.useState<VisibilityState>({});
   const { exportToPDF, exportToExcel } = useExport();
-    const { data: schoolData } = useSchoolData();
-const [school, setSchool] = useState<string | undefined>(undefined);
+  const { data: schoolData } = useSchoolData();
+  const [school, setSchool] = useState<string | undefined>(undefined);
+const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   // Fetch branch data
   const {
     data: branchs,
@@ -81,12 +88,21 @@ const [school, setSchool] = useState<string | undefined>(undefined);
     },
   });
 
-
+  // School data
+  const schoolOptions: SelectOption[] = schoolData
+    ? Array.from(
+        new Map(
+          schoolData
+            .filter((s) => s._id && s.schoolName)
+            .map((s) => [s._id, { label: s.schoolName, value: s._id }])
+        ).values()
+      )
+    : [];
 
   useEffect(() => {
     if (branchs && branchs.length > 0) {
       setFilteredData(branchs);
-      setFilterResults(branchs); // For search base
+      setFilterResults(branchs);
     }
   }, [branchs]);
 
@@ -98,7 +114,6 @@ const [school, setSchool] = useState<string | undefined>(undefined);
         type: "text",
         value: row.branchName ?? "",
       }),
-      // cell: (info) => info.getValue(),
       meta: { flex: 1, minWidth: 200, maxWidth: 300 },
       enableHiding: true,
     },
@@ -108,7 +123,6 @@ const [school, setSchool] = useState<string | undefined>(undefined);
         type: "text",
         value: row.schoolId.schoolName ?? "",
       }),
-      // cell: (info) => info.getValue(),
       meta: { flex: 1, minWidth: 200, maxWidth: 300 },
       enableHiding: true,
     },
@@ -118,7 +132,6 @@ const [school, setSchool] = useState<string | undefined>(undefined);
         type: "text",
         value: row.mobileNo ?? "",
       }),
-      // cell: (info) => info.getValue(),
       meta: { flex: 1, minWidth: 150, maxWidth: 300 },
       enableHiding: true,
     },
@@ -128,7 +141,6 @@ const [school, setSchool] = useState<string | undefined>(undefined);
         type: "text",
         value: row.username ?? "",
       }),
-      // cell: (info) => info.getValue(),
       meta: { flex: 1, minWidth: 150, maxWidth: 300 },
       enableHiding: true,
     },
@@ -138,7 +150,6 @@ const [school, setSchool] = useState<string | undefined>(undefined);
         type: "text",
         value: row.password ?? "",
       }),
-      // cell: (info) => info.getValue(),
       meta: { flex: 1, minWidth: 150, maxWidth: 300 },
       enableHiding: true,
     },
@@ -148,10 +159,30 @@ const [school, setSchool] = useState<string | undefined>(undefined);
         type: "text",
         value: formatDate(row.createdAt) ?? "",
       }),
-      // cell: (info) => info.getValue(),
       meta: { flex: 1, minWidth: 150, maxWidth: 300 },
       enableHiding: true,
     },
+    // {
+    //   header: "Expiration Date",
+    //   accessorFn: (row) => ({
+    //     type: "text",
+    //     value: formatDate(row.subscriptionExpirationDate) ?? "",
+    //   }),
+    //   meta: { flex: 1, minWidth: 150, maxWidth: 300 },
+    //   enableHiding: true,
+    // },
+    {
+  header: "Expiration Date",
+  accessorFn: (row) => ({
+    type: "text",
+    value: row.subscriptionExpirationDate
+      ? formatDate(row.subscriptionExpirationDate)
+      : "---",
+  }),
+  meta: { flex: 1, minWidth: 150, maxWidth: 300 },
+  enableHiding: true,
+},
+
     {
       header: "Access",
       accessorFn: (row) => ({
@@ -170,7 +201,6 @@ const [school, setSchool] = useState<string | undefined>(undefined);
           },
         ],
       }),
-      // cell: (info) => info.getValue(),
       meta: { flex: 1.5, minWidth: 150, maxWidth: 200 },
       enableSorting: false,
       enableHiding: true,
@@ -197,14 +227,13 @@ const [school, setSchool] = useState<string | undefined>(undefined);
           },
         ],
       }),
-      // cell: (info) => info.getValue(),
       meta: { flex: 1.5, minWidth: 150, maxWidth: 200 },
       enableSorting: false,
       enableHiding: true,
     },
   ];
 
-  // columns for export
+  // Columns for export
   const columnsForExport = [
     { key: "branchName", header: "Branch Name" },
     { key: "schoolId.schoolName", header: "School Name" },
@@ -212,6 +241,10 @@ const [school, setSchool] = useState<string | undefined>(undefined);
     { key: "email", header: "Email" },
     { key: "username", header: "branch Username" },
     { key: "password", header: "branch Password" },
+        { key: "subscriptionExpirationDate", header: "Expiration Date" },
+
+        { key: "createdAt", header: "Registration Date" },
+
     {
       key: "fullAccess",
       header: "Access Level",
@@ -220,25 +253,27 @@ const [school, setSchool] = useState<string | undefined>(undefined);
   ];
 
   // Define the fields for the edit dialog
-  const branchFieldConfigs: FieldConfig[] = [
+  const getBranchFieldConfigs = (schoolOptions: SelectOption[]): FieldConfig[] => [
     {
-      label: "branch Name",
+      label: "Branch Name",
       key: "branchName",
       type: "text",
       required: true,
     },
     {
-      label: "school Name",
-      key: "schoolName",
-      type: "text",
+      label: "School Name",
+      key: "schoolId",
+      type: "select",
       required: true,
+      options: schoolOptions,
     },
-    {
-      label: "Mobile Number",
-      key: "mobileNo",
-      type: "text",
-      required: true,
-    },
+  {
+  label: "Mobile Number",
+  key: "mobileNo",
+  type: "text",
+  required: true,
+  transformInput: (value) => String(value), // Add this to ensure string conversion
+},
     {
       label: "Username",
       key: "username",
@@ -251,68 +286,38 @@ const [school, setSchool] = useState<string | undefined>(undefined);
       type: "text",
       required: true,
     },
+     {
+  label: "Expiration Date",
+  key: "subscriptionExpirationDate",
+  type: "date",
+  isProtected: true,
+},
+
   ];
 
   // Mutation to add a new branch
-  // const addbranchMutation = useMutation({
-  //   mutationFn: async (newbranch: any) => {
-  //     const branch = await api.post("/branch", newbranch);
-  //     return branch.branch;
-  //   },
-  //   onSuccess: (createdbranch) => {
-  //     queryClient.setQueryData<branch[]>(["branchs"], (oldbranchs = []) => {
-  //       return [...oldbranchs, createdbranch];
-  //     });
-  //   },
-  // });
   const addbranchMutation = useMutation({
-  mutationFn: async (newbranch: any) => {
-    const branch = await api.post("/branch", newbranch);
-    return branch.branch;
-  },
-  onSuccess: (createdbranch, variables) => {
-    // Find the school name from schoolData
-    const school = schoolData?.find(s => s._id === variables.schoolId);
-    
-    // Create a branch object with plain text password and school name
-    const newBranchWithSchool: branch = {
-      ...createdbranch,
-      password: variables.password, // Preserve plain text password
-      schoolId: {
-        _id: createdbranch.schoolId,
-        schoolName: school?.schoolName || "Unknown School"
-      }
-    };
+    mutationFn: async (newbranch: any) => {
+      const branch = await api.post("/branch", newbranch);
+      return branch.branch;
+    },
+    onSuccess: (createdbranch, variables) => {
+      const school = schoolData?.find(s => s._id === variables.schoolId);
+      const newBranchWithSchool: branch = {
+        ...createdbranch,
+        password: variables.password,
+        schoolId: {
+          _id: createdbranch.schoolId,
+          schoolName: school?.schoolName || "Unknown School"
+        }
+      };
 
-    queryClient.setQueryData<branch[]>(["branchs"], (oldbranchs = []) => {
-      return [...oldbranchs, newBranchWithSchool];
-    });
-  },
-});
-// const addbranchMutation = useMutation({
-//   mutationFn: async (newbranch: any) => {
-//     const branch = await api.post("/branch", newbranch);
-//     return branch.branch;
-//   },
-//   onSuccess: (createdbranch, variables) => {
-//     // Find the school name from schoolData
-//     const school = schoolData?.find(s => s._id === variables.schoolId);
-    
-//     // Create a branch object with plain text password and school name
-//     const newBranchWithSchool: branch = {
-//       ...createdbranch,
-//       password: variables.password, // Preserve plain text password
-//       schoolId: {
-//         _id: createdbranch.schoolId,
-//         schoolName: school?.schoolName || "Unknown School"
-//       }
-//     };
+      queryClient.setQueryData<branch[]>(["branchs"], (oldbranchs = []) => {
+        return [...oldbranchs, newBranchWithSchool];
+      });
+    },
+  });
 
-//     queryClient.setQueryData<branch[]>(["branchs"], (oldbranchs = []) => {
-//       return [...oldbranchs, newBranchWithSchool];
-//     });
-//   },
-// });
   // Mutation for Access control
   const accessMutation = useMutation({
     mutationFn: async (branch: { _id: string; fullAccess: boolean }) => {
@@ -346,21 +351,8 @@ const [school, setSchool] = useState<string | undefined>(undefined);
     }) => {
       return await api.put(`/branch/${branchId}`, data);
     },
-    onSuccess: (_, { branchId, data }) => {
-      queryClient.setQueryData<branch[]>(["branchs"], (oldData) => {
-        if (!oldData) return [];
-        return oldData.map((branch) =>
-          branch._id === branchId ? { ...branch, ...data } : branch
-        );
-      });
-
-      // Update filteredData manually
-      setFilteredData((prev) =>
-        prev.map((branch) =>
-          branch._id === branchId ? { ...branch, ...data } : branch
-        )
-      );
-
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['branchs'] });
       setEditDialogOpen(false);
       setEditTarget(null);
       alert("branch updated successfully.");
@@ -386,36 +378,29 @@ const [school, setSchool] = useState<string | undefined>(undefined);
     },
   });
 
-  //school data
-   const schoolOptions: SelectOption[] = schoolData
-    ? Array.from(
-        new Map(
-          schoolData
-            .filter((s) => s._id && s.schoolName)
-            .map((s) => [s._id, { label: s.schoolName, value: s._id }])
-        ).values()
-      )
-    : [];
-
   // Handle search
   const handleSearchResults = useCallback((results: branch[]) => {
     setFilteredData(results);
   }, []);
 
   // Handle save action for edit branch
-  const handleSave = (updatedData: Partial<branch>) => {
-    if (!editTarget) return;
+ const handleSave = (updatedData: Partial<branch>) => {
+  if (!editTarget) return;
 
-    const changedFields: Partial<Record<keyof branch, unknown>> = {};
+  const changedFields: Partial<Record<keyof branch, unknown>> = {};
+  const flatEditTarget = {
+    ...editTarget,
+    schoolId: editTarget.schoolId._id, // Use the ID for comparison
+  };
 
-    for (const key in updatedData) {
-      const newValue = updatedData[key as keyof branch];
-      const oldValue = editTarget[key as keyof branch];
+  for (const key in updatedData) {
+    const newValue = updatedData[key as keyof branch];
+    const oldValue = flatEditTarget[key as keyof branch];
 
-      if (newValue !== undefined && newValue !== oldValue) {
-        changedFields[key as keyof branch] = newValue;
-      }
+    if (newValue !== undefined && newValue !== oldValue) {
+      changedFields[key as keyof branch] = newValue;
     }
+  }
 
     if (Object.keys(changedFields).length === 0) {
       console.log("No changes detected.");
@@ -428,63 +413,41 @@ const [school, setSchool] = useState<string | undefined>(undefined);
     });
   };
 
-const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-  e.preventDefault();
-  const form = e.currentTarget;
-  
-  // Correct data structure with schoolId
-  const data = {
-    branchName: form.branchName.value,
-    schoolId: school, // Use selected school ID from state
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const form = e.currentTarget;
     
-    mobileNo: form.branchMobile.value, // API expects "mobileNo"
-    username: form.username.value,
-    password: form.password.value,
-    email: form.email.value,
-    fullAccess: form.fullAccess.checked,
+    if (!school) {
+      alert("Please select a school");
+      return;
+    }
+
+const formattedDate = selectedDate
+  ? selectedDate.toLocaleDateString('en-CA')
+  : "";
+
+
+    const data = {
+      branchName: form.branchName.value,
+      schoolId: school,
+      mobileNo: form.branchMobile.value,
+      username: form.username.value,
+      password: form.password.value,
+      email: form.email.value,
+      subscriptionExpirationDate:formattedDate,
+      fullAccess: form.fullAccess.checked,
+    };
+
+    try {
+      await addbranchMutation.mutateAsync(data);
+      closeButtonRef.current?.click();
+      form.reset();
+      setSchool(undefined);
+      alert("Branch added successfully.");
+    } catch (err: any) {
+      alert(`Failed to add branch: ${err.response?.data?.message || err.message}`);
+    }
   };
-
-  try {
-    await addbranchMutation.mutateAsync(data); // Use correct mutation name
-    closeButtonRef.current?.click();
-    form.reset();
-    setSchool(undefined); // Reset school selection
-    alert("Branch added successfully.");
-  } catch (err) {
-    alert("Failed to add Branch.\nerror: " + err);
-  }
-};
-
-// const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-//   e.preventDefault();
-//   const form = e.currentTarget;
-  
-//   // Validate school selection
-//   if (!school) {
-//     alert("Please select a school");
-//     return;
-//   }
-
-//   const data = {
-//     branchName: form.branchName.value,
-//     schoolId: school,
-//     mobileNo: form.branchMobile.value,
-//     username: form.username.value,
-//     password: form.password.value,
-//     email: form.email.value,
-//     fullAccess: form.fullAccess.checked,
-//   };
-
-//   try {
-//     await addbranchMutation.mutateAsync(data);
-//     closeButtonRef.current?.click();
-//     form.reset();
-//     setSchool(undefined);
-//     alert("Branch added successfully.");
-//   } catch (err: any) {
-//     alert(`Failed to add branch: ${err.response?.data?.message || err.message}`);
-//   }
-// };
 
   const handleDateFilter = useCallback(
     (start: Date | null, end: Date | null) => {
@@ -519,24 +482,20 @@ const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
 
   return (
     <main>
-      {/* Progress loader at the top */}
       <ResponseLoader isLoading={isLoading} />
 
       <header className="flex items-center justify-between mb-4">
         <section className="flex space-x-4">
-          {/* Search component */}
           <SearchComponent
             data={filterResults}
             displayKey={["branchName", "username", "email", "branchMobile"]}
             onResults={handleSearchResults}
             className="w-[300px] mb-4"
           />
-          {/* Date range picker */}
           <DateRangeFilter
             onDateRangeChange={handleDateFilter}
             title="Search by Registration Date"
           />
-          {/* Access Filter*/}
           <CustomFilter
             data={filterResults}
             originalData={filterResults}
@@ -551,7 +510,6 @@ const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
             trueValue={"Full Access"}
             falseValue={"Limited Access"}
           />
-          {/* Column visibility selector */}
           <ColumnVisibilitySelector
             columns={table.getAllColumns()}
             buttonVariant="outline"
@@ -559,7 +517,6 @@ const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
           />
         </section>
 
-        {/* Add branch */}
         <section>
           <Dialog>
             <DialogTrigger asChild>
@@ -580,18 +537,16 @@ const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
                       required
                     />
                   </div>
-                      {/* School */}
-                                       <div className="grid gap-2">
-                                         <Label htmlFor="schoolId">School</Label>
-                                         <SearchableSelect
-                                           value={school}
-                                           onChange={setSchool}
-                                           options={schoolOptions}
-                                           placeholder="Select school"
-                                           allowClear={true}
-                                           className=""
-                                         />
-                                       </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="schoolId">School</Label>
+                    <SearchableSelect
+                      value={school}
+                      onChange={setSchool}
+                      options={schoolOptions}
+                      placeholder="Select school"
+                      allowClear={true}
+                    />
+                  </div>
                   <div className="grid gap-2">
                     <Label htmlFor="email">Email</Label>
                     <Input
@@ -602,8 +557,7 @@ const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
                       required
                     />
                   </div>
-
-                   <div className="grid gap-2">
+                  <div className="grid gap-2">
                     <Label htmlFor="branchMobile">Mobile No</Label>
                     <Input
                       id="branchMobile"
@@ -616,7 +570,6 @@ const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
                       required
                     />
                   </div>
-
                   <div className="grid gap-2">
                     <Label htmlFor="username">Username</Label>
                     <Input
@@ -627,7 +580,6 @@ const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
                       required
                     />
                   </div>
-
                   <div className="grid gap-2">
                     <Label htmlFor="password">Password</Label>
                     <Input
@@ -638,6 +590,18 @@ const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
                       required
                     />
                   </div>
+                   {/* <div className="grid gap-2">
+                    <Label htmlFor="subscriptionExpirationDate">Expiration Date</Label>
+                    <Input
+                      id="subscriptionExpirationDate"
+                      name="subscriptionExpirationDate"
+                      type="text"
+                      placeholder="Enter date"
+                      required
+                    />
+                  </div> */}
+        
+   <ExpirationDatePicker value={selectedDate} onChange={setSelectedDate} />
 
                   <div className="flex items-center gap-3 mt-6">
                     <input
@@ -649,7 +613,6 @@ const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
                     <Label htmlFor="fullAccess">Full Access</Label>
                   </div>
                 </div>
-
                 <DialogFooter>
                   <DialogClose asChild>
                     <Button ref={closeButtonRef} variant="outline">
@@ -666,7 +629,6 @@ const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         </section>
       </header>
 
-      {/* Table component */}
       <section className="mb-4">
         <CustomTable
           data={filteredData || []}
@@ -682,7 +644,6 @@ const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         />
       </section>
 
-      {/* Alert Boxes */}
       <section>
         <div>
           <Alert<branchAccess>
@@ -718,19 +679,22 @@ const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
           )}
         </div>
       </section>
-      {/* Edit Dialog */}
+      
       <section>
         {editTarget && (
           <DynamicEditDialog
-            data={editTarget}
+            data={{
+              ...editTarget,
+              schoolId: editTarget.schoolId._id,
+            }}
             isOpen={editDialogOpen}
             onClose={() => {
               setEditDialogOpen(false);
               setEditTarget(null);
             }}
             onSave={handleSave}
-            fields={branchFieldConfigs}
-            title="Edit branch"
+            fields={getBranchFieldConfigs(schoolOptions)}
+            title="Edit Branch"
             description="Update the branch information below. Fields marked with * are required."
             avatarConfig={{
               imageKey: "logo",
@@ -739,11 +703,10 @@ const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
           />
         )}
       </section>
-      {/* Floating Menu */}
+      
       <section>
         <FloatingMenu
           onExportPdf={() => {
-            console.log("Export PDF triggered"); // ✅ Add this for debugging
             exportToPDF(filteredData, columnsForExport, {
               title: "branch Master Report",
               companyName: "Parents Eye",
@@ -753,7 +716,6 @@ const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
             });
           }}
           onExportExcel={() => {
-            console.log("Export Excel triggered"); // ✅ Add this too
             exportToExcel(filteredData, columnsForExport, {
               title: "branch Master Report",
               companyName: "Parents Eye",
