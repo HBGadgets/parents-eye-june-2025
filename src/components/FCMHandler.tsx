@@ -1,4 +1,3 @@
-// components/FCMHandler.tsx
 "use client";
 
 import { useEffect, useRef } from "react";
@@ -6,17 +5,25 @@ import { messaging, getToken, onMessage } from "@/util/firebase";
 import { Messaging } from "firebase/messaging";
 import { toast } from "sonner";
 
-// Get VAPID key from environment
+// Set your VAPID key
 const vapidKey = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY!;
-
-// Preload audio
-const notificationSound = new Audio("/notification.mp3");
-notificationSound.preload = "auto";
 
 export default function FCMHandler(): null {
   const hasInitialized = useRef(false);
 
   useEffect(() => {
+    // Register Firebase Messaging Service Worker
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker
+        .register("/firebase-messaging-sw.js")
+        .then((registration) => {
+          console.log("Service Worker registered:", registration.scope);
+        })
+        .catch((err) => {
+          console.error("Service Worker registration failed:", err);
+        });
+    }
+
     if (hasInitialized.current) return;
     hasInitialized.current = true;
 
@@ -45,7 +52,7 @@ export default function FCMHandler(): null {
           }
         }
 
-        // Set up listener once
+        // Show in-app toast for foreground messages
         onMessage(messaging as Messaging, (payload) => {
           console.log("🔔 Foreground notification:", payload);
 
@@ -53,24 +60,17 @@ export default function FCMHandler(): null {
           const body = payload.notification?.body ?? "";
           const type = title.toLowerCase();
 
-          // Play sound
-          notificationSound.play().catch((err) => {
-            console.warn("🔇 Sound blocked:", err);
-          });
-
-          // Native Notification
+          // Show a native notification (shows only in foreground, OS chime not guaranteed here)
           try {
             new Notification(title, {
               body,
               icon: "/favicon.ico",
-              tag: payload.messageId,
-              data: payload.data,
             });
-          } catch (err) {
-            console.warn("Unable to show native notification:", err);
+          } catch (e) {
+            // Fallback: show only in-app toast
           }
 
-          // Toast styles
+          // Style mapping for toast
           const styles: Record<string, string> = {
             overspeed: "bg-red-50 text-red-800 border-l-4 border-red-600",
             running: "bg-green-50 text-green-800 border-l-4 border-green-600",
