@@ -1,3 +1,4 @@
+// components/FCMHandler.tsx
 "use client";
 
 import { useEffect, useRef } from "react";
@@ -5,25 +6,16 @@ import { messaging, getToken, onMessage } from "@/util/firebase";
 import { Messaging } from "firebase/messaging";
 import { toast } from "sonner";
 
-// Set your VAPID key
+// Get VAPID key from environment
 const vapidKey = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY!;
 
 export default function FCMHandler(): null {
   const hasInitialized = useRef(false);
 
   useEffect(() => {
-    // Register Firebase Messaging Service Worker
-    if ("serviceWorker" in navigator) {
-      navigator.serviceWorker
-        .register("/firebase-messaging-sw.js")
-        .then((registration) => {
-          console.log("Service Worker registered:", registration.scope);
-        })
-        .catch((err) => {
-          console.error("Service Worker registration failed:", err);
-        });
-    }
-
+    // Preload audio
+    const notificationSound = new Audio("/notification.mp3");
+    notificationSound.preload = "auto";
     if (hasInitialized.current) return;
     hasInitialized.current = true;
 
@@ -52,7 +44,7 @@ export default function FCMHandler(): null {
           }
         }
 
-        // Show in-app toast for foreground messages
+        // Set up listener once
         onMessage(messaging as Messaging, (payload) => {
           console.log("🔔 Foreground notification:", payload);
 
@@ -60,17 +52,28 @@ export default function FCMHandler(): null {
           const body = payload.notification?.body ?? "";
           const type = title.toLowerCase();
 
-          // Show a native notification (shows only in foreground, OS chime not guaranteed here)
-          try {
-            new Notification(title, {
-              body,
-              icon: "/favicon.ico",
+          // Play sound
+          notificationSound.play().catch((err) => {
+            console.warn("🔇 Sound blocked:", err);
+          });
+
+          if ("serviceWorker" in navigator) {
+            window.addEventListener("load", () => {
+              navigator.serviceWorker
+                .register("/firebase-messaging-sw.js")
+                .then((registration) => {
+                  console.log(
+                    "Service Worker registered with scope:",
+                    registration.scope
+                  );
+                })
+                .catch((err) => {
+                  console.error("Service Worker registration failed:", err);
+                });
             });
-          } catch (e) {
-            // Fallback: show only in-app toast
           }
 
-          // Style mapping for toast
+          // Toast styles
           const styles: Record<string, string> = {
             overspeed: "bg-red-50 text-red-800 border-l-4 border-red-600",
             running: "bg-green-50 text-green-800 border-l-4 border-green-600",

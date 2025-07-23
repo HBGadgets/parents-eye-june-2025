@@ -20,11 +20,12 @@ const messaging = firebase.messaging();
 messaging.onBackgroundMessage((payload) => {
   console.log("📥 Background message received:", payload);
 
-  const notificationTitle = payload?.notification?.title || "New Notification";
-  const notificationOptions = {
-    body: payload?.notification?.body || "You have a new message",
-    icon: "/icon.png", // Make sure this path is valid and accessible
+  const title = payload?.notification?.title || "Notification";
+  const options = {
+    body: payload?.notification?.body || "",
+    // icon: "/icon.png", // optional
+    // badge: "/badge-icon.png", // optional
   };
 
-  self.registration.showNotification(notificationTitle, notificationOptions);
+  self.registration.showNotification(title, options);
 });
