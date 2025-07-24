@@ -104,16 +104,6 @@ export const CustomFilter: React.FC<CustomFilterProps> = ({
         onFilter(sourceData); // Reset to original data if no filters
         return;
       }
-
-      // const filtered = sourceData.filter((item) => {
-      //   if (typeof item === "object" && item !== null) {
-      //     return Object.entries(filters).every(([field, value]) => {
-      //       const itemValue = item[field];
-      //       return itemValue?.toString().toLowerCase() === value.toLowerCase();
-      //     });
-      //   }
-      //   return true;
-      // });
       const filtered = sourceData.filter((item) => {
         if (typeof item === "object" && item !== null) {
           return Object.entries(filters).every(([field, value]) => {

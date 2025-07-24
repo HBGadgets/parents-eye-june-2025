@@ -1,5 +1,6 @@
 "use client";
 import { AppSidebar } from "@/components/app-sidebar";
+import FCMHandler from "@/components/FCMHandler";
 import { Navbar } from "@/components/navbar";
 import { Breadcrumb } from "@/components/ui/breadcrumb";
 import { Separator } from "@/components/ui/separator";
@@ -35,6 +36,7 @@ export default function DashboardLayout({
         </header>
 
         <main className="pt-4 px-4 overflow-auto flex-1 min-h-0">
+          <FCMHandler />
           {children}
         </main>
       </SidebarInset>

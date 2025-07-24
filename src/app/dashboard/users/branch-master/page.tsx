@@ -74,6 +74,10 @@ export default function BranchMaster() {
   const { data: schoolData } = useSchoolData();
   const [school, setSchool] = useState<string | undefined>(undefined);
 const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [isVerificationDialogOpen, setIsVerificationDialogOpen] = useState(false);
+  const [isVerified, setIsVerified] = useState(false);
+  const [currentProtectedField, setCurrentProtectedField] = useState<string | null>(null);
+
   // Fetch branch data
   const {
     data: branchs,
@@ -162,15 +166,7 @@ const [selectedDate, setSelectedDate] = useState<Date | null>(null);
       meta: { flex: 1, minWidth: 150, maxWidth: 300 },
       enableHiding: true,
     },
-    // {
-    //   header: "Expiration Date",
-    //   accessorFn: (row) => ({
-    //     type: "text",
-    //     value: formatDate(row.subscriptionExpirationDate) ?? "",
-    //   }),
-    //   meta: { flex: 1, minWidth: 150, maxWidth: 300 },
-    //   enableHiding: true,
-    // },
+  
     {
   header: "Expiration Date",
   accessorFn: (row) => ({
@@ -286,15 +282,25 @@ const [selectedDate, setSelectedDate] = useState<Date | null>(null);
       type: "text",
       required: true,
     },
-     {
-  label: "Expiration Date",
-  key: "subscriptionExpirationDate",
-  type: "date",
-  isProtected: true,
-},
+      {
+      label: "Expiration Date",
+      key: "subscriptionExpirationDate",
+      type: "date",
+      isProtected: true,
+      disabled: !isVerified, // Disabled until verified
+      onFocus: () => {
+        if (!isVerified) {
+          setCurrentProtectedField("subscriptionExpirationDate");
+          setIsVerificationDialogOpen(true);
+        }
+      }
+    },
 
   ];
-
+  const handleVerificationSuccess = () => {
+    setIsVerified(true);
+    setIsVerificationDialogOpen(false);
+  };
   // Mutation to add a new branch
   const addbranchMutation = useMutation({
     mutationFn: async (newbranch: any) => {
@@ -590,16 +596,7 @@ const formattedDate = selectedDate
                       required
                     />
                   </div>
-                   {/* <div className="grid gap-2">
-                    <Label htmlFor="subscriptionExpirationDate">Expiration Date</Label>
-                    <Input
-                      id="subscriptionExpirationDate"
-                      name="subscriptionExpirationDate"
-                      type="text"
-                      placeholder="Enter date"
-                      required
-                    />
-                  </div> */}
+                  
         
    <ExpirationDatePicker value={selectedDate} onChange={setSelectedDate} />
 
@@ -691,6 +688,7 @@ const formattedDate = selectedDate
             onClose={() => {
               setEditDialogOpen(false);
               setEditTarget(null);
+              setIsVerified(false)
             }}
             onSave={handleSave}
             fields={getBranchFieldConfigs(schoolOptions)}

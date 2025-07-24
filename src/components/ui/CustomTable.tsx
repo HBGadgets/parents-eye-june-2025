@@ -138,13 +138,16 @@ export function CustomTable<TData extends RowData>({
     return () => observer.disconnect();
   }, []);
 
-  // Sorting logic fix: sort *before* paginating
   const finalData = data;
   useEffect(() => {
     setPagination((prev) => ({ ...prev, pageIndex: 0 }));
   }, [data]);
+  const pageCount = Math.ceil(finalData.length / pagination.pageSize);
+  const paginatedData = finalData.slice(
+    pagination.pageIndex * pagination.pageSize,
+    (pagination.pageIndex + 1) * pagination.pageSize
+  );
 
-  // Combine serial number and columns
   const serialNumberColumn: ColumnDef<TData, any> = {
     id: "serialNumber",
     header: () => <div className="text-center w-full">S.No.</div>,
@@ -162,87 +165,7 @@ export function CustomTable<TData extends RowData>({
 
   const finalColumns = useMemo(() => {
     return showSerialNumber ? [serialNumberColumn, ...columns] : columns;
-    // Exclude pagination from deps - to avoid re-creating columns each page
-    // (serial numbers are computed in cell function)
-  }, [showSerialNumber, columns]);
-
-  // --- Sorting Fix ---
-  const sortedData = useMemo(() => {
-    if (!sorting.length) return finalData;
-
-    // We'll support multi-sort
-    return [...finalData].sort((a, b) => {
-      for (const sort of sorting) {
-        const { id, desc } = sort;
-        const col = finalColumns.find((c) => c.id === id);
-        let aValue: any;
-        let bValue: any;
-
-        if (col?.accessorFn) {
-          aValue = col.accessorFn(a, 0);
-          bValue = col.accessorFn(b, 0);
-        } else {
-          aValue = (a as any)[id];
-          bValue = (b as any)[id];
-        }
-
-        // Normalize null/undefined
-        if (aValue == null && bValue == null) return 0;
-        if (aValue == null) return desc ? 1 : -1;
-        if (bValue == null) return desc ? -1 : 1;
-
-        // Try to detect and parse dates automatically
-        const aDate = Date.parse(aValue);
-        const bDate = Date.parse(bValue);
-
-        if (!isNaN(aDate) && !isNaN(bDate)) {
-          // Both are valid dates
-          if (aDate > bDate) return desc ? -1 : 1;
-          if (aDate < bDate) return desc ? 1 : -1;
-          continue;
-        }
-
-        // Number sort
-        if (typeof aValue === "number" && typeof bValue === "number") {
-          if (aValue > bValue) return desc ? -1 : 1;
-          if (aValue < bValue) return desc ? 1 : -1;
-          continue;
-        }
-
-        // Try to parse numbers from strings if possible
-        const aNum = parseFloat(aValue);
-        const bNum = parseFloat(bValue);
-        if (!isNaN(aNum) && !isNaN(bNum)) {
-          if (aNum > bNum) return desc ? -1 : 1;
-          if (aNum < bNum) return desc ? 1 : -1;
-          continue;
-        }
-
-        // String sort (locale compare is unicode/case aware)
-        if (typeof aValue === "string" && typeof bValue === "string") {
-          const cmp = aValue.localeCompare(bValue);
-          if (cmp !== 0) return desc ? -cmp : cmp;
-          continue;
-        }
-
-        // fallback to default
-        if (aValue > bValue) return desc ? -1 : 1;
-        if (aValue < bValue) return desc ? 1 : -1;
-      }
-      return 0;
-    });
-  }, [finalData, sorting, finalColumns]);
-
-  // --- /Sorting Fix ---
-
-  // Paginate the *sorted* data
-  const pageCount = Math.ceil(sortedData.length / pagination.pageSize);
-  const paginatedData = useMemo(() => {
-    return sortedData.slice(
-      pagination.pageIndex * pagination.pageSize,
-      (pagination.pageIndex + 1) * pagination.pageSize
-    );
-  }, [sortedData, pagination]);
+  }, [showSerialNumber, columns, pagination.pageIndex, pagination.pageSize]);
 
   const table = useReactTable({
     data: paginatedData,
@@ -257,7 +180,6 @@ export function CustomTable<TData extends RowData>({
     onColumnVisibilityChange: handleColumnVisibilityChange,
     pageCount,
     manualPagination: true,
-    // no manualSorting; sorting is handled in-place
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
   });

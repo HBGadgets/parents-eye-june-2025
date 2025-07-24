@@ -53,6 +53,9 @@ export interface DataTableProps<T> {
   enableSorting?: boolean;
   manualSorting?: boolean;
   manualPagination?: boolean;
+  showSerialNumber?: boolean;
+  serialNumberHeader?: string;
+  maxHeight?: string;
 }
 
 export function CustomTableServerSidePagination<T extends Record<string, any>>({
@@ -69,10 +72,31 @@ export function CustomTableServerSidePagination<T extends Record<string, any>>({
   enableSorting = true,
   manualSorting = true,
   manualPagination = true,
+  showSerialNumber = true,
+  serialNumberHeader = "S.No.",
+  maxHeight = "500px",
 }: DataTableProps<T>) {
+  // Create serial number column
+  const serialNumberColumn: ColumnDef<T> = {
+    id: "serialNumber",
+    header: serialNumberHeader,
+    cell: ({ row }) => {
+      const serialNumber =
+        pagination.pageIndex * pagination.pageSize + row.index + 1;
+      return <div className="text-center font-medium">{serialNumber}</div>;
+    },
+    enableSorting: false,
+    size: 60,
+  };
+
+  // Combine serial number column with user columns
+  const tableColumns = showSerialNumber
+    ? [serialNumberColumn, ...columns]
+    : columns;
+
   const table = useReactTable({
     data,
-    columns,
+    columns: tableColumns,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     manualSorting,
@@ -86,8 +110,6 @@ export function CustomTableServerSidePagination<T extends Record<string, any>>({
     onPaginationChange,
     pageCount: Math.ceil(totalCount / pagination.pageSize),
   });
-
-  console.log("Data from Table", data);
 
   const totalPages = Math.ceil(totalCount / pagination.pageSize);
   const hasNextPage = pagination.pageIndex < totalPages - 1;
@@ -107,112 +129,118 @@ export function CustomTableServerSidePagination<T extends Record<string, any>>({
     });
   };
 
-  if (loading) {
-    return (
-      <div className="space-y-4">
-        <div className="border rounded-lg">
+  return (
+    <div className="space-y-4">
+      <div className="border rounded-lg overflow-hidden">
+        <div className="overflow-y-auto" style={{ maxHeight }}>
           <Table>
-            <TableHeader>
-              <TableRow>
-                {columns.map((column, index) => (
-                  <TableHead key={index}>
-                    <Skeleton className="h-4 w-20" />
-                  </TableHead>
-                ))}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {Array.from({ length: pagination.pageSize }).map((_, index) => (
-                <TableRow key={index}>
-                  {columns.map((_, colIndex) => (
-                    <TableCell key={colIndex}>
-                      <Skeleton className="h-4 w-full" />
-                    </TableCell>
+            <TableHeader className="sticky top-0 bg-background z-10">
+              {table.getHeaderGroups().map((headerGroup) => (
+                <TableRow key={headerGroup.id} className="border-b">
+                  {headerGroup.headers.map((header) => (
+                    <TableHead
+                      key={header.id}
+                      className="bg-primary text-black px-2 py-2 sm:px-4 sm:py-3 text-xs sm:text-sm font-medium uppercase tracking-wider border-r last:border-r-0"
+                      style={{
+                        width: header.id === "serialNumber" ? "60px" : "auto",
+                        minWidth:
+                          header.id === "serialNumber" ? "60px" : "auto",
+                      }}
+                    >
+                      {header.isPlaceholder ? null : (
+                        <div
+                          className={`flex items-center justify-center gap-1 w-full ${
+                            header.column.getCanSort()
+                              ? "cursor-pointer select-none"
+                              : ""
+                          }`}
+                          onClick={header.column.getToggleSortingHandler()}
+                        >
+                          <span className="truncate">
+                            {flexRender(
+                              header.column.columnDef.header,
+                              header.getContext()
+                            )}
+                          </span>
+                          {header.column.getCanSort() && (
+                            <span className="ml-1">
+                              {header.column.getIsSorted() === "desc" ? (
+                                <ArrowDown className="h-4 w-4" />
+                              ) : header.column.getIsSorted() === "asc" ? (
+                                <ArrowUp className="h-4 w-4" />
+                              ) : (
+                                <ArrowUpDown className="h-4 w-4" />
+                              )}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </TableHead>
                   ))}
                 </TableRow>
               ))}
-            </TableBody>
+            </TableHeader>
+            {loading ? (
+              <TableBody>
+                {Array.from({ length: pagination.pageSize }).map((_, index) => (
+                  <TableRow key={index}>
+                    {tableColumns.map((_, colIndex) => (
+                      <TableCell key={colIndex}>
+                        <Skeleton className="h-4 w-full" />
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))}
+              </TableBody>
+            ) : (
+              <TableBody>
+                {table.getRowModel().rows?.length ? (
+                  table.getRowModel().rows.map((row) => (
+                    <TableRow
+                      key={row.id}
+                      className="border-b hover:bg-muted/50"
+                    >
+                      {row.getVisibleCells().map((cell) => (
+                        <TableCell
+                          key={cell.id}
+                          className="px-2 py-2 sm:px-4 sm:py-2 text-xs sm:text-sm border-r last:border-r-0 text-center"
+                          style={{
+                            width:
+                              cell.column.id === "serialNumber"
+                                ? "60px"
+                                : "auto",
+                            minWidth:
+                              cell.column.id === "serialNumber"
+                                ? "60px"
+                                : "auto",
+                          }}
+                        >
+                          <div className="w-full">
+                            <div className="break-words overflow-wrap-anywhere leading-relaxed">
+                              {flexRender(
+                                cell.column.columnDef.cell,
+                                cell.getContext()
+                              )}
+                            </div>
+                          </div>
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell
+                      colSpan={tableColumns.length}
+                      className="text-center py-8 text-muted-foreground"
+                    >
+                      {emptyMessage}
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            )}
           </Table>
         </div>
-        <div className="flex items-center justify-between">
-          <Skeleton className="h-4 w-32" />
-          <div className="flex items-center space-x-2">
-            <Skeleton className="h-8 w-8" />
-            <Skeleton className="h-8 w-8" />
-            <Skeleton className="h-8 w-8" />
-            <Skeleton className="h-8 w-8" />
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-4">
-      <div className="border rounded-lg">
-        <Table>
-          <TableHeader>
-            {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id}>
-                {headerGroup.headers.map((header) => (
-                  <TableHead key={header.id}>
-                    {header.isPlaceholder ? null : (
-                      <div
-                        className={
-                          header.column.getCanSort()
-                            ? "cursor-pointer select-none flex items-center space-x-1 hover:bg-muted/50 p-1 rounded"
-                            : ""
-                        }
-                        onClick={header.column.getToggleSortingHandler()}
-                      >
-                        {flexRender(
-                          header.column.columnDef.header,
-                          header.getContext()
-                        )}
-                        {header.column.getCanSort() && (
-                          <span className="ml-1">
-                            {header.column.getIsSorted() === "desc" ? (
-                              <ArrowDown className="h-4 w-4" />
-                            ) : header.column.getIsSorted() === "asc" ? (
-                              <ArrowUp className="h-4 w-4" />
-                            ) : (
-                              <ArrowUpDown className="h-4 w-4" />
-                            )}
-                          </span>
-                        )}
-                      </div>
-                    )}
-                  </TableHead>
-                ))}
-              </TableRow>
-            ))}
-          </TableHeader>
-          <TableBody>
-            {table.getRowModel().rows?.length ? (
-              table.getRowModel().rows.map((row) => (
-                <TableRow key={row.id}>
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>
-                      {flexRender(
-                        cell.column.columnDef.cell,
-                        cell.getContext()
-                      )}
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))
-            ) : (
-              <TableRow>
-                <TableCell
-                  colSpan={columns.length}
-                  className="text-center py-8 text-muted-foreground"
-                >
-                  {emptyMessage}
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
       </div>
 
       {/* Pagination Controls */}

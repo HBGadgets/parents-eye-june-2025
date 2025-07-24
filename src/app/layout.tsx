@@ -32,11 +32,11 @@ export default function RootLayout({
       >
         <Providers>
           {/* <RouteTransitionWrapper> */}
-            {children}
+          {children}
           {/* </RouteTransitionWrapper> */}
-            {/* {children} */}
+          {/* {children} */}
         </Providers>
-        <Toaster position="top-center" richColors />
+        <Toaster position="bottom-right" richColors />
       </body>
     </html>
   );
