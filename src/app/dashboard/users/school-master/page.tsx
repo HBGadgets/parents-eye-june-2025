@@ -134,30 +134,7 @@ export default function SchoolMaster() {
       meta: { flex: 1, minWidth: 200 },
       enableHiding: true,
     },
-    // No need to add this in school master add this in branch master
-    // {
-    //   header: "Access",
-    //   accessorFn: (row) => ({
-    //     type: "group",
-    //     items: [
-    //       {
-    //         type: "button",
-    //         label: row.fullAccess
-    //           ? "Grant Limited Access"
-    //           : "Grant Full Access",
-    //         onClick: () => setAccessTarget(row),
-    //         disabled: accessMutation.isPending,
-    //         className: `w-38 text-center text-sm bg-yellow-400 hover:bg-yellow-500 font-semibold rounded-full px-4 py-2 ${
-    //           row.fullAccess ? "text-red-600" : "text-emerald-600"
-    //         }`,
-    //       },
-    //     ],
-    //   }),
-    //   // cell: (info) => info.getValue(),
-    //   meta: { flex: 1.5, minWidth: 150, maxWidth: 200 },
-    //   enableSorting: false,
-    //   enableHiding: true,
-    // },
+
     {
       header: "Action",
       accessorFn: (row) => ({
@@ -195,6 +172,7 @@ export default function SchoolMaster() {
     { key: "schoolMobile", header: "Mobile" },
     { key: "username", header: "School Username" },
     { key: "password", header: "School Password" },
+    { key: "createdAt", header: "Registration Date" },
   ];
 
   // Define the fields for the edit dialog
@@ -237,28 +215,6 @@ export default function SchoolMaster() {
       });
     },
   });
-
-  // Mutation for Access control
-  // const accessMutation = useMutation({
-  //   mutationFn: async (school: { _id: string; fullAccess: boolean }) => {
-  //     return await api.put(`/school/accessgrant/${school._id}`, {
-  //       fullAccess: school.fullAccess,
-  //     });
-  //   },
-  //   onSuccess: (updated, variables) => {
-  //     queryClient.setQueryData<School[]>(["schools"], (oldData) =>
-  //       oldData?.map((school) =>
-  //         school._id === variables._id
-  //           ? { ...school, fullAccess: variables.fullAccess }
-  //           : school
-  //       )
-  //     );
-  //     alert("Access updated successfully.");
-  //   },
-  //   onError: (err) => {
-  //     alert("Failed to update access.\nerror: " + err);
-  //   },
-  // });
 
   // Mutation for edit school data
   const updateSchoolMutation = useMutation({

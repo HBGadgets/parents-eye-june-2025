@@ -76,7 +76,6 @@ export interface Device {
   speed: string;
   average: string;
   Driver: string;
-  geofences: string[];
   model: string;
   category: string;
   installationdate: string;

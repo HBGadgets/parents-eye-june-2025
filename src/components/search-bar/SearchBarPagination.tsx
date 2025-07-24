@@ -16,7 +16,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
   width = "w-full md:w-[350px]",
 }) => {
   return (
-    <div className={`mb-4 ${width}`}>
+    <div className={`${width}`}>
       <div className="flex items-center bg-yellow-200 rounded-md px-3 py-2 shadow-sm">
         <input
           type="text"
