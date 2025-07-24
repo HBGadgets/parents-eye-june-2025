@@ -361,51 +361,10 @@ export default function ReadDevice() {
         /> */}
       </header>
 
-      {/* Delete Dialog */}
-      <section>
-        <div>
-          {deleteTarget && (
-            <Alert<Device>
-              title="Are you absolutely sure?"
-              description={`This will permanently delete ${deleteTarget?.name} and all associated data.`}
-              actionButton={(target) => {
-                deleteDeviceMutation.mutate(target._id);
-                setDeleteTarget(null);
-              }}
-              target={deleteTarget}
-              setTarget={setDeleteTarget}
-              butttonText="Delete"
-            />
-          )}
-        </div>
-      </section>
+      <main>
+        <section>{tableElement}</section>
+      </main>
 
-      <section>
-        {/* Edit Dialog */}
-        <section>
-          {editTarget && (
-            <DynamicEditDialog
-              data={editTarget}
-              isOpen={editDialogOpen}
-              onClose={() => {
-                setEditDialogOpen(false);
-                setEditTarget(null);
-                setSelectedSchoolId(null);
-                setFilteredBranches([]);
-              }}
-              onSave={handleSave}
-              fields={deviceFieldConfigs}
-              title="Edit Device"
-              description="Update the device information below. Fields marked with * are required."
-              avatarConfig={{
-                imageKey: "logo",
-                nameKeys: ["name"],
-              }}
-              onFieldChange={handleSchoolChange}
-            />
-          )}
-        </section>
-      </section>
       {/* Floating Menu */}
       <section>
         <FloatingMenu
