@@ -73,11 +73,11 @@ export function FloatingMenu({
       action: onExportExcel,
       label: "Export Excel",
     },
-    {
-      icon: LogOut,
-      action: onLogout,
-      label: "Logout",
-    },
+    // {
+    //   icon: LogOut,
+    //   action: onLogout,
+    //   label: "Logout",
+    // },
     {
       icon: ArrowUp,
       action: () => window.scrollTo({ top: 0, behavior: "smooth" }),

@@ -63,7 +63,10 @@ export interface FieldConfig {
     | "searchable-select";
   required?: boolean;
   placeholder?: string;
-  options?: string[] | { value: string; label: string }[];
+  options?: string[] | { value: string; label: string }[] | any[];
+  // For searchable-select with complex objects
+  labelKey?: string; // Field to use for display label (e.g., "schoolName")
+  valueKey?: string; // Field to use as value (e.g., "_id")
   validation?: {
     min?: number;
     max?: number;
@@ -85,6 +88,7 @@ interface DynamicEditDialogProps<T = any> {
   isOpen: boolean;
   onClose: () => void;
   onSave: (formData: any) => void;
+  onFieldChange?: (fieldKey: string, value: any, option?: any) => void;
   fields: FieldConfig[];
   title?: string;
   description?: string;
@@ -154,11 +158,25 @@ const validateField = (value: any, config: FieldConfig): string | undefined => {
   return undefined;
 };
 
+// Helper function to get option value and label
+const getOptionValue = (option: any, field: FieldConfig): string => {
+  if (typeof option === "string") return option;
+  if (field.valueKey) return option[field.valueKey];
+  return option.value || option._id || option.id || "";
+};
+
+const getOptionLabel = (option: any, field: FieldConfig): string => {
+  if (typeof option === "string") return option;
+  if (field.labelKey) return option[field.labelKey];
+  return option.label || option.name || option.title || "";
+};
+
 export const DynamicEditDialog: React.FC<DynamicEditDialogProps> = ({
   data,
   isOpen,
   onClose,
   onSave,
+  onFieldChange,
   fields,
   title = "Edit Record",
   description = "Update the information below. Fields marked with * are required.",
@@ -265,7 +283,10 @@ export const DynamicEditDialog: React.FC<DynamicEditDialogProps> = ({
             <FormControl>
               {field.type === "select" ? (
                 <Select
-                  onValueChange={formField.onChange}
+                  onValueChange={(value) => {
+                    formField.onChange(value);
+                    onFieldChange?.(field.key, value);
+                  }}
                   value={formField.value}
                   disabled={field.disabled}
                 >
@@ -279,10 +300,8 @@ export const DynamicEditDialog: React.FC<DynamicEditDialogProps> = ({
                   </SelectTrigger>
                   <SelectContent>
                     {field.options?.map((option) => {
-                      const value =
-                        typeof option === "string" ? option : option.value;
-                      const label =
-                        typeof option === "string" ? option : option.label;
+                      const value = getOptionValue(option, field);
+                      const label = getOptionLabel(option, field);
                       return (
                         <SelectItem key={value} value={value}>
                           {label}
@@ -307,17 +326,12 @@ export const DynamicEditDialog: React.FC<DynamicEditDialogProps> = ({
                         ? (() => {
                             const foundOption = field.options?.find(
                               (option) => {
-                                const value =
-                                  typeof option === "string"
-                                    ? option
-                                    : option.value;
+                                const value = getOptionValue(option, field);
                                 return value === formField.value;
                               }
                             );
                             return foundOption
-                              ? typeof foundOption === "string"
-                                ? foundOption
-                                : foundOption.label
+                              ? getOptionLabel(foundOption, field)
                               : formField.value;
                           })()
                         : field.placeholder ||
@@ -325,31 +339,37 @@ export const DynamicEditDialog: React.FC<DynamicEditDialogProps> = ({
                       <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                     </Button>
                   </PopoverTrigger>
-                  <PopoverContent className="w-full p-0">
+                  <PopoverContent className="w-full p-0" align="start">
                     <Command>
                       <CommandInput
                         placeholder={`Search ${field.label.toLowerCase()}...`}
                       />
-                      <CommandList>
+                      <CommandList className="max-h-[200px] overflow-y-auto">
                         <CommandEmpty>No results found.</CommandEmpty>
                         <CommandGroup>
                           {field.options?.map((option) => {
-                            const value =
-                              typeof option === "string"
-                                ? option
-                                : option.value;
-                            const label =
-                              typeof option === "string"
-                                ? option
-                                : option.label;
+                            const value = getOptionValue(option, field);
+                            const label = getOptionLabel(option, field);
                             return (
                               <CommandItem
                                 key={value}
-                                value={value}
+                                value={label} // Use label for search matching
                                 onSelect={() => {
-                                  formField.onChange(
-                                    value === formField.value ? "" : value
-                                  );
+                                  const newValue =
+                                    value === formField.value ? "" : value;
+                                  formField.onChange(newValue);
+
+                                  // Call the parent callback with the full option object
+                                  if (onFieldChange) {
+                                    const selectedOption = newValue
+                                      ? option
+                                      : null;
+                                    onFieldChange(
+                                      field.key,
+                                      newValue,
+                                      selectedOption
+                                    );
+                                  }
                                 }}
                               >
                                 <Check
@@ -375,6 +395,10 @@ export const DynamicEditDialog: React.FC<DynamicEditDialogProps> = ({
                   placeholder={field.placeholder}
                   disabled={field.disabled}
                   className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  onChange={(e) => {
+                    formField.onChange(e.target.value);
+                    onFieldChange?.(field.key, e.target.value);
+                  }}
                 />
               ) : field.type === "date" ? (
                 <Popover>
@@ -399,7 +423,10 @@ export const DynamicEditDialog: React.FC<DynamicEditDialogProps> = ({
                     <Calendar
                       mode="single"
                       selected={formField.value}
-                      onSelect={formField.onChange}
+                      onSelect={(date) => {
+                        formField.onChange(date);
+                        onFieldChange?.(field.key, date);
+                      }}
                       disabled={(date) => {
                         if (field.disabled) return true;
                         const { minDate, maxDate } = field.validation || {};
@@ -426,6 +453,7 @@ export const DynamicEditDialog: React.FC<DynamicEditDialogProps> = ({
                           : Number(e.target.value)
                         : e.target.value;
                     formField.onChange(value);
+                    onFieldChange?.(field.key, value);
                   }}
                 />
               )}

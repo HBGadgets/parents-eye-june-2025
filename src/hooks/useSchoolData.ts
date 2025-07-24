@@ -9,4 +9,5 @@ export const useSchoolData = () =>
       const response = await api.get<School[]>("/school");
       return response;
     },
+    staleTime: 5 * 60 * 1000, // 5 minutes
   });

@@ -1,10 +1,10 @@
-// components/FCMHandler.tsx
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { messaging, getToken, onMessage } from "@/util/firebase";
 import { Messaging } from "firebase/messaging";
 import { toast } from "sonner";
+import authAxios from "@/lib/authAxios";
 
 // Get VAPID key from environment
 const vapidKey = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY!;
@@ -40,7 +40,10 @@ export default function FCMHandler(): null {
           if (newToken) {
             console.log("✅ New FCM Token:", newToken);
             localStorage.setItem("fcm_token", newToken);
+
+            const payload = { fcmToken: newToken };
             // TODO: Send token to your backend
+            await authAxios.post("/fcmtoken/store", payload);
           }
         }
 
