@@ -64,7 +64,7 @@ export interface Branch {
   password: string;
   email: string;
   role: string;
-subscriptionExpirationDate:string;
+  subscriptionExpirationDate: string;
   createdAt: string;
 }
 
@@ -107,12 +107,11 @@ export interface Geofence {
   _id: string;
   name: string;
   area: string;
-  busStopTime: string;
+  pickupTime: string;
+  dropTime: string;
   isCrossed: boolean;
-  deviceName: string;
-  schoolId: string | null;
-  branchId: string | null;
-  parentId: string | null;
+  schoolId: School | null;
+  branchId: Branch | null;
 }
 
 export interface Parent {
