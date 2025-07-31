@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback, use } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { Button } from "@/components/ui/button";
@@ -27,8 +27,16 @@ import {
   Save,
   XCircle,
   ExternalLink,
+  ChevronRight,
+  ChevronLeft,
+  School,
 } from "lucide-react";
 import GeofenceConfigurationPanel from "./configuration-panel";
+import { Branch, BranchGroup, Route, School, School } from "@/interface/modal";
+import { useSchoolData } from "@/hooks/useSchoolData";
+import { useBranchData } from "@/hooks/useBranchData";
+import { useRouteData } from "@/hooks/useRouteData";
+import { useBranchGroupData } from "@/hooks/useBranchGroup";
 
 // Fix for default markers in Leaflet
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -54,9 +62,7 @@ const GeofenceManager: React.FC = () => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<L.Map | null>(null);
   const geofenceLayerGroup = useRef<L.LayerGroup | null>(null);
-
   const [geofences, setGeofences] = useState<Geofence[]>([]);
-
   const [searchQuery, setSearchQuery] = useState("");
   const [locationSearchQuery, setLocationSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<any[]>([]);
@@ -66,15 +72,30 @@ const GeofenceManager: React.FC = () => {
     lat: 21.1286677,
     lng: 79.1038211,
   });
-  const [allVerified, setAllVerified] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [currentGeofenceName, setCurrentGeofenceName] = useState("");
   const [currentRadius, setCurrentRadius] = useState(100);
   const [tempGeofence, setTempGeofence] = useState<Geofence | null>(null);
   const markerRef = useRef<L.Marker | null>(null);
   const tempLayerGroup = useRef<L.LayerGroup | null>(null);
+  const [selectedSchool, setSelectedSchool] = useState<School | null>(null);
+  const [selectedBranch, setSelectedBranch] = useState<Branch | null>(null);
+  const [selectedRoute, setSelectedRoute] = useState<Route | null>(null);
+  const [selectedBranchGroup, setSelectedBranchGroup] =
+    useState<BranchGroup | null>(null);
+  const [filterResults, setFilterResults] = useState<Geofence[]>([]);
+  const [filteredData, setFilteredData] = useState<Geofence[]>([]);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [filteredBranches, setFilteredBranches] = useState<Branch[]>([]);
+  const [filteredRoutes, setFilteredRoutes] = useState<Route[]>([]);
+  const [filteredBranchGroups, setFilteredBranchGroups] = useState<
+    BranchGroup[]
+  >([]);
+  const { data: branchData } = useBranchData();
+  const { data: routeData } = useRouteData();
+  const { data: branchGroupData } = useBranchGroupData();
 
-  //   const { toast } = useToast();
+  // Add Geofence Mutation
 
   // Initialize map using vanilla Leaflet
   useEffect(() => {
@@ -286,8 +307,6 @@ const GeofenceManager: React.FC = () => {
       type: "radius",
       coordinates: [[lng, lat]],
       radius: currentRadius,
-      verified: false,
-      offline_visits: false,
     };
 
     setTempGeofence(newTempGeofence);
@@ -340,7 +359,6 @@ const GeofenceManager: React.FC = () => {
         const savedGeofence = {
           ...tempGeofence,
           id: Date.now().toString(),
-          verified: true,
         };
         setGeofences((prev) => [...prev, savedGeofence]);
         setTempGeofence(null);
@@ -358,32 +376,6 @@ const GeofenceManager: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const bulkImport = () => {
-    const input = document.createElement("input");
-    input.type = "file";
-    input.accept = ".csv,.json";
-    input.onchange = (e) => {
-      const file = (e.target as HTMLInputElement).files?.[0];
-      if (file) {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          try {
-            const data = JSON.parse(e.target?.result as string);
-            toast.success("Import Successful", {
-              description: `Imported ${data.length || 0} geofences.`,
-            });
-          } catch (error) {
-            toast.error("Import Failed", {
-              description: "Invalid file format. Please check your file.",
-            });
-          }
-        };
-        reader.readAsText(file);
-      }
-    };
-    input.click();
   };
 
   const searchGeofence = (query: string) => {
@@ -449,10 +441,13 @@ const GeofenceManager: React.FC = () => {
 
   const resetMap = () => {
     if (map.current) {
-      map.current.setView([40.7128, -74.006], 12);
+      map.current.setView([21.1286677, 79.1038211], 12);
     }
     setActiveGeofence(null);
-    setCurrentCoords({ lat: 40.7128, lng: -74.006 });
+    setCurrentCoords({ lat: 21.1286677, lng: 79.1038211 });
+    toast("Map Reset", {
+      description: "Map view reset to default location.",
+    });
   };
 
   const undoLastAction = () => {
@@ -463,112 +458,149 @@ const GeofenceManager: React.FC = () => {
     g.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const handleCustomFilter = useCallback((filtered: Geofence[]) => {
+    setFilteredData(filtered);
+  }, []);
+
+  useEffect(() => {
+    if (selectedSchool && branchData) {
+      const filtered = branchData.filter(
+        (branch) => branch?.schoolId?._id === selectedSchool._id
+      );
+      setFilteredBranches(filtered);
+      setSelectedBranch(null); // reset on school change
+    } else {
+      setFilteredBranches([]);
+    }
+  }, [selectedSchool, branchData]);
+
+  useEffect(() => {
+    if (selectedBranch && routeData) {
+      const filtered = routeData.filter(
+        (route) => route?.branchId?._id === selectedBranch._id
+      );
+      setFilteredRoutes(filtered);
+      setSelectedRoute(null); // reset on branch change
+    } else {
+      setFilteredRoutes([]);
+    }
+  }, [selectedBranch, routeData]);
+
+  useEffect(() => {
+    if (selectedBranchGroup && routeData) {
+      const filtered = routeData.filter(
+        (route) =>
+          route?.branchId?.schoolId?._id === selectedBranchGroup.schoolId._id &&
+          route?.branchId?._id === selectedBranchGroup.AssignedBranch._id
+      );
+      setFilteredRoutes(filtered);
+      setSelectedRoute(null); // reset on branch group change
+    } else {
+      setFilteredRoutes([]);
+    }
+  }, [selectedBranchGroup, routeData]);
+
+  const handleSchoolSelect = (school: School | null) => {
+    setSelectedSchool(school);
+  };
+
+  const handleBranchSelect = (branch: Branch | null) => {
+    setSelectedBranch(branch);
+  };
+
+  const handleRouteSelect = (route: Route | null) => {
+    setSelectedRoute(route);
+  };
+
+  const handleBranchGroupSelect = (branchGroup: BranchGroup | null) => {
+    setSelectedBranchGroup(branchGroup);
+  };
+
   return (
     <div className="h-screen flex bg-background">
       {/* Left Sidebar - keeping exact same layout and functionality */}
-      <div className="w-80 bg-sidebar-background border-r border-border flex flex-col">
-        {/* Header */}
-        <div className="p-4 border-b border-border">
-          <h2 className="text-lg font-semibold text-foreground">
-            Geography → Geofence
-          </h2>
-        </div>
-
-        {/* Search */}
-        <div className="p-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search center of geofence"
-              value={searchQuery}
-              onChange={(e) => searchGeofence(e.target.value)}
-              className="pl-10"
-            />
-          </div>
-        </div>
-
-        {/* Geofence List */}
-        <ScrollArea className="flex-1 px-4">
-          <div className="space-y-2">
-            {filteredGeofences.map((geofence) => (
-              <div
-                key={geofence.id}
-                className={`p-3 rounded-lg border cursor-pointer transition-colors ${
-                  activeGeofence === geofence.id
-                    ? "bg-primary/10 border-primary"
-                    : "bg-card hover:bg-accent"
-                }`}
-                onClick={() => editGeofence(geofence.id)}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex-1">
-                    <h4 className="font-medium text-sm">{geofence.name}</h4>
-                    <p className="text-xs text-muted-foreground capitalize">
-                      {geofence.type}{" "}
-                      {geofence.radius ? `(${geofence.radius}m)` : ""}
-                    </p>
-                  </div>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      deleteGeofence(geofence.id);
-                    }}
-                    className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-                {!geofence.verified && (
-                  <div className="mt-2 text-xs text-orange-600">
-                    Not verified
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        </ScrollArea>
-
-        {/* Bulk Import */}
-        <div className="p-4 border-t border-border">
-          <Button
-            variant="outline"
-            onClick={bulkImport}
-            className="w-full mb-4"
+      <div
+        className={`${
+          isSidebarCollapsed ? "w-14" : "w-80"
+        } bg-sidebar-background border-r border-border flex flex-col transition-all duration-300 ease-in-out`}
+      >
+        {/* Collapse/Expand Button - Always visible */}
+        <div className="flex justify-end p-2 border-b border-border">
+          <button
+            onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+            className="text-muted-foreground hover:text-foreground transition-colors"
+            title={isSidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
           >
-            <Upload className="mr-2 h-4 w-4" />
-            Bulk Import
-          </Button>
-
-          {/* Verification Checkbox */}
-          <div className="flex items-center space-x-2 mb-4">
-            <Checkbox
-              id="verified"
-              checked={allVerified}
-              onCheckedChange={(checked) => setAllVerified(checked === true)}
-            />
-            <Label htmlFor="verified" className="text-sm">
-              I have verified the above geofences
-            </Label>
-          </div>
-
-          {/* Action Buttons */}
-          <div className="flex space-x-2">
-            <Button variant="outline" className="flex-1">
-              <XCircle className="mr-2 h-4 w-4" />
-              Cancel
-            </Button>
-            <Button
-              onClick={saveGeofences}
-              disabled={isLoading || !allVerified}
-              className="flex-1"
-            >
-              <Save className="mr-2 h-4 w-4" />
-              {isLoading ? "Saving..." : "Save"}
-            </Button>
-          </div>
+            {isSidebarCollapsed ? (
+              <ChevronRight className="h-4 w-4" />
+            ) : (
+              <ChevronLeft className="h-4 w-4" />
+            )}
+          </button>
         </div>
+
+        {/* Sidebar Content - Hidden when collapsed */}
+        {!isSidebarCollapsed && (
+          <>
+            {/* Header */}
+            <div className="p-4 border-b border-border">
+              <h2 className="text-lg font-semibold text-foreground">
+                Geography → Geofence
+              </h2>
+            </div>
+
+            {/* Search */}
+            <div className="p-4">
+              <div className="relative">
+                <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search center of geofence"
+                  value={searchQuery}
+                  onChange={(e) => searchGeofence(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+            </div>
+
+            {/* Geofence List */}
+            <ScrollArea className="flex-1 px-4">
+              <div className="space-y-2">
+                {filteredGeofences.map((geofence) => (
+                  <div
+                    key={geofence.id}
+                    className={`p-3 rounded-lg border cursor-pointer transition-colors ${
+                      activeGeofence === geofence.id
+                        ? "bg-primary/10 border-primary"
+                        : "bg-card hover:bg-accent"
+                    }`}
+                    onClick={() => editGeofence(geofence.id)}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <h4 className="font-medium text-sm">{geofence.name}</h4>
+                        <p className="text-xs text-muted-foreground capitalize">
+                          {geofence.type}{" "}
+                          {geofence.radius ? `(${geofence.radius}m)` : ""}
+                        </p>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteGeofence(geofence.id);
+                        }}
+                        className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </ScrollArea>
+          </>
+        )}
       </div>
 
       {/* Main Map Area */}
@@ -609,6 +641,20 @@ const GeofenceManager: React.FC = () => {
 
         {/* Configuration Panel - keeping exact same layout and functionality */}
         <GeofenceConfigurationPanel
+          handleRouteSelect={handleRouteSelect}
+          filteredBranches={filteredBranches}
+          filteredRoutes={filteredRoutes}
+          handleSchoolSelect={handleSchoolSelect}
+          handleBranchSelect={handleBranchSelect}
+          handleCustomFilter={handleCustomFilter}
+          setFilterResults={setFilterResults}
+          filterResults={filterResults}
+          setSelectedRoute={setSelectedRoute}
+          selectedRoute={selectedRoute}
+          setSelectedBranch={setSelectedBranch}
+          selectedBranch={selectedBranch}
+          setSelectedSchool={setSelectedSchool}
+          selectedSchool={selectedSchool}
           locationSearchQuery={locationSearchQuery}
           setLocationSearchQuery={setLocationSearchQuery}
           searchLocation={searchLocation}

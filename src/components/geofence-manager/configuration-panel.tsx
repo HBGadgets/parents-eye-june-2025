@@ -1,12 +1,19 @@
-// components/GeofenceConfigurationPanel.tsx
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Save, ExternalLink } from "lucide-react";
+import { CustomFilter } from "../ui/CustomFilter";
+import { Branch, Route, School } from "@/interface/modal";
+import { getDecodedToken } from "@/lib/jwt";
+import Cookies from "js-cookie";
+import { useSchoolData } from "@/hooks/useSchoolData";
+import { useBranchData } from "@/hooks/useBranchData";
+import { useRouteData } from "@/hooks/useRouteData";
+import { SearchableDropdown } from "../SearcheableDropdownFilter";
 
 interface SearchResult {
   lat: string;
@@ -36,9 +43,37 @@ interface Props {
   saveGeofences: () => void;
   isLoading: boolean;
   tempGeofence: any;
+  setSelectedRoute: (route: Route) => void;
+  selectedRoute: Route | null;
+  setSelectedSchool: (school: School | null) => void;
+  selectedSchool: School | null;
+  setSelectedBranch: (branch: Branch | null) => void;
+  selectedBranch: Branch | null;
+  filterResults: any[];
+  setFilterResults: (results: any[]) => void;
+  handleCustomFilter: (filtered: any[]) => void;
+  handleSchoolSelect: (school: School | null) => void;
+  handleBranchSelect: (branch: Branch | null) => void;
+  filteredBranches?: Branch[]; // Optional prop for filtered branches
+  filteredRoutes?: Route[]; // Optional prop for filtered routes
+  handleRouteSelect?: (route: Route | null) => void; // Optional prop for route selection
 }
 
 const GeofenceConfigurationPanel: React.FC<Props> = ({
+  handleRouteSelect,
+  filteredRoutes,
+  filteredBranches,
+  handleBranchSelect,
+  handleSchoolSelect,
+  handleCustomFilter,
+  setSelectedRoute,
+  selectedRoute,
+  setSelectedSchool,
+  selectedSchool,
+  setSelectedBranch,
+  selectedBranch,
+  filterResults,
+  setFilterResults,
   locationSearchQuery,
   setLocationSearchQuery,
   searchLocation,
@@ -56,10 +91,73 @@ const GeofenceConfigurationPanel: React.FC<Props> = ({
   isLoading,
   tempGeofence,
 }) => {
+  const token = Cookies.get("token");
+  const decoded = token ? getDecodedToken(token) : null;
+  const role = decoded?.role;
+  const { data: schoolData } = useSchoolData();
+  const { data: branchData } = useBranchData();
+  const { data: routeData } = useRouteData();
+
+  useEffect(() => {
+    console.log("Role", role);
+    console.log("School Data", schoolData);
+    console.log("Branch Data", branchData);
+    console.log("Route Data", routeData);
+  }, [role]);
+
   return (
-    <Card className="absolute bottom-4 right-4 w-80 z-[1000]">
+    <Card className="absolute bottom-4 right-4 w-auto min-w-[320px] max-w-[90vw] z-[1000]">
       <CardContent className="p-4 space-y-4">
         <h3 className="font-semibold">Configuration</h3>
+
+        {/* Geofence Filter */}
+        <div className="flex space-x-2 mb-4">
+          {/* School Filter */}
+          {role === "superAdmin" && (
+            <SearchableDropdown
+              items={schoolData || []}
+              placeholder="Select school..."
+              searchPlaceholder="Search schools..."
+              emptyMessage="No schools found."
+              onSelect={handleSchoolSelect}
+              valueKey="_id"
+              labelKey="schoolName"
+              className="w-[180px]"
+            />
+          )}
+
+          {/* Branch Filter */}
+          {["superAdmin", "branchGroup", "school"].includes(role) && (
+            <SearchableDropdown
+              // items={filteredBranches || []}
+              items={
+                role === "superAdmin"
+                  ? filteredBranches || []
+                  : branchData || []
+              }
+              placeholder="Select branch..."
+              searchPlaceholder="Search branch..."
+              emptyMessage="No branches found."
+              onSelect={handleBranchSelect}
+              valueKey="_id"
+              labelKey="branchName"
+              className="w-[180px]"
+            />
+          )}
+
+          {/* Route No. Filter */}
+          <SearchableDropdown
+            // items={filteredRoutes || []}
+            items={role === "branch" ? routeData || [] : filteredRoutes || []}
+            placeholder="Select route..."
+            searchPlaceholder="Search routes..."
+            emptyMessage="No routes found."
+            onSelect={handleRouteSelect}
+            valueKey="_id"
+            labelKey="routeNumber"
+            className="w-[180px]"
+          />
+        </div>
 
         {/* Location Search */}
         <div>

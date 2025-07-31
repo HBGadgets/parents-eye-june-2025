@@ -136,9 +136,31 @@ export interface Driver {
   password: string;
   email: string;
   driverMobile: string;
-  schoolId: string | null;
-  branchId: string | null;
+  schoolId: School;
+  branchId: Branch;
   role: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface Route {
+  _id: string;
+  routeNumber: string;
+  deviceObjId: Device;
+  schoolId: School;
+  branchId: Branch;
+  createdAt: string;
+}
+
+export interface BranchGroup {
+  _id: string;
+  branchGroupName: string;
+  schoolId: School;
+  AssignedBranch: Branch[];
+  phoneNo: string;
+  username: string;
+  password: string;
+  email: string;
+  role: string;
+  fcmToken: string;
 }

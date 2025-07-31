@@ -202,6 +202,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       ["superAdmin", "school", "branchGroup", "branch"].includes(role)
     ) {
       setUserRole(role as UserRole);
+      console.log(`User role set to: ${role}`);
     }
 
     setIsLoading(false); // Data fetching complete
@@ -280,19 +281,19 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             ];
           } else {
             return [
-              // {
-              //   title: "Driver Approve",
-              //   url: "/dashboard/users/driver-approve",
-              // },
-              // {
-              //   title: "Student Approve",
-              //   url: "/dashboard/users/student-approve",
-              // },
-              // {
-              //   title: "Supervisor Approve",
-              //   url: "/dashboard/users/supervisor-approve",
-              // },
-              // { title: "Read Device", url: "/dashboard/users/read-device" },
+              {
+                title: "Driver Approve",
+                url: "/dashboard/users/driver-approve",
+              },
+              {
+                title: "Student Approve",
+                url: "/dashboard/users/student-approve",
+              },
+              {
+                title: "Supervisor Approve",
+                url: "/dashboard/users/supervisor-approve",
+              },
+              { title: "Read Device", url: "/dashboard/users/read-device" },
             ];
           }
         case "Reports":

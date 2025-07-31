@@ -15,6 +15,9 @@ import Cookies from "js-cookie";
 import { getDecodedToken } from "@/lib/jwt";
 
 export function ProfileDropdown() {
+  const token = Cookies.get("token");
+  const decodedToken = token ? getDecodedToken(token) : null;
+  const username = decodedToken?.username || "User"; // Default username if not defined
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -31,8 +34,7 @@ export function ProfileDropdown() {
       >
         <DropdownMenuLabel>
           <div className="flex flex-col">
-            <span className="font-medium">shadcn</span>
-            <span className="text-xs text-muted-foreground">m@example.com</span>
+            <span className="font-medium">{username}</span>
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />

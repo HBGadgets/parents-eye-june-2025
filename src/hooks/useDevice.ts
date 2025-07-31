@@ -19,6 +19,9 @@ interface UseDevicesParams {
   deviceName?: string;
 }
 
+// I don't know if this is the best way to handle the API response structure, Par Mujhe kya Senior aake dekhega.
+// For the pagination and sorting parameters, we use the same structure as in the custom table component
+// This allows us to pass the same parameters directly to the API without needing to transform them
 const fetchDevices = async ({
   pagination,
   sorting,
