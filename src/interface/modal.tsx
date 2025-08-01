@@ -139,6 +139,7 @@ export interface Driver {
   driverMobile: string;
   schoolId: string | null;
   branchId: string | null;
+  deviceObjId:string|null;
   role: string;
   createdAt: string;
   updatedAt: string;
