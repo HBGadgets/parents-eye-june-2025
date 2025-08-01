@@ -64,7 +64,7 @@ export interface Branch {
   password: string;
   email: string;
   role: string;
-subscriptionExpirationDate:string;
+  subscriptionExpirationDate: string;
   createdAt: string;
 }
 
@@ -107,12 +107,11 @@ export interface Geofence {
   _id: string;
   name: string;
   area: string;
-  busStopTime: string;
+  pickupTime: string;
+  dropTime: string;
   isCrossed: boolean;
-  deviceName: string;
-  schoolId: string | null;
-  branchId: string | null;
-  parentId: string | null;
+  schoolId: School | null;
+  branchId: Branch | null;
 }
 
 export interface Parent {
@@ -137,10 +136,31 @@ export interface Driver {
   password: string;
   email: string;
   driverMobile: string;
-  schoolId: string | null;
-  branchId: string | null;
-  deviceObjId:string|null;
+  schoolId: School;
+  branchId: Branch;
   role: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface Route {
+  _id: string;
+  routeNumber: string;
+  deviceObjId: Device;
+  schoolId: School;
+  branchId: Branch;
+  createdAt: string;
+}
+
+export interface BranchGroup {
+  _id: string;
+  branchGroupName: string;
+  schoolId: School;
+  AssignedBranch: Branch[];
+  phoneNo: string;
+  username: string;
+  password: string;
+  email: string;
+  role: string;
+  fcmToken: string;
 }

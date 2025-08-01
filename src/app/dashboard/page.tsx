@@ -1,6 +1,6 @@
 "use client";
 
-import { MyPageTable } from "@/components/example/MyPageTable";
+// import { MyPageTable } from "@/components/example/MyPageTable";
 
 export default function DashboardPage() {
   return (
