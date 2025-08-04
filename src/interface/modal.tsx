@@ -138,6 +138,7 @@ export interface Driver {
   driverMobile: string;
   schoolId: School;
   branchId: Branch;
+  
   role: string;
   createdAt: string;
   updatedAt: string;

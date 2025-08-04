@@ -500,7 +500,7 @@ const flatEditTarget={
   ...editTarget,
   schoolId:editTarget.schoolId._id,
   branchId:editTarget.branchId._id,
-
+deviceObjId:editTarget.deviceObjId._id,
 };
     for (const key in updatedData) {
       const newValue = updatedData[key as keyof driver];
