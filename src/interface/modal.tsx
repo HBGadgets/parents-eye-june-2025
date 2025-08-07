@@ -138,12 +138,27 @@ export interface Driver {
   driverMobile: string;
   schoolId: School;
   branchId: Branch;
-  
+  deviceObjId:deviceObjId;
   role: string;
   createdAt: string;
   updatedAt: string;
 }
+export interface Supervisor {
+  isApproved: boolean;
+  _id: string;
+  supervisorName: string;
+  username: string;
+  password: string;
+  email: string;
+  supervisorMobile: string;
+  schoolId: School;
+  branchId: Branch;
+    deviceObjId:deviceObjId;
 
+  role: string;
+  createdAt: string;
+  updatedAt: string;
+}
 export interface Route {
   _id: string;
   routeNumber: string;

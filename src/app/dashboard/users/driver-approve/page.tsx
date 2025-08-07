@@ -40,6 +40,7 @@ import { SearchableSelect } from "@/components/custom-select";
 import { useBranchData } from "@/hooks/useBranchData";
 import { Value } from "@radix-ui/react-select";
 import { useDeviceData } from "@/hooks/useDeviceData";
+// import { headers } from "next/headers";
 // interface SchoolMinimal {
 //   _id: string;
 //   schoolName: string;
@@ -336,6 +337,15 @@ const deviceOptions: selectOption[] = deviceData?.devices
     { key: "driverMobile", header: "Mobile" },
     { key: "username", header: "driver Username" },
     { key: "password", header: "driver Password" },
+    { key: "schoolId.schoolName", header: "School Name" },
+{key:"branchId.branchName",header:"Branch Name"},
+{
+  key:"deviceObjId.name",header:"Device Name"
+},
+{
+  key:"isApproved",header:"status"
+},
+  { key: "createdAt", header: "Registration Date" },
   ];
 
   // Define the fields for the edit dialog
@@ -814,7 +824,7 @@ valueFormatter={(value) => {
             data={{...editTarget,
               schoolId:editTarget.schoolId._id,
               branchId:editTarget.branchId._id,
-            deviceObjId:editTarget.deviceObjId._id,
+              deviceObjId:editTarget.deviceObjId._id,
             }}
             isOpen={editDialogOpen}
             onClose={() => {
