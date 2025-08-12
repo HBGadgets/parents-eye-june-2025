@@ -1,24 +1,22 @@
-// for server-side pagination
-
 import { useQuery } from "@tanstack/react-query";
 import {
   PaginationState,
   SortingState,
 } from "@/components/ui/customTable(serverSidePagination)";
-import { Device } from "@/interface/modal";
+import { Geofence } from "@/interface/modal";
 import { api } from "@/services/apiService";
 
-interface DevicesResponse {
-  devices: Device[];
+interface GeofenceResponse {
+  data: Geofence[];
   total: number;
   page: number;
   limit: number;
 }
 
-interface UseDevicesParams {
+interface UseGeofenceParams {
   pagination: PaginationState;
   sorting: SortingState;
-  deviceName?: string;
+  name?: string;
 }
 
 // I don't know if this is the best way to handle the API response structure, Par Mujhe kya Senior aake dekhega.
@@ -27,15 +25,15 @@ interface UseDevicesParams {
 const fetchDevices = async ({
   pagination,
   sorting,
-  deviceName,
-}: UseDevicesParams): Promise<DevicesResponse> => {
+  name,
+}: UseGeofenceParams): Promise<GeofenceResponse> => {
   const params = new URLSearchParams({
     page: (pagination.pageIndex + 1).toString(),
     limit: pagination.pageSize.toString(),
   });
 
-  if (deviceName?.trim()) {
-    params.append("deviceName", deviceName);
+  if (name?.trim()) {
+    params.append("name", name);
   }
 
   if (sorting.length > 0) {
@@ -45,14 +43,14 @@ const fetchDevices = async ({
   }
 
   try {
-    const response = await api.get(`/device?${params.toString()}`);
+    const response = await api.get(`/geofence?${params.toString()}`);
 
-    if (response?.devices) {
+    if (response?.data) {
       return response;
     }
 
     // If response has .data like Axios
-    if (response?.data?.devices) {
+    if (response?.data?.data) {
       return response.data;
     }
 
@@ -61,26 +59,26 @@ const fetchDevices = async ({
     console.error("API Error:", error);
     throw new Error(
       error instanceof Error
-        ? `Failed to fetch devices: ${error.message}`
-        : "Failed to fetch devices"
+        ? `Failed to fetch geofences: ${error.message}`
+        : "Failed to fetch geofences"
     );
   }
 };
 
-export const useDevices = ({
+export const useGeofeneces = ({
   pagination,
   sorting,
-  deviceName,
-}: UseDevicesParams) => {
+  name,
+}: UseGeofenceParams) => {
   return useQuery({
     queryKey: [
-      "devices",
+      "geofences",
       pagination.pageIndex,
       pagination.pageSize,
       sorting.map((s) => `${s.id}-${s.desc ? "desc" : "asc"}`).join(","),
-      deviceName || "",
+      name || "",
     ],
-    queryFn: () => fetchDevices({ pagination, sorting, deviceName }),
+    queryFn: () => fetchDevices({ pagination, sorting, name }),
     keepPreviousData: true,
   });
 };

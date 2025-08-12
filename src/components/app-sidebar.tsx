@@ -337,7 +337,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
     sidebarData.forEach((item) => {
       router.prefetch(item.url);
-      console.log(`Prefetched: ${item.url}`);
+      // console.log(`Prefetched: ${item.url}`);
     });
   }, [sidebarData, router]);
 

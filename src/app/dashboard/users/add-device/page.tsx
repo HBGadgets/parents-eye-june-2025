@@ -44,8 +44,7 @@ const DevicesPage = () => {
   const [selectedBranchId, setSelectedBranchId] = useState<string | null>(null);
   const [filteredBranches, setFilteredBranches] = useState<any[]>([]);
   const { exportToPDF, exportToExcel } = useExport();
-  const [columnVisibility, setColumnVisibility] =
-    React.useState<VisibilityState>({});
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
   const [filterResults, setFilterResults] = useState<Device[]>([]);
 
   const {
@@ -70,7 +69,7 @@ const DevicesPage = () => {
     return () => clearTimeout(handler);
   }, [deviceName]);
 
-  // Add this useEffect to filter branches when school is selected
+  // filter branches when school is selected
   useEffect(() => {
     if (selectedSchoolId && branchData) {
       const filtered = branchData.filter(
@@ -82,7 +81,7 @@ const DevicesPage = () => {
     }
   }, [selectedSchoolId, branchData]);
 
-  // Add this useEffect to handle branch reset when school changes
+  // branch reset when school changes
   useEffect(() => {
     if (editTarget && selectedSchoolId && filteredBranches.length > 0) {
       // Check if current branch belongs to the selected school
@@ -489,7 +488,7 @@ const DevicesPage = () => {
     /* NEEED TO PASSS IN THE QUERY PARAMETERRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR */
   }
 
-  // Replace your existing CustomTableServerSidePagination usage with:
+  // server side pagination table instance
   const { table, tableElement } = CustomTableServerSidePagination({
     data: devicesData?.devices || [],
     columns,
@@ -614,7 +613,7 @@ const DevicesPage = () => {
       <section>
         <FloatingMenu
           onExportPdf={() => {
-            console.log("Export PDF triggered"); // ✅ Add this for debugging
+            // console.log("Export PDF triggered");
             exportToPDF(devicesData?.devices, columnsForExport, {
               title: "All Devices Data",
               companyName: "Parents Eye",
@@ -624,7 +623,7 @@ const DevicesPage = () => {
             });
           }}
           onExportExcel={() => {
-            console.log("Export Excel triggered"); // ✅ Add this too
+            // console.log("Export Excel triggered");
             exportToExcel(devicesData?.devices, columnsForExport, {
               title: "All Devices Data",
               companyName: "Parents Eye",

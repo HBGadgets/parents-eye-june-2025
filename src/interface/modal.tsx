@@ -1,42 +1,15 @@
 export interface Student {
-  total: number;
-  page: number;
-  limit: number;
   _id: string;
   childName: string;
   className: string;
   section: string;
-  DOB: string;
-  age: number;
-  gender: string;
-  geofenceId: {
-    _id: string;
-    name: string;
-    busStopTime: string;
-  };
-  deviceId: {
-    _id: string;
-    name: string;
-    routeNo: string;
-  };
-  assignDevice: boolean;
-  parentId: {
-    _id: string;
-    parentName: string;
-    mobileNo: string;
-    username: string;
-    password: string;
-  };
-  schoolId: {
-    _id: string;
-    schoolName: string;
-  };
-  branchId: {
-    _id: string;
-    branchName: string;
-  };
+  age: string;
+  geofenceId: Geofence;
+  parentId: Parent;
+  schoolId: School;
+  branchId: Branch;
+  statusOfRegister: string;
   createdAt: string;
-  updatedAt: string;
 }
 
 export interface School {
@@ -105,13 +78,23 @@ export interface Device {
 
 export interface Geofence {
   _id: string;
-  name: string;
+  geofenceName: string;
   area: string;
   pickupTime: string;
   dropTime: string;
   isCrossed: boolean;
+  school: School | null;
   schoolId: School | null;
+  branch: Branch | null;
   branchId: Branch | null;
+  deviceObjId?: Device | null;
+  route: {
+    routeNumber: string;
+    device: Device | null;
+  };
+  routeObjId?: Route | null;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface Parent {
@@ -124,7 +107,7 @@ export interface Parent {
   fullAccess: boolean;
   schoolId: string | null;
   branchId: string | null;
-  contactNo: string;
+  mobileNo: string;
   role: string;
 }
 

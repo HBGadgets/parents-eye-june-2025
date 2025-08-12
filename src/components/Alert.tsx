@@ -29,16 +29,20 @@ export function Alert<T>({
 }: AlertProps<T>) {
   return (
     <AlertDialog open={!!target} onOpenChange={() => setTarget(null)}>
-      <AlertDialogContent>
+      <AlertDialogContent className="max-w-md w-full">
         <AlertDialogHeader>
           <AlertDialogTitle>{title}</AlertDialogTitle>
           <AlertDialogDescription>{description}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel onClick={() => setTarget(null)}>
+          <AlertDialogCancel
+            onClick={() => setTarget(null)}
+            className="cursor-pointer"
+          >
             Cancel
           </AlertDialogCancel>
           <AlertDialogAction
+            className="bg-red-500 hover:bg-red-600 text-white font-semibold py-1 px-3 rounded-md cursor-pointer"
             onClick={() => {
               if (target) {
                 actionButton(target);

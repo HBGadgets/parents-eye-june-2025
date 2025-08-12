@@ -5,6 +5,7 @@ import { messaging, getToken, onMessage } from "@/util/firebase";
 import { Messaging } from "firebase/messaging";
 import { toast } from "sonner";
 import authAxios from "@/lib/authAxios";
+import Cookies from "js-cookie";
 
 // Get VAPID key from environment
 const vapidKey = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY!;
@@ -33,17 +34,42 @@ export default function FCMHandler(): null {
         }
 
         const storedToken = localStorage.getItem("fcm_token");
+
         if (storedToken) {
           console.log("📦 Reusing stored FCM Token:", storedToken);
         } else {
-          const newToken = await getToken(messaging as Messaging, { vapidKey });
-          if (newToken) {
-            console.log("✅ New FCM Token:", newToken);
+          try {
+            const newToken = await getToken(messaging as Messaging, {
+              vapidKey,
+            });
+
+            if (!newToken) {
+              console.warn("❌ Failed to retrieve new FCM token.");
+              return;
+            }
+
+            // console.log("✅ New FCM Token:", newToken);
             localStorage.setItem("fcm_token", newToken);
 
             const payload = { fcmToken: newToken };
-            // TODO: Send token to your backend
-            await authAxios.post("/fcmtoken/store", payload);
+            const token = Cookies.get("token");
+
+            if (!token) {
+              console.warn(
+                "⚠️ Auth token not found. Cannot send FCM token to server."
+              );
+              return;
+            }
+
+            await authAxios.post("/fcmtoken/store", payload, {
+              headers: {
+                Authorization: `Bearer ${token}`,
+              },
+            });
+
+            // console.log("📤 FCM token successfully sent to backend.");
+          } catch (err) {
+            console.error("🚨 Error during FCM token generation/storage:", err);
           }
         }
 

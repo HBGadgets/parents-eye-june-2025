@@ -1,4 +1,3 @@
-// components/ui/EditModal.tsx
 "use client";
 
 import React, { useEffect, useState } from "react";
@@ -185,9 +184,9 @@ export const DynamicEditDialog: React.FC<DynamicEditDialogProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [unlockedFields, setUnlockedFields] = useState<Set<string>>(new Set());
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
-  const [currentProtectedField, setCurrentProtectedField] = useState<string | null>(null);
-
-
+  const [currentProtectedField, setCurrentProtectedField] = useState<
+    string | null
+  >(null);
 
   const form = useForm<Record<string, any>>({ defaultValues: {} });
 
@@ -209,10 +208,6 @@ export const DynamicEditDialog: React.FC<DynamicEditDialogProps> = ({
       setUnlockedFields(new Set());
     }
   }, [data, isOpen, fields, form]);
-
-
-
-
 
   const handleUnlockClick = (fieldKey: string) => {
     setCurrentProtectedField(fieldKey);
@@ -482,50 +477,51 @@ export const DynamicEditDialog: React.FC<DynamicEditDialogProps> = ({
     </Avatar>
   );
 
- return (
-  <>
-    <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-3">
-            {avatarDisplay}
-            {title}
-          </DialogTitle>
-          <DialogDescription>{description}</DialogDescription>
-        </DialogHeader>
+  return (
+    <>
+      <Dialog open={isOpen} onOpenChange={handleClose}>
+        <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-3">
+              {avatarDisplay}
+              {title}
+            </DialogTitle>
+            <DialogDescription>{description}</DialogDescription>
+          </DialogHeader>
 
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            {/* Render all fields in a responsive grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {fields.map(renderField)}
-            </div>
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              {/* Render all fields in a responsive grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {fields.map(renderField)}
+              </div>
 
-            {/* Footer with action buttons */}
-            <DialogFooter className="gap-2 pt-4">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handleClose}
-                disabled={isSubmitting}
-              >
-                Cancel
-              </Button>
+              {/* Footer with action buttons */}
+              <DialogFooter className="gap-2 pt-4">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleClose}
+                  disabled={isSubmitting}
+                >
+                  Cancel
+                </Button>
 
-              <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Saving...
-                  </>
-                ) : (
-                  "Save Changes"
-                )}
-              </Button>
-            </DialogFooter>
-          </form>
-        </Form>
-      </DialogContent>
-    </Dialog>
-  </>
-);
+                <Button type="submit" disabled={isSubmitting}>
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    "Save Changes"
+                  )}
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+};

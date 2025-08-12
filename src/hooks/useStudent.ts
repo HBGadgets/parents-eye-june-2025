@@ -5,37 +5,37 @@ import {
   PaginationState,
   SortingState,
 } from "@/components/ui/customTable(serverSidePagination)";
-import { Device } from "@/interface/modal";
+import { Student } from "@/interface/modal";
 import { api } from "@/services/apiService";
 
-interface DevicesResponse {
-  devices: Device[];
+interface StudentResponse {
+  students: Student[];
   total: number;
   page: number;
   limit: number;
 }
 
-interface UseDevicesParams {
+interface UseStudentsParams {
   pagination: PaginationState;
   sorting: SortingState;
-  deviceName?: string;
+  childName?: string;
 }
 
 // I don't know if this is the best way to handle the API response structure, Par Mujhe kya Senior aake dekhega.
 // For the pagination and sorting parameters, we use the same structure as in the custom table component
 // This allows us to pass the same parameters directly to the API without needing to transform them
-const fetchDevices = async ({
+const fetchStudents = async ({
   pagination,
   sorting,
-  deviceName,
-}: UseDevicesParams): Promise<DevicesResponse> => {
+  childName,
+}: UseStudentsParams): Promise<StudentResponse> => {
   const params = new URLSearchParams({
     page: (pagination.pageIndex + 1).toString(),
     limit: pagination.pageSize.toString(),
   });
 
-  if (deviceName?.trim()) {
-    params.append("deviceName", deviceName);
+  if (childName?.trim()) {
+    params.append("childName", childName);
   }
 
   if (sorting.length > 0) {
@@ -45,14 +45,14 @@ const fetchDevices = async ({
   }
 
   try {
-    const response = await api.get(`/device?${params.toString()}`);
+    const response = await api.get(`/child?${params.toString()}`);
 
-    if (response?.devices) {
+    if (response?.children) {
       return response;
     }
 
     // If response has .data like Axios
-    if (response?.data?.devices) {
+    if (response?.data?.children) {
       return response.data;
     }
 
@@ -67,20 +67,20 @@ const fetchDevices = async ({
   }
 };
 
-export const useDevices = ({
+export const useStudents = ({
   pagination,
   sorting,
-  deviceName,
-}: UseDevicesParams) => {
+  childName,
+}: UseStudentsParams) => {
   return useQuery({
     queryKey: [
-      "devices",
+      "students",
       pagination.pageIndex,
       pagination.pageSize,
       sorting.map((s) => `${s.id}-${s.desc ? "desc" : "asc"}`).join(","),
-      deviceName || "",
+      childName || "",
     ],
-    queryFn: () => fetchDevices({ pagination, sorting, deviceName }),
+    queryFn: () => fetchStudents({ pagination, sorting, childName }),
     keepPreviousData: true,
   });
 };

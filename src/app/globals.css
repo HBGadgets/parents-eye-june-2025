@@ -217,8 +217,8 @@
   animation: stepProgress 2s linear infinite;
 }
 
-@media (width >=40rem) {
+/* @media (width >=40rem) {
   .sm\:max-w-lg {
     max-width: none;
   }
-}
+} */
