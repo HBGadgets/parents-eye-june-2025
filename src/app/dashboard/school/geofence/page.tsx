@@ -132,7 +132,7 @@ export default function Geofence() {
             size="sm"
             onClick={() => {
               // Handle edit action
-              console.log("Edit geofence:", row.original);
+              setOpen(true);
             }}
             className="cursor-pointer bg-[#f3c623] hover:bg-[#D3A80C]"
           >

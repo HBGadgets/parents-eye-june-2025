@@ -333,24 +333,23 @@ const GeofenceManager: React.FC = () => {
     setLocationSearchQuery(result.display_name);
     setShowSearchResults(false);
 
-    // Center map and create temporary geofence
+    // Recenter map
     if (map.current) {
       map.current.setView([lat, lng], 15);
     }
 
-    setTempGeofence((prev) => ({
+    // ✅ Correct shape for drawing effect
+    setTempGeofence({
       type: "radius",
       geofenceName:
         currentGeofenceName ||
         result.display_name.split(",")[0] ||
         "New Geofence",
-      area: {
-        coordinates: [[lat, lng]],
-        radius: currentRadius,
-      },
-      pickupTime: pickupTime,
-      dropTime: dropTime,
-    }));
+      coordinates: [[lng, lat]], // MUST match render logic
+      radius: currentRadius,
+      pickupTime,
+      dropTime,
+    });
   };
 
   const openStreetView = () => {
@@ -397,11 +396,19 @@ const GeofenceManager: React.FC = () => {
     setIsLoading(true);
     try {
       const savedGeofence: any = {
-        ...tempGeofence,
-        branchId: selectedBranch?._id,
+        geofenceName: tempGeofence?.geofenceName || tempGeofence?.name,
+        area: {
+          center: [
+            tempGeofence.coordinates?.[0]?.[1] || currentCoords.lat, // lat
+            tempGeofence.coordinates?.[0]?.[0] || currentCoords.lng, // lng
+          ],
+          radius: tempGeofence.radius || currentRadius,
+        },
+        pickupTime: tempGeofence.pickupTime,
+        dropTime: tempGeofence.dropTime,
         schoolId: selectedSchool?._id,
+        branchId: selectedBranch?._id,
         routeObjId: selectedRoute?._id,
-        geofenceName: tempGeofence?.name,
       };
 
       // Only add pickupTime if not empty
@@ -483,10 +490,13 @@ const GeofenceManager: React.FC = () => {
       setTempGeofence({
         ...tempGeofence,
         name,
+        geofenceName: name, // ✅ keep this updated too
       });
     } else if (activeGeofence) {
       setGeofences(
-        geofences.map((g) => (g.id === activeGeofence ? { ...g, name } : g))
+        geofences.map((g) =>
+          g.id === activeGeofence ? { ...g, name, geofenceName: name } : g
+        )
       );
     }
   };
