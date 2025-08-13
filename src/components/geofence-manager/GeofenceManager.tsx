@@ -64,7 +64,19 @@ interface Geofence {
   routeObjId?: string;
 }
 
-const GeofenceManager: React.FC = () => {
+interface GeofenceManagerProps {
+  mode?: "add" | "edit";
+  initialData?: Geofence | null;
+  onSuccess?: () => void;
+  geofenceId?: string;
+}
+
+const GeofenceManager: React.FC = ({
+  mode,
+  geofenceId,
+  initialData = null,
+  onSuccess,
+}: GeofenceManagerProps) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<L.Map | null>(null);
   const geofenceLayerGroup = useRef<L.LayerGroup | null>(null);
@@ -105,6 +117,9 @@ const GeofenceManager: React.FC = () => {
   const [pickupTime, setPickupTime] = useState<Date | undefined>(undefined);
   const [dropTime, setDropTime] = useState<Date | undefined>(undefined);
 
+  console.log("MODE", mode);
+  console.log("geofenceId", geofenceId);
+
   // Add Geofence Mutation
   const addGeofenceMutation = useMutation({
     mutationFn: async (newGeofence: any) => {
@@ -115,6 +130,28 @@ const GeofenceManager: React.FC = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["geofences"] }); // 🔥 This invalidates all geofence-related queries
       alert("Geofence added successfully.");
+    },
+  });
+
+  // Update Geofence Mutation
+  const updateGeofenceMutation = useMutation({
+    mutationFn: async ({
+      geofenceId,
+      data,
+    }: {
+      geofenceId: string;
+      data: any;
+    }) => {
+      return await api.put(`/geofence/${geofenceId}`, data);
+    },
+
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["geofences"] }); // 🔥 This invalidates all geofence-related queries
+      alert("Geofence eddited successfully.");
+    },
+
+    onError: (err) => {
+      alert("Failed to update school.\nerror: " + err);
     },
   });
 
@@ -268,7 +305,7 @@ const GeofenceManager: React.FC = () => {
         });
 
         circle.bindPopup(
-          `<strong>${tempGeofence.name}</strong><br/>Type: ${tempGeofence.type}<br/>Radius: ${tempGeofence.radius}m`
+          `<strong>${tempGeofence.name}</strong><br/>Radius: ${tempGeofence.radius}m`
         );
         tempLayerGroup.current.addLayer(circle);
       }
@@ -404,43 +441,119 @@ const GeofenceManager: React.FC = () => {
           ],
           radius: tempGeofence.radius || currentRadius,
         },
-        pickupTime: tempGeofence.pickupTime,
-        dropTime: tempGeofence.dropTime,
         schoolId: selectedSchool?._id,
         branchId: selectedBranch?._id,
         routeObjId: selectedRoute?._id,
       };
 
-      // Only add pickupTime if not empty
+      // Only add times if they exist
       if (tempGeofence.pickupTime) {
         savedGeofence.pickupTime = formatTime(tempGeofence.pickupTime);
       }
 
-      // Only add dropTime if not empty
       if (tempGeofence.dropTime) {
         savedGeofence.dropTime = formatTime(tempGeofence.dropTime);
       }
 
-      console.log("savedGeofence", savedGeofence);
+      if (mode === "add") {
+        // Add new geofence
+        addGeofenceMutation.mutate(savedGeofence, {
+          onSuccess: (response) => {
+            // 🆕 Create geofence object for map rendering
+            const newGeofence = {
+              id: response._id || Date.now().toString(), // Use API response ID or fallback
+              type: "radius",
+              geofenceName: savedGeofence.geofenceName,
+              name: savedGeofence.geofenceName, // for backward compatibility
+              coordinates: [
+                [
+                  savedGeofence.area.center[1], // lng
+                  savedGeofence.area.center[0], // lat
+                ],
+              ],
+              radius: savedGeofence.area.radius,
+              pickupTime: tempGeofence.pickupTime,
+              dropTime: tempGeofence.dropTime,
+              schoolId: savedGeofence.schoolId,
+              branchId: savedGeofence.branchId,
+              routeObjId: savedGeofence.routeObjId,
+            };
 
-      // 🔥 Call your mutation to save to backend
-      addGeofenceMutation.mutate(savedGeofence, {
-        onSuccess: () => {
-          setTempGeofence(null);
-          setActiveGeofence(savedGeofence.id);
-          toast.success("Success", {
-            description: "Geofence saved successfully.",
-          });
-        },
-        onError: () => {
-          toast.error("Error", {
-            description: "Failed to save geofence.",
-          });
-        },
-      });
+            // 🆕 Add to geofences array so it shows on map
+            setGeofences((prev) => [...prev, newGeofence]);
+
+            // 🆕 Set as active geofence to highlight it
+            setActiveGeofence(newGeofence.id);
+
+            // Clear temp geofence
+            setTempGeofence(null);
+
+            toast.success("Success", {
+              description: "Geofence added successfully and visible on map.",
+            });
+
+            onSuccess?.(response); // Pass response to parent
+          },
+          onError: () => {
+            toast.error("Error", {
+              description: "Failed to add geofence.",
+            });
+          },
+        });
+      } else if (mode === "edit" && geofenceId) {
+        // Update existing geofence
+        updateGeofenceMutation.mutate(
+          { geofenceId, data: savedGeofence },
+          {
+            onSuccess: (response) => {
+              // 🆕 Update the existing geofence in the array
+              const updatedGeofence = {
+                id: geofenceId,
+                type: "radius",
+                geofenceName: savedGeofence.geofenceName,
+                name: savedGeofence.geofenceName,
+                coordinates: [
+                  [
+                    savedGeofence.area.center[1], // lng
+                    savedGeofence.area.center[0], // lat
+                  ],
+                ],
+                radius: savedGeofence.area.radius,
+                pickupTime: tempGeofence.pickupTime,
+                dropTime: tempGeofence.dropTime,
+                schoolId: savedGeofence.schoolId,
+                branchId: savedGeofence.branchId,
+                routeObjId: savedGeofence.routeObjId,
+              };
+
+              // 🆕 Update geofences array
+              setGeofences((prev) =>
+                prev.map((g) => (g.id === geofenceId ? updatedGeofence : g))
+              );
+
+              // Keep it active to show it's selected
+              setActiveGeofence(geofenceId);
+
+              // Clear temp geofence
+              setTempGeofence(null);
+
+              toast.success("Success", {
+                description: "Geofence updated successfully.",
+              });
+
+              onSuccess?.(response);
+            },
+            onError: () => {
+              toast.error("Error", {
+                description: "Failed to update geofence.",
+              });
+            },
+          }
+        );
+      }
     } catch (error) {
       toast.error("Error", {
-        description: "Failed to save geofences. Please try again.",
+        description: "Failed to save geofence. Please try again.",
       });
     } finally {
       setIsLoading(false);
@@ -640,102 +753,6 @@ const GeofenceManager: React.FC = () => {
   return (
     <div className="h-screen flex bg-background">
       {/* Left Sidebar - keeping exact same layout and functionality */}
-      <div
-        className={`${
-          isSidebarCollapsed ? "w-14" : "w-80"
-        } bg-sidebar-background border-r border-border flex flex-col transition-all duration-300 ease-in-out`}
-      >
-        {/* Collapse/Expand Button - Always visible */}
-        <div className="flex justify-end p-2 border-b border-border">
-          <button
-            onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-            className="text-muted-foreground hover:text-foreground transition-colors"
-            title={isSidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-          >
-            {isSidebarCollapsed ? (
-              <ChevronRight className="h-4 w-4" />
-            ) : (
-              <ChevronLeft className="h-4 w-4" />
-            )}
-          </button>
-        </div>
-
-        {/* Sidebar Content - Hidden when collapsed */}
-        {!isSidebarCollapsed && (
-          <>
-            {/* Header */}
-            <div className="p-4 border-b border-border">
-              <h2 className="text-lg font-semibold text-foreground">
-                Geography → Geofence
-              </h2>
-            </div>
-
-            {/* Search */}
-            <div className="p-4">
-              <div className="relative">
-                <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search center of geofence"
-                  value={searchQuery}
-                  onChange={(e) => searchGeofence(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-            </div>
-
-            {/* Geofence List */}
-            <ScrollArea className="flex-1 px-4">
-              <div className="space-y-2">
-                {filteredGeofences.map((geofence) => (
-                  <div
-                    key={geofence.id}
-                    className={`p-3 rounded-lg border cursor-pointer transition-colors ${
-                      activeGeofence === geofence.id
-                        ? "bg-primary/10 border-primary"
-                        : "bg-card hover:bg-accent"
-                    }`}
-                    onClick={() => editGeofence(geofence.id)}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1">
-                        <h4 className="font-medium text-sm">
-                          {geofence.geofenceName}
-                        </h4>
-                        <p className="text-xs text-muted-foreground capitalize">
-                          {geofence.type}{" "}
-                          {geofence.radius ? `(${geofence.radius}m)` : ""}
-                        </p>
-                        {geofence.pickupTime && (
-                          <p className="text-xs text-muted-foreground">
-                            Pickup: {formatTime(new Date(geofence.pickupTime))}
-                          </p>
-                        )}
-                        {geofence.dropTime && (
-                          <p className="text-xs text-muted-foreground">
-                            Drop: {formatTime(new Date(geofence.dropTime))}
-                          </p>
-                        )}
-                      </div>
-
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          deleteGeofence(geofence.id);
-                        }}
-                        className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </ScrollArea>
-          </>
-        )}
-      </div>
 
       {/* Main Map Area */}
       <div className="flex-1 relative">

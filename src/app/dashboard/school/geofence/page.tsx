@@ -37,6 +37,8 @@ export default function Geofence() {
   const [debouncedName, setDebouncedName] = useState("");
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
   const [deleteTarget, setDeleteTarget] = useState<Geofence | null>(null);
+  const [mode, setMode] = useState<"add" | "edit">("add");
+  const [geofenceId, setGeofenceId] = useState<string | null>(null);
 
   const {
     data: geofenceData,
@@ -133,6 +135,8 @@ export default function Geofence() {
             onClick={() => {
               // Handle edit action
               setOpen(true);
+              setMode("edit");
+              setGeofenceId(row._id);
             }}
             className="cursor-pointer bg-[#f3c623] hover:bg-[#D3A80C]"
           >
@@ -177,7 +181,9 @@ export default function Geofence() {
           {/* —————————————————— trigger —————————————————— */}
           <div className="p-4">
             <DialogTrigger asChild>
-              <Button className="cursor-pointer">Add geofence</Button>
+              <Button className="cursor-pointer" onClick={() => setMode("add")}>
+                Add geofence
+              </Button>
             </DialogTrigger>
           </div>
 
@@ -193,12 +199,12 @@ export default function Geofence() {
                 size="icon"
                 className="absolute top-4 right-4 z-[1000] cursor-pointer"
               >
-                <X className="h-6 w-6 " />
+                <X className="h-6 w-6" />
               </Button>
             </DialogClose>
 
             {/* your manager renders only while the modal is open */}
-            <GeofenceManager />
+            <GeofenceManager mode={mode} geofenceId={geofenceId} />
           </DialogContent>
         </Dialog>
       </header>
