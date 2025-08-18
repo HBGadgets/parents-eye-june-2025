@@ -50,6 +50,11 @@ export function SearchableDropdown<T = DropdownItem>({
   const [open, setOpen] = React.useState(false);
   const [selectedValue, setSelectedValue] = React.useState(value || "");
 
+  // 🆕 Add this useEffect to sync with external value changes
+  React.useEffect(() => {
+    setSelectedValue(value || "");
+  }, [value]);
+
   const getItemValue = (item: T) => String(item[valueKey]);
   const getItemLabel = (item: T) => String(item[labelKey]);
   const getItemIcon = (item: T) => item[iconKey] as React.ReactNode;

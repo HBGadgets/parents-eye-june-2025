@@ -38,6 +38,7 @@ import { useBranchGroupData } from "@/hooks/useBranchGroup";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import "./style.css";
 import { api } from "@/services/apiService";
+import { parseTimeString, safeParseTimeString } from "@/util/timeUtils";
 
 // Fix for default markers in Leaflet
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -69,6 +70,9 @@ interface GeofenceManagerProps {
   initialData?: Geofence | null;
   onSuccess?: () => void;
   geofenceId?: string;
+  geofenceRouteId?: Route | null;
+  geofenceSchoolId?: School | null;
+  geofenceBranchId?: Branch | null;
 }
 
 const GeofenceManager: React.FC = ({
@@ -76,6 +80,9 @@ const GeofenceManager: React.FC = ({
   geofenceId,
   initialData = null,
   onSuccess,
+  geofenceRouteId,
+  geofenceSchoolId,
+  geofenceBranchId,
 }: GeofenceManagerProps) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<L.Map | null>(null);
@@ -118,7 +125,251 @@ const GeofenceManager: React.FC = ({
   const [dropTime, setDropTime] = useState<Date | undefined>(undefined);
 
   console.log("MODE", mode);
-  console.log("geofenceId", geofenceId);
+  useEffect(() => {
+    console.log("geofenceId", geofenceId);
+    console.log("school Id", geofenceSchoolId);
+    console.log("branch Id", geofenceBranchId);
+    console.log("route Id", geofenceRouteId);
+  }, [geofenceId]);
+
+  // 🆕 Add reverse geocoding function
+  const reverseGeocode = async (lat: number, lng: number) => {
+    try {
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`
+      );
+      const data = await response.json();
+      return data.display_name || `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+    } catch (error) {
+      console.error("Reverse geocoding failed:", error);
+      return `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+    }
+  };
+
+  // 🆕 NEW: Dedicated useEffect for map centering in edit mode
+  useEffect(() => {
+    if (
+      mode === "edit" &&
+      map.current &&
+      currentCoords.lat &&
+      currentCoords.lng
+    ) {
+      console.log(
+        "🗺️ Centering map for edit mode:",
+        currentCoords.lat,
+        currentCoords.lng
+      );
+
+      // Use setTimeout to ensure map is fully ready
+      setTimeout(() => {
+        if (map.current) {
+          try {
+            map.current.setView([currentCoords.lat, currentCoords.lng], 16);
+            console.log(
+              "✅ Map successfully centered on:",
+              currentCoords.lat,
+              currentCoords.lng
+            );
+          } catch (error) {
+            console.error("❌ Error centering map:", error);
+          }
+        }
+      }, 200);
+    }
+  }, [mode, currentCoords.lat, currentCoords.lng]);
+
+  // 🆕 UPDATED: Populate form with initial data when in edit mode
+  useEffect(() => {
+    if (mode === "edit" && initialData && branchData && routeData) {
+      console.log("📝 Populating edit data:", initialData);
+
+      // Step 1: Extract coordinates from initialData
+      let lat, lng;
+
+      if (initialData.area?.center && initialData.area.center.length >= 2) {
+        [lat, lng] = initialData.area.center;
+        console.log("📍 Found coordinates in area.center:", lat, lng);
+      } else {
+        console.warn("⚠️ No coordinates found in initialData");
+        // Set default coordinates if none found
+        lat = 21.1286677;
+        lng = 79.1038211;
+      }
+
+      // Step 2: Set coordinates state (this will trigger the centering useEffect)
+      setCurrentCoords({ lat, lng });
+
+      // Step 3: Populate basic geofence data
+      if (initialData.geofenceName) {
+        setCurrentGeofenceName(initialData.geofenceName);
+      }
+
+      if (initialData.area?.radius) {
+        setCurrentRadius(initialData.area.radius);
+      }
+
+      // Step 4: Set up temp geofence for visualization
+      setTempGeofence({
+        type: "radius",
+        geofenceName: initialData.geofenceName || "Edit Geofence",
+        coordinates: [[lng, lat]], // matches render logic
+        radius: initialData.area?.radius || 100,
+        pickupTime: initialData.pickupTime,
+        dropTime: initialData.dropTime,
+      });
+
+      // Step 5: Get address from coordinates (existing code)
+      const getAddressForEdit = async () => {
+        const address = await reverseGeocode(lat, lng);
+        setLocationSearchQuery(address);
+      };
+
+      if (initialData.address) {
+        setLocationSearchQuery(initialData.address);
+      } else {
+        getAddressForEdit();
+      }
+
+      // Step 6: Handle time fields (your existing code)
+      if (initialData.pickupTime) {
+        try {
+          const pickupDate =
+            typeof initialData.pickupTime === "string"
+              ? parseTimeString(initialData.pickupTime, {
+                  fallbackTime: new Date(),
+                })
+              : new Date(initialData.pickupTime);
+          setPickupTime(pickupDate);
+        } catch (error) {
+          console.error("Error parsing pickup time:", error);
+          setPickupTime(new Date());
+        }
+      }
+
+      if (initialData.dropTime) {
+        try {
+          const dropDate =
+            typeof initialData.dropTime === "string"
+              ? parseTimeString(initialData.dropTime, {
+                  fallbackTime: new Date(),
+                })
+              : new Date(initialData.dropTime);
+          setDropTime(dropDate);
+        } catch (error) {
+          console.error("Error parsing drop time:", error);
+          setDropTime(new Date());
+        }
+      }
+
+      // Step 7: Set school/branch/route objects (your existing code)
+      if (geofenceSchoolId) {
+        console.log("Setting school object:", geofenceSchoolId);
+        setSelectedSchool(geofenceSchoolId);
+      }
+
+      if (geofenceBranchId) {
+        console.log("Setting branch object:", geofenceBranchId);
+        setSelectedBranch(geofenceBranchId);
+      }
+
+      if (geofenceRouteId) {
+        console.log("Setting route object:", geofenceRouteId);
+        setSelectedRoute(geofenceRouteId);
+      }
+
+      // Step 8: Fallback object finding (your existing code)
+      if (!geofenceSchoolId && initialData.schoolId) {
+        const branch = branchData.find(
+          (b) => b.schoolId?._id === initialData.schoolId
+        );
+        if (branch?.schoolId) {
+          setSelectedSchool(branch.schoolId);
+        }
+      }
+
+      if (!geofenceBranchId && initialData.branchId) {
+        const branch = branchData.find((b) => b._id === initialData.branchId);
+        if (branch) {
+          setSelectedBranch(branch);
+        }
+      }
+
+      if (!geofenceRouteId && initialData.routeObjId) {
+        const route = routeData.find((r) => r._id === initialData.routeObjId);
+        if (route) {
+          setSelectedRoute(route);
+        }
+      }
+    }
+  }, [
+    mode,
+    initialData,
+    geofenceSchoolId,
+    geofenceBranchId,
+    geofenceRouteId,
+    branchData,
+    routeData,
+  ]);
+
+  // 🆕 DEBUG: Track edit mode state changes
+  useEffect(() => {
+    if (mode === "edit") {
+      console.log("=== EDIT MODE DEBUG ===");
+      console.log("Mode:", mode);
+      console.log("GeofenceId:", geofenceId);
+      console.log("Map current:", !!map.current);
+      console.log("Initial data:", initialData);
+      console.log("Current coords:", currentCoords);
+      console.log("========================");
+    }
+  }, [mode, geofenceId, initialData, currentCoords]);
+
+  // 🆕 Add this useEffect to listen for map centering events
+  useEffect(() => {
+    const handleCenterMap = (event: CustomEvent) => {
+      const { lat, lng, zoom } = event.detail;
+
+      console.log("Centering map on edit:", lat, lng);
+
+      if (map.current) {
+        map.current.setView([lat, lng], zoom || 15);
+      }
+    };
+
+    // Add event listener
+    window.addEventListener(
+      "centerMapOnEdit",
+      handleCenterMap as EventListener
+    );
+
+    // Cleanup
+    return () => {
+      window.removeEventListener(
+        "centerMapOnEdit",
+        handleCenterMap as EventListener
+      );
+    };
+  }, []);
+
+  // 🆕 Clear form when switching to add mode
+  useEffect(() => {
+    if (mode === "add") {
+      setCurrentGeofenceName("");
+      setCurrentRadius(100);
+      setSelectedSchool(null);
+      setSelectedBranch(null);
+      setSelectedRoute(null);
+      setPickupTime(undefined);
+      setDropTime(undefined);
+      setTempGeofence(null);
+      setCurrentCoords({ lat: 21.1286677, lng: 79.1038211 });
+
+      // Reset map to default view
+      if (map.current) {
+        map.current.setView([21.1286677, 79.1038211], 12);
+      }
+    }
+  }, [mode]);
 
   // Add Geofence Mutation
   const addGeofenceMutation = useMutation({
@@ -651,17 +902,25 @@ const GeofenceManager: React.FC = ({
     setFilteredData(filtered);
   }, []);
 
+  // 🆕 Update these useEffects to not reset during edit mode
   useEffect(() => {
-    if (selectedSchool && branchData) {
+    if (selectedSchool && branchData && mode !== "edit") {
+      // 🆕 Add mode check
       const filtered = branchData.filter(
         (branch) => branch?.schoolId?._id === selectedSchool._id
       );
       setFilteredBranches(filtered);
-      setSelectedBranch(null); // reset on school change
+      setSelectedBranch(null); // Only reset in add mode
+    } else if (selectedSchool && branchData && mode === "edit") {
+      // In edit mode, just filter but don't reset selection
+      const filtered = branchData.filter(
+        (branch) => branch?.schoolId?._id === selectedSchool._id
+      );
+      setFilteredBranches(filtered);
     } else {
       setFilteredBranches([]);
     }
-  }, [selectedSchool, branchData]);
+  }, [selectedSchool, branchData, mode]); // 🆕 Add mode dependency
 
   useEffect(() => {
     if (selectedBranch && routeData) {
@@ -669,7 +928,11 @@ const GeofenceManager: React.FC = ({
         (route) => route?.branchId?._id === selectedBranch._id
       );
       setFilteredRoutes(filtered);
-      setSelectedRoute(null); // reset on branch change
+
+      // 🆕 Only clear selection in add mode, not edit mode
+      if (mode === "add") {
+        setSelectedRoute(null);
+      }
     } else {
       setFilteredRoutes([]);
     }
@@ -750,6 +1013,19 @@ const GeofenceManager: React.FC = ({
     }
   }, [dropTime]);
 
+  // 🆕 Add these useEffects to track state changes
+  useEffect(() => {
+    console.log("🏫 School changed:", selectedSchool);
+  }, [selectedSchool]);
+
+  useEffect(() => {
+    console.log("🏢 Branch changed:", selectedBranch);
+  }, [selectedBranch]);
+
+  useEffect(() => {
+    console.log("🚌 Route changed:", selectedRoute);
+  }, [selectedRoute]);
+
   return (
     <div className="h-screen flex bg-background">
       {/* Left Sidebar - keeping exact same layout and functionality */}
@@ -757,7 +1033,11 @@ const GeofenceManager: React.FC = ({
       {/* Main Map Area */}
       <div className="flex-1 relative">
         {/* Vanilla Leaflet Map Container */}
-        <div ref={mapContainer} className="h-full w-full" />
+        <div
+          ref={mapContainer}
+          className="w-full h-full min-h-[500px]" // 🆕 Add min-height
+          style={{ height: "100%", minHeight: "500px" }}
+        />
 
         {/* Map Controls */}
         <div className="absolute top-20 left-2 flex flex-col space-y-2 z-[1000]">
@@ -767,27 +1047,12 @@ const GeofenceManager: React.FC = ({
           <Button size="sm" variant="secondary" onClick={undoLastAction}>
             <Undo className="h-4 w-4" />
           </Button>
-          <Button size="sm" variant="secondary" onClick={clearTempGeofence}>
-            <X className="h-4 w-4" />
-          </Button>
+          {mode === "add" && (
+            <Button size="sm" variant="secondary" onClick={clearTempGeofence}>
+              <X className="h-4 w-4" />
+            </Button>
+          )}
           <Separator />
-          <Button
-            size="sm"
-            variant="secondary"
-            onClick={() => map.current?.zoomIn()}
-          >
-            <ZoomIn className="h-4 w-4" />
-          </Button>
-          <Button
-            size="sm"
-            variant="secondary"
-            onClick={() => map.current?.zoomOut()}
-          >
-            <ZoomOut className="h-4 w-4" />
-          </Button>
-          <Button size="sm" variant="secondary">
-            <Eye className="h-4 w-4" />
-          </Button>
         </div>
 
         {/* Configuration Panel - keeping exact same layout and functionality */}

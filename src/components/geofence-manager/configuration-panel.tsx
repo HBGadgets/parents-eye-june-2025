@@ -107,12 +107,12 @@ const GeofenceConfigurationPanel: React.FC<Props> = ({
   const { data: branchData } = useBranchData();
   const { data: routeData } = useRouteData();
 
-  useEffect(() => {
-    console.log("Role", role);
-    console.log("School Data", schoolData);
-    console.log("Branch Data", branchData);
-    console.log("Route Data", routeData);
-  }, [role]);
+  // useEffect(() => {
+  //   console.log("Role", role);
+  //   console.log("School Data", schoolData);
+  //   console.log("Branch Data", branchData);
+  //   console.log("Route Data", routeData);
+  // }, [role]);
 
   function formatTimeToAMPM(date: Date): string {
     return date.toLocaleTimeString("en-US", {
@@ -122,19 +122,25 @@ const GeofenceConfigurationPanel: React.FC<Props> = ({
     });
   }
 
-  useEffect(() => {
-    console.log("geofences pickup time: ", pickupTime);
-  }, [pickupTime]);
+  // useEffect(() => {
+  //   console.log("geofences pickup time: ", pickupTime);
+  // }, [pickupTime]);
+
+  // useEffect(() => {
+  //   console.log("geofences drop time: ", dropTime);
+  // }, [dropTime]);
 
   useEffect(() => {
-    console.log("geofences drop time: ", dropTime);
-  }, [dropTime]);
+    console.log("=== CONFIGURATION PANEL STATE ===");
+    console.log("selectedSchool:", selectedSchool?._id);
+    console.log("selectedBranch:", selectedBranch?._id);
+    console.log("selectedRoute:", selectedRoute?._id);
+  }, [selectedSchool, selectedBranch, selectedRoute]);
 
   return (
     <Card className="absolute bottom-4 right-4 w-auto min-w-[320px] max-w-[90vw] z-[1000]">
       <CardContent className="p-4 space-y-4">
         <h3 className="font-semibold">Configuration</h3>
-
         {/* Geofence Filter */}
         <div className="flex space-x-2 mb-4">
           {/* School Filter */}
@@ -145,6 +151,7 @@ const GeofenceConfigurationPanel: React.FC<Props> = ({
               searchPlaceholder="Search schools..."
               emptyMessage="No schools found."
               onSelect={handleSchoolSelect}
+              value={selectedSchool?._id} // 🆕 Add this
               valueKey="_id"
               labelKey="schoolName"
               className="w-[180px]"
@@ -154,7 +161,6 @@ const GeofenceConfigurationPanel: React.FC<Props> = ({
           {/* Branch Filter */}
           {["superAdmin", "branchGroup", "school"].includes(role) && (
             <SearchableDropdown
-              // items={filteredBranches || []}
               items={
                 role === "superAdmin"
                   ? filteredBranches || []
@@ -164,6 +170,7 @@ const GeofenceConfigurationPanel: React.FC<Props> = ({
               searchPlaceholder="Search branch..."
               emptyMessage="No branches found."
               onSelect={handleBranchSelect}
+              value={selectedBranch?._id} // 🆕 Add this
               valueKey="_id"
               labelKey="branchName"
               className="w-[180px]"
@@ -172,12 +179,12 @@ const GeofenceConfigurationPanel: React.FC<Props> = ({
 
           {/* Route No. Filter */}
           <SearchableDropdown
-            // items={filteredRoutes || []}
             items={role === "branch" ? routeData || [] : filteredRoutes || []}
             placeholder="Select route..."
             searchPlaceholder="Search routes..."
             emptyMessage="No routes found."
             onSelect={handleRouteSelect}
+            value={selectedRoute?._id} // 🆕 Add this
             valueKey="_id"
             labelKey="routeNumber"
             className="w-[180px]"
