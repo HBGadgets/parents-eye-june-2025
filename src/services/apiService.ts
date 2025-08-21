@@ -25,4 +25,9 @@ export const api = {
     const response = await axios.delete<T>(url, { params });
     return response.data;
   },
+
+  mulDelte: async <T = any>(url: string, data?: object): Promise<T> => {
+    const response = await axios.delete<T>(url, data);
+    return response.data;
+  },
 };
