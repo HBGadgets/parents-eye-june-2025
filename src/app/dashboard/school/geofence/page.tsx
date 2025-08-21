@@ -255,7 +255,7 @@ export default function Geofence() {
         {/* Geofence Manager */}
         <Dialog open={open} onOpenChange={handleDialogChange}>
           {/* —————————————————— trigger —————————————————— */}
-          <div className="p-4">
+          <div className="flex justify-end mb-4">
             <DialogTrigger asChild>
               <Button className="cursor-pointer" onClick={handleAddGeofence}>
                 Add geofence
