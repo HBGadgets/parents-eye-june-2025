@@ -163,3 +163,19 @@ export interface BranchGroup {
   role: string;
   fcmToken: string;
 }
+
+// Define the structure of a LeaveRequest
+export interface LeaveRequest {
+  _id: string;
+  childId: Student;
+  parentId: Parent;
+  schoolId: School;
+  branchId: Branch;
+  startDate: string;
+  endDate: string;
+  reason: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}
+

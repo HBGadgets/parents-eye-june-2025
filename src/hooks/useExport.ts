@@ -119,7 +119,7 @@ export const useExport = () => {
             ? col.key.split(".").reduce((obj, key) => obj?.[key], item)
             : item[col.key];
           return col.formatter
-            ? col.formatter(value)
+            ? col.formatter(value, item)   // 👈 pass the whole row too
             : value?.toString() || "--";
         })
       );
@@ -274,7 +274,7 @@ export const useExport = () => {
             ? col.key.split(".").reduce((obj, key) => obj?.[key], item)
             : item[col.key];
           return col.formatter
-            ? col.formatter(value)
+            ? col.formatter(value, item)
             : value?.toString() || "--";
         });
 
