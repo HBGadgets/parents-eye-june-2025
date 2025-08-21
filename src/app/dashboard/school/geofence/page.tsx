@@ -27,6 +27,8 @@ import { api } from "@/services/apiService";
 import { Alert } from "@/components/Alert";
 import { useBranchData } from "@/hooks/useBranchData";
 import { useRouteData } from "@/hooks/useRouteData";
+import { FloatingMenu } from "@/components/floatingMenu";
+import { useExport } from "@/hooks/useExport";
 
 export default function Geofence() {
   const queryClient = useQueryClient();
@@ -47,6 +49,8 @@ export default function Geofence() {
   const [selectedGeofence, setSelectedGeofence] = useState<Geofence | null>(
     null
   ); // 🆕 Add this
+  const { exportToPDF, exportToExcel } = useExport();
+
   const {
     data: geofenceData,
     isLoading,
@@ -142,6 +146,13 @@ export default function Geofence() {
       id: "branchName",
       header: "Branch Name",
       accessorFn: (row) => row.branch?.branchName || "N/A",
+      enableHiding: true,
+      enableSorting: true,
+    },
+    {
+      id: "routeNumber",
+      header: "Route Number",
+      accessorFn: (row) => row.route?.routeNumber || "N/A",
       enableHiding: true,
       enableSorting: true,
     },
@@ -315,6 +326,31 @@ export default function Geofence() {
               />
             )}
           </div>
+        </section>
+        {/* Floating Menu */}
+        <section>
+          <FloatingMenu
+            onExportPdf={() => {
+              // console.log("Export PDF triggered");
+              exportToPDF(studentsData?.children, columnsForExport, {
+                title: "All Students Data",
+                companyName: "Parents Eye",
+                metadata: {
+                  Total: `${studentsData?.children?.length} students`,
+                },
+              });
+            }}
+            onExportExcel={() => {
+              // console.log("Export Excel triggered");
+              exportToExcel(studentsData?.children, columnsForExport, {
+                title: "All students Data",
+                companyName: "Parents Eye",
+                metadata: {
+                  Total: `${studentsData?.children.length} students`,
+                },
+              });
+            }}
+          />
         </section>
       </main>
     </>
