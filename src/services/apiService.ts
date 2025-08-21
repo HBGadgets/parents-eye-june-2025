@@ -26,7 +26,7 @@ export const api = {
     return response.data;
   },
 
-  mulDelte: async <T = any>(url: string, data?: object): Promise<T> => {
+  mulDelete: async <T = any>(url: string, data?: object): Promise<T> => {
     const response = await axios.delete<T>(url, data);
     return response.data;
   },
