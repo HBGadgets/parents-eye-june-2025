@@ -42,28 +42,24 @@ export interface Branch {
 }
 
 export interface Device {
+  parkingMode: boolean;
+  toeingMode: boolean;
+  keyFeature: boolean;
+  TD: number;
+  TDTime: string;
   _id: string;
   name: string;
   uniqueId: string;
   sim: string;
   speed: string;
   average: string;
-  Driver: string;
+  driver: string | null;
   model: string;
   category: string;
-  installationdate: string;
-  subStart: string;
-  expirationdate: string;
-  extenddate: string;
-  inactiveDate: string;
-  modifiedDate: string;
   deviceId: string;
   routeNo: string;
-  positionId: string;
   status: string;
   lastUpdate: string;
-  TD: number;
-  TDTime: string;
   schoolId: {
     _id: string;
     schoolName: string;
@@ -74,6 +70,14 @@ export interface Device {
   };
   createdAt: string;
   updatedAt: string;
+  __v?: number; // optional if not always provided
+}
+
+export interface DeviceResponse {
+  total: number;
+  page: number;
+  limit: number;
+  devices: Device[];
 }
 
 export interface Geofence {
@@ -121,7 +125,7 @@ export interface Driver {
   driverMobile: string;
   schoolId: School;
   branchId: Branch;
-  deviceObjId:deviceObjId;
+  deviceObjId: deviceObjId;
   role: string;
   createdAt: string;
   updatedAt: string;
@@ -136,7 +140,7 @@ export interface Supervisor {
   supervisorMobile: string;
   schoolId: School;
   branchId: Branch;
-    deviceObjId:deviceObjId;
+  deviceObjId: deviceObjId;
 
   role: string;
   createdAt: string;
@@ -178,4 +182,3 @@ export interface LeaveRequest {
   createdAt: string;
   updatedAt: string;
 }
-

@@ -31,8 +31,7 @@ export default function LoginPage() {
       const data = await loginUser(email, password); // 🟢 API call
 
       if (data?.token) {
-        login(); // update Zustand store
-        document.cookie = `token=${data.token}; path=/`; // save token
+        login(data.token); // update Zustand store
         router.push("/dashboard");
       } else {
         alert("Invalid response from server.");
