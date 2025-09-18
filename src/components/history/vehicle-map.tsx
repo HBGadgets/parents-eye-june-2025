@@ -17,9 +17,14 @@ L.Icon.Default.mergeOptions({
 interface VehicleMapProps {
   data: DeviceHistoryItem[];
   currentIndex: number;
+  isExpanded: boolean;
 }
 
-const VehicleMap: React.FC<VehicleMapProps> = ({ data, currentIndex }) => {
+const VehicleMap: React.FC<VehicleMapProps> = ({
+  data,
+  currentIndex,
+  isExpanded,
+}) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const markerRef = useRef<L.Marker | null>(null);
@@ -65,29 +70,114 @@ const VehicleMap: React.FC<VehicleMapProps> = ({ data, currentIndex }) => {
     });
   };
 
-  // Function to create arrow icon with course direction
+  // Function to create double arrow icon with course direction
+  // const createArrowIcon = (course: number, size: number = 30) => {
+  //   return L.divIcon({
+  //     className: "course-arrow",
+  //     html: `
+  //   <div style="
+  //     transform: rotate(${course}deg);
+  //     width: ${size}px;
+  //     height: ${size}px;
+  //     display: flex;
+  //     align-items: center;
+  //     justify-content: center;
+  //   ">
+  //     <div style="
+  //       display: flex;
+  //       flex-direction: column;
+  //       align-items: center;
+  //       margin-top: -3px;
+  //     ">
+  //       <svg
+  //         width="${Math.round(size * 0.75)}"
+  //         height="${Math.round(size * 0.75)}"
+  //         viewBox="0 0 24 24"
+  //         fill="none"
+  //         style="filter: drop-shadow(1px 1px 2px rgba(0,0,0,0.3));"
+  //       >
+  //         <path
+  //           d="M7 10L12 15L17 10"
+  //           stroke="white"
+  //           strokeWidth="3"
+  //           strokeLinecap="round"
+  //           strokeLinejoin="round"
+  //         />
+  //       </svg>
+  //       <svg
+  //         width="${Math.round(size * 0.75)}"
+  //         height="${Math.round(size * 0.75)}"
+  //         viewBox="0 0 24 24"
+  //         fill="none"
+  //         style="margin-top: -10px; filter: drop-shadow(1px 1px 2px rgba(0,0,0,0.3));"
+  //       >
+  //         <path
+  //           d="M7 10L12 15L17 10"
+  //           stroke="white"
+  //           strokeWidth="3"
+  //           strokeLinecap="round"
+  //           strokeLinejoin="round"
+  //         />
+  //       </svg>
+  //     </div>
+  //   </div>
+  // `,
+  //     iconSize: [size, size],
+  //     iconAnchor: [size / 2, size / 2],
+  //   });
+  // };
+
   const createArrowIcon = (course: number, size: number = 16) => {
     return L.divIcon({
       className: "course-arrow",
       html: `
-        <div style="
-          transform: rotate(${course}deg); 
-          width: ${size}px; 
-          height: ${size}px; 
-          display: flex; 
-          align-items: center; 
-          justify-content: center;
-        ">
-          <svg viewBox="0 0 24 24" style="
-            width: ${size}px; 
-            height: ${size}px; 
-            fill: white;
-            filter: drop-shadow(1px 1px 2px rgba(0,0,0,0.3));
-          ">
-            <path d="M6 6L10.5 12L6 18V6zM13.5 6L18 12L13.5 18V6z"/>
-          </svg>
-        </div>
-      `,
+    <div style="
+      transform: rotate(${course}deg); 
+      width: ${size}px; 
+      height: ${size}px; 
+      display: flex; 
+      align-items: center; 
+      justify-content: center;
+    ">
+      <div style="
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        margin-top: -3px;
+      ">
+        <svg 
+          width="${Math.round(size * 0.75)}" 
+          height="${Math.round(size * 0.75)}" 
+          viewBox="0 0 24 24" 
+          fill="none"
+          style="filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.7));"
+        >
+          <path
+            d="M7 10L12 15L17 10"
+            stroke="white"
+            stroke-width="4"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+        </svg>
+        <svg 
+          width="${Math.round(size * 0.75)}" 
+          height="${Math.round(size * 0.75)}" 
+          viewBox="0 0 24 24" 
+          fill="none"
+          style="margin-top: -10px; filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.7));"
+        >
+          <path
+            d="M7 10L12 15L17 10"
+            stroke="white"
+            stroke-width="4"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+        </svg>
+      </div>
+    </div>
+  `,
       iconSize: [size, size],
       iconAnchor: [size / 2, size / 2],
     });
@@ -95,11 +185,11 @@ const VehicleMap: React.FC<VehicleMapProps> = ({ data, currentIndex }) => {
 
   // Function to calculate arrow density based on zoom level
   const getArrowDensity = (zoom: number): number => {
-    if (zoom >= 16) return 0.01;
-    if (zoom >= 14) return 0.005;
-    if (zoom >= 12) return 0.005;
-    if (zoom >= 10) return 0;
-    return 0.0;
+    if (zoom >= 16) return 0.03; // More arrows at high zoom
+    if (zoom >= 14) return 0.02; // Medium arrows
+    if (zoom >= 12) return 0.01; // Fewer arrows
+    if (zoom >= 10) return 0.005; // Very few arrows
+    return 0.0; // No arrows at very low zoom
   };
 
   // Function to create all arrow markers initially
@@ -108,15 +198,28 @@ const VehicleMap: React.FC<VehicleMapProps> = ({ data, currentIndex }) => {
 
     const density = getArrowDensity(zoom);
     const step = Math.max(1, Math.floor(1 / density));
-    const arrowSize = zoom >= 14 ? 20 : zoom >= 12 ? 16 : 12;
 
-    // Clear existing arrow markers
-    allArrowMarkersRef.current.forEach((marker) => marker.remove());
+    // Smaller, more appropriate sizes
+    const arrowSize = zoom >= 14 ? 14 : zoom >= 12 ? 12 : 10;
+
+    // FORCE COMPLETE CLEANUP - Remove all existing arrow markers
+    allArrowMarkersRef.current.forEach((marker) => {
+      if (marker && marker.remove) {
+        marker.remove();
+      }
+    });
     allArrowMarkersRef.current = [];
 
-    // Create arrow markers at calculated intervals
+    // Clear the arrow layer completely
+    if (arrowLayerRef.current) {
+      arrowLayerRef.current.clearLayers();
+    }
+
+    // Create fresh arrow markers with consistent styling
     for (let i = 0; i < data.length; i += step) {
       const point = data[i];
+
+      // Create new icon for each arrow (no caching)
       const arrowIcon = createArrowIcon(point.course, arrowSize);
 
       const marker = L.marker([point.latitude, point.longitude], {
@@ -127,6 +230,11 @@ const VehicleMap: React.FC<VehicleMapProps> = ({ data, currentIndex }) => {
 
       allArrowMarkersRef.current.push(marker);
     }
+
+    // Force immediate visibility update
+    setTimeout(() => {
+      updateArrowVisibility();
+    }, 0);
   };
 
   // Function to update arrow visibility based on viewport
@@ -339,8 +447,35 @@ const VehicleMap: React.FC<VehicleMapProps> = ({ data, currentIndex }) => {
     return <p>No Data Available</p>;
   }
 
+  // Enhanced resize handler
+  useEffect(() => {
+    if (!mapRef.current) return;
+
+    const handleResize = () => {
+      if (mapRef.current) {
+        // Immediate resize
+        mapRef.current.invalidateSize();
+
+        // Delayed resize after transition
+        setTimeout(() => {
+          mapRef.current!.invalidateSize();
+        }, 350);
+      }
+    };
+
+    // Listen for window resize events
+    window.addEventListener("resize", handleResize);
+
+    // Also handle when expansion state changes
+    handleResize();
+
+    return () => {
+      window.removeEventListener("resize", handleResize);
+    };
+  }, [isExpanded, data]);
+
   return (
-    <div className="relative w-full h-full rounded-lg overflow-hidden border border-border bg-card shadow-[var(--shadow-panel)]">
+    <div className="relative w-full h-full rounded-t-lg overflow-hidden border border-border bg-card shadow-[var(--shadow-panel)]">
       <div ref={mapContainerRef} className="w-full h-full" />
 
       {/* Custom zoom controls */}
@@ -372,6 +507,15 @@ const VehicleMap: React.FC<VehicleMapProps> = ({ data, currentIndex }) => {
           background: transparent !important;
           border: none !important;
         }
+        .course-arrow svg {
+          display: block !important;
+        }
+        .course-arrow path {
+          stroke: white !important;
+          stroke-width: 4 !important;
+          stroke-linecap: round !important;
+          stroke-linejoin: round !important;
+        }
         .vehicle-marker {
           background: transparent !important;
           border: none !important;
@@ -389,4 +533,9 @@ const VehicleMap: React.FC<VehicleMapProps> = ({ data, currentIndex }) => {
   );
 };
 
-export default VehicleMap;
+export default React.memo(VehicleMap, (prevProps, nextProps) => {
+  return (
+    prevProps.currentIndex === nextProps.currentIndex &&
+    prevProps.data === nextProps.data
+  );
+});

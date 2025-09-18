@@ -7,14 +7,11 @@ import { useDeviceData } from "@/hooks/useDeviceData";
 import { useSchoolData } from "@/hooks/useSchoolData";
 import { getDecodedToken } from "@/lib/jwt";
 import Cookies from "js-cookie";
-import PlaybackControls from "@/components/history/playback-controls";
+import { PlaybackControls } from "@/components/history/playback-controls";
 import VehicleMap from "@/components/history/vehicle-map";
-import { DeviceHistoryItem, sampleDeviceHistory } from "@/data/sampleData";
 import { Button } from "@/components/ui/button";
 import axios from "axios";
-import FullScreenSpinner from "@/components/RouteLoader";
 import { Skeleton } from "@/components/ui/skeleton";
-import SpeedGraph from "@/components/history/SpeedGraph";
 import { Card } from "@/components/ui/card";
 
 type UserRole = "superAdmin" | "school" | "branchGroup" | "branch" | null;
@@ -30,6 +27,8 @@ export default function HistoryReport() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
+  const [isGraphControlling, setIsGraphControlling] = useState(false); // Track if graph is controlling playback
+  const [isMapExpanded, setIsMapExpanded] = useState(false);
   const [data, setData] = useState([
     {
       attributes: {
@@ -46,7 +45,7 @@ export default function HistoryReport() {
     },
   ]);
   const [loading, setLoading] = useState(false);
-  // const data = sampleDeviceHistory;
+
   const currentData = data[currentIndex];
 
   useEffect(() => {
@@ -102,54 +101,69 @@ export default function HistoryReport() {
       }));
   }, [vehicleData, userRole, selectedBranch]);
 
-  // Memoize date handler if needed, otherwise define inline as the intent is simple
   const handleDateFilter = useMemo(
     () => (startDate: Date | null, endDate: Date | null) => {
       console.log("Selected Date Range:", startDate, endDate);
-      // Implement filtering logic based on selected date range
     },
     []
   );
-  // *********************************************For Filter (End)*******************************************************//
 
   // *****************************************Auto Play Functionality (Start)***********************************************************//
-  useEffect(() => {
-    let interval: NodeJS.Timeout;
 
-    if (isPlaying && currentIndex < data.length - 1) {
-      interval = setInterval(() => {
+  useEffect(() => {
+    if (!isPlaying || currentIndex >= data.length - 1 || isGraphControlling)
+      return;
+
+    let animationFrameId: number;
+    let lastTime = performance.now();
+    const frameInterval = 1000 / playbackSpeed; // ms between frames
+
+    function tick(currentTime: number) {
+      const elapsed = currentTime - lastTime;
+
+      if (elapsed >= frameInterval) {
         setCurrentIndex((prev) => {
           const next = prev + 1;
           if (next >= data.length - 1) {
             setIsPlaying(false);
+            return Math.min(next, data.length - 1);
           }
-          return Math.min(next, data.length - 1);
+          return next;
         });
-      }, 1000 / playbackSpeed);
+        lastTime = currentTime;
+      }
+
+      animationFrameId = requestAnimationFrame(tick);
     }
 
+    animationFrameId = requestAnimationFrame(tick);
+
     return () => {
-      if (interval) clearInterval(interval);
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+      }
     };
-  }, [isPlaying, currentIndex, data.length, playbackSpeed]);
+  }, [isPlaying, currentIndex, data.length, playbackSpeed, isGraphControlling]);
 
   const handlePlayPause = useCallback(() => {
     setIsPlaying(!isPlaying);
+    setIsGraphControlling(false); // Resume normal playback
   }, [isPlaying]);
 
   const handleSeek = useCallback((index: number) => {
     setCurrentIndex(index);
-    // Optionally pause playback when manually seeking
-    // setIsPlaying(false);
+    setIsGraphControlling(false); // Manual seek, resume normal behavior
   }, []);
 
   const handlePrevious = () => {
     setCurrentIndex(Math.max(0, currentIndex - 1));
+    setIsGraphControlling(false);
   };
 
   const handleNext = () => {
     const next = Math.min(data.length - 1, currentIndex + 1);
     setCurrentIndex(next);
+    setIsGraphControlling(false);
     if (next >= data.length - 1) {
       setIsPlaying(false);
     }
@@ -165,7 +179,7 @@ export default function HistoryReport() {
     const url =
       "https://vts.credencetracker.com/backend/history/device-history-playback";
     const bearerToken =
-      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6InNhaXNodSIsImlkIjoiNjcxMzY1M2I2MTNjZjJkMmM1MzJlZDBlIiwidXNlcnMiOmZhbHNlLCJzdXBlcmFkbWluIjp0cnVlLCJ1c2VyIjpudWxsLCJyb2xlIjoic3VwZXJhZG1pbiIsImlhdCI6MTc1Nzc0NTE1MH0.rP639lrm5Z_LvgfIQ1czKR91Ftw7O_ZGAzijWsLZPic"; // Replace with your actual token
+      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6InNhaXNodSIsImlkIjoiNjcxMzY1M2I2MTNjZjJkMmM1MzJlZDBlIiwidXNlcnMiOmZhbHNlLCJzdXBlcmFkbWluIjp0cnVlLCJ1c2VyIjpudWxsLCJyb2xlIjoic3VwZXJhZG1pbiIsImlhdCI6MTc1Nzc0NTE1MH0.rP639lrm5Z_LvgfIQ1czKR91Ftw7O_ZGAzijWsLZPic";
 
     const payload = {
       period: "Last Seven Days",
@@ -184,14 +198,23 @@ export default function HistoryReport() {
         },
       })
       .then((response) => {
+        // const sortedData = [...response.data.deviceHistory].sort(
+        //   (a, b) =>
+        //     new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+        // );
         setData(response.data.deviceHistory);
         setLoading(false);
+        setCurrentIndex(0); // Reset to start
         console.log(response.data.deviceHistory);
       })
       .catch((error) => {
         console.error(error);
         setLoading(false);
       });
+  };
+
+  const handleMapExpand = () => {
+    setIsMapExpanded(!isMapExpanded);
   };
 
   return (
@@ -253,16 +276,9 @@ export default function HistoryReport() {
             </Button>
           </div>
         </header>
-        {/* <div>
-          <Link href="/dashboard" className="ml-auto">
-            <button className="bg-red-800 hover:bg-red-900 text-white font-semibold py-2 px-4 cursor-pointer rounded">
-              Back to Dasboard
-            </button>
-          </Link>
-        </div> */}
 
         {/* Main Content */}
-        <div className="space-y-6">
+        <div className="space-y-3">
           {/* Map Section */}
           <div className="w-full">
             {loading ? (
@@ -274,8 +290,58 @@ export default function HistoryReport() {
                 </div>
               </div>
             ) : (
-              <div className="h-[400px] md:h-[500px] lg:h-[400px] w-full mt-3">
-                <VehicleMap data={data} currentIndex={currentIndex} />
+              <div
+                className={`w-full mt-3 transition-all duration-300 ease-in-out ${
+                  isMapExpanded
+                    ? "h-[600px] md:h-[400px] lg:h-[500px]"
+                    : "h-[400px] md:h-[200px] lg:h-[330px]"
+                }`}
+              >
+                <VehicleMap
+                  data={data}
+                  currentIndex={currentIndex}
+                  isExpanded={isMapExpanded}
+                />
+                <div>
+                  <div
+                    onClick={handleMapExpand}
+                    className="h-3 w-full bg-[#f3c623] relative flex items-center justify-center hover:cursor-pointer"
+                  >
+                    {/* Down arrow with background */}
+                    <div className="flex flex-col items-center bg-[#d7a901] w-[100px]">
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        className="text-gray-600"
+                      >
+                        <path
+                          d="M7 10L12 15L17 10"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        className="text-gray-600 -mt-3"
+                      >
+                        <path
+                          d="M7 10L12 15L17 10"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
           </div>
@@ -283,7 +349,7 @@ export default function HistoryReport() {
           {/* Controls and Metrics in Responsive Layout */}
           <div className="w-full">
             <div className="lg:col-span-2">
-              <Card className="p-4 bg-[var(--gradient-panel)] border-border shadow-[var(--shadow-panel)]">
+              <Card className="p-4 bg-[var(--gradient-panel)] rounded-t-none border-border shadow-[var(--shadow-panel)]">
                 <PlaybackControls
                   isPlaying={isPlaying}
                   currentIndex={currentIndex}
@@ -296,12 +362,7 @@ export default function HistoryReport() {
                   onSpeedChange={handleSpeedChange}
                   currentData={currentData}
                   historyData={data}
-                />
-                <div className="w-full h-[1px] bg-gray-300"></div>
-                <SpeedGraph
-                  data={data}
-                  currentIndex={currentIndex}
-                  onHover={handleSeek}
+                  isExpanded={isMapExpanded}
                 />
               </Card>
             </div>
