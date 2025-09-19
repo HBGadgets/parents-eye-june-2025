@@ -5,10 +5,14 @@ import React, { useState, useMemo, useEffect } from "react";
 import Cookies from "js-cookie";
 import { getDecodedToken } from "@/lib/jwt";
 import { useSchoolData } from "@/hooks/useSchoolData";
-import { useBranchGroupData } from "@/hooks/useBranchGroup";
+import { useBranchData } from "@/hooks/useBranchData";
 import { useDeviceData } from "@/hooks/useDeviceData";
 import { Button } from "@/components/ui/button";
 import DateRangeFilter from "../ui/DateRangeFilter";
+import { ColumnVisibilitySelector } from "@/components/column-visibility-selector";
+import { Column } from "@tanstack/react-table";
+import { FloatingMenu } from "@/components/floatingMenu";
+import { useExport } from "@/hooks/useExport";
 
 interface SchoolBranchSelectorProps {
   enforceRoleBasedSelection?: boolean;
@@ -16,29 +20,41 @@ interface SchoolBranchSelectorProps {
     schoolId: string | null;
     branchId: string | null;
     deviceId: string | null;
+    deviceName: string | null;
     startDate: Date | null;
     endDate: Date | null;
   }) => void;
   className?: string;
+  columns?: Column<any, unknown>[];
+  onColumnVisibilityChange?: (visibility: any) => void;
+  showColumnVisibility?: boolean;
 }
 
 const SchoolBranchSelector: React.FC<SchoolBranchSelectorProps> = ({
   enforceRoleBasedSelection = true,
   onFilterSubmit,
   className = "",
+  columns = [],
+  onColumnVisibilityChange,
+  showColumnVisibility = false,
 }) => {
   const [role, setRole] = useState<string | null>(null);
   const [selectedSchool, setSelectedSchool] = useState<string | null>(null);
   const [selectedBranch, setSelectedBranch] = useState<string | null>(null);
   const [selectedDevice, setSelectedDevice] = useState<string | null>(null);
-  const [dateRange, setDateRange] = useState<{ start: Date | null; end: Date | null }>({
-    start: null,
-    end: null,
-  });
+  const [selectedDeviceName, setSelectedDeviceName] = useState<string | null>(
+    null
+  );
+  const [dateRange, setDateRange] = useState<{
+    start: Date | null;
+    end: Date | null;
+  }>({ start: null, end: null });
+  const [loading, setLoading] = useState(false);
 
   const { data: schoolData } = useSchoolData();
-  const { data: branchesGroup } = useBranchGroupData();
+  const { data: branchData } = useBranchData();
   const { data: deviceData } = useDeviceData();
+  const { exportToPDF, exportToExcel } = useExport();
 
   useEffect(() => {
     const token = Cookies.get("token");
@@ -49,7 +65,10 @@ const SchoolBranchSelector: React.FC<SchoolBranchSelectorProps> = ({
 
       if (userRole === "branch" && decoded?.branchId) {
         setSelectedBranch(decoded.branchId);
-      } else if (userRole === "schooladmin" && decoded?.schoolId) {
+      } else if (
+        (userRole === "school" || userRole === "schooladmin") &&
+        decoded?.schoolId
+      ) {
         setSelectedSchool(decoded.schoolId);
       } else if (
         userRole === "branchadmin" &&
@@ -62,130 +81,187 @@ const SchoolBranchSelector: React.FC<SchoolBranchSelectorProps> = ({
     }
   }, []);
 
-  const schools = useMemo(
-    () =>
-      (schoolData || []).map((s) => ({
-        label: s.schoolName,
-        value: s._id,
-      })),
-    [schoolData]
-  );
+  // Schools dropdown
+  const schools = useMemo(() => {
+    if (!schoolData) return [];
+    return schoolData.map((school) => ({
+      label: school.schoolName,
+      value: school._id,
+    }));
+  }, [schoolData]);
 
+  // Branches dropdown
   const branches = useMemo(() => {
-    if (!branchesGroup || !selectedSchool) return [];
-    return branchesGroup
-      .filter((group) => group.schoolId?._id === selectedSchool)
-      .flatMap((group) =>
-        (group.AssignedBranch || []).map((branch) => ({
-          label: branch.branchName,
-          value: branch._id,
-        }))
-      );
-  }, [branchesGroup, selectedSchool]);
+    if (!branchData || !selectedSchool) return [];
+    return branchData
+      .filter((branch: any) => branch.schoolId?._id === selectedSchool)
+      .map((branch: any) => ({
+        label: branch.branchName,
+        value: branch._id,
+      }));
+  }, [branchData, selectedSchool]);
 
+  // Devices dropdown (✅ FIXED: only selected branch’s devices show)
   const devices = useMemo(() => {
-    if (!deviceData || !deviceData.devices) return [];
-    return deviceData.devices
+    if (!deviceData || !selectedBranch) return [];
+
+    const list = Array.isArray(deviceData)
+      ? deviceData
+      : deviceData.devices || [];
+
+    return list
       .filter((d: any) => {
-        const matchSchool = selectedSchool ? d.schoolId?._id === selectedSchool : true;
-        const matchBranch = selectedBranch ? d.branchId?._id === selectedBranch : true;
-        return matchSchool && matchBranch;
+        if (!d.branchId) return false; // skip devices without branchId
+        if (typeof d.branchId === "string") {
+          return d.branchId === selectedBranch;
+        }
+        if (typeof d.branchId === "object" && d.branchId._id) {
+          return d.branchId._id === selectedBranch;
+        }
+        return false;
       })
       .map((d: any) => ({
-        label: d.name,
-        value: d._id,
+        label: d.name || d.deviceId || "Unnamed Device",
+        value: d.deviceId || d._id,
       }));
-  }, [deviceData, selectedSchool, selectedBranch]);
+  }, [deviceData, selectedBranch]);
 
-const handleSubmit = () => {
-  const filterData = {
-    schoolId: selectedSchool,
-    branchId: selectedBranch,
-    deviceId: selectedDevice,
-    startDate: dateRange.start,
-    endDate: dateRange.end,
+  // Handle submit
+  const handleSubmit = () => {
+    const filterData = {
+      schoolId: selectedSchool,
+      branchId: selectedBranch,
+      deviceName: selectedDeviceName,
+      deviceId: selectedDevice,
+      startDate: dateRange.start,
+      endDate: dateRange.end,
+    };
+    onFilterSubmit?.(filterData);
   };
-
-  // Print the selected data and date
-  console.log("Submitted Filters:", filterData);
-
-  // Pass it to parent if needed
-  onFilterSubmit?.(filterData);
-
-  // Reset only for non-branch roles
-  if (role !== "branch") {
-    setSelectedSchool(null);
-    setSelectedBranch(null);
-  }
-  setSelectedDevice(null);
-  setDateRange({ start: null, end: null });
-};
-
 
   if (role === null) return null;
 
+  const exportData: any[] = [];
+  const columnsForExport: any[] = [];
+
   return (
-    <div className={`flex flex-row gap-4 items-center ${className}`}>
-      {role !== "branch" && (
-        <>
-          <div className="w-56">
-            <SearchableDropdown
-              items={schools}
-              placeholder="Choose a school..."
-              searchPlaceholder="Search school..."
-              emptyMessage="No school found."
-              value={selectedSchool}
-              onSelect={(item) => {
-                setSelectedSchool(item.value);
-                setSelectedBranch(null);
-                setSelectedDevice(null);
-              }}
-              disabled={
-                enforceRoleBasedSelection &&
-                (role === "schooladmin" || role === "branchadmin")
-              }
+    <div className="space-y-4">
+      <div className={`flex flex-wrap gap-4 items-center ${className}`}>
+        {/* School selector */}
+        {role !== "branch" && (
+          <>
+            {role !== "school" && (
+              <div className="min-w-[180px] max-w-[220px] flex-1">
+                <SearchableDropdown
+                  items={schools}
+                  placeholder="Choose a school..."
+                  searchPlaceholder="Search school..."
+                  emptyMessage="No school found."
+                  value={selectedSchool}
+                  onSelect={(item) => {
+                    setSelectedSchool(item.value);
+                    setSelectedBranch(null);
+                    setSelectedDevice(null);
+                  }}
+                  disabled={
+                    enforceRoleBasedSelection &&
+                    (role === "schooladmin" || role === "branchadmin")
+                  }
+                />
+              </div>
+            )}
+
+            {/* Branch selector */}
+            <div className="min-w-[180px] max-w-[220px] flex-1">
+              <SearchableDropdown
+                items={branches}
+                placeholder="Choose a branch..."
+                searchPlaceholder="Search branch..."
+                emptyMessage={
+                  !selectedSchool
+                    ? "Select a school first."
+                    : "No branch found for this school."
+                }
+                value={selectedBranch}
+                onSelect={(item) => {
+                  setSelectedBranch(item.value);
+                  setSelectedDevice(null);
+                }}
+                disabled={
+                  !selectedSchool ||
+                  (enforceRoleBasedSelection && role === "branchadmin")
+                }
+              />
+            </div>
+          </>
+        )}
+
+        {/* Device selector */}
+        <div className="min-w-[180px] max-w-[220px] flex-1">
+          <SearchableDropdown
+            items={devices}
+            placeholder="Choose a device..."
+            searchPlaceholder="Search device..."
+            emptyMessage={
+              !selectedBranch
+                ? "Select a branch first."
+                : "No devices found for this branch."
+            }
+            value={selectedDevice}
+            onSelect={(item) => {
+              setSelectedDevice(item.value);
+              setSelectedDeviceName(item.label);
+            }}
+            disabled={!selectedBranch}
+          />
+        </div>
+
+        {/* Date range filter */}
+        <div className="min-w-[200px] max-w-[260px] flex-1">
+          <DateRangeFilter
+            onDateRangeChange={(start, end) => setDateRange({ start, end })}
+          />
+        </div>
+
+        {/* Column visibility */}
+        {showColumnVisibility && columns.length > 0 && (
+          <div className="min-w-[150px] max-w-[200px] flex-1">
+            <ColumnVisibilitySelector
+              columns={columns}
+              buttonVariant="outline"
+              buttonSize="default"
             />
           </div>
+        )}
 
-          <div className="w-56">
-            <SearchableDropdown
-              items={branches}
-              placeholder="Choose a branch..."
-              searchPlaceholder="Search branch..."
-              emptyMessage={
-                selectedSchool ? "No branch found for this school." : "Select a school first."
-              }
-              value={selectedBranch}
-              onSelect={(item) => {
-                setSelectedBranch(item.value);
-                setSelectedDevice(null);
-              }}
-              disabled={enforceRoleBasedSelection && role === "branchadmin"}
-            />
-          </div>
-        </>
-      )}
+        {/* Show report button */}
+        <div className="min-w-[120px] max-w-[160px] flex-1">
+          <Button
+            onClick={handleSubmit}
+            className="mt-1 w-full"
+            disabled={loading}
+          >
+            {loading ? "Loading..." : "Show Report"}
+          </Button>
+        </div>
 
-      <div className="w-56">
-        <SearchableDropdown
-          items={devices}
-          placeholder="Choose a device..."
-          searchPlaceholder="Search device..."
-          emptyMessage="No devices found."
-          value={selectedDevice}
-          onSelect={(item) => setSelectedDevice(item.value)}
-          disabled={role !== "branch" && !selectedBranch}
-        />
-      </div>
-
-      <div className="w-64">
-        <DateRangeFilter onDateRangeChange={(start, end) => setDateRange({ start, end })} />
-      </div>
-
-      <div>
-        <Button onClick={handleSubmit} className="mt-1">
-          Submit
-        </Button>
+        {/* Export menu */}
+        <div className="min-w-[120px] max-w-[160px] flex-1">
+          <FloatingMenu
+            onExportPdf={() =>
+              exportToPDF(exportData, columnsForExport, {
+                title: "Export",
+                companyName: "Parents Eye",
+              })
+            }
+            onExportExcel={() =>
+              exportToExcel(exportData, columnsForExport, {
+                title: "Export",
+                companyName: "Parents Eye",
+              })
+            }
+          />
+        </div>
       </div>
     </div>
   );
