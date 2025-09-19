@@ -9,8 +9,7 @@ import ResponseLoader from "@/components/ResponseLoader";
 import { FaPowerOff } from "react-icons/fa";
 import { reverseGeocode } from "@/util/reverse-geocode";
 
-// Removed unused Tooltip imports since they are used in ignition icon tooltip only
-// Tooltip components are used, so keep them:
+// Tooltip components
 import {
   Tooltip,
   TooltipContent,
@@ -80,7 +79,12 @@ const StopReportPage: React.FC = () => {
     { accessorKey: "arrivalTime", header: "Start Time", size: 200 },
     { accessorKey: "departureTime", header: "End Time", size: 200 },
     { accessorKey: "duration", header: "Duration", size: 180 },
-    { accessorKey: "speed", header: "Speed(km/h)", size: 150 },
+    {
+      accessorKey: "speed",
+      header: "Speed (km/h)",
+      size: 150,
+      cell: ({ row }) => row.original.speed?.toFixed(2) ?? "0.00", // ✅ fixed to 2 digits
+    },
     {
       accessorKey: "stopAddress",
       header: "Location",

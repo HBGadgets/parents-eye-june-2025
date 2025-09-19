@@ -84,7 +84,13 @@ const StatusReportPage: React.FC = () => {
     },
     {
       accessorKey: "startCoordinates", header: "Start Coordinates", size: 200,
-      cell: ({ row }) => row.original.startCoordinates?.split(",")[0]?.trim() || "-"
+      // ✅ Show both latitude & longitude with 6 digits after decimal
+      cell: ({ row }) => {
+        const coords = row.original.startCoordinates.split(",");
+        const lat = parseFloat(coords[0].trim()).toFixed(6);
+        const lng = parseFloat(coords[1].trim()).toFixed(6);
+        return `${lat}, ${lng}`;
+      }
     },
     {
       accessorKey: "endLocation", header: "End Address", size: 300,
@@ -92,7 +98,13 @@ const StatusReportPage: React.FC = () => {
     },
     {
       accessorKey: "endCoordinates", header: "End Coordinates", size: 200,
-      cell: ({ row }) => row.original.endCoordinates?.split(",")[1]?.trim() || "-"
+      // ✅ Show both latitude & longitude with 6 digits after decimal
+      cell: ({ row }) => {
+        const coords = row.original.endCoordinates.split(",");
+        const lat = parseFloat(coords[0].trim()).toFixed(6);
+        const lng = parseFloat(coords[1].trim()).toFixed(6);
+        return `${lat}, ${lng}`;
+      }
     },
     { header: "Total Distance (km)", accessorFn: row => row.distance?.toFixed(2) ?? "0.00", size: 150 },
     { header: "Maximum Speed (km/h)", accessorFn: row => row.maxSpeed?.toFixed(2) ?? "0.00", size: 150 },
@@ -144,9 +156,7 @@ const StatusReportPage: React.FC = () => {
       }));
 
       setData(initialTransformed);
-      // --------- Pagination Fix Here ---------
       setTotalCount(response.total || initialTransformed.length);
-      // ---------------------------------------
 
       const transformedWithAddresses = await Promise.all(
         initialTransformed.map(async (item) => {
