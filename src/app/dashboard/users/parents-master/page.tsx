@@ -1,6 +1,12 @@
 "use client";
 
-import React, { useCallback, useEffect, useState, useRef } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useState,
+  useRef,
+  useMemo,
+} from "react";
 import {
   Dialog,
   DialogClose,
@@ -18,21 +24,28 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import DateRangeFilter from "@/components/ui/DateRangeFilter";
 import { FloatingMenu } from "@/components/floatingMenu";
+import { useSchoolData } from "@/hooks/useSchoolData";
+import { useBranchData } from "@/hooks/useBranchData";
+import { useParents } from "@/hooks/useParents";
+import { SearchableSelect } from "@/components/custom-select";
 import {
   getCoreRowModel,
   useReactTable,
   VisibilityState,
   type ColumnDef,
+  SortingState,
+  PaginationState,
 } from "@tanstack/react-table";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/services/apiService";
 import { useExport } from "@/hooks/useExport";
 import { formatDate } from "@/util/formatDate";
 import { Alert } from "@/components/Alert";
 import ResponseLoader from "@/components/ResponseLoader";
 import { ColumnVisibilitySelector } from "@/components/column-visibility-selector";
+import { CustomTableServerSidePagination } from "@/components/ui/customTable(serverSidePagination)";
 
-// Parent interface 
+// Parent interface
 interface Parent {
   _id: string;
   parentName: string;
@@ -40,9 +53,22 @@ interface Parent {
   email: string;
   username: string;
   password: string;
+  schoolId?: {
+    _id: string;
+    schoolName: string;
+  };
+  branchId?: {
+    _id: string;
+    branchName: string;
+  };
   isActive?: boolean;
   createdAt: string;
   updatedAt?: string;
+}
+
+interface selectOption {
+  label: string;
+  value: string;
 }
 
 declare module "@tanstack/react-table" {
@@ -50,175 +76,281 @@ declare module "@tanstack/react-table" {
     flex?: number;
     minWidth?: number;
     maxWidth?: number;
+    sortable?: boolean;
   }
 }
 
 export default function ParentsMaster() {
   const queryClient = useQueryClient();
   const closeButtonRef = useRef<HTMLButtonElement>(null);
-  const [filteredData, setFilteredData] = useState<Parent[]>([]);
-  const [filterResults, setFilterResults] = useState<Parent[]>([]);
+
+  // Server-side table states
+  const [pagination, setPagination] = useState({
+    pageIndex: 0,
+    pageSize: 10,
+  });
+  const [sorting, setSorting] = useState<SortingState>([]);
+  const [globalFilter, setGlobalFilter] = useState<string>("");
+  const [dateRange, setDateRange] = useState<{
+    start: Date | null;
+    end: Date | null;
+  }>({
+    start: null,
+    end: null,
+  });
+
+  // Existing states
   const [deleteTarget, setDeleteTarget] = useState<Parent | null>(null);
   const [editTarget, setEditTarget] = useState<Parent | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
-  const [columnVisibility, setColumnVisibility] =
-    React.useState<VisibilityState>({});
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
   const { exportToPDF, exportToExcel } = useExport();
 
-  // Fetch parents data
+  // Add school and branch state hooks
+  const [school, setSchool] = useState<string | undefined>(undefined);
+  const { data: schoolData } = useSchoolData();
+  const [branch, setBranch] = useState<string | undefined>(undefined);
+  const { data: branchData } = useBranchData();
+  const [debouncedName, setDebouncedName] = useState("");
+
+  // Use the custom hook for fetching parents data
   const {
-    data: parents,
+    data: parentsData,
     isLoading,
-    isError,
     error,
-  } = useQuery<Parent[]>({
-    queryKey: ["parents"],
-    queryFn: async () => {
-      const res = await api.get<Parent[]>("/parent");
-      return res;
-    },
+    isError,
+    isFetching,
+  } = useParents({
+    pagination,
+    sorting,
+    name: debouncedName,
   });
 
+  // Debug logging to see pagination changes
+  console.log("parentsData", parentsData?.data);
+
+  // School options
+  const schoolOptions: selectOption[] = schoolData
+    ? Array.from(
+        new Map(
+          schoolData
+            .filter((s) => s._id && s.schoolName)
+            .map((s) => [s._id, { label: s.schoolName, value: s._id }])
+        ).values()
+      )
+    : [];
+
+  // Branch options
+  const branchOptions: selectOption[] = branchData
+    ? Array.from(
+        new Map(
+          branchData
+            .filter((s) => s._id && s.branchName)
+            .map((s) => [s._id, { label: s.branchName, value: s._id }])
+        ).values()
+      )
+    : [];
+
+  // Filtered branch options based on selected school
+  const filteredBranchOptions = useMemo(() => {
+    if (!school || !branchData) return [];
+    //console.log("my school", school);
+    return branchData
+      .filter((branch) => branch.schoolId?._id === school)
+      .map((branch) => ({
+        label: branch.branchName,
+        value: branch._id,
+      }));
+  }, [school, branchData]);
+
+  // Reset branch when school changes
   useEffect(() => {
-    if (parents && parents.length > 0) {
-      setFilteredData(parents);
-      setFilterResults(parents); // For search base
-    }
-  }, [parents]);
+    setBranch(undefined);
+  }, [school]);
 
   // Define the columns for the table
-  const columns: ColumnDef<Parent, CellContent>[] = [
+  const columns: ColumnDef<Parent>[] = [
     {
-      header: "Parent Name",
-      accessorFn: (row) => ({
-        type: "text",
-        value: row.parentName ?? "",
-      }),
-      meta: { flex: 1, minWidth: 200, maxWidth: 300 },
+      id: "name",
+      header: "Parents Name",
+      accessorFn: (row) => row.parentName || "N/A",
       enableHiding: true,
+      enableSorting: true,
     },
     {
-      header: "Mobile",
-      accessorFn: (row) => ({
-        type: "text",
-        value: row.mobileNo ?? "",
-      }),
-      meta: { flex: 1, minWidth: 150, maxWidth: 300 },
+      id: "schoolName",
+      header: "School Name",
+      accessorFn: (row) => row.schoolId?.schoolName || "N/A",
       enableHiding: true,
+      enableSorting: true,
     },
     {
+      id: "branchName",
+      header: "Branch Name",
+      accessorFn: (row) => row.branchId?.branchName || "N/A",
+      enableHiding: true,
+      enableSorting: true,
+    },
+    {
+      id: "email",
       header: "Email",
-      accessorFn: (row) => ({
-        type: "text",
-        value: row.email ?? "",
-      }),
-      meta: { flex: 1, minWidth: 200, maxWidth: 350 },
+      accessorFn: (row) => row.email || "N/A",
       enableHiding: true,
+      enableSorting: true,
     },
     {
-      header: "Username",
-      accessorFn: (row) => ({
-        type: "text",
-        value: row.username ?? "",
-      }),
-      meta: { flex: 1, minWidth: 150, maxWidth: 300 },
+      id: "mobileNo",
+      header: "Mobile No",
+      accessorFn: (row) => row.mobileNo || "N/A",
       enableHiding: true,
+      enableSorting: true,
     },
     {
+      id: "username",
+      header: "User Name",
+      accessorFn: (row) => row.username|| "N/A",
+      enableHiding: true,
+      enableSorting: true,
+    },
+    {
+      id: "password",
       header: "Password",
-      accessorFn: (row) => ({
-        type: "text",
-        value: row.password ?? "",
-      }),
-      meta: { flex: 1, minWidth: 150, maxWidth: 300 },
+      accessorFn: (row) => row.password|| "N/A",
       enableHiding: true,
+      enableSorting: true,
     },
     {
-      header: "Status",
-      accessorFn: (row) => ({
-        type: "text",
-        value: row.isActive ? "Active" : "Inactive",
-        variant: row.isActive ? "success" : "destructive",
-      }),
-      meta: { flex: 0.5, minWidth: 130, maxWidth: 150 },
-      enableHiding: true,
-    },
-    {
-      header: "Registration Date",
-      accessorFn: (row) => ({
-        type: "text",
-        value: formatDate(row.createdAt) ?? "",
-      }),
-      meta: { flex: 1, minWidth: 300 },
-      enableHiding: true,
-    },
-    {
-      header: "Action",
-      accessorFn: (row) => ({
-        type: "group",
-        items: [
-          {
-            type: "button",
-            label: "Edit",
-            onClick: () => {
-              setEditTarget(row);
-              setEditDialogOpen(true);
-            },
-            className: "cursor-pointer",
-            disabled: updateParentMutation.isPending,
-          },
-          {
-            type: "button",
-            label: "Delete",
-            onClick: () => setDeleteTarget(row),
-            className: "text-red-600 cursor-pointer",
-            disabled: deleteParentMutation.isPending,
-          },
-        ],
-      }),
-      meta: { flex: 1.5, minWidth: 150, maxWidth: 200 },
-      enableSorting: false,
-      enableHiding: true,
+      id: "actions",
+      header: "Actions",
+
+      cell: ({ row }) => (
+        <div className="flex items-center justify-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              const parent = row.original;
+              console.log("🔧 Edit button clicked for geofence:", parent._id);
+
+              // Set basic data
+              setMode("edit");
+              setParentId(parent._id);
+              setSelectedGeofence(parent);
+
+              let foundSchool = null;
+              let foundBranch = null;
+              let foundRoute = null;
+
+              // Find related objects
+              if (parent.branchId && branchData) {
+                foundBranch = branchData.find(
+                  (branch) => branch._id === parent.branchId
+                );
+                console.log("Found Branch:", foundBranch);
+
+                if (foundBranch && foundBranch.schoolId) {
+                  foundSchool = foundBranch.schoolId;
+                  console.log("Found School from Branch:", foundSchool);
+                }
+              }
+
+              if (parent.routeObjId && routeData) {
+                foundRoute = routeData.find(
+                  (route) => route._id === parent.routeObjId
+                );
+                console.log("Found Route:", foundRoute);
+              }
+
+              // Set the found objects
+              setParentSchoolId(foundSchool);
+              setParentBranchId(foundBranch);
+              setParentRouteId(foundRoute);
+
+              // 🆕 NEW: Log coordinates for debugging
+              if (geofence.area?.center) {
+                console.log("📍 Parent coordinates:", geofence.area.center);
+              }
+
+              // Open dialog
+              setOpen(true);
+            }}
+            className="cursor-pointer bg-[#f3c623] hover:bg-[#D3A80C]"
+          >
+            Edit
+          </Button>
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={() => setDeleteTarget(row.original)}
+            // disabled={deleteGeofenceMutation.isPending}
+            className="cursor-pointer hover:bg-red-700"
+          >
+            Delete
+          </Button>
+        </div>
+      ),
     },
   ];
 
   // columns for export
   const columnsForExport = [
     { key: "parentName", header: "Parent Name" },
+    { key: "schoolId.schoolName", header: "School Name" },
+    { key: "branchId.branchName", header: "Branch Name" },
     { key: "mobileNo", header: "Mobile" },
     { key: "email", header: "Email" },
     { key: "username", header: "Username" },
     { key: "password", header: "Password" },
     {
-    key: "isActive", header: "Status",
-    formatter: (value) => (value ? "Active" : "Inactive"), },
+      key: "isActive",
+      header: "Status",
+      formatter: (value) => (value ? "Active" : "Inactive"),
+    },
     {
-    key: "createdAt",
-    header: "Created At",
-    formatter: (value) => new Date(value).toLocaleDateString("en-GB"),
-    }
+      key: "createdAt",
+      header: "Created At",
+      formatter: (value) => new Date(value).toLocaleDateString("en-GB"),
+    },
   ];
 
   // Define the fields for the edit dialog
   const parentFieldConfigs: FieldConfig[] = [
-  { label: "Parent Name", key: "parentName", type: "text", required: true },
-  { label: "Mobile Number", key: "mobileNo", type: "text", required: true }, // FIXED
-  { label: "Email", key: "email", type: "email", required: true },           // FIXED
-  { label: "Username", key: "username", type: "text", required: true },
-  { label: "Password", key: "password", type: "text", required: true },
-  { label: "Active Status", key: "isActive", type: "checkbox" },
-];
+    { label: "Parent Name", key: "parentName", type: "text", required: true },
+    {
+      label: "School Name",
+      key: "schoolId",
+      type: "select",
+      required: true,
+      options: schoolOptions,
+    },
+    {
+      label: "Branch Name",
+      key: "branchId",
+      type: "select",
+      required: true,
+      options: branchOptions,
+    },
+    { label: "Mobile Number", key: "mobileNo", type: "text", required: true },
+    { label: "Email", key: "email", type: "email", required: true },
+    { label: "Username", key: "username", type: "text", required: true },
+    { label: "Password", key: "password", type: "text", required: true },
+    { label: "Active Status", key: "isActive", type: "checkbox" },
+  ];
 
   // Mutation to add a new parent
   const addParentMutation = useMutation({
     mutationFn: async (newParent: any) => {
+      //console.log("Data going to backend");
       const parent = await api.post("/parent", newParent);
       return parent.parent;
     },
-    onSuccess: (createdParent) => {
-      queryClient.setQueryData<Parent[]>(["parents"], (oldParents = []) => {
-        return [...oldParents, createdParent];
-      });
+    onSuccess: () => {
+      // Invalidate and refetch parents data
+      queryClient.invalidateQueries({ queryKey: ["parents"] });
+      alert("Parent added successfully.");
+    },
+    onError: (err) => {
+      alert("Failed to add parent.\nerror: " + err);
     },
   });
 
@@ -233,21 +365,8 @@ export default function ParentsMaster() {
     }) => {
       return await api.put(`/parent/${parentId}`, data);
     },
-    onSuccess: (_, { parentId, data }) => {
-      queryClient.setQueryData<Parent[]>(["parents"], (oldData) => {
-        if (!oldData) return [];
-        return oldData.map((parent) =>
-          parent._id === parentId ? { ...parent, ...data } : parent
-        );
-      });
-
-      // Update filteredData manually
-      setFilteredData((prev) =>
-        prev.map((parent) =>
-          parent._id === parentId ? { ...parent, ...data } : parent
-        )
-      );
-
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["parents"] });
       setEditDialogOpen(false);
       setEditTarget(null);
       alert("Parent updated successfully.");
@@ -257,27 +376,40 @@ export default function ParentsMaster() {
     },
   });
 
-// Mutation to delete parent(s)
-const deleteParentMutation = useMutation({
-  mutationFn: async (ids: string[]) => {
-    // backend expects { ids: [...] }
-    return await api.mulDelete("/parent", { ids });
-  },
-  onSuccess: () => {
-    alert("Parent(s) deleted successfully!");
-     queryClient.invalidateQueries({ queryKey: ["parents"] });
-  },
-  onError: (err: any) => {
-    console.error("Delete error:", err);
-    alert(err?.response?.data?.message || "Failed to delete parent(s).");
-  },
-});
+  // Mutation to delete parent(s)
+  const deleteParentMutation = useMutation({
+    mutationFn: async (ids: string[]) => {
+      return await api.mulDelete("/parent", { ids });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["parents"] });
+      alert("Parent(s) deleted successfully!");
+    },
+    onError: (err) => {
+      alert("Failed to delete parent(s).\nerror: " + err);
+    },
+  });
 
+  // Handle search with debounce
+  const handleSearch = useCallback((searchTerm: string) => {
+    setGlobalFilter(searchTerm);
+    setPagination((prev) => ({ ...prev, pageIndex: 0 })); // Reset to first page
+  }, []);
 
+  // Handle pagination changes (especially page size changes)
+  const handlePaginationChange = useCallback((updater: any) => {
+    setPagination((prev) => {
+      const newPagination =
+        typeof updater === "function" ? updater(prev) : updater;
+      //console.log("Pagination changed from", prev, "to", newPagination);
 
-  // Handle search
-  const handleSearchResults = useCallback((results: Parent[]) => {
-    setFilteredData(results);
+      // If page size changed, reset to first page
+      if (newPagination.pageSize !== prev.pageSize) {
+        return { ...newPagination, pageIndex: 0 };
+      }
+
+      return newPagination;
+    });
   }, []);
 
   // Handle save action for edit parent
@@ -296,7 +428,7 @@ const deleteParentMutation = useMutation({
     }
 
     if (Object.keys(changedFields).length === 0) {
-      console.log("No changes detected.");
+      //console.log("No changes detected.");
       return;
     }
 
@@ -309,67 +441,81 @@ const deleteParentMutation = useMutation({
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const form = e.currentTarget;
+    const formData = new FormData(form);
+
+    if (!school) {
+      alert("Please select a school");
+      return;
+    } else if (!branch) {
+      alert("Please select a branch");
+      return;
+    }
+
     const data = {
-      parentName: form.parentName.value,
-      parentMobile: form.contactNo.value,
-      parentEmail: form.email.value,
-      username: form.username.value,
-      password: form.password.value,
-      address: form.address.value,
-      isActive: form.isActive.checked,
+      parentName: formData.get("parentName") as string,
+      mobileNo: formData.get("contactNo") as string,
+      email: formData.get("parentEmail") as string,
+      username: formData.get("username") as string,
+      password: formData.get("password") as string,
+      schoolId: school,
+      branchId: branch,
+      isActive: formData.get("isActive") === "on",
     };
 
     try {
       await addParentMutation.mutateAsync(data);
       closeButtonRef.current?.click();
       form.reset();
-      alert("Parent added successfully.");
+      setSchool(undefined);
+      setBranch(undefined);
     } catch (err) {
-      alert("Failed to add parent.\nerror: " + err);
+      // Error handled in mutation
     }
   };
 
   const handleDateFilter = useCallback(
     (start: Date | null, end: Date | null) => {
-      if (!parents || (!start && !end)) {
-        setFilteredData(parents || []);
-        return;
-      }
-
-      const filtered = parents.filter((parent) => {
-        if (!parent.createdAt) return false;
-
-        const createdDate = new Date(parent.createdAt);
-        return (!start || createdDate >= start) && (!end || createdDate <= end);
-      });
-
-      setFilteredData(filtered);
+      setDateRange({ start, end });
+      setPagination((prev) => ({ ...prev, pageIndex: 0 })); // Reset to first page
     },
-    [parents]
+    []
   );
 
-  const table = useReactTable({
-    data: filteredData,
+  // Create table instance with server-side features
+  const { table, tableElement } = CustomTableServerSidePagination({
+    data: parentsData?.data || [],
     columns,
-    state: { columnVisibility },
+    pagination,
+    totalCount: parentsData?.total || 0,
+    loading: isLoading || isFetching,
+    onPaginationChange: setPagination,
+    onSortingChange: setSorting,
+    sorting,
+    columnVisibility,
     onColumnVisibilityChange: setColumnVisibility,
-    getCoreRowModel: getCoreRowModel(),
+    emptyMessage: "No parents found",
+    pageSizeOptions: [5, 10, 20, 30, 50],
+    enableSorting: true,
+    showSerialNumber: true,
   });
 
   return (
     <main>
       {/* Progress loader at the top */}
-      <ResponseLoader isLoading={isLoading} />
+      <ResponseLoader isLoading={isLoading || isFetching} />
 
       <header className="flex items-center justify-between mb-4">
         <section className="flex space-x-4">
-          {/* Search component */}
-          <SearchComponent
-            data={filterResults}
-            displayKey={["parentName", "username", "parentEmail", "parentMobile"]}
-            onResults={handleSearchResults}
-            className="w-[300px] mb-4"
-          />
+          {/* Search component - now with server-side functionality */}
+          <div className="w-[300px] mb-4">
+            <Input
+              placeholder="Search parents..."
+              value={globalFilter}
+              onChange={(e) => handleSearch(e.target.value)}
+              className="w-full"
+            />
+          </div>
+
           {/* Date range picker */}
           <DateRangeFilter
             onDateRangeChange={handleDateFilter}
@@ -402,6 +548,35 @@ const deleteParentMutation = useMutation({
                       name="parentName"
                       placeholder="Enter parent name"
                       required
+                    />
+                  </div>
+
+                  <div className="grid gap-2">
+                    <Label htmlFor="schoolId">School</Label>
+                    <SearchableSelect
+                      value={school}
+                      onChange={setSchool}
+                      options={schoolOptions}
+                      placeholder="Select school"
+                      allowClear={true}
+                    />
+                  </div>
+
+                  <div className="grid gap-2">
+                    <Label htmlFor="branchId">Branch</Label>
+                    <SearchableSelect
+                      value={branch}
+                      onChange={setBranch}
+                      options={filteredBranchOptions}
+                      placeholder={
+                        !school
+                          ? "select school first"
+                          : filteredBranchOptions.length
+                          ? "select branch"
+                          : "No branches available"
+                      }
+                      allowClear={true}
+                      disabled={!school}
                     />
                   </div>
 
@@ -480,20 +655,31 @@ const deleteParentMutation = useMutation({
         </section>
       </header>
 
-      {/* Table component */}
+      {/* Table component with server-side functionality */}
       <section className="mb-4">
-        <CustomTable
-          data={filteredData || []}
+        {/* <CustomTable
+          data={parents || []}
           columns={columns}
           columnVisibility={columnVisibility}
           onColumnVisibilityChange={setColumnVisibility}
+          // Server-side table props
+          pagination={pagination}
+          onPaginationChange={handlePaginationChange} // Use custom handler
+          sorting={sorting}
+          onSortingChange={setSorting}
+          totalPages={response.totalPages}
+          totalRows={response.total}
+          // Other props
           pageSizeArray={[5, 10, 20, 50]}
           maxHeight={600}
           minHeight={200}
           showSerialNumber={true}
           noDataMessage="No parents found"
-          isLoading={isLoading}
-        />
+          isLoading={isLoading || isFetching}
+          enableServerSidePagination={true}
+          enableServerSideSorting={true}
+        /> */}
+        {tableElement}
       </section>
 
       {/* Alert Boxes */}
@@ -519,7 +705,11 @@ const deleteParentMutation = useMutation({
       <section>
         {editTarget && (
           <DynamicEditDialog
-            data={editTarget}
+            data={{
+              ...editTarget,
+              schoolId: editTarget.schoolId?._id,
+              branchId: editTarget.branchId?._id,
+            }}
             isOpen={editDialogOpen}
             onClose={() => {
               setEditDialogOpen(false);
@@ -541,22 +731,22 @@ const deleteParentMutation = useMutation({
       <section>
         <FloatingMenu
           onExportPdf={() => {
-            console.log("Export PDF triggered");
-            exportToPDF(filteredData, columnsForExport, {
+            //console.log("Export PDF triggered");
+            exportToPDF(parents, columnsForExport, {
               title: "Parents Master Report",
               companyName: "Parents Eye",
               metadata: {
-                Total: `${filteredData.length} parents`,
+                Total: `${response.total} parents`,
               },
             });
           }}
           onExportExcel={() => {
-            console.log("Export Excel triggered");
-            exportToExcel(filteredData, columnsForExport, {
+            //console.log("Export Excel triggered");
+            exportToExcel(parents, columnsForExport, {
               title: "Parents Master Report",
               companyName: "Parents Eye",
               metadata: {
-                Total: `${filteredData.length} parents`,
+                Total: `${response.total} parents`,
               },
             });
           }}

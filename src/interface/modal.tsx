@@ -100,15 +100,21 @@ export interface Geofence {
 export interface Parent {
   _id: string;
   parentName: string;
+  mobileNo: string;
+  email: string;
   username: string;
   password: string;
-  email: string;
-  schoolMobile: string;
-  fullAccess: boolean;
-  schoolId: string | null;
-  branchId: string | null;
-  mobileNo: string;
-  role: string;
+  schoolId?: {
+    _id: string;
+    schoolName: string;
+  };
+  branchId?: {
+    _id: string;
+    branchName: string;
+  };
+  isActive?: boolean;
+  createdAt: string;
+  updatedAt?: string;
 }
 
 export interface Driver {
