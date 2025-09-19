@@ -20,6 +20,7 @@ interface SchoolBranchSelectorProps {
     schoolId: string | null;
     branchId: string | null;
     deviceId: string | null;
+    deviceName: string | null;
     startDate: Date | null;
     endDate: Date | null;
   }) => void;
@@ -44,18 +45,18 @@ const SchoolBranchSelector: React.FC<SchoolBranchSelectorProps> = ({
   const [selectedDeviceName, setSelectedDeviceName] = useState<string | null>(
     null
   );
-  const [dateRange, setDateRange] = useState<{ start: Date | null; end: Date | null }>({
-    start: null,
-    end: null,
-  });
+  const [dateRange, setDateRange] = useState<{
+    start: Date | null;
+    end: Date | null;
+  }>({ start: null, end: null });
   const [loading, setLoading] = useState(false);
 
   const { data: schoolData } = useSchoolData();
   const { data: branchData } = useBranchData();
   const { data: deviceData } = useDeviceData();
-
   const { exportToPDF, exportToExcel } = useExport();
 
+  // decode token and set role/school/branch
   useEffect(() => {
     const token = Cookies.get("token");
     if (token) {
@@ -65,9 +66,10 @@ const SchoolBranchSelector: React.FC<SchoolBranchSelectorProps> = ({
 
       if (userRole === "branch" && decoded?.branchId) {
         setSelectedBranch(decoded.branchId);
-      } else if (userRole === "school" && decoded?.schoolId) {
-        setSelectedSchool(decoded.schoolId);
-      } else if (userRole === "schooladmin" && decoded?.schoolId) {
+      } else if (
+        (userRole === "school" || userRole === "schooladmin") &&
+        decoded?.schoolId
+      ) {
         setSelectedSchool(decoded.schoolId);
       } else if (
         userRole === "branchadmin" &&
@@ -80,6 +82,19 @@ const SchoolBranchSelector: React.FC<SchoolBranchSelectorProps> = ({
     }
   }, []);
 
+  // ✅ auto-select first branch when school is chosen
+  useEffect(() => {
+    if (selectedSchool && branchData) {
+      const filteredBranches = branchData.filter(
+        (branch: any) => branch.schoolId?._id === selectedSchool
+      );
+      if (filteredBranches.length > 0 && !selectedBranch) {
+        setSelectedBranch(filteredBranches[0]._id);
+      }
+    }
+  }, [selectedSchool, branchData, selectedBranch]);
+
+  // Schools dropdown
   const schools = useMemo(() => {
     if (!schoolData) return [];
     return schoolData.map((school) => ({
@@ -88,62 +103,43 @@ const SchoolBranchSelector: React.FC<SchoolBranchSelectorProps> = ({
     }));
   }, [schoolData]);
 
+  // Branches dropdown
   const branches = useMemo(() => {
-    if (!branchData) return [];
-    if (role === "school" && selectedSchool) {
-      return branchData
-        .filter((branch: any) => branch.schoolId?._id === selectedSchool)
-        .map((branch: any) => ({
-          label: branch.branchName,
-          value: branch._id,
-        }));
-    }
-
-    if (role !== "branch" && role !== "branchadmin" && !selectedSchool) {
-      return [];
-    }
-
+    if (!branchData || !selectedSchool) return [];
     return branchData
-      .filter((branch: any) => {
-        if (selectedSchool) {
-          return branch.schoolId?._id === selectedSchool;
-        }
-        return true;
-      })
+      .filter((branch: any) => branch.schoolId?._id === selectedSchool)
       .map((branch: any) => ({
         label: branch.branchName,
         value: branch._id,
       }));
-  }, [branchData, role, selectedSchool]);
+  }, [branchData, selectedSchool]);
 
+  // Devices dropdown (only devices of selected branch)
   const devices = useMemo(() => {
-    if (!deviceData || !deviceData.devices) return [];
+    if (!deviceData || !selectedBranch) return [];
 
-    if (role === "branch" && selectedBranch) {
-      return deviceData.devices
-        .filter((d: any) => d.branchId?._id === selectedBranch)
-        .map((d: any) => ({
-          label: d.name,
-          value: d.deviceId,
-        }));
-    }
+    const list = Array.isArray(deviceData)
+      ? deviceData
+      : deviceData.devices || [];
 
-    if (role !== "branch" && (!selectedSchool || !selectedBranch)) {
-      return [];
-    }
-
-    return deviceData.devices
+    return list
       .filter((d: any) => {
-        const matchSchool = selectedSchool ? d.schoolId?._id === selectedSchool : true;
-        const matchBranch = selectedBranch ? d.branchId?._id === selectedBranch : true;
-        return matchSchool && matchBranch;
+        if (!d.branchId) return false; // skip devices without branchId
+        if (typeof d.branchId === "string") {
+          return d.branchId === selectedBranch;
+        }
+        if (typeof d.branchId === "object" && d.branchId._id) {
+          return d.branchId._id === selectedBranch;
+        }
+        return false;
       })
       .map((d: any) => ({
-        label: d.name,
-        value: d.deviceId,
+        label: d.name || d.deviceId || "Unnamed Device",
+        value: d.deviceId || d._id,
       }));
-  }, [deviceData, selectedSchool, selectedBranch, role]);
+  }, [deviceData, selectedBranch]);
 
+  // Handle submit
   const handleSubmit = () => {
     const filterData = {
       schoolId: selectedSchool,
@@ -153,16 +149,7 @@ const SchoolBranchSelector: React.FC<SchoolBranchSelectorProps> = ({
       startDate: dateRange.start,
       endDate: dateRange.end,
     };
-
-    console.log("Submitted Filters:", filterData);
     onFilterSubmit?.(filterData);
-
-    // if (role !== "branch") {
-    //   setSelectedSchool(null);
-    //   setSelectedBranch(null);
-    // }
-    // setSelectedDevice(null);
-    // setDateRange({ start: null, end: null });
   };
 
   if (role === null) return null;
@@ -172,10 +159,8 @@ const SchoolBranchSelector: React.FC<SchoolBranchSelectorProps> = ({
 
   return (
     <div className="space-y-4">
-      {/* Filter Section */}
-      <div
-        className={`flex flex-wrap gap-4 items-center ${className}`}
-      >
+      <div className={`flex flex-wrap gap-4 items-center ${className}`}>
+        {/* School selector */}
         {role !== "branch" && (
           <>
             {role !== "school" && (
@@ -199,17 +184,16 @@ const SchoolBranchSelector: React.FC<SchoolBranchSelectorProps> = ({
               </div>
             )}
 
+            {/* Branch selector */}
             <div className="min-w-[180px] max-w-[220px] flex-1">
               <SearchableDropdown
                 items={branches}
                 placeholder="Choose a branch..."
                 searchPlaceholder="Search branch..."
                 emptyMessage={
-                  !selectedSchool && role !== "branchadmin"
+                  !selectedSchool
                     ? "Select a school first."
-                    : selectedSchool
-                    ? "No branch found for this school."
-                    : "No branch found."
+                    : "No branch found for this school."
                 }
                 value={selectedBranch}
                 onSelect={(item) => {
@@ -217,49 +201,42 @@ const SchoolBranchSelector: React.FC<SchoolBranchSelectorProps> = ({
                   setSelectedDevice(null);
                 }}
                 disabled={
-                  (enforceRoleBasedSelection && role === "branchadmin") ||
-                  (!selectedSchool &&
-                    role !== "branchadmin" &&
-                    role !== "branch")
+                  !selectedSchool ||
+                  (enforceRoleBasedSelection && role === "branchadmin")
                 }
               />
             </div>
           </>
         )}
 
+        {/* Device selector */}
         <div className="min-w-[180px] max-w-[220px] flex-1">
           <SearchableDropdown
             items={devices}
             placeholder="Choose a device..."
             searchPlaceholder="Search device..."
             emptyMessage={
-              role === "branch"
-                ? selectedBranch
-                  ? "No devices found."
-                  : "No devices available."
-                : !selectedBranch
+              !selectedBranch
                 ? "Select a branch first."
-                : "No devices found."
+                : "No devices found for this branch."
             }
             value={selectedDevice}
             onSelect={(item) => {
               setSelectedDevice(item.value);
               setSelectedDeviceName(item.label);
             }}
-            disabled={
-              role === "branch"
-                ? !selectedBranch
-                : role !== "branch" && !selectedBranch
-            }
+            disabled={!selectedBranch}
           />
         </div>
 
+        {/* Date range filter */}
         <div className="min-w-[200px] max-w-[260px] flex-1">
           <DateRangeFilter
             onDateRangeChange={(start, end) => setDateRange({ start, end })}
           />
         </div>
 
+        {/* Column visibility */}
         {showColumnVisibility && columns.length > 0 && (
           <div className="min-w-[150px] max-w-[200px] flex-1">
             <ColumnVisibilitySelector
@@ -270,12 +247,18 @@ const SchoolBranchSelector: React.FC<SchoolBranchSelectorProps> = ({
           </div>
         )}
 
+        {/* Show report button */}
         <div className="min-w-[120px] max-w-[160px] flex-1">
-          <Button onClick={handleSubmit} className="mt-1 w-full" disabled={loading}>
+          <Button
+            onClick={handleSubmit}
+            className="mt-1 w-full"
+            disabled={loading}
+          >
             {loading ? "Loading..." : "Show Report"}
           </Button>
         </div>
 
+        {/* Export menu */}
         <div className="min-w-[120px] max-w-[160px] flex-1">
           <FloatingMenu
             onExportPdf={() =>
