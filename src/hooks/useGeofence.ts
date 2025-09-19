@@ -17,6 +17,10 @@ interface UseGeofenceParams {
   pagination: PaginationState;
   sorting: SortingState;
   name?: string;
+  schoolName?: string;
+  branchName?: string;
+  geofenceName?: string;
+  routeNumber?: string;
 }
 
 // I don't know if this is the best way to handle the API response structure, Par Mujhe kya Senior aake dekhega.
@@ -26,15 +30,21 @@ const fetchDevices = async ({
   pagination,
   sorting,
   name,
+  schoolName,
+  branchName,
+  geofenceName,
+  routeNumber,
 }: UseGeofenceParams): Promise<GeofenceResponse> => {
   const params = new URLSearchParams({
     page: (pagination.pageIndex + 1).toString(),
     limit: pagination.pageSize.toString(),
   });
 
-  if (name?.trim()) {
-    params.append("name", name);
-  }
+  if (name?.trim()) params.append("name", name);
+  if (schoolName?.trim()) params.append("schoolName", schoolName);
+  if (branchName?.trim()) params.append("branchName", branchName);
+  if (geofenceName?.trim()) params.append("geofenceName", geofenceName);
+  if (routeNumber?.trim()) params.append("routeNumber", routeNumber);
 
   if (sorting.length > 0) {
     const sort = sorting[0];
@@ -45,16 +55,15 @@ const fetchDevices = async ({
   try {
     const response = await api.get(`/geofence?${params.toString()}`);
 
-    if (response?.data) {
-      return response;
-    }
-
-    // If response has .data like Axios
+    let data;
     if (response?.data?.data) {
-      return response.data;
+      data = response.data;
+    } else if (response?.data) {
+      data = response;
+    } else {
+      throw new Error("Unexpected API response format");
     }
-
-    throw new Error("Unexpected API response format");
+    return data;
   } catch (error) {
     console.error("API Error:", error);
     throw new Error(
@@ -65,20 +74,36 @@ const fetchDevices = async ({
   }
 };
 
-export const useGeofeneces = ({
+export const useGeofences = ({
   pagination,
   sorting,
   name,
-}: UseGeofenceParams) => {
-  return useQuery({
+  schoolName,
+  branchName,
+  geofenceName,
+  routeNumber,
+}: UseGeofenceParams) =>
+  useQuery({
     queryKey: [
       "geofences",
       pagination.pageIndex,
       pagination.pageSize,
       sorting.map((s) => `${s.id}-${s.desc ? "desc" : "asc"}`).join(","),
       name || "",
+      schoolName || "",
+      branchName || "",
+      geofenceName || "",
+      routeNumber || "",
     ],
-    queryFn: () => fetchDevices({ pagination, sorting, name }),
+    queryFn: () =>
+      fetchDevices({
+        pagination,
+        sorting,
+        name,
+        schoolName,
+        branchName,
+        geofenceName,
+        routeNumber,
+      }),
     keepPreviousData: true,
   });
-};

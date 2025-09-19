@@ -29,6 +29,7 @@ import { ResponseLoader } from "@/components/RouteLoader";
 import { SearchBar } from "@/components/search-bar/SearchBarPagination";
 import { CustomFilter } from "@/components/ui/CustomFilter";
 import { Alert } from "@/components/Alert";
+import { AddStudentForm } from "@/components/add-student/add-student";
 
 export default function StudentDetails() {
   const queryClient = useQueryClient();
@@ -266,10 +267,9 @@ export default function StudentDetails() {
           className="w-[180px]"
         /> */}
         </section>
+        {/* Add Student */}
         <section>
-          <button className="bg-yellow-400 hover:bg-yellow-500 text-[#733e0a] font-semibold py-1 px-3 rounded-md cursor-pointer">
-            Add Student
-          </button>
+          <AddStudentForm />
         </section>
       </header>
       <main>
