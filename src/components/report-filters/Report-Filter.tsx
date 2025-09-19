@@ -56,7 +56,6 @@ const SchoolBranchSelector: React.FC<SchoolBranchSelectorProps> = ({
   const { data: deviceData } = useDeviceData();
   const { exportToPDF, exportToExcel } = useExport();
 
-  // decode token and set role/school/branch
   useEffect(() => {
     const token = Cookies.get("token");
     if (token) {
@@ -82,18 +81,6 @@ const SchoolBranchSelector: React.FC<SchoolBranchSelectorProps> = ({
     }
   }, []);
 
-  // ✅ auto-select first branch when school is chosen
-  useEffect(() => {
-    if (selectedSchool && branchData) {
-      const filteredBranches = branchData.filter(
-        (branch: any) => branch.schoolId?._id === selectedSchool
-      );
-      if (filteredBranches.length > 0 && !selectedBranch) {
-        setSelectedBranch(filteredBranches[0]._id);
-      }
-    }
-  }, [selectedSchool, branchData, selectedBranch]);
-
   // Schools dropdown
   const schools = useMemo(() => {
     if (!schoolData) return [];
@@ -114,7 +101,7 @@ const SchoolBranchSelector: React.FC<SchoolBranchSelectorProps> = ({
       }));
   }, [branchData, selectedSchool]);
 
-  // Devices dropdown (only devices of selected branch)
+  // Devices dropdown (✅ FIXED: only selected branch’s devices show)
   const devices = useMemo(() => {
     if (!deviceData || !selectedBranch) return [];
 
