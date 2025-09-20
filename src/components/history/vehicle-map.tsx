@@ -2,6 +2,8 @@ import React, { useEffect, useRef, useState } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { DeviceHistoryItem } from "@/data/sampleData";
+import { reverseGeocode } from "@/util/reverse-geocode";
+import { MapPin } from "lucide-react";
 
 // Fix for default markers
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -34,7 +36,9 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
   const startFlagRef = useRef<L.Marker | null>(null);
   const endFlagRef = useRef<L.Marker | null>(null);
   const [isRouteDrawn, setIsRouteDrawn] = useState(false);
-
+  const [startAddress, setStartAddress] = useState<string>("");
+  const [endAddress, setEndAddress] = useState<string>("");
+  const speedCache = new Map<number, string>();
   const currentPoint = data[currentIndex];
 
   // Complete route using all data points
@@ -198,11 +202,8 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
 
     const density = getArrowDensity(zoom);
     const step = Math.max(1, Math.floor(1 / density));
-
-    // Smaller, more appropriate sizes
     const arrowSize = zoom >= 14 ? 14 : zoom >= 12 ? 12 : 10;
 
-    // FORCE COMPLETE CLEANUP - Remove all existing arrow markers
     allArrowMarkersRef.current.forEach((marker) => {
       if (marker && marker.remove) {
         marker.remove();
@@ -210,28 +211,89 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
     });
     allArrowMarkersRef.current = [];
 
-    // Clear the arrow layer completely
     if (arrowLayerRef.current) {
       arrowLayerRef.current.clearLayers();
     }
 
-    // Create fresh arrow markers with consistent styling
     for (let i = 0; i < data.length; i += step) {
       const point = data[i];
 
-      // Create new icon for each arrow (no caching)
       const arrowIcon = createArrowIcon(point.course, arrowSize);
-
       const marker = L.marker([point.latitude, point.longitude], {
         icon: arrowIcon,
-        interactive: false,
+        interactive: true, // Enable interaction for tooltip and popup
         zIndexOffset: -1000,
+      });
+
+      // Bind tooltip with speed on hover
+      marker.bindTooltip(`Speed: ${point.speed?.toFixed(1) || "N/A"} km/h`, {
+        permanent: false,
+        direction: "top",
+        offset: [0, -10],
+      });
+
+      // Add click handler for popup with address, speed, createdAt
+      marker.on("click", () => {
+        const formattedTime = new Date(point.createdAt).toLocaleString(
+          "en-US",
+          {
+            year: "numeric",
+            month: "short",
+            day: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+            hour12: true,
+          }
+        );
+
+        // Check cache for address to avoid repeat calls
+        if (speedCache.has(i)) {
+          const cachedAddress = speedCache.get(i);
+          marker
+            .bindPopup(
+              `
+          <b>Vehicle Info</b><br/>
+          Speed: ${point.speed?.toFixed(1) || "N/A"} km/h<br/>
+          Time: ${formattedTime}<br/>
+          Address: ${cachedAddress}
+        `
+            )
+            .openPopup();
+        } else {
+          // Fetch address and then show popup
+          reverseGeocode(point.latitude, point.longitude)
+            .then((address) => {
+              speedCache.set(i, address);
+              marker
+                .bindPopup(
+                  `
+            
+            Speed: ${point.speed?.toFixed(1) || "N/A"} km/h<br/>
+            Time: ${formattedTime}<br/>
+            Address: ${address}
+          `
+                )
+                .openPopup();
+            })
+            .catch(() => {
+              marker
+                .bindPopup(
+                  `
+            <b>Vehicle Info</b><br/>
+            Speed: ${point.speed?.toFixed(1) || "N/A"} km/h<br/>
+            Time: ${formattedTime}<br/>
+            Address: Not available
+          `
+                )
+                .openPopup();
+            });
+        }
       });
 
       allArrowMarkersRef.current.push(marker);
     }
 
-    // Force immediate visibility update
     setTimeout(() => {
       updateArrowVisibility();
     }, 0);
@@ -361,6 +423,15 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
       if (startFlagRef.current) {
         startFlagRef.current.remove();
       }
+      const startDate = new Date(startPoint.createdAt).toLocaleString("en-US", {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: true,
+      });
 
       startFlagRef.current = L.marker(
         [startPoint.latitude, startPoint.longitude],
@@ -368,7 +439,28 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
           icon: startFlagIcon,
           zIndexOffset: 500,
         }
-      ).addTo(map);
+      ).addTo(map).bindPopup(`
+    <b>Start Point</b><br/>
+
+    <div style="display: flex; align-items: center; gap: 4px; margin-top: 4px;">
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="black" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-map-pin-icon lucide-map-pin"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></svg>
+      ${startPoint.latitude.toFixed(6)}, ${startPoint.longitude.toFixed(6)}
+    </div>
+    <div style="display: flex; align-items: center; gap: 4px; margin-top: 4px;">
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="black" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-navigation-icon lucide-navigation"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg> 
+      ${startAddress || "Loading address..."}
+    </div>
+    <div style="display: flex; align-items: center; gap: 4px; margin-top: 4px;">
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="black" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-calendar-icon lucide-calendar"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></svg>
+      ${startDate}
+    </div>
+    <div style="display: flex; align-items: center; gap: 4px; margin-top: 4px;">
+      <div style="width: 15px; height: 15px; background-color: green; border-radius: 50%; margin-top: 4px;">
+      </div>: 
+      Start Point
+    </div>
+    
+  `);
 
       // Add end flag (red) at last point
       const endPoint = data[data.length - 1];
@@ -378,14 +470,51 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
         endFlagRef.current.remove();
       }
 
+      const endDate = new Date(endPoint.createdAt).toLocaleString("en-US", {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: true,
+      });
+
       endFlagRef.current = L.marker([endPoint.latitude, endPoint.longitude], {
         icon: endFlagIcon,
         zIndexOffset: 500,
-      }).addTo(map);
+      }).addTo(map).bindPopup(`
+    <b>End Point</b><br/>
+    <div style="margin-top: 4px;">
+      <div style="display: flex; align-items: center; gap: 4px; margin-bottom: 4px;">
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="black" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-map-pin-icon lucide-map-pin"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></svg> ${endPoint.latitude.toFixed(
+        6
+      )}, ${endPoint.longitude.toFixed(6)}
+      </div>
+       <div style="display: flex; align-items: center; gap: 4px; margin-bottom: 4px;">
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="black" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-navigation-icon lucide-navigation"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg> 
+      ${endAddress || "Loading address..."}
+      </div>
+      <div style="display: flex; align-items: center; gap: 4px;">
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="black" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-calendar-icon lucide-calendar"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></svg>
+      ${endDate}
+      </div>
+      <div style="display: flex; align-items: center; gap: 4px;">
+      <div style="width: 15px; height: 15px; background-color: red; border-radius: 50%; margin-top: 4px;">
+      </div>: 
+      End Point
+      </div>
+    </div>
+  `);
+
+      reverseGeocode(startPoint.latitude, startPoint.longitude).then(
+        setStartAddress
+      );
+      reverseGeocode(endPoint.latitude, endPoint.longitude).then(setEndAddress);
 
       setIsRouteDrawn(true);
     }
-  }, [data, completeRoute]);
+  }, [data, completeRoute, startAddress, endAddress]);
 
   // Create arrows when route is drawn
   useEffect(() => {

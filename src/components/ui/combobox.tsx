@@ -106,9 +106,9 @@ export function Combobox({
           <CommandList className="max-h-[200px] overflow-y-auto">
             <CommandEmpty>{emptyMessage}</CommandEmpty>
             <CommandGroup>
-              {items.map((item) => (
+              {items.map((item, idx) => (
                 <CommandItem
-                  key={item.value}
+                  key={`${item.value}-${idx}`}
                   value={item.value}
                   onSelect={handleSelect}
                   className="cursor-pointer"

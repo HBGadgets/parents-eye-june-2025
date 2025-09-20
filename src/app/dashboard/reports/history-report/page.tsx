@@ -9,6 +9,13 @@ import { Button } from "@/components/ui/button";
 import axios from "axios";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card } from "@/components/ui/card";
+import FullScreenSpinner from "@/components/RouteLoader";
+import { formatDate, formatDateToYYYYMMDD } from "@/util/formatDate";
+import { api } from "@/services/apiService";
+import { set } from "lodash";
+import { setDate } from "date-fns";
+import TripsSidebar from "@/components/history/sliding-side-bar";
+import { Menu } from "lucide-react";
 
 export default function HistoryReport() {
   const { data: vehicleData } = useDeviceData();
@@ -18,6 +25,9 @@ export default function HistoryReport() {
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [isGraphControlling, setIsGraphControlling] = useState(false); // Track if graph is controlling playback
   const [isMapExpanded, setIsMapExpanded] = useState(false);
+  const [fromDate, setFromDate] = useState<String | null>(null);
+  const [toDate, setToDate] = useState<String | null>(null);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [data, setData] = useState([
     {
       attributes: {
@@ -57,14 +67,22 @@ export default function HistoryReport() {
   const vehicleMetaData = useMemo(() => {
     if (!Array.isArray(vehicleData)) return [];
     return vehicleData.map((vehicle) => ({
-      value: vehicle._id,
+      value: vehicle.deviceId,
       label: vehicle.name,
     }));
   }, [vehicleData]);
 
+  useEffect(() => {
+    console.log("Selected Vehicle ID:", selectedVehicle);
+  }, [selectedVehicle]);
+
   const handleDateFilter = useMemo(
     () => (startDate: Date | null, endDate: Date | null) => {
-      console.log("Selected Date Range:", startDate, endDate);
+      // console.log("Selected Date Range:", startDate, endDate);
+      const formattedStart = formatDateToYYYYMMDD(startDate);
+      const formattedEnd = formatDateToYYYYMMDD(endDate);
+      setFromDate(formattedStart);
+      setToDate(formattedEnd);
     },
     []
   );
@@ -136,42 +154,68 @@ export default function HistoryReport() {
 
   // *****************************************Auto Play Functionality (End)***********************************************************//
 
-  const handleShow = () => {
-    const url =
-      "https://vts.credencetracker.com/backend/history/device-history-playback";
-    const bearerToken =
-      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6InNhaXNodSIsImlkIjoiNjcxMzY1M2I2MTNjZjJkMmM1MzJlZDBlIiwidXNlcnMiOmZhbHNlLCJzdXBlcmFkbWluIjp0cnVlLCJ1c2VyIjpudWxsLCJyb2xlIjoic3VwZXJhZG1pbiIsImlhdCI6MTc1Nzc0NTE1MH0.rP639lrm5Z_LvgfIQ1czKR91Ftw7O_ZGAzijWsLZPic";
+  // const handleShow = () => {
+  //   const url =
+  //     "https://vts.credencetracker.com/backend/history/device-history-playback";
+  //   const bearerToken =
+  //     "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6InNhaXNodSIsImlkIjoiNjcxMzY1M2I2MTNjZjJkMmM1MzJlZDBlIiwidXNlcnMiOmZhbHNlLCJzdXBlcmFkbWluIjp0cnVlLCJ1c2VyIjpudWxsLCJyb2xlIjoic3VwZXJhZG1pbiIsImlhdCI6MTc1Nzc0NTE1MH0.rP639lrm5Z_LvgfIQ1czKR91Ftw7O_ZGAzijWsLZPic";
 
-    const payload = {
-      period: "Last Seven Days",
-      from: "2025-09-10T00:01:00.000Z",
-      to: "2025-09-17T11:37:04.248Z",
-      deviceId: "3028",
-    };
+  //   const payload = {
+  //     period: "Last Seven Days",
+  //     from: "2025-09-10T00:01:00.000Z",
+  //     to: "2025-09-17T11:37:04.248Z",
+  //     deviceId: "3028",
+  //   };
 
-    setLoading(true);
+  //   setLoading(true);
 
-    axios
-      .post(url, payload, {
-        headers: {
-          Authorization: `Bearer ${bearerToken}`,
-          "Content-Type": "application/json",
-        },
-      })
-      .then((response) => {
-        // const sortedData = [...response.data.deviceHistory].sort(
-        //   (a, b) =>
-        //     new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-        // );
-        setData(response.data.deviceHistory);
-        setLoading(false);
-        setCurrentIndex(0); // Reset to start
-        console.log(response.data.deviceHistory);
-      })
-      .catch((error) => {
-        console.error(error);
-        setLoading(false);
-      });
+  //   axios
+  //     .post(url, payload, {
+  //       headers: {
+  //         Authorization: `Bearer ${bearerToken}`,
+  //         "Content-Type": "application/json",
+  //       },
+  //     })
+  //     .then((response) => {
+  //       // const sortedData = [...response.data.deviceHistory].sort(
+  //       //   (a, b) =>
+  //       //     new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+  //       // );
+  //       setData(response.data.deviceHistory);
+  //       setLoading(false);
+  //       setCurrentIndex(0); // Reset to start
+  //       console.log(response.data.deviceHistory);
+  //     })
+  //     .catch((error) => {
+  //       console.error(error);
+  //       setLoading(false);
+  //     });
+  // };
+
+  const handleShow = async () => {
+    if (!selectedVehicle) {
+      alert("Please select a vehicle.");
+      return;
+    }
+
+    if (!fromDate || !toDate) {
+      alert("Please select a valid date range.");
+      return;
+    }
+    try {
+      setLoading(true);
+      const response = await api.get(
+        `/device-history-playback?deviceId=${selectedVehicle}&from=${fromDate}&to=${toDate}`
+      );
+
+      setData(response.deviceHistory);
+    } catch (error) {
+      console.error("Error fetching history data:", error);
+      alert("Failed to fetch data. Please try again.");
+    } finally {
+      setLoading(false);
+      setCurrentIndex(0); // Reset to start
+    }
   };
 
   const handleMapExpand = () => {
@@ -205,18 +249,21 @@ export default function HistoryReport() {
           </div>
         </header>
 
+        {/* Sliding Menu Trigger */}
+        <div>
+          <Button
+            className="fixed top-[225px] right-0 z-[9999] rounded-l-full rounded-r-none  w-[68px] bg-[#f3c623] cursor-pointer shadow-[var(--shadow-panel)]"
+            onClick={() => setIsSidebarOpen(true)}
+          >
+            <Menu />
+          </Button>
+        </div>
+
         {/* Main Content */}
         <div className="space-y-3">
           {/* Map Section */}
           <div className="w-full">
             {loading ? (
-              // <div className="flex flex-col space-y-3">
-              //   <Skeleton className="h-[125px] w-[250px] rounded-xl" />
-              //   <div className="space-y-2">
-              //     <Skeleton className="h-4 w-[250px]" />
-              //     <Skeleton className="h-4 w-[200px]" />
-              //   </div>
-              // </div>
               <div
                 className={`w-full mt-3 transition-all duration-300 ease-in-out ${
                   isMapExpanded
@@ -224,6 +271,7 @@ export default function HistoryReport() {
                     : "h-[400px] md:h-[200px] lg:h-[330px]"
                 }`}
               >
+                <FullScreenSpinner />
                 <VehicleMap
                   data={metaPosition}
                   currentIndex={currentIndex}
@@ -368,6 +416,14 @@ export default function HistoryReport() {
               </Card>
             </div>
           </div>
+
+          {/* Sliding Side Bar */}
+          <TripsSidebar
+            data={data}
+            currentIndex={currentIndex}
+            isOpen={isSidebarOpen}
+            onClose={() => setIsSidebarOpen(false)}
+          />
         </div>
       </section>
     </>
