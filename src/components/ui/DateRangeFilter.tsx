@@ -45,20 +45,32 @@ const DateRangeFilter: React.FC<DateRangeFilterProps> = ({
 
   // Helper function to check if a date should be disabled due to max limit
   const isDateDisabled = (date: Date): boolean => {
-    if (!maxDays || !selectedStartDate || selectedEndDate) return false;
-    
-    const daysDiff = getDaysBetween(selectedStartDate, date);
-    return daysDiff > maxDays;
-  };
+  const today = new Date();
+  today.setHours(0, 0, 0, 0); // Strip time
+
+  // Disable if date is in the future
+  if (date > today) return true;
+
+  // Existing maxDays logic
+  if (!maxDays || !selectedStartDate || selectedEndDate) return false;
+  
+  const daysDiff = getDaysBetween(selectedStartDate, date);
+  return daysDiff > maxDays;
+};
 
   // Helper function to get maximum allowed end date
   const getMaxEndDate = (startDate: Date): Date => {
-    if (!maxDays) return new Date(2100, 0, 1); // Far future if no limit
-    
-    const maxEnd = new Date(startDate);
-    maxEnd.setDate(startDate.getDate() + maxDays - 1);
-    return maxEnd;
-  };
+  const today = new Date();
+  today.setHours(23, 59, 59, 999);
+
+  if (!maxDays) return today; // Limit end date only up to today if no maxDays
+
+  const maxEnd = new Date(startDate);
+  maxEnd.setDate(startDate.getDate() + maxDays - 1);
+
+  return maxEnd > today ? today : maxEnd;
+};
+
 
   const getDaysInMonth = (date: Date): Date[] => {
     const year = date.getFullYear(),
