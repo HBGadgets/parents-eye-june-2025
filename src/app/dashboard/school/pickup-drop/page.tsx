@@ -35,54 +35,22 @@ interface PickupDrop {
   updatedAt?: string;
 }
 
-// Utility function to format date and time
 const formatDateTime = (dateString: string): string => {
   if (!dateString || dateString === "-") return "-";
-  
   try {
     const date = new Date(dateString);
-    
-    // Check if the date is valid
     if (isNaN(date.getTime())) return "-";
-    
-    // Format as: DD/MM/YYYY, HH:MM AM/PM
     const formattedDate = date.toLocaleDateString('en-GB', {
       day: '2-digit',
       month: '2-digit',
       year: 'numeric',
     });
-    
     const formattedTime = date.toLocaleTimeString('en-US', {
       hour: '2-digit',
       minute: '2-digit',
       hour12: true,
     });
-    
     return `${formattedDate}, ${formattedTime}`;
-  } catch (error) {
-    console.error('Error formatting date:', error);
-    return "-";
-  }
-};
-
-// Alternative formatting function for a more compact display
-const formatDateTimeCompact = (dateString: string): string => {
-  if (!dateString || dateString === "-") return "-";
-  
-  try {
-    const date = new Date(dateString);
-    
-    if (isNaN(date.getTime())) return "-";
-    
-    // Format as: DD-MMM-YYYY HH:MM
-    return date.toLocaleDateString('en-GB', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false,
-    }).replace(',', '');
   } catch (error) {
     console.error('Error formatting date:', error);
     return "-";
@@ -123,15 +91,15 @@ const usePickupDropData = ({
         pickupDropData: (response.results || []).map((item: any, index: number) => ({
           _id: item._id,
           serialNo: index + 1 + pagination.pageIndex * pagination.pageSize,
-          studentName: item.childId?.childName || "-",
-          contact: "-", // replace with actual contact
-          pickupDateTime: formatDateTime(item.pickupTime), // Format pickup time
-          pickupAddress: "-", // replace with actual address
-          dropDateTime: formatDateTime(item.dropTime), // Format drop time
-          dropAddress: "-", // replace with actual address
+          studentName: item.child?.childName || "-",
+          contact: item.parent?.mobileNo || "-",
+          pickupDateTime: formatDateTime(item.pickupTime),
+          pickupAddress: "-", // Placeholder for future
+          dropDateTime: formatDateTime(item.dropTime),
+          dropAddress: "-", // Placeholder for future
           status: item.pickup ? "present" : item.drop ? "pending" : "absent",
-          schoolName: item.schoolId?.schoolName || "-",
-          branchName: item.branchId?.branchName || "-",
+          schoolName: item.school?.schoolName || "-",
+          branchName: item.branch?.branchName || "-",
           createdAt: item.createdAt,
           updatedAt: item.updatedAt,
         })),
@@ -192,7 +160,6 @@ export default function PickupDropMaster() {
     <span>{address || "-"}</span>
   );
 
-  // Custom cell component for date-time display
   const DateTimeCell = ({ dateTime }: { dateTime: string }) => (
     <span className="text-sm" title={dateTime}>
       {dateTime}
@@ -224,13 +191,13 @@ export default function PickupDropMaster() {
         ]
       : []),
     { id: "contact", header: "Contact", accessorKey: "contact", enableHiding: true, enableSorting: true },
-    { 
-      id: "pickupDateTime", 
-      header: "Pickup Date & Time", 
+    {
+      id: "pickupDateTime",
+      header: "Pickup Date & Time",
       cell: ({ row }) => <DateTimeCell dateTime={row.original.pickupDateTime} />,
-      accessorKey: "pickupDateTime", 
-      enableHiding: true, 
-      enableSorting: true 
+      accessorKey: "pickupDateTime",
+      enableHiding: true,
+      enableSorting: true,
     },
     {
       id: "pickupAddress",
@@ -240,13 +207,13 @@ export default function PickupDropMaster() {
       enableHiding: true,
       enableSorting: true,
     },
-    { 
-      id: "dropDateTime", 
-      header: "Drop Date & Time", 
+    {
+      id: "dropDateTime",
+      header: "Drop Date & Time",
       cell: ({ row }) => <DateTimeCell dateTime={row.original.dropDateTime} />,
-      accessorKey: "dropDateTime", 
-      enableHiding: true, 
-      enableSorting: true 
+      accessorKey: "dropDateTime",
+      enableHiding: true,
+      enableSorting: true,
     },
     {
       id: "dropAddress",
@@ -260,7 +227,11 @@ export default function PickupDropMaster() {
       id: "status",
       header: "Status",
       cell: ({ row }) => (
-        <span className={`px-2 py-1 rounded-full text-xs font-medium capitalize ${getStatusColor(row.original.status)}`}>
+        <span
+          className={`px-2 py-1 rounded-full text-xs font-medium capitalize ${getStatusColor(
+            row.original.status
+          )}`}
+        >
           {row.original.status}
         </span>
       ),
@@ -300,9 +271,12 @@ export default function PickupDropMaster() {
     setFilteredData(results);
   }, []);
 
-  const handleDateFilter = useCallback((start: Date | null, end: Date | null) => {
-    setFilteredData(pickupDropData || []);
-  }, [pickupDropData]);
+  const handleDateFilter = useCallback(
+    (start: Date | null, end: Date | null) => {
+      setFilteredData(pickupDropData || []);
+    },
+    [pickupDropData]
+  );
 
   const { table, tableElement } = CustomTableServerSidePagination({
     data: pickupDropResponse?.pickupDropData || [],
