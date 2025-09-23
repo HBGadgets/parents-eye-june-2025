@@ -43,8 +43,7 @@ const IdleReportPage: React.FC = () => {
         const status = row.original.vehicleStatus?.toLowerCase();
         let iconColor = "text-yellow-500";
         let tooltipText = "Idle";
-        
-        // Always show idle icon for idle reports, but allow for different idle states
+
         if (status?.includes("engine idle")) {
           iconColor = "text-orange-500";
           tooltipText = "Engine Idle";
@@ -52,7 +51,7 @@ const IdleReportPage: React.FC = () => {
           iconColor = "text-yellow-600";
           tooltipText = "Stationary";
         }
-        
+
         return (
           <div className="flex justify-center">
             <TooltipProvider>
@@ -70,34 +69,37 @@ const IdleReportPage: React.FC = () => {
       },
     },
     {
-      accessorKey: "startTime", 
-      header: "Start Time ↑", 
+      accessorKey: "startTime",
+      header: "Start Time ↑",
       size: 280,
-      cell: ({ row }) => row.original.startTime ? new Date(row.original.startTime).toLocaleString() : "-"
+      cell: ({ row }) =>
+        row.original.startTime ? new Date(row.original.startTime).toLocaleString() : "-",
     },
     { accessorKey: "duration", header: "Duration", size: 180 },
     {
-      accessorKey: "location", 
-      header: "Location", 
+      accessorKey: "location",
+      header: "Location",
       size: 350,
-      cell: ({ row }) => row.original.location !== "Loading..." ? row.original.location : "-"
+      cell: ({ row }) =>
+        row.original.location !== "Loading..." ? row.original.location : "-",
     },
     {
-      accessorKey: "coordinates", 
-      header: "Co-ordinates", 
+      accessorKey: "coordinates",
+      header: "Co-ordinates",
       size: 200,
       cell: ({ row }) => {
         const coords = row.original.coordinates.split(",");
         const lat = parseFloat(coords[0].trim()).toFixed(6);
         const lng = parseFloat(coords[1].trim()).toFixed(6);
         return `${lat}, ${lng}`;
-      }
+      },
     },
     {
-      accessorKey: "endTime", 
-      header: "End Time", 
+      accessorKey: "endTime",
+      header: "End Time",
       size: 280,
-      cell: ({ row }) => row.original.endTime ? new Date(row.original.endTime).toLocaleString() : "-"
+      cell: ({ row }) =>
+        row.original.endTime ? new Date(row.original.endTime).toLocaleString() : "-",
     },
   ];
 
@@ -105,25 +107,26 @@ const IdleReportPage: React.FC = () => {
     if (!filters) return;
     setIsLoading(true);
     try {
-      const fromDate = new Date(filters.startDate).toISOString();
-      const toDate = new Date(filters.endDate).toISOString();
       const queryParams = new URLSearchParams({
-        deviceId: filters.deviceId,
-        period: "Custom",
-        from: fromDate,
-        to: toDate,
+        deviceIds: filters.deviceId,
+        period: filters.period || "This Month", // default period
         page: (paginationState.pageIndex + 1).toString(),
         limit: paginationState.pageSize.toString(),
       });
-      
+
+      // Only send from/to if "Custom" period is chosen
+      if (filters.period === "Custom" && filters.startDate && filters.endDate) {
+        queryParams.append("from", new Date(filters.startDate).toISOString());
+        queryParams.append("to", new Date(filters.endDate).toISOString());
+      }
+
       if (sortingState?.length) {
         const sort = sortingState[0];
         queryParams.append("sortBy", sort.id);
         queryParams.append("sortOrder", sort.desc ? "desc" : "asc");
       }
-      
-      // Change endpoint to idle report
-      const response = await api.get(`report/idle?${queryParams.toString()}`);
+
+      const response = await api.get(`report/idle-report?${queryParams.toString()}`);
       const json = response.data;
 
       if (!json || (Array.isArray(json) && json.length === 0)) {
@@ -135,23 +138,25 @@ const IdleReportPage: React.FC = () => {
       const dataArray = Array.isArray(json) ? json : [json];
       const initialTransformed = dataArray.map((item: any, index: number) => ({
         id: item.deviceId || `row-${index}`,
-        sn: (paginationState.pageIndex * paginationState.pageSize) + index + 1,
+        sn: paginationState.pageIndex * paginationState.pageSize + index + 1,
         deviceName: filters.deviceName,
         vehicleStatus: item.vehicleStatus || "Idle",
         startTime: item.startDateTime,
         duration: item.duration || item.time,
         location: "Loading...",
-        coordinates: item.location || item.coordinates || "21.991253888888888, 78.92976777777777",
+        coordinates:
+          item.location || item.coordinates || "21.991253888888888, 78.92976777777777",
         endTime: item.endDateTime,
       }));
 
       setData(initialTransformed);
       setTotalCount(response.total || initialTransformed.length);
 
-      // Fetch addresses asynchronously
       const transformedWithAddresses = await Promise.all(
         initialTransformed.map(async (item) => {
-          const [lat, lon] = item.coordinates.split(",").map((c: string) => parseFloat(c.trim()));
+          const [lat, lon] = item.coordinates
+            .split(",")
+            .map((c: string) => parseFloat(c.trim()));
           const address = await reverseGeocode(lat, lon).catch(() => item.coordinates);
           return { ...item, location: address };
         })
@@ -174,8 +179,12 @@ const IdleReportPage: React.FC = () => {
   }, [pagination, sorting, currentFilters, showTable]);
 
   const handleFilterSubmit = async (filters: any) => {
-    if (!filters.deviceId || !filters.startDate || !filters.endDate) {
-      alert("Please select a device and both dates");
+    if (!filters.deviceId) {
+      alert("Please select a device");
+      return;
+    }
+    if (filters.period === "Custom" && (!filters.startDate || !filters.endDate)) {
+      alert("Please select both start and end dates for custom period");
       return;
     }
     setPagination({ pageIndex: 0, pageSize: 10 });

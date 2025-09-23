@@ -11,9 +11,7 @@ import { CustomTableServerSidePagination } from "@/components/ui/customTable(ser
 import { api } from "@/services/apiService";
 import ResponseLoader from "@/components/ResponseLoader";
 
-/**
- * Use a flexible row type because API columns are dynamic (dates like "2025-07-15")
- */
+
 type DistanceRow = Record<string, any>;
 
 const DistanceReportPage: React.FC = () => {
@@ -24,17 +22,14 @@ const DistanceReportPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [showTable, setShowTable] = useState(false);
 
-  // Server-side pagination states
   const [pagination, setPagination] = useState({
     pageIndex: 0,
     pageSize: 10,
   });
   const [sorting, setSorting] = useState<SortingState>([]);
 
-  // Store filter data for API calls
   const [currentFilters, setCurrentFilters] = useState<any>(null);
 
-  // Columns are dynamic — start with small base set and replace after fetch
   const [columns, setColumns] = useState<ColumnDef<DistanceRow>[]>([
     { accessorKey: "sn", header: "Sr No." },
     { accessorKey: "deviceName", header: "Vehicle Name", size: 200 },
@@ -46,13 +41,13 @@ const DistanceReportPage: React.FC = () => {
     },
   ]);
 
-  // Format date safe: returns YYYY-MM-DD
+ 
   const formatDate = (date: string) => {
     const d = new Date(date);
     return d.toISOString().slice(0, 10);
   };
 
-  // Robust fetch handler
+ 
   const fetchDistanceReportData = async (
     filters: any,
     paginationState: any,
@@ -82,7 +77,7 @@ const DistanceReportPage: React.FC = () => {
         requestBody.sortOrder = sort.desc ? "desc" : "asc";
       }
 
-      // Make parallel API calls to get both device list and distance report data
+      
       const [deviceRes, response] = await Promise.all([
         api.get("/device"),
         api.post(`/report/distance-report`, requestBody, {
@@ -90,21 +85,18 @@ const DistanceReportPage: React.FC = () => {
         })
       ]);
 
-      // Build device map to convert deviceId to deviceName
       const deviceList = deviceRes.data || [];
       const deviceMap: Record<string, string> = {};
       deviceList.forEach((d: any) => {
         deviceMap[d.deviceId] = d.name; 
       });
 
-      // Debug: print raw response
       console.log("Raw axios response:", response);
 
-      // Unwrap payload safely (some wrappers return array directly, some return { data: [...] })
+      
       const resData = response?.data ?? response;
       console.log("Unwrapped payload (resData):", resData);
 
-      // Resolve the array that actually contains rows
       let dataArray: any[] = [];
       if (Array.isArray(resData)) dataArray = resData;
       else if (Array.isArray(resData.data)) dataArray = resData.data;
@@ -131,10 +123,9 @@ const DistanceReportPage: React.FC = () => {
         );
       }
 
-      // Ensure uniqueness and predictable order (sort chronologically)
       dateKeys = Array.from(new Set(dateKeys)).sort();
 
-      // Build dynamic columns: SN, deviceName, all dates, Total
+    
       const dynamicColumns: ColumnDef<DistanceRow>[] = [
         { accessorKey: "sn", header: "Sr No." },
         { accessorKey: "deviceName", header: "Vehicle Name", size: 200 },
@@ -142,7 +133,7 @@ const DistanceReportPage: React.FC = () => {
           accessorKey: dateKey,
           header: dateKey,
           size: 110,
-          // format cell to 2 decimals
+        
           cell: (info: any) => {
             const v = info.getValue();
             if (v === undefined || v === null) return "0.00";
@@ -160,12 +151,11 @@ const DistanceReportPage: React.FC = () => {
 
       setColumns(dynamicColumns);
 
-      // Transform rows: convert date values to numbers, compute totalDistance
       const transformed: DistanceRow[] = dataArray.map((item: any, idx: number) => {
         const row: DistanceRow = {};
         row.id = item._id ?? item.deviceId ?? `row-${idx}`;
         row.sn = paginationState.pageIndex * paginationState.pageSize + idx + 1;
-        // Use device mapping with fallbacks
+        
         row.deviceName = deviceMap[item.deviceId] || filters.deviceName || item.deviceName || item.vehicleName || `Device-${item.deviceId ?? "NA"}`;
 
         let totalDistance = 0;
@@ -182,7 +172,7 @@ const DistanceReportPage: React.FC = () => {
 
       setData(transformed);
 
-      // total count may come from server; fall back to length
+   
       setTotalCount(resData.total ?? resData.totalCount ?? transformed.length);
     } catch (error: any) {
       console.error("Error fetching distance report data:", error);
@@ -198,12 +188,12 @@ const DistanceReportPage: React.FC = () => {
     }
   };
 
-  // re-fetch when pagination/sorting/currentFilters/showTable change
+  
   useEffect(() => {
     if (currentFilters && showTable) {
       fetchDistanceReportData(currentFilters, pagination, sorting);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  
   }, [pagination, sorting, currentFilters, showTable]);
 
   const handleFilterSubmit = async (filters: any) => {
@@ -229,11 +219,11 @@ const DistanceReportPage: React.FC = () => {
     setCurrentFilters(filters);
     setShowTable(true);
 
-    // immediate fetch (will also be fetched by effect, but immediate UX is nicer)
+
     await fetchDistanceReportData(filters, { pageIndex: 0, pageSize: 10 }, []);
   };
 
-  // Pass dynamic columns into the table helper
+ 
   const { table, tableElement } = CustomTableServerSidePagination({
     data,
     columns,
