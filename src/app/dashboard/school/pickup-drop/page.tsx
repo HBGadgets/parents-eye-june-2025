@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState, useMemo } from "react";
 import { CustomTableServerSidePagination } from "@/components/ui/customTable(serverSidePagination)";
 import SearchComponent from "@/components/ui/SearchOnlydata";
 import DateRangeFilter from "@/components/ui/DateRangeFilter";
@@ -36,23 +36,23 @@ interface PickupDrop {
 }
 
 const formatDateTime = (dateString: string): string => {
-  if (!dateString || dateString === "-") return "-";
+  if (!dateString || dateString === "1970-01-01T00:00:00.000Z") return "-";
   try {
     const date = new Date(dateString);
     if (isNaN(date.getTime())) return "-";
-    const formattedDate = date.toLocaleDateString('en-GB', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
+    const formattedDate = date.toLocaleDateString("en-GB", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
     });
-    const formattedTime = date.toLocaleTimeString('en-US', {
-      hour: '2-digit',
-      minute: '2-digit',
+    const formattedTime = date.toLocaleTimeString("en-US", {
+      hour: "2-digit",
+      minute: "2-digit",
       hour12: true,
     });
     return `${formattedDate}, ${formattedTime}`;
   } catch (error) {
-    console.error('Error formatting date:', error);
+    console.error("Error formatting date:", error);
     return "-";
   }
 };
@@ -88,21 +88,33 @@ const usePickupDropData = ({
       const response = await api.get(`pickup-drop?${params}`);
 
       return {
-        pickupDropData: (response.results || []).map((item: any, index: number) => ({
-          _id: item._id,
-          serialNo: index + 1 + pagination.pageIndex * pagination.pageSize,
-          studentName: item.child?.childName || "-",
-          contact: item.parent?.mobileNo || "-",
-          pickupDateTime: formatDateTime(item.pickupTime),
-          pickupAddress: "-", // Placeholder for future
-          dropDateTime: formatDateTime(item.dropTime),
-          dropAddress: "-", // Placeholder for future
-          status: item.pickup ? "present" : item.drop ? "pending" : "absent",
-          schoolName: item.school?.schoolName || "-",
-          branchName: item.branch?.branchName || "-",
-          createdAt: item.createdAt,
-          updatedAt: item.updatedAt,
-        })),
+        pickupDropData: (response.results || []).map((item: any, index: number) => {
+          // Fixed drop time logic - only check if dropTime has valid date
+          let dropDateTime;
+          if (item.dropTime && item.dropTime !== "1970-01-01T00:00:00.000Z") {
+            dropDateTime = formatDateTime(item.dropTime);
+          } else if (item.drop) {
+            dropDateTime = "Pending Drop";
+          } else {
+            dropDateTime = "-";
+          }
+
+          return {
+            _id: item._id,
+            serialNo: index + 1 + pagination.pageIndex * pagination.pageSize,
+            studentName: item.child?.childName || "-",
+            contact: item.parent?.mobileNo || "-",
+            pickupDateTime: formatDateTime(item.pickupTime),
+            pickupAddress: item.child?.pickupGeofenceName || "-",
+            dropDateTime,
+            dropAddress: item.child?.dropGeofenceName || "-",
+            status: item.pickup ? "present" : item.drop ? "pending" : "absent",
+            schoolName: item.school?.schoolName || "-",
+            branchName: item.branch?.branchName || "-",
+            createdAt: item.createdAt,
+            updatedAt: item.updatedAt,
+          };
+        }),
         total: response.total || 0,
         totalPages: response.totalPages || 0,
       };
@@ -113,8 +125,7 @@ const usePickupDropData = ({
 
 export default function PickupDropMaster() {
   const { role, schoolId, branchId } = useAuthStore();
-  const [filteredData, setFilteredData] = useState<PickupDrop[]>([]);
-  const [filterResults, setFilterResults] = useState<PickupDrop[]>([]);
+  const [filteredData, setFilteredData] = useState<any[]>([]);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 10 });
   const [sorting, setSorting] = useState([]);
@@ -131,21 +142,11 @@ export default function PickupDropMaster() {
     branchId,
   });
 
-  const pickupDropData = pickupDropResponse?.pickupDropData || [];
-
   useEffect(() => {
-    const handler = setTimeout(() => {
-      setPagination((prev) => ({ ...prev, pageIndex: 0 }));
-    }, 500);
-    return () => clearTimeout(handler);
-  }, [debouncedName]);
-
-  useEffect(() => {
-    if (pickupDropData?.length > 0) {
-      setFilteredData(pickupDropData);
-      setFilterResults(pickupDropData);
+    if (pickupDropResponse?.pickupDropData) {
+      setFilteredData(pickupDropResponse.pickupDropData);
     }
-  }, [pickupDropData]);
+  }, [pickupDropResponse]);
 
   const getStatusColor = (status: string) => {
     const colors = {
@@ -156,9 +157,7 @@ export default function PickupDropMaster() {
     return colors[status.toLowerCase() as keyof typeof colors] || "bg-gray-100 text-gray-800";
   };
 
-  const AddressCell = ({ address }: { address: string }) => (
-    <span>{address || "-"}</span>
-  );
+  const AddressCell = ({ address }: { address: string }) => <span>{address || "-"}</span>;
 
   const DateTimeCell = ({ dateTime }: { dateTime: string }) => (
     <span className="text-sm" title={dateTime}>
@@ -166,29 +165,13 @@ export default function PickupDropMaster() {
     </span>
   );
 
-  const columns: ColumnDef<PickupDrop>[] = [
+  const columns: ColumnDef<any>[] = [
     { id: "studentName", header: "Student Name", accessorKey: "studentName", enableHiding: true, enableSorting: true },
     ...(role === "superadmin" || role === "school"
-      ? [
-          {
-            id: "schoolName",
-            header: "School",
-            accessorKey: "schoolName",
-            enableHiding: true,
-            enableSorting: true,
-          },
-        ]
+      ? [{ id: "schoolName", header: "School", accessorKey: "schoolName", enableHiding: true, enableSorting: true }]
       : []),
     ...(role === "superadmin" || role === "school" || role === "branch"
-      ? [
-          {
-            id: "branchName",
-            header: "Branch",
-            accessorKey: "branchName",
-            enableHiding: true,
-            enableSorting: true,
-          },
-        ]
+      ? [{ id: "branchName", header: "Branch", accessorKey: "branchName", enableHiding: true, enableSorting: true }]
       : []),
     { id: "contact", header: "Contact", accessorKey: "contact", enableHiding: true, enableSorting: true },
     {
@@ -228,9 +211,7 @@ export default function PickupDropMaster() {
       header: "Status",
       cell: ({ row }) => (
         <span
-          className={`px-2 py-1 rounded-full text-xs font-medium capitalize ${getStatusColor(
-            row.original.status
-          )}`}
+          className={`px-2 py-1 rounded-full text-xs font-medium capitalize ${getStatusColor(row.original.status)}`}
         >
           {row.original.status}
         </span>
@@ -241,45 +222,58 @@ export default function PickupDropMaster() {
     },
   ];
 
-  const exportData = filteredData.map((item) => ({
-    serialNo: item.serialNo || "",
-    studentName: item.studentName,
-    contact: item.contact,
-    pickupDateTime: item.pickupDateTime || "-",
-    pickupAddress: item.pickupAddress || "-",
-    dropDateTime: item.dropDateTime || "-",
-    dropAddress: item.dropAddress || "-",
-    status: item.status,
-    ...(role === "superadmin" || role === "school" ? { schoolName: item.schoolName } : {}),
-    ...(role !== "student" ? { branchName: item.branchName } : {}),
-  }));
+  const exportData = useMemo(() => {
+    return filteredData.map((item) => ({
+      serialNo: item.serialNo || "",
+      studentName: item.studentName,
+      contact: item.contact,
+      pickupDateTime: item.pickupDateTime || "-",
+      pickupAddress: item.pickupAddress || "-",
+      dropDateTime: item.dropDateTime || "-",
+      dropAddress: item.dropAddress || "-",
+      status: item.status,
+      ...(role === "superadmin" || role === "school" ? { schoolName: item.schoolName } : {}),
+      ...(role !== "student" ? { branchName: item.branchName } : {}),
+    }));
+  }, [filteredData, role]);
 
-  const columnsForExport = [
-    { key: "serialNo", header: "S.No." },
-    { key: "studentName", header: "Student Name" },
-    ...(role === "superadmin" || role === "school" ? [{ key: "schoolName", header: "School" }] : []),
-    ...(role !== "student" ? [{ key: "branchName", header: "Branch" }] : []),
-    { key: "contact", header: "Contact" },
-    { key: "pickupDateTime", header: "Pickup Date & Time" },
-    { key: "pickupAddress", header: "Pickup Address" },
-    { key: "dropDateTime", header: "Drop Date & Time" },
-    { key: "dropAddress", header: "Drop Address" },
-    { key: "status", header: "Status" },
-  ];
+  const columnsForExport = useMemo(
+    () => [
+      { key: "serialNo", header: "S.No." },
+      { key: "studentName", header: "Student Name" },
+      ...(role === "superadmin" || role === "school" ? [{ key: "schoolName", header: "School" }] : []),
+      ...(role !== "student" ? [{ key: "branchName", header: "Branch" }] : []),
+      { key: "contact", header: "Contact" },
+      { key: "pickupDateTime", header: "Pickup Date & Time" },
+      { key: "pickupAddress", header: "Pickup Address" },
+      { key: "dropDateTime", header: "Drop Date & Time" },
+      { key: "dropAddress", header: "Drop Address" },
+      { key: "status", header: "Status" },
+    ],
+    [role]
+  );
 
-  const handleSearchResults = useCallback((results: PickupDrop[]) => {
+  const handleSearchResults = useCallback((results: any[]) => {
     setFilteredData(results);
   }, []);
 
   const handleDateFilter = useCallback(
     (start: Date | null, end: Date | null) => {
-      setFilteredData(pickupDropData || []);
+      if (!start && !end && pickupDropResponse?.pickupDropData) {
+        setFilteredData(pickupDropResponse.pickupDropData);
+      } else if (start && end && pickupDropResponse?.pickupDropData) {
+        const filtered = pickupDropResponse.pickupDropData.filter((item: any) => {
+          const createdAt = new Date(item.createdAt || "");
+          return createdAt >= start && createdAt <= end;
+        });
+        setFilteredData(filtered);
+      }
     },
-    [pickupDropData]
+    [pickupDropResponse]
   );
 
   const { table, tableElement } = CustomTableServerSidePagination({
-    data: pickupDropResponse?.pickupDropData || [],
+    data: filteredData,
     columns,
     pagination,
     totalCount: pickupDropResponse?.total || 0,
@@ -302,7 +296,7 @@ export default function PickupDropMaster() {
       <header className="flex items-center justify-between mb-4">
         <section className="flex space-x-4">
           <SearchComponent
-            data={filterResults}
+            data={pickupDropResponse?.pickupDropData || []}
             displayKey={["studentName", "contact", "status"]}
             onResults={handleSearchResults}
             className="w-[300px] mb-4"

@@ -101,7 +101,7 @@ const SchoolBranchSelector: React.FC<SchoolBranchSelectorProps> = ({
       }));
   }, [branchData, selectedSchool]);
 
-  // Devices dropdown (✅ FIXED: only selected branch’s devices show)
+  // Devices dropdown
   const devices = useMemo(() => {
     if (!deviceData || !selectedBranch) return [];
 
@@ -111,7 +111,7 @@ const SchoolBranchSelector: React.FC<SchoolBranchSelectorProps> = ({
 
     return list
       .filter((d: any) => {
-        if (!d.branchId) return false; // skip devices without branchId
+        if (!d.branchId) return false;
         if (typeof d.branchId === "string") {
           return d.branchId === selectedBranch;
         }
@@ -171,7 +171,7 @@ const SchoolBranchSelector: React.FC<SchoolBranchSelectorProps> = ({
               </div>
             )}
 
-            {/* Branch selector */}
+            {/* Branch selector (always visible, but empty until school is selected) */}
             <div className="min-w-[180px] max-w-[220px] flex-1">
               <SearchableDropdown
                 items={branches}

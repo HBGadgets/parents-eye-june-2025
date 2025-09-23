@@ -1,14 +1,13 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import ReportFilter from "@/components/report-filters/Report-Filter";
-import { VisibilityState, type ColumnDef } from "@tanstack/react-table";
+import { VisibilityState, type ColumnDef, PaginationState, SortingState } from "@tanstack/react-table";
 import { CustomTableServerSidePagination } from "@/components/ui/customTable(serverSidePagination)";
-import { api } from "@/services/apiService";
 import ResponseLoader from "@/components/ResponseLoader";
 import { reverseGeocode } from "@/util/reverse-geocode";
-import { FaPlay } from "react-icons/fa";
-
+import { FaPlay, FaPlus, FaMinus } from "react-icons/fa";
+import { TravelTable } from "@/components/travel-summary/TravelTable";
 import {
   Tooltip,
   TooltipContent,
@@ -16,54 +15,378 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 
+interface DayWiseTrip {
+  date: string;
+  deviceId: number;
+  startTime: string;
+  endTime: string;
+  distance: string;
+  startLatitude: number;
+  startLongitude: number;
+  endLatitude: number;
+  endLongitude: number;
+  maxSpeed: number;
+  avgSpeed: number;
+  workingHours: string;
+  runningTime: string;
+  stopTime: string;
+  idleTime: string;
+}
+
 interface TravelReportData {
   id: string;
   sn: number;
   vehicleNumber: string;
-  startTime: string;               // when trip started
   startAddress: string;
   startCoordinates: { lat: number; lng: number };
-  totalDistance: number;           // in km
-  runningTime: string;             // e.g. “2H 10M 5S”
-  idleTime: string;                // analogous
-  stopTime: string;                // analogous
-  endTime: string;
+  totalDistance: number;
+  runningTime: string;
+  idleTime: string;
+  stopTime: string;
   endAddress: string;
   endCoordinates: { lat: number; lng: number };
-  maxSpeed: number;                // km/h
-  avgSpeed: number;                // km/h
+  maxSpeed: number;
+  avgSpeed: number;
+  deviceId: string;
+  dayWiseTrips: DayWiseTrip[];
+}
+
+interface TravelTableData {
+  id: string;
+  reportDate: string;
+  ignitionStart: string;
+  startLocation: string;
+  startCoordinates: string;
+  distance: string;
+  running: string;
+  idle: string;
+  stop: string;
+  totalWorkingHours: string;
+  maxSpeed: string;
+  avgSpeed: string;
+  endLocation: string;
+  endCoordinates: string;
+  ignitionStop: string;
+  play?: string;
+}
+
+interface ExpandedRowData extends TravelReportData {
+  isLoading?: boolean;
+  isDetailTable?: boolean;
+  isEmpty?: boolean;
+  detailData?: TravelTableData[];
 }
 
 const TravelReportPage: React.FC = () => {
+  // Main table state
   const [data, setData] = useState<TravelReportData[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
   const [isLoading, setIsLoading] = useState(false);
   const [showTable, setShowTable] = useState(false);
-
-  const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 10 });
-  const [sorting, setSorting] = useState<any[]>([]);
+  const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 10 });
+  const [sorting, setSorting] = useState<SortingState>([]);
   const [currentFilters, setCurrentFilters] = useState<any>(null);
 
-  // Utility: format duration in “XH YM ZS”
-  const formatDuration = (secondsTotal: number): string => {
-    if (secondsTotal <= 0) return "0s";
-    const h = Math.floor(secondsTotal / 3600);
-    const m = Math.floor((secondsTotal % 3600) / 60);
-    const s = secondsTotal % 60;
-    return `${h}H ${m}M ${s}S`;
-  };
+  // Expansion state
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  const [detailedData, setDetailedData] = useState<Record<string, TravelTableData[]>>({});
+  const [loadingDetails, setLoadingDetails] = useState<Set<string>>(new Set());
+  
+  // Detail table pagination & sorting state per expanded row
+  const [detailTableStates, setDetailTableStates] = useState<Record<string, {
+    pagination: PaginationState;
+    sorting: SortingState;
+  }>>({});
 
-  const columns: ColumnDef<TravelReportData>[] = [
-    { accessorKey: "sn", header: "SN", size: 80 },
-    { accessorKey: "vehicleNumber", header: "Vehicle Number", size: 200 },
+  // Transform dayWiseTrips data for TravelTable component
+  const transformDayWiseData = useCallback(async (dayWiseTrips: DayWiseTrip[]): Promise<TravelTableData[]> => {
+    const transformedData = await Promise.all(
+      dayWiseTrips.map(async (trip, index) => {
+        let startLocation = "Loading...";
+        let endLocation = "Loading...";
+        
+        try {
+          [startLocation, endLocation] = await Promise.all([
+            reverseGeocode(trip.startLatitude, trip.startLongitude),
+            reverseGeocode(trip.endLatitude, trip.endLongitude)
+          ]);
+        } catch (error) {
+          startLocation = `${trip.startLatitude.toFixed(6)}, ${trip.startLongitude.toFixed(6)}`;
+          endLocation = `${trip.endLatitude.toFixed(6)}, ${trip.endLongitude.toFixed(6)}`;
+        }
+
+        return {
+          id: `day-${trip.date}-${index}`,
+          reportDate: new Date(trip.date).toLocaleDateString(),
+          ignitionStart: new Date(trip.startTime).toLocaleString(),
+          startLocation,
+          startCoordinates: `${trip.startLatitude.toFixed(6)}, ${trip.startLongitude.toFixed(6)}`,
+          distance: trip.distance,
+          running: trip.runningTime,
+          idle: trip.idleTime,
+          stop: trip.stopTime,
+          totalWorkingHours: trip.workingHours,
+          maxSpeed: `${trip.maxSpeed.toFixed(2)} km/h`,
+          avgSpeed: `${trip.avgSpeed.toFixed(2)} km/h`,
+          endLocation,
+          endCoordinates: `${trip.endLatitude.toFixed(6)}, ${trip.endLongitude.toFixed(6)}`,
+          ignitionStop: new Date(trip.endTime).toLocaleString(),
+          play: "▶"
+        };
+      })
+    );
+
+    return transformedData;
+  }, []);
+
+  const toggleRowExpansion = useCallback(async (rowId: string, rowData: TravelReportData) => {
+    const newExpandedRows = new Set(expandedRows);
+    
+    if (expandedRows.has(rowId)) {
+      newExpandedRows.delete(rowId);
+    } else {
+      newExpandedRows.add(rowId);
+
+      if (!detailTableStates[rowId]) {
+        setDetailTableStates(prev => ({
+          ...prev,
+          [rowId]: {
+            pagination: { pageIndex: 0, pageSize: 10 },
+            sorting: []
+          }
+        }));
+      }
+
+      if (!detailedData[rowId]) {
+        setLoadingDetails(prev => new Set([...prev, rowId]));
+        
+        try {
+          const transformedDetails = await transformDayWiseData(rowData.dayWiseTrips || []);
+          setDetailedData(prev => ({
+            ...prev,
+            [rowId]: transformedDetails
+          }));
+        } catch (error) {
+          console.error("Error transforming day-wise data:", error);
+          setDetailedData(prev => ({
+            ...prev,
+            [rowId]: []
+          }));
+        } finally {
+          setLoadingDetails(prev => {
+            const newSet = new Set(prev);
+            newSet.delete(rowId);
+            return newSet;
+          });
+        }
+      }
+    }
+    
+    setExpandedRows(newExpandedRows);
+  }, [expandedRows, detailedData, transformDayWiseData, detailTableStates]);
+
+  const handleDetailPaginationChange = useCallback((rowId: string, pagination: PaginationState) => {
+    setDetailTableStates(prev => ({
+      ...prev,
+      [rowId]: {
+        ...prev[rowId],
+        pagination
+      }
+    }));
+  }, []);
+
+  const handleDetailSortingChange = useCallback((rowId: string, sorting: SortingState) => {
+    setDetailTableStates(prev => ({
+      ...prev,
+      [rowId]: {
+        ...prev[rowId],
+        sorting
+      }
+    }));
+  }, []);
+
+  const createExpandedData = useCallback((): ExpandedRowData[] => {
+    const expandedDataArray: ExpandedRowData[] = [];
+    data.forEach((row) => {
+      expandedDataArray.push(row);
+      if (expandedRows.has(row.id)) {
+        if (loadingDetails.has(row.id)) {
+          expandedDataArray.push({
+            ...row,
+            id: `${row.id}-loading`,
+            isLoading: true,
+          });
+        } else if (detailedData[row.id]?.length) {
+          expandedDataArray.push({
+            ...row,
+            id: `${row.id}-details`,
+            isDetailTable: true,
+            detailData: detailedData[row.id]
+          });
+        } else {
+          expandedDataArray.push({
+            ...row,
+            id: `${row.id}-empty`,
+            isEmpty: true,
+          });
+        }
+      }
+    });
+    return expandedDataArray;
+  }, [data, expandedRows, loadingDetails, detailedData]);
+
+  const travelTableColumns: ColumnDef<TravelTableData>[] = useMemo(() => [
+    { accessorKey: "reportDate", header: "Report Date", size: 120 },
+    { accessorKey: "ignitionStart", header: "Ignition Start", size: 180 },
+    { accessorKey: "startLocation", header: "Start Location", size: 250 },
+    { accessorKey: "startCoordinates", header: "Start Co-ordinate", size: 180 },
+    { accessorKey: "distance", header: "Distance", size: 100 },
+    { accessorKey: "running", header: "Running", size: 120 },
+    { accessorKey: "idle", header: "Idle", size: 120 },
+    { accessorKey: "stop", header: "Stop", size: 120 },
+    { accessorKey: "totalWorkingHours", header: "Total Working Hours", size: 150 },
+    { accessorKey: "maxSpeed", header: "Max Speed", size: 120 },
+    { accessorKey: "avgSpeed", header: "Avg Speed", size: 120 },
+    { accessorKey: "endLocation", header: "End Location", size: 250 },
+    { accessorKey: "endCoordinates", header: "End Co-ordinate", size: 180 },
+    { accessorKey: "ignitionStop", header: "Ignition Stop", size: 180 },
+    { 
+    accessorKey: "play", 
+    header: "Play", 
+    size: 80,
+    cell: () => (
+      <div className="flex justify-center">
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <FaPlay className="text-green-600 text-xl cursor-pointer" />
+            </TooltipTrigger>
+            <TooltipContent
+              side="top"
+              className="bg-black/80 text-white font-bold rounded-md px-3 py-2 shadow-lg"
+            >
+              <p>Click to see playback history</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      </div>
+    )
+  }
+  ], []);
+
+  const columns: ColumnDef<ExpandedRowData>[] = useMemo(() => [
+    {
+      id: "expand",
+      header: "",
+      size: 50,
+      cell: ({ row }) => {
+        if (row.original.isLoading || row.original.isDetailTable || row.original.isEmpty) return null;
+
+        const isExpanded = expandedRows.has(row.original.id);
+        const isLoading = loadingDetails.has(row.original.id);
+
+        return (
+          <div className="flex justify-center">
+            <button
+              onClick={() => toggleRowExpansion(row.original.id, row.original)}
+              disabled={isLoading}
+              className="p-1 hover:bg-gray-100 rounded transition-colors"
+              aria-label={isExpanded ? "Collapse row" : "Expand row"}
+            >
+              {isLoading ? (
+                <div className="animate-spin h-4 w-4 border-2 border-blue-500 border-t-transparent rounded-full"></div>
+              ) : isExpanded ? (
+                <FaMinus className="text-red-500 text-sm" />
+              ) : (
+                <FaPlus className="text-green-500 text-sm" />
+              )}
+            </button>
+          </div>
+        );
+      },
+      enableSorting: false,
+    },
+    { 
+      accessorKey: "sn", 
+      header: "SN", 
+      size: 80,
+      cell: ({ row }) => {
+        // Show content only for main rows
+        if (row.original.isLoading || row.original.isDetailTable || row.original.isEmpty) return "";
+        return row.original.sn;
+      }
+    },
+    { 
+      accessorKey: "vehicleNumber", 
+      header: "Vehicle Number", 
+      size: 200,
+      cell: ({ row }) => {
+        // Handle expanded row states
+        if (row.original.isLoading) {
+          return (
+            <div className="w-full">
+              <div className="p-4 bg-gray-50 rounded">
+                <div className="flex justify-center py-4">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500"></div>
+                  <span className="ml-2 text-gray-600">Loading detailed data...</span>
+                </div>
+              </div>
+            </div>
+          );
+        }
+        
+        if (row.original.isDetailTable && row.original.detailData) {
+          const parentRowId = row.original.id.replace('-details', '');
+          const detailState = detailTableStates[parentRowId] || { 
+            pagination: { pageIndex: 0, pageSize: 10 }, 
+            sorting: [] 
+          };
+          
+          return (
+            <div className="w-full">
+              <div className="w-full bg-gray-50 rounded p-4">
+                <div className="w-full">
+                  <TravelTable
+                    data={row.original.detailData}
+                    columns={travelTableColumns}
+                    pagination={detailState.pagination}
+                    totalCount={row.original.detailData.length}
+                    onPaginationChange={(newPagination) => handleDetailPaginationChange(parentRowId, newPagination)}
+                    onSortingChange={(newSorting) => handleDetailSortingChange(parentRowId, newSorting)}
+                    sorting={detailState.sorting}
+                    emptyMessage="No detailed data available"
+                    pageSizeOptions={[10, 20, 30]}
+                    showSerialNumber={true}
+                    maxHeight="400px"
+                  />
+                </div>
+              </div>
+            </div>
+          );
+        }
+        
+        if (row.original.isEmpty) {
+          return (
+            <div className="w-full">
+              <div className="p-4 bg-gray-50 rounded text-center text-gray-500">
+                No detailed data available for {row.original.vehicleNumber}
+              </div>
+            </div>
+          );
+        }
+        
+        // Main row content
+        return row.original.vehicleNumber;
+      }
+    },
     {
       accessorKey: "startAddress",
       header: "Start Address",
       size: 300,
       cell: ({ row }) => {
-        const addr = row.original.startAddress;
-        return addr && addr !== "Loading..." ? addr : "-";
+        if (row.original.isLoading || row.original.isDetailTable || row.original.isEmpty) return "";
+        return (row.original.startAddress && row.original.startAddress !== "Loading..." ? row.original.startAddress : "-");
       },
     },
     {
@@ -71,6 +394,7 @@ const TravelReportPage: React.FC = () => {
       header: "Start Coordinate",
       size: 180,
       cell: ({ row }) => {
+        if (row.original.isLoading || row.original.isDetailTable || row.original.isEmpty) return "";
         const coords = row.original.startCoordinates;
         if (!coords) return "-";
         return `${coords.lat.toFixed(6)}, ${coords.lng.toFixed(6)}`;
@@ -80,33 +404,47 @@ const TravelReportPage: React.FC = () => {
       accessorKey: "totalDistance",
       header: "Total Distance (km)",
       size: 150,
-      cell: ({ row }) => row.original.totalDistance?.toFixed(2) ?? "0.00",
+      cell: ({ row }) => {
+        if (row.original.isLoading || row.original.isDetailTable || row.original.isEmpty) return "";
+        return typeof row.original.totalDistance === 'number' 
+          ? row.original.totalDistance.toFixed(2) 
+          : row.original.totalDistance ?? "0.00";
+      },
     },
     {
       accessorKey: "runningTime",
       header: "Running Time",
       size: 180,
-      cell: ({ row }) => row.original.runningTime ?? "0s",
+      cell: ({ row }) => {
+        if (row.original.isLoading || row.original.isDetailTable || row.original.isEmpty) return "";
+        return (row.original.runningTime ?? "0s");
+      },
     },
     {
       accessorKey: "idleTime",
       header: "Idle Time",
       size: 180,
-      cell: ({ row }) => row.original.idleTime ?? "0s",
+      cell: ({ row }) => {
+        if (row.original.isLoading || row.original.isDetailTable || row.original.isEmpty) return "";
+        return (row.original.idleTime ?? "0s");
+      },
     },
     {
       accessorKey: "stopTime",
       header: "Stop Time",
       size: 180,
-      cell: ({ row }) => row.original.stopTime ?? "0s",
+      cell: ({ row }) => {
+        if (row.original.isLoading || row.original.isDetailTable || row.original.isEmpty) return "";
+        return (row.original.stopTime ?? "0s");
+      },
     },
     {
       accessorKey: "endAddress",
       header: "End Address",
       size: 300,
       cell: ({ row }) => {
-        const addr = row.original.endAddress;
-        return addr && addr !== "Loading..." ? addr : "-";
+        if (row.original.isLoading || row.original.isDetailTable || row.original.isEmpty) return "";
+        return (row.original.endAddress && row.original.endAddress !== "Loading..." ? row.original.endAddress : "-");
       },
     },
     {
@@ -114,6 +452,7 @@ const TravelReportPage: React.FC = () => {
       header: "End Coordinate",
       size: 180,
       cell: ({ row }) => {
+        if (row.original.isLoading || row.original.isDetailTable || row.original.isEmpty) return "";
         const coords = row.original.endCoordinates;
         if (!coords) return "-";
         return `${coords.lat.toFixed(6)}, ${coords.lng.toFixed(6)}`;
@@ -123,157 +462,195 @@ const TravelReportPage: React.FC = () => {
       accessorKey: "maxSpeed",
       header: "Max Speed (km/h)",
       size: 150,
-      cell: ({ row }) => row.original.maxSpeed?.toFixed(2) ?? "0.00",
+      cell: ({ row }) => {
+        if (row.original.isLoading || row.original.isDetailTable || row.original.isEmpty) return "";
+        return typeof row.original.maxSpeed === 'number' 
+          ? row.original.maxSpeed.toFixed(2) 
+          : row.original.maxSpeed ?? "0.00";
+      },
     },
     {
       accessorKey: "avgSpeed",
       header: "Avg Speed (km/h)",
       size: 150,
-      cell: ({ row }) => row.original.avgSpeed?.toFixed(2) ?? "0.00",
+      cell: ({ row }) => {
+        if (row.original.isLoading || row.original.isDetailTable || row.original.isEmpty) return "";
+        return typeof row.original.avgSpeed === 'number' 
+          ? row.original.avgSpeed.toFixed(2) 
+          : row.original.avgSpeed ?? "0.00";
+      },
     },
-    // Play icon with tooltip
     {
       id: "play",
       header: "Play",
       size: 100,
-      cell: () => (
-        <div className="flex justify-center">
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <FaPlay className="text-green-600 text-xl cursor-pointer" />
-              </TooltipTrigger>
-              <TooltipContent
-                side="top"
-                className="bg-black/80 text-white font-bold rounded-md px-3 py-2 shadow-lg"
-              >
-                <p>Click to see playback history</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        </div>
-      ),
+      cell: ({ row }) => {
+        if (row.original.isLoading || row.original.isDetailTable || row.original.isEmpty) return "";
+        return (
+          <div className="flex justify-center">
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <FaPlay className="text-green-600 text-xl cursor-pointer" />
+                </TooltipTrigger>
+                <TooltipContent
+                  side="top"
+                  className="bg-black/80 text-white font-bold rounded-md px-3 py-2 shadow-lg"
+                >
+                  <p>Click to see playback history</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
+        );
+      },
     },
-  ];
+  ], [expandedRows, loadingDetails, detailedData, detailTableStates, toggleRowExpansion, handleDetailPaginationChange, handleDetailSortingChange, travelTableColumns]);
 
-  const fetchTravelReportData = async (filters: any, paginationState: { pageIndex: number; pageSize: number }, sortingState: any[]) => {
+  const fetchTravelReportData = useCallback(async (filters: any, paginationState: PaginationState, sortingState: SortingState) => {
     if (!filters) return;
     setIsLoading(true);
 
     try {
-      const fromDate = new Date(filters.startDate).toISOString().split("T")[0];
-      const toDate = new Date(filters.endDate).toISOString().split("T")[0];
+      // Restored demo data
+      const demoData = [
+        {
+          name: "MH35AG1931_",
+          startLat: 21.423808888888892,
+          startLong: 80.195455,
+          endLat: 21.44083388888889,
+          endLong: 80.21754222222222,
+          distance: "1096.47",
+          running: "5D, 14H, 0M, 20S",
+          idle: "0D, 1H, 56M, 0S",
+          stop: "1D, 22H, 35M, 10S",
+          maxSpeed: 86.393,
+          avgSpeed: 30.82203952,
+          dayWiseTrips: [
+            {
+              date: "2025-09-10",
+              deviceId: 6394,
+              startTime: "2025-09-10T18:19:07.417Z",
+              endTime: "2025-09-10T23:52:37.752Z",
+              distance: "15.77 KM",
+              startLatitude: 21.423808888888892,
+              startLongitude: 80.195455,
+              endLatitude: 21.463776111111112,
+              endLongitude: 80.18173611111112,
+              maxSpeed: 44.2764,
+              avgSpeed: 24.98625294117649,
+              workingHours: "5h 33m",
+              runningTime: "0D, 0H, 34M, 0S",
+              stopTime: "0D, 4H, 51M, 20S",
+              idleTime: "0D, 0H, 8M, 20S"
+            },
+            {
+              date: "2025-09-11",
+              deviceId: 6394,
+              startTime: "2025-09-11T00:08:17.737Z",
+              endTime: "2025-09-11T17:51:04.017Z",
+              distance: "153.18 KM",
+              startLatitude: 21.46374888888889,
+              startLongitude: 80.18145277777778,
+              endLatitude: 21.44003888888889,
+              endLongitude: 80.21658277777777,
+              maxSpeed: 86.3932,
+              avgSpeed: 29.784208307692417,
+              workingHours: "17h 42m",
+              runningTime: "0D, 6H, 51M, 40S",
+              stopTime: "0D, 10H, 41M, 20S",
+              idleTime: "0D, 0H, 9M, 40S"
+            }
+          ]
+        },
+        {
+          name: "MH35D558",
+          startLat: 21.423714999999998,
+          startLong: 80.19545777777778,
+          endLat: 21.440368333333335,
+          endLong: 80.21752388888889,
+          distance: "168.41",
+          running: "0D, 13H, 42M, 0S",
+          idle: "0D, 3H, 8M, 10S",
+          stop: "6D, 5H, 8M, 10S",
+          maxSpeed: 80.994,
+          avgSpeed: 26.70836184,
+          dayWiseTrips: [
+            {
+              date: "2025-09-11",
+              deviceId: 6402,
+              startTime: "2025-09-11T17:40:53.968Z",
+              endTime: "2025-09-11T18:33:54.094Z",
+              distance: "16.29 KM",
+              startLatitude: 21.423714999999998,
+              startLongitude: 80.19545777777778,
+              endLatitude: 21.423589999999997,
+              endLongitude: 80.19537944444444,
+              maxSpeed: 56.1556,
+              avgSpeed: 25.624937286821698,
+              workingHours: "0h 53m",
+              runningTime: "0D, 0H, 43M, 0S",
+              stopTime: "0D, 0H, 56M, 40S",
+              idleTime: "0D, 0H, 6M, 30S"
+            }
+          ]
+        }
+      ];
 
-      const queryParams = new URLSearchParams({
-        deviceId: filters.deviceId,
-        from: fromDate,
-        to: toDate,
-        page: (paginationState.pageIndex + 1).toString(),
-        limit: paginationState.pageSize.toString(),
-      });
-
-      if (sortingState.length > 0) {
-        const sort = sortingState[0];
-        queryParams.append("sortBy", sort.id);
-        queryParams.append("sortOrder", sort.desc ? "desc" : "asc");
-      }
-
-      // Fetch data from API
-      const [deviceRes, travelRes] = await Promise.all([
-        api.get("/device"),
-        api.get(`/report/travel-report?${queryParams.toString()}`),
-      ]);
-
-      const deviceList = deviceRes.data || [];
-      const deviceMap: Record<string, string> = {};
-      deviceList.forEach((d: any) => {
-        deviceMap[d.deviceId] = d.name;
-      });
-
-      const json = travelRes.data;
-
-      if (!json || (Array.isArray(json) && json.length === 0)) {
-        setData([]);
-        setTotalCount(0);
-        return;
-      }
-
-      const dataArray = Array.isArray(json) ? json : [json];
-
-      // Transform raw data
-      const initialTransformed: TravelReportData[] = dataArray.map((item: any, index: number) => {
-        const sn = paginationState.pageIndex * paginationState.pageSize + index + 1;
-
-        // Placeholder: you might receive runningSeconds, idleSeconds, stopSeconds in API. If not, you will need logic to compute from timestamps.
-        const runningSeconds = item.runningSeconds ?? 0;
-        const idleSeconds = item.idleSeconds ?? 0;
-        const stopSeconds = item.stopSeconds ?? 0;
-
-        return {
-          id: item._id || `row-${index}`,
-          sn,
-          vehicleNumber: deviceMap[item.deviceId] || filters.vehicleNumber || item.deviceId,
-          startTime: new Date(item.startTime).toLocaleString(),
-          startAddress: "Loading...",
-          startCoordinates: { lat: item.startLatitude, lng: item.startLongitude },
-          totalDistance: item.totalDistance ?? 0,
-          runningTime: formatDuration(runningSeconds),
-          idleTime: formatDuration(idleSeconds),
-          stopTime: formatDuration(stopSeconds),
-          endTime: new Date(item.endTime).toLocaleString(),
-          endAddress: "Loading...",
-          endCoordinates: { lat: item.endLatitude, lng: item.endLongitude },
-          maxSpeed: item.maxSpeed ?? 0,
-          avgSpeed: item.avgSpeed ?? 0,
-        };
-      });
-
-      setData(initialTransformed);
-      setTotalCount(travelRes.total ?? initialTransformed.length);
-
-      // Reverse geocode both start & end addresses
-      const withAddresses = await Promise.all(
-        initialTransformed.map(async (item) => {
+      const transformedData: TravelReportData[] = await Promise.all(
+        demoData.map(async (item, index) => {
+          const sn = paginationState.pageIndex * paginationState.pageSize + index + 1;
+          let startAddress = "Loading...";
+          let endAddress = "Loading...";
           try {
-            const [startAddr, endAddr] = await Promise.all([
-              reverseGeocode(item.startCoordinates.lat, item.startCoordinates.lng),
-              reverseGeocode(item.endCoordinates.lat, item.endCoordinates.lng),
+            [startAddress, endAddress] = await Promise.all([
+              reverseGeocode(item.startLat, item.startLong),
+              reverseGeocode(item.endLat, item.endLong),
             ]);
-            return {
-              ...item,
-              startAddress: startAddr || "Address not found",
-              endAddress: endAddr || "Address not found",
-            };
-          } catch (error) {
-            console.error("Error reverse geocoding:", error);
-            return {
-              ...item,
-              startAddress: "Address not found",
-              endAddress: "Address not found",
-            };
+          } catch {
+            startAddress = "Address not found";
+            endAddress = "Address not found";
           }
+
+          return {
+            id: `row-${index}`,
+            sn,
+            vehicleNumber: item.name,
+            startAddress,
+            startCoordinates: { lat: item.startLat, lng: item.startLong },
+            totalDistance: parseFloat(item.distance),
+            runningTime: item.running,
+            idleTime: item.idle,
+            stopTime: item.stop,
+            endAddress,
+            endCoordinates: { lat: item.endLat, lng: item.endLong },
+            maxSpeed: item.maxSpeed,
+            avgSpeed: item.avgSpeed,
+            deviceId: `device-${index}`,
+            dayWiseTrips: item.dayWiseTrips,
+          };
         })
       );
 
-      setData(withAddresses);
+      setData(transformedData);
+      setTotalCount(transformedData.length);
 
-    } catch (error: any) {
+    } catch (error) {
       console.error("Error fetching travel report data:", error);
-      // handle error messages similarly
       setData([]);
       setTotalCount(0);
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     if (currentFilters && showTable) {
       fetchTravelReportData(currentFilters, pagination, sorting);
     }
-  }, [pagination, sorting, currentFilters, showTable]);
+  }, [pagination, sorting, currentFilters, showTable, fetchTravelReportData]);
 
-  const handleFilterSubmit = async (filters: any) => {
+  const handleFilterSubmit = useCallback(async (filters: any) => {
     if (!filters.deviceId) {
       alert("Please select a device before generating the report");
       return;
@@ -287,12 +664,17 @@ const TravelReportPage: React.FC = () => {
     setSorting([]);
     setCurrentFilters(filters);
     setShowTable(true);
-
+    setExpandedRows(new Set());
+    setDetailedData({});
+    setDetailTableStates({});
+    
     await fetchTravelReportData(filters, { pageIndex: 0, pageSize: 10 }, []);
-  };
+  }, [fetchTravelReportData]);
+
+  const expandedDataArray = createExpandedData();
 
   const { table, tableElement } = CustomTableServerSidePagination({
-    data,
+    data: expandedDataArray,
     columns,
     pagination,
     totalCount,
@@ -311,20 +693,20 @@ const TravelReportPage: React.FC = () => {
   return (
     <div>
       <ResponseLoader isLoading={isLoading} />
-
       <h1 className="text-xl font-bold mb-4">Travel Reports</h1>
-
       <ReportFilter
         onFilterSubmit={handleFilterSubmit}
         columns={table.getAllColumns()}
-        showColumnVisibility={true}
+        showColumnVisibility
         className="mb-6"
       />
-
-      {showTable && <section className="mb-4">{tableElement}</section>}
+      {showTable && (
+        <section className="mb-4">
+          {tableElement}
+        </section>
+      )}
     </div>
   );
 };
 
 export default TravelReportPage;
-

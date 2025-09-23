@@ -1,244 +1,190 @@
 "use client";
 
-import React, { useCallback, useEffect, useState, useRef, useMemo } from "react";
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import { CustomTable, CellContent } from "@/components/ui/CustomTable";
-import { DynamicEditDialog, FieldConfig } from "@/components/ui/EditModal";
+import React, { useState } from "react";
+import { CustomTableServerSidePagination } from "@/components/ui/customTable(serverSidePagination)";
 import SearchComponent from "@/components/ui/SearchOnlydata";
-import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
 import DateRangeFilter from "@/components/ui/DateRangeFilter";
-import { FloatingMenu } from "@/components/floatingMenu";
-import {
-  getCoreRowModel,
-  useReactTable,
-  VisibilityState,
-  type ColumnDef,
-} from "@tanstack/react-table";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api } from "@/services/apiService";
-import { useExport } from "@/hooks/useExport";
-import { formatDate } from "@/util/formatDate";
-import { Alert } from "@/components/Alert";
-import ResponseLoader from "@/components/ResponseLoader";
 import { ColumnVisibilitySelector } from "@/components/column-visibility-selector";
-import { useSchoolData } from "@/hooks/useSchoolData";
 import { SearchableSelect } from "@/components/custom-select";
-import { useBranchData } from "@/hooks/useBranchData";
+import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
+import { api } from "@/services/apiService";
+import ResponseLoader from "@/components/ResponseLoader";
+import { formatDate } from "@/util/formatDate";
+import { FloatingMenu } from "@/components/floatingMenu";
+import { useExport } from "@/hooks/useExport";
+import { Button } from "@/components/ui/button";
+import type { ColumnDef, VisibilityState } from "@tanstack/react-table";
 
-interface Student {
+// --- Interfaces ---
+interface Child {
   _id: string;
-  studentName: string;
-  studentMobile: string;
-  username: string;
-  password: string;
-  email: string;
-  class: string;
-  rollNumber: string;
+  childName: string;
+  className: string;
   section: string;
-  parentId?: { _id: string; parentName: string };
-  schoolId: { _id: string; schoolName: string };
-  branchId: { _id: string; branchName: string };
-  isApproved: "Pending" | "Approved" | "Rejected";
   createdAt: string;
-}
-
-interface SelectOption {
-  label: string;
-  value: string;
+  isApproved?: "Pending" | "Approved" | "Rejected";
+  parentId?: {
+    parentName: string;
+    username: string;
+    password: string;
+    mobileNo: string;
+  };
+  schoolId?: { schoolName: string };
+  branchId?: { branchName: string };
 }
 
 export default function StudentApprove() {
   const queryClient = useQueryClient();
-  const closeButtonRef = useRef<HTMLButtonElement>(null);
-  const [filteredData, setFilteredData] = useState<Student[]>([]);
-  const [deleteTarget, setDeleteTarget] = useState<Student | null>(null);
-  const [editTarget, setEditTarget] = useState<Student | null>(null);
-  const [editDialogOpen, setEditDialogOpen] = useState(false);
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
-  const [school, setSchool] = useState<string>();
-  const [branch, setBranch] = useState<string>();
+
+  // --- States ---
+  const [filteredData, setFilteredData] = useState<Child[]>([]);
   const [approvalFilter, setApprovalFilter] = useState<string>("");
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
+  const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 10 });
+  const [sorting, setSorting] = useState<any[]>([]);
+  const [searchValue, setSearchValue] = useState("");
 
   const { exportToPDF, exportToExcel } = useExport();
-  const { data: schoolData } = useSchoolData();
-  const { data: branchData } = useBranchData();
 
-  // Fetch students
-  const { data: students, isLoading } = useQuery<Student[]>({
-    queryKey: ["students"],
-    queryFn: async () => await api.get<Student[]>("/student"),
-  });
+  // --- Fetch children (server-side pagination) ---
+  const { data, isLoading, isFetching } = useQuery({
+    queryKey: ["children", pagination, sorting, searchValue, approvalFilter],
+    queryFn: async () => {
+      const params: Record<string, any> = {
+        page: pagination.pageIndex + 1,
+        limit: pagination.pageSize,
+      };
+      if (searchValue) params.search = searchValue;
+      if (approvalFilter) params.isApproved = approvalFilter;
 
-  // School options
-  const schoolOptions: SelectOption[] = schoolData
-    ? schoolData.map((s) => ({ label: s.schoolName, value: s._id }))
-    : [];
-
-  // Branch options filtered by selected school
-  const filteredBranchOptions = useMemo(() => {
-    if (!school || !branchData) return [];
-    return branchData
-      .filter((b) => b.schoolId?._id === school)
-      .map((b) => ({ label: b.branchName, value: b._id }));
-  }, [school, branchData]);
-
-  // Reset branch when school changes
-  useEffect(() => setBranch(undefined), [school]);
-
-  // Update filtered data
-  useEffect(() => {
-    if (!students) return;
-    let data = students;
-
-    if (approvalFilter) {
-      data = data.filter((s) => s.isApproved === approvalFilter);
-    }
-
-    setFilteredData(data);
-  }, [students, approvalFilter]);
-
-  // --- Mutations (same as before) ---
-  const addStudentMutation = useMutation({
-    mutationFn: async (newStudent: any) => await api.post("/student", newStudent),
-    onSuccess: (createdStudent, variables) => {
-      const school = schoolData?.find((s) => s._id === variables.schoolId);
-      const branch = branchData?.find((b) => b._id === variables.branchId);
-
-      queryClient.setQueryData<Student[]>(["students"], (old = []) => [
-        ...old,
-        {
-          ...createdStudent,
-          password: variables.password,
-          schoolId: school
-            ? { _id: school._id, schoolName: school.schoolName }
-            : { _id: variables.schoolId, schoolName: "Unknown School" },
-          branchId: branch
-            ? { _id: branch._id, branchName: branch.branchName }
-            : { _id: variables.branchId, branchName: "Unknown Branch" },
-        },
-      ]);
-      alert("Student added successfully.");
+      return await api.get<{
+        children: Child[];
+        total: number;
+      }>("/child", { params });
     },
-    onError: (error: any) =>
-      alert(
-        `Failed to add student: ${
-          error.response?.data?.message || error.message
-        }`
-      ),
+    keepPreviousData: true,
   });
 
-  const ApproveMutation = useMutation({
-    mutationFn: async (student: {
+  const children = data?.children || [];
+  const totalCount = data?.total || 0;
+
+  // --- Approve / Reject Mutation ---
+  const approveMutation = useMutation({
+    mutationFn: async ({
+      _id,
+      isApproved,
+    }: {
       _id: string;
       isApproved: "Approved" | "Rejected";
-    }) =>
-      await api.post(`/student/approve/${student._id}`, {
-        isApproved: student.isApproved,
-      }),
-    onSuccess: (_, variables) => {
-      queryClient.setQueryData<Student[]>(["students"], (oldData) =>
-        oldData?.map((student) =>
-          student._id === variables._id
-            ? { ...student, isApproved: variables.isApproved }
-            : student
-        )
-      );
-      alert("Access updated successfully.");
-    },
-    onError: () => alert("Failed to update access."),
-  });
-
-  const updateStudentMutation = useMutation({
-    mutationFn: async ({
-      studentId,
-      data,
-    }: {
-      studentId: string;
-      data: Partial<Student>;
-    }) => await api.put(`/student/${studentId}`, data),
+    }) => await api.put(`/child/approve/${_id}`, { isApproved }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["students"] });
-      setEditDialogOpen(false);
-      setEditTarget(null);
-      alert("Student updated successfully.");
+      queryClient.invalidateQueries({ queryKey: ["children"] });
+      alert("Approval status updated.");
     },
-    onError: () => alert("Failed to update student."),
+    onError: () => alert("Failed to update status."),
   });
 
-  const deleteStudentMutation = useMutation({
-    mutationFn: async (studentId: string) =>
-      await api.delete(`/student/${studentId}`),
-    onSuccess: (_, deletedId) => {
-      queryClient.setQueryData<Student[]>(["students"], (oldData) =>
-        oldData?.filter((student) => student._id !== deletedId)
-      );
-      alert("Student deleted successfully.");
-    },
-    onError: () => alert("Failed to delete student."),
-  });
+  // --- Columns ---
+  const columns: ColumnDef<Child>[] = [
+    { id: "childName", header: "Student Name", accessorFn: (row) => row.childName ?? "--" },
+    { id: "parentName", header: "Parent Name", accessorFn: (row) => row.parentId?.parentName ?? "--" },
+    { id: "schoolName", header: "School Name", accessorFn: (row) => row.schoolId?.schoolName ?? "--" },
+    { id: "branchName", header: "Branch Name", accessorFn: (row) => row.branchId?.branchName ?? "--" },
+    { id: "className", header: "Class", accessorFn: (row) => row.className ?? "--" },
+    { id: "section", header: "Section", accessorFn: (row) => row.section ?? "--" },
+    { id: "childMobile", header: "Mobile", accessorFn: (row) => row.parentId?.mobileNo ?? "--" },
+    { id: "username", header: "Username", accessorFn: (row) => row.parentId?.username ?? "--" },
+    { id: "password", header: "Password", accessorFn: (row) => row.parentId?.password ?? "--" },
+    { id: "createdAt", header: "Registration Date", accessorFn: (row) => formatDate(row.createdAt) },
+    {
+      id: "approveReject",
+      header: "Status",
+      cell: ({ row }) => {
+        const child = row.original;
 
-  // --- Columns config (same as before) ---
-  const columns: ColumnDef<Student, CellContent>[] = [
-    { header: "Student Name", accessorFn: (row) => ({ type: "text", value: row.studentName }) },
-    { header: "School Name", accessorFn: (row) => ({ type: "text", value: row.schoolId?.schoolName ?? "--" }) },
-    { header: "Branch Name", accessorFn: (row) => ({ type: "text", value: row.branchId?.branchName ?? "--" }) },
-    { header: "Class", accessorFn: (row) => ({ type: "text", value: row.class ?? "--" }) },
-    { header: "Roll Number", accessorFn: (row) => ({ type: "text", value: row.rollNumber ?? "--" }) },
-    { header: "Section", accessorFn: (row) => ({ type: "text", value: row.section ?? "--" }) },
-    { header: "Mobile", accessorFn: (row) => ({ type: "text", value: row.studentMobile }) },
-    { header: "Username", accessorFn: (row) => ({ type: "text", value: row.username }) },
-    { header: "Password", accessorFn: (row) => ({ type: "text", value: row.password }) },
-    { header: "Registration Date", accessorFn: (row) => ({ type: "text", value: formatDate(row.createdAt) }) },
-    {
-      header: "Approve/Reject",
-      accessorFn: (row) => ({
-        type: "group",
-        items:
-          row.isApproved === "Pending"
-            ? [
-                { type: "button", label: "Approved", onClick: () => ApproveMutation.mutate({ _id: row._id, isApproved: "Approved" }), className: "w-20 bg-green-500 text-white rounded-full px-2 py-1" },
-                { type: "button", label: "Reject", onClick: () => ApproveMutation.mutate({ _id: row._id, isApproved: "Rejected" }), className: "w-20 bg-red-500 text-white rounded-full px-2 py-1" },
-              ]
-            : [
-                {
-                  type: "button",
-                  label: row.isApproved,
-                  onClick: () => {},
-                  disabled: true,
-                  className: `w-24 rounded-full px-2 py-1 ${row.isApproved === "Approved" ? "bg-green-300 text-green-800" : "bg-red-300 text-red-800"}`,
-                },
-              ],
-      }),
-    },
-    {
-      header: "Action",
-      accessorFn: (row) => ({
-        type: "group",
-        items: [
-          { type: "button", label: "Edit", onClick: () => { setEditTarget(row); setEditDialogOpen(true); } },
-          { type: "button", label: "Delete", onClick: () => setDeleteTarget(row), className: "text-red-600" },
-        ],
-      }),
+        // Show Approve/Reject buttons for pending students
+        if (child.isApproved?.toLowerCase() === "pending") {
+          return (
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                className="bg-green-500 text-white"
+                onClick={() =>
+                  approveMutation.mutate({ _id: child._id, isApproved: "Approved" })
+                }
+              >
+                Approve
+              </Button>
+              <Button
+                size="sm"
+                className="bg-red-500 text-white"
+                onClick={() =>
+                  approveMutation.mutate({ _id: child._id, isApproved: "Rejected" })
+                }
+              >
+                Reject
+              </Button>
+            </div>
+          );
+        }
+
+        // Normalize status to lowercase safely
+        const rawStatus = child.isApproved || "Unknown";
+        const status = typeof rawStatus === "string" ? rawStatus.toLowerCase() : "unknown";
+
+        // Badge classes
+        let badgeClass = "bg-gray-100 text-gray-700";
+        if (status === "approved") badgeClass = "bg-green-100 text-green-700";
+        if (status === "rejected") badgeClass = "bg-red-100 text-red-700";
+        if (status === "pending") badgeClass = "bg-yellow-100 text-yellow-700";
+
+        return (
+          <span className={`px-3 py-1 rounded-full text-xs ${badgeClass}`}>
+            {status.charAt(0).toUpperCase() + status.slice(1)}
+          </span>
+        );
+      },
     },
   ];
 
-  const table = useReactTable({
-    data: filteredData,
+  // --- Table with server-side pagination ---
+  const { table, tableElement } = CustomTableServerSidePagination({
+    data: children,
     columns,
-    state: { columnVisibility },
+    pagination,
+    totalCount,
+    loading: isLoading || isFetching,
+    onPaginationChange: setPagination,
+    onSortingChange: setSorting,
+    sorting,
+    columnVisibility,
     onColumnVisibilityChange: setColumnVisibility,
-    getCoreRowModel: getCoreRowModel(),
+    emptyMessage: "No students found",
+    pageSizeOptions: [5, 10, 20, 30, 50],
+    enableSorting: true,
+    showSerialNumber: true,
   });
+
+  // --- Export Data ---
+  const exportData = children.map((c) => ({
+    studentName: c.childName,
+    parentName: c.parentId?.parentName ?? "",
+    className: c.className,
+    schoolName: c.schoolId?.schoolName ?? "",
+    branchName: c.branchId?.branchName ?? "",
+    status: c.isApproved,
+    registeredOn: formatDate(c.createdAt),
+  }));
+
+  const columnsForExport = [
+    { key: "studentName", header: "Student Name" },
+    { key: "parentName", header: "Parent Name" },
+    { key: "className", header: "Class" },
+    { key: "schoolName", header: "School" },
+    { key: "branchName", header: "Branch" },
+    { key: "status", header: "Status" },
+    { key: "registeredOn", header: "Registered On" },
+  ];
 
   // --- UI ---
   return (
@@ -246,69 +192,60 @@ export default function StudentApprove() {
       <ResponseLoader isLoading={isLoading} />
 
       {/* 🔹 Filters Section */}
-      <header className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+      <header className="flex flex-wrap items-center gap-4 mb-4">
         <SearchComponent
-          data={students || []}
-          displayKey={[
-            "studentName",
-            "username",
-            "email",
-            "studentMobile",
-            "rollNumber",
-          ]}
+          data={children}
+          displayKey={["childName", "parentId.parentName", "parentId.username", "parentId.mobileNo"]}
           onResults={setFilteredData}
+          onInputChange={(val) => setSearchValue(val)}
+          className="w-[250px]"
         />
-
         <DateRangeFilter
           onDateRangeChange={(start, end) => {
-            if (!students) return;
-            let data = students;
+            if (!children) return;
+            let filtered = children;
             if (start || end) {
-              data = data.filter((student) => {
-                const created = new Date(student.createdAt);
+              filtered = children.filter((c) => {
+                const created = new Date(c.createdAt);
                 return (!start || created >= start) && (!end || created <= end);
               });
             }
-            if (approvalFilter) {
-              data = data.filter((s) => s.isApproved === approvalFilter);
-            }
-            setFilteredData(data);
+            setFilteredData(filtered);
           }}
           title="Search by Registration Date"
         />
-
-        {/* 🔹 Approval filter with SearchableSelect */}
-        <div>
-          <SearchableSelect
-            options={[
-              { label: "Approved", value: "Approved" },
-              { label: "Rejected", value: "Rejected" },
-              { label: "Pending", value: "Pending" },
-            ]}
-            value={approvalFilter ? { label: approvalFilter, value: approvalFilter } : null}
-            onChange={(option) => setApprovalFilter(option?.value || "")}
-            placeholder="Filter by Access..."
-            isClearable
-          />
-        </div>
-
+        <SearchableSelect
+          options={[
+            { label: "Approved", value: "Approved" },
+            { label: "Rejected", value: "Rejected" },
+            { label: "Pending", value: "Pending" },
+          ]}
+          value={approvalFilter ? { label: approvalFilter, value: approvalFilter } : null}
+          onChange={(opt) => setApprovalFilter(opt?.value || "")}
+          placeholder="Filter by Status"
+          isClearable
+        />
         <ColumnVisibilitySelector columns={table.getAllColumns()} />
       </header>
 
-      {/* ✅ Table */}
-      <section className="mb-4">
-        <CustomTable
-          data={filteredData}
-          columns={columns}
-          columnVisibility={columnVisibility}
-          onColumnVisibilityChange={setColumnVisibility}
-          pageSizeArray={[10, 20, 50]}
-          maxHeight={600}
-          showSerialNumber
-          noDataMessage="No students found"
-          isLoading={isLoading}
-        />
-      </section>
+      {/* 🔹 Table */}
+      <section className="mb-4">{tableElement}</section>
+
+      {/* 🔹 Floating Export Menu */}
+      <FloatingMenu
+        onExportPdf={() =>
+          exportToPDF(exportData, columnsForExport, {
+            title: "Student Approval Report",
+            companyName: "Parents Eye",
+          })
+        }
+        onExportExcel={() =>
+          exportToExcel(exportData, columnsForExport, {
+            title: "Student Approval Report",
+            companyName: "Parents Eye",
+          })
+        }
+      />
     </main>
   );
 }

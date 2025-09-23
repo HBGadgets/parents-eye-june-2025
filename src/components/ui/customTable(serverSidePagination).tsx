@@ -76,7 +76,7 @@ export function CustomTableServerSidePagination<T extends Record<string, any>>({
   manualSorting = true,
   manualPagination = true,
   showSerialNumber = true,
-  serialNumberHeader = "S.No.",
+  serialNumberHeader = "SN",
   maxHeight = "500px",
   columnVisibility,
   onColumnVisibilityChange,
@@ -143,6 +143,11 @@ export function CustomTableServerSidePagination<T extends Record<string, any>>({
       pageIndex: 0,
       pageSize: parseInt(pageSize),
     });
+  };
+
+  // Helper function to check if a row is an expanded row (loading, detail, empty)
+  const isExpandedRow = (rowData: any) => {
+    return rowData.isLoading || rowData.isDetailTable || rowData.isEmpty;
   };
 
   return {
@@ -215,38 +220,75 @@ export function CustomTableServerSidePagination<T extends Record<string, any>>({
               ) : (
                 <TableBody>
                   {table.getRowModel().rows?.length ? (
-                    table.getRowModel().rows.map((row) => (
-                      <TableRow
-                        key={row.id}
-                        className="border-b hover:bg-muted/50"
-                      >
-                        {row.getVisibleCells().map((cell) => (
-                          <TableCell
-                            key={cell.id}
-                            className="px-2 py-2 sm:px-4 sm:py-2 text-xs sm:text-sm border-r last:border-r-0 text-center"
-                            style={{
-                              width:
-                                cell.column.id === "serialNumber"
-                                  ? "60px"
-                                  : "auto",
-                              minWidth:
-                                cell.column.id === "serialNumber"
-                                  ? "60px"
-                                  : "auto",
-                            }}
+                    table.getRowModel().rows.map((row) => {
+                      const rowData = row.original;
+                      const isExpanded = isExpandedRow(rowData);
+                      
+                      if (isExpanded) {
+                        // For expanded rows, render a single cell that spans all columns
+                        return (
+                          <TableRow
+                            key={row.id}
+                            className="border-b hover:bg-muted/50"
                           >
-                            <div className="w-full">
-                              <div className="break-words overflow-wrap-anywhere leading-relaxed">
-                                {flexRender(
-                                  cell.column.columnDef.cell,
-                                  cell.getContext()
-                                )}
+                            <TableCell
+                              colSpan={tableColumns.length}
+                              className="p-0 border-r-0"
+                            >
+                              <div className="w-full">
+                                {/* Get the content from the vehicleNumber cell */}
+                                {(() => {
+                                  const vehicleNumberCell = row.getVisibleCells().find(
+                                    cell => cell.column.id === "vehicleNumber"
+                                  );
+                                  if (vehicleNumberCell) {
+                                    return flexRender(
+                                      vehicleNumberCell.column.columnDef.cell,
+                                      vehicleNumberCell.getContext()
+                                    );
+                                  }
+                                  return null;
+                                })()}
                               </div>
-                            </div>
-                          </TableCell>
-                        ))}
-                      </TableRow>
-                    ))
+                            </TableCell>
+                          </TableRow>
+                        );
+                      }
+                      
+                      // For normal rows, render all cells
+                      return (
+                        <TableRow
+                          key={row.id}
+                          className="border-b hover:bg-muted/50"
+                        >
+                          {row.getVisibleCells().map((cell) => (
+                            <TableCell
+                              key={cell.id}
+                              className="px-2 py-2 sm:px-4 sm:py-2 text-xs sm:text-sm border-r last:border-r-0 text-center"
+                              style={{
+                                width:
+                                  cell.column.id === "serialNumber"
+                                    ? "60px"
+                                    : "auto",
+                                minWidth:
+                                  cell.column.id === "serialNumber"
+                                    ? "60px"
+                                    : "auto",
+                              }}
+                            >
+                              <div className="w-full">
+                                <div className="break-words overflow-wrap-anywhere leading-relaxed">
+                                  {flexRender(
+                                    cell.column.columnDef.cell,
+                                    cell.getContext()
+                                  )}
+                                </div>
+                              </div>
+                            </TableCell>
+                          ))}
+                        </TableRow>
+                      );
+                    })
                   ) : (
                     <TableRow>
                       <TableCell
@@ -335,7 +377,7 @@ export function CustomTableServerSidePagination<T extends Record<string, any>>({
                   disabled={!hasNextPage}
                   className="h-8 w-8 p-0"
                 >
-                  <ChevronsRight className="h-4 w-4" />
+                  <ChevronsRight className="h-4 w-8 p-0" />
                 </Button>
               </div>
             </div>
