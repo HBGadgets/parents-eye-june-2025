@@ -8,8 +8,6 @@ import { api } from "@/services/apiService";
 import ResponseLoader from "@/components/ResponseLoader";
 import { FaPowerOff } from "react-icons/fa";
 import { reverseGeocode } from "@/util/reverse-geocode";
-
-// Tooltip components
 import {
   Tooltip,
   TooltipContent,
@@ -36,15 +34,11 @@ const StopReportPage: React.FC = () => {
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
   const [isLoading, setIsLoading] = useState(false);
   const [showTable, setShowTable] = useState(false);
-
-  // Pagination & sorting states
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 10 });
   const [sorting, setSorting] = useState([]);
 
-  // Store filters for API calls
   const [currentFilters, setCurrentFilters] = useState<any>(null);
 
-  // Columns definition
   const columns: ColumnDef<StopReportData>[] = [
     { accessorKey: "sn", header: "SN" },
     { accessorKey: "deviceName", header: "Device Name", size: 200 },
@@ -106,7 +100,6 @@ const StopReportPage: React.FC = () => {
     },
   ];
 
-  // Calculate duration between two dates
   const calculateDuration = (start: string, end: string): string => {
     const startTime = new Date(start).getTime();
     const endTime = new Date(end).getTime();
@@ -121,7 +114,6 @@ const StopReportPage: React.FC = () => {
     return `${h}H ${m}M ${s}S`;
   };
 
-  // Fetch data with filters, pagination, and sorting
   const fetchStopReportData = async (filters: any, paginationState: any, sortingState: any) => {
     if (!filters) return;
     setIsLoading(true);
@@ -149,7 +141,6 @@ const StopReportPage: React.FC = () => {
         api.get(`/report/stop-report?${queryParams.toString()}`),
       ]);
 
-      // Map deviceId to deviceName
       const deviceList = deviceRes.data || [];
       const deviceMap: Record<string, string> = {};
       deviceList.forEach((d: any) => {
@@ -166,7 +157,6 @@ const StopReportPage: React.FC = () => {
 
       const dataArray = Array.isArray(json) ? json : [json];
 
-      // Transform data with serial number & deviceName mapping
       const initialTransformed: StopReportData[] = dataArray.map((item: any, index: number) => {
         const sn = paginationState.pageIndex * paginationState.pageSize + index + 1;
         return {
@@ -222,14 +212,12 @@ const StopReportPage: React.FC = () => {
     }
   };
 
-  // Fetch data on pagination, sorting or filters change
   useEffect(() => {
     if (currentFilters && showTable) {
       fetchStopReportData(currentFilters, pagination, sorting);
     }
   }, [pagination, sorting, currentFilters, showTable]);
 
-  // Handle filter submit
   const handleFilterSubmit = async (filters: any) => {
     if (!filters.deviceId) {
       alert("Please select a device before generating the report");
@@ -248,7 +236,6 @@ const StopReportPage: React.FC = () => {
     await fetchStopReportData(filters, { pageIndex: 0, pageSize: 10 }, []);
   };
 
-  // Table instance
   const { table, tableElement } = CustomTableServerSidePagination({
     data,
     columns,
@@ -263,7 +250,7 @@ const StopReportPage: React.FC = () => {
     emptyMessage: "No stop reports found",
     pageSizeOptions: [5, 10, 20, 30, 50],
     enableSorting: true,
-    showSerialNumber: false, // using sn in data instead
+    showSerialNumber: false, 
   });
 
   return (

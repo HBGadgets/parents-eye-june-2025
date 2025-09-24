@@ -111,12 +111,10 @@ const DistanceReportPage: React.FC = () => {
         return;
       }
 
-      // Identify date keys using a strict YYYY-MM-DD regex to avoid accidental non-date keys
       let dateKeys = Object.keys(dataArray[0]).filter((k) =>
         /^\d{4}-\d{2}-\d{2}$/.test(k)
       );
 
-      // fallback: if none match, exclude known non-date keys
       if (dateKeys.length === 0) {
         dateKeys = Object.keys(dataArray[0]).filter(
           (k) => k !== "deviceId" && k !== "_id" && k !== "message"

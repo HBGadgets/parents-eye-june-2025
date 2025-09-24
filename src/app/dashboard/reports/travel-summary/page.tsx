@@ -91,7 +91,6 @@ const TravelReportPage: React.FC = () => {
   // Expansion state
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [detailedData, setDetailedData] = useState<Record<string, TravelTableData[]>>({});
-  const [loadingDetails, setLoadingDetails] = useState<Set<string>>(new Set());
   
   // Detail table pagination & sorting state per expanded row
   const [detailTableStates, setDetailTableStates] = useState<Record<string, {
@@ -159,8 +158,6 @@ const TravelReportPage: React.FC = () => {
       }
 
       if (!detailedData[rowId]) {
-        setLoadingDetails(prev => new Set([...prev, rowId]));
-        
         try {
           const transformedDetails = await transformDayWiseData(rowData.dayWiseTrips || []);
           setDetailedData(prev => ({
@@ -173,12 +170,6 @@ const TravelReportPage: React.FC = () => {
             ...prev,
             [rowId]: []
           }));
-        } finally {
-          setLoadingDetails(prev => {
-            const newSet = new Set(prev);
-            newSet.delete(rowId);
-            return newSet;
-          });
         }
       }
     }
@@ -211,13 +202,7 @@ const TravelReportPage: React.FC = () => {
     data.forEach((row) => {
       expandedDataArray.push(row);
       if (expandedRows.has(row.id)) {
-        if (loadingDetails.has(row.id)) {
-          expandedDataArray.push({
-            ...row,
-            id: `${row.id}-loading`,
-            isLoading: true,
-          });
-        } else if (detailedData[row.id]?.length) {
+        if (detailedData[row.id]?.length) {
           expandedDataArray.push({
             ...row,
             id: `${row.id}-details`,
@@ -234,7 +219,7 @@ const TravelReportPage: React.FC = () => {
       }
     });
     return expandedDataArray;
-  }, [data, expandedRows, loadingDetails, detailedData]);
+  }, [data, expandedRows, detailedData]);
 
   const travelTableColumns: ColumnDef<TravelTableData>[] = useMemo(() => [
     { accessorKey: "reportDate", header: "Report Date", size: 120 },
@@ -284,19 +269,15 @@ const TravelReportPage: React.FC = () => {
         if (row.original.isLoading || row.original.isDetailTable || row.original.isEmpty) return null;
 
         const isExpanded = expandedRows.has(row.original.id);
-        const isLoading = loadingDetails.has(row.original.id);
 
         return (
           <div className="flex justify-center">
             <button
               onClick={() => toggleRowExpansion(row.original.id, row.original)}
-              disabled={isLoading}
               className="p-1 hover:bg-gray-100 rounded transition-colors"
               aria-label={isExpanded ? "Collapse row" : "Expand row"}
             >
-              {isLoading ? (
-                <div className="animate-spin h-4 w-4 border-2 border-blue-500 border-t-transparent rounded-full"></div>
-              ) : isExpanded ? (
+              {isExpanded ? (
                 <FaMinus className="text-red-500 text-sm" />
               ) : (
                 <FaPlus className="text-green-500 text-sm" />
@@ -505,7 +486,7 @@ const TravelReportPage: React.FC = () => {
         );
       },
     },
-  ], [expandedRows, loadingDetails, detailedData, detailTableStates, toggleRowExpansion, handleDetailPaginationChange, handleDetailSortingChange, travelTableColumns]);
+  ], [expandedRows, detailedData, detailTableStates, toggleRowExpansion, handleDetailPaginationChange, handleDetailSortingChange, travelTableColumns]);
 
   const fetchTravelReportData = useCallback(async (filters: any, paginationState: PaginationState, sortingState: SortingState) => {
     if (!filters) return;

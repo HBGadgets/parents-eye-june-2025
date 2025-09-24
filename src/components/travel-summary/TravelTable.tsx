@@ -20,7 +20,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Skeleton } from "@/components/ui/skeleton";
 import {
   ArrowUpDown,
   ArrowUp,
@@ -32,7 +31,7 @@ export interface TravelTableProps<T> {
   data: T[];
   columns: ColumnDef<T>[];
   totalCount: number;
-  loading?: boolean;
+  loading?: boolean; // keep prop for compatibility, but won’t use loader
   onSortingChange?: (sorting: SortingState) => void;
   sorting?: SortingState;
   emptyMessage?: string;
@@ -49,7 +48,7 @@ export function TravelTable<T extends Record<string, any>>({
   data,
   columns,
   totalCount,
-  loading = false,
+  loading = false, // no effect now
   onSortingChange,
   sorting = [],
   emptyMessage = "No travel data available",
@@ -107,7 +106,10 @@ export function TravelTable<T extends Record<string, any>>({
       <div className="border rounded-lg overflow-hidden">
         <div className="overflow-y-auto" style={{ maxHeight }}>
           <Table>
-            <TableHeader className="sticky top-0 z-10" style={{ backgroundColor: '#f3c623' }}>
+            <TableHeader
+              className="sticky top-0 z-10"
+              style={{ backgroundColor: "#f3c623" }}
+            >
               {table.getHeaderGroups().map((headerGroup) => (
                 <TableRow key={headerGroup.id} className="border-b">
                   {headerGroup.headers.map((header) => (
@@ -115,9 +117,10 @@ export function TravelTable<T extends Record<string, any>>({
                       key={header.id}
                       className="text-foreground px-2 py-2 sm:px-4 sm:py-3 text-xs sm:text-sm font-medium uppercase tracking-wider border-r last:border-r-0"
                       style={{
-                        backgroundColor: '#f3c623',
+                        backgroundColor: "#f3c623",
                         width: header.id === "serialNumber" ? "60px" : "auto",
-                        minWidth: header.id === "serialNumber" ? "60px" : "auto",
+                        minWidth:
+                          header.id === "serialNumber" ? "60px" : "auto",
                       }}
                     >
                       {header.isPlaceholder ? null : (
@@ -154,65 +157,47 @@ export function TravelTable<T extends Record<string, any>>({
               ))}
             </TableHeader>
 
-            {loading ? (
-              <TableBody>
-                {Array.from({ length: 10 }).map((_, index) => (
-                  <TableRow key={index}>
-                    {tableColumns.map((_, colIndex) => (
-                      <TableCell key={colIndex}>
-                        <Skeleton className="h-4 w-full" />
+            <TableBody>
+              {table.getRowModel().rows?.length ? (
+                table.getRowModel().rows.map((row) => (
+                  <TableRow
+                    key={row.id}
+                    className="border-b hover:bg-muted/50"
+                  >
+                    {row.getVisibleCells().map((cell) => (
+                      <TableCell
+                        key={cell.id}
+                        className="px-2 py-2 sm:px-4 sm:py-2 text-xs sm:text-sm border-r last:border-r-0 text-center"
+                        style={{
+                          width:
+                            cell.column.id === "serialNumber" ? "60px" : "auto",
+                          minWidth:
+                            cell.column.id === "serialNumber" ? "60px" : "auto",
+                        }}
+                      >
+                        <div className="w-full">
+                          <div className="break-words overflow-wrap-anywhere leading-relaxed">
+                            {flexRender(
+                              cell.column.columnDef.cell,
+                              cell.getContext()
+                            )}
+                          </div>
+                        </div>
                       </TableCell>
                     ))}
                   </TableRow>
-                ))}
-              </TableBody>
-            ) : (
-              <TableBody>
-                {table.getRowModel().rows?.length ? (
-                  table.getRowModel().rows.map((row) => (
-                    <TableRow
-                      key={row.id}
-                      className="border-b hover:bg-muted/50"
-                    >
-                      {row.getVisibleCells().map((cell) => (
-                        <TableCell
-                          key={cell.id}
-                          className="px-2 py-2 sm:px-4 sm:py-2 text-xs sm:text-sm border-r last:border-r-0 text-center"
-                          style={{
-                            width:
-                              cell.column.id === "serialNumber"
-                                ? "60px"
-                                : "auto",
-                            minWidth:
-                              cell.column.id === "serialNumber"
-                                ? "60px"
-                                : "auto",
-                          }}
-                        >
-                          <div className="w-full">
-                            <div className="break-words overflow-wrap-anywhere leading-relaxed">
-                              {flexRender(
-                                cell.column.columnDef.cell,
-                                cell.getContext()
-                              )}
-                            </div>
-                          </div>
-                        </TableCell>
-                      ))}
-                    </TableRow>
-                  ))
-                ) : (
-                  <TableRow>
-                    <TableCell
-                      colSpan={tableColumns.length}
-                      className="text-center py-8 text-muted-foreground"
-                    >
-                      {emptyMessage}
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            )}
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell
+                    colSpan={tableColumns.length}
+                    className="text-center py-8 text-muted-foreground"
+                  >
+                    {emptyMessage}
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
           </Table>
         </div>
       </div>

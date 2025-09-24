@@ -84,7 +84,6 @@ const StatusReportPage: React.FC = () => {
     },
     {
       accessorKey: "startCoordinates", header: "Start Coordinates", size: 200,
-      // ✅ Show both latitude & longitude with 6 digits after decimal
       cell: ({ row }) => {
         const coords = row.original.startCoordinates.split(",");
         const lat = parseFloat(coords[0].trim()).toFixed(6);
@@ -98,7 +97,6 @@ const StatusReportPage: React.FC = () => {
     },
     {
       accessorKey: "endCoordinates", header: "End Coordinates", size: 200,
-      // ✅ Show both latitude & longitude with 6 digits after decimal
       cell: ({ row }) => {
         const coords = row.original.endCoordinates.split(",");
         const lat = parseFloat(coords[0].trim()).toFixed(6);
