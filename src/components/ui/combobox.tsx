@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Check, ChevronsUpDown } from "lucide-react";
+import { Check, ChevronsUpDown, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -33,6 +33,12 @@ interface ComboboxProps {
   className?: string;
   width?: string;
   disabled?: boolean;
+  infiniteScroll?: boolean;
+  limit?: number;
+  onReachEnd?: () => void;
+  isLoadingMore?: boolean;
+  onSearchChange?: (search: string) => void; // New prop for search handling
+  searchValue?: string; // New prop to control search value
 }
 
 export function Combobox({
@@ -45,16 +51,29 @@ export function Combobox({
   className,
   width = "w-[200px]",
   disabled = false,
+  infiniteScroll = false,
+  limit = 20,
+  onReachEnd,
+  isLoadingMore = false,
+  onSearchChange, // New prop
+  searchValue, // New prop
 }: ComboboxProps) {
   const [open, setOpen] = React.useState(false);
   const [internalValue, setInternalValue] = React.useState("");
+  const [visibleCount, setVisibleCount] = React.useState(limit);
+  const [internalSearchValue, setInternalSearchValue] = React.useState("");
 
-  // Use controlled value if provided, otherwise use internal state
   const value = controlledValue !== undefined ? controlledValue : internalValue;
   const setValue =
     controlledValue !== undefined
       ? onValueChange || (() => {})
       : setInternalValue;
+
+  // Use controlled search value if provided, otherwise use internal state
+  const currentSearchValue = searchValue !== undefined ? searchValue : internalSearchValue;
+  const setSearchValue = searchValue !== undefined 
+    ? (onSearchChange || (() => {}))
+    : setInternalSearchValue;
 
   const handleSelect = (currentValue: string) => {
     const newValue = currentValue === value ? "" : currentValue;
@@ -63,6 +82,28 @@ export function Combobox({
   };
 
   const selectedItem = items.find((item) => item.value === value);
+
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    if (!infiniteScroll) return;
+
+    const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
+    if (scrollTop + clientHeight >= scrollHeight - 10) {
+      if (visibleCount < items.length) {
+        setVisibleCount((prev) => prev + limit);
+      }
+      if (onReachEnd) onReachEnd();
+    }
+  };
+
+  const handleSearchValueChange = (search: string) => {
+    setSearchValue(search);
+    // Reset visible count when search changes
+    if (infiniteScroll) {
+      setVisibleCount(limit);
+    }
+  };
+
+  const renderItems = infiniteScroll ? items.slice(0, visibleCount) : items;
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -90,11 +131,12 @@ export function Combobox({
       >
         <Command
           filter={(value, search) => {
-            // Find the item by value
+            // If we're using server-side search, don't filter here
+            if (onSearchChange) return 1;
+            
             const item = items.find((item) => item.value === value);
             if (!item) return 0;
 
-            // Search in both label and value
             const searchLower = search.toLowerCase();
             const labelMatch = item.label.toLowerCase().includes(searchLower);
             const valueMatch = item.value.toLowerCase().includes(searchLower);
@@ -102,11 +144,19 @@ export function Combobox({
             return labelMatch || valueMatch ? 1 : 0;
           }}
         >
-          <CommandInput placeholder={searchPlaceholder} className="h-9" />
-          <CommandList className="max-h-[200px] overflow-y-auto">
+          <CommandInput 
+            placeholder={searchPlaceholder} 
+            className="h-9"
+            value={currentSearchValue}
+            onValueChange={handleSearchValueChange}
+          />
+          <CommandList
+            className="max-h-[200px] overflow-y-auto"
+            onScroll={handleScroll}
+          >
             <CommandEmpty>{emptyMessage}</CommandEmpty>
             <CommandGroup>
-              {items.map((item, idx) => (
+              {renderItems.map((item, idx) => (
                 <CommandItem
                   key={`${item.value}-${idx}`}
                   value={item.value}
@@ -122,6 +172,13 @@ export function Combobox({
                   />
                 </CommandItem>
               ))}
+              {/* Show loading indicator when fetching more data */}
+              {isLoadingMore && (
+                <CommandItem className="justify-center">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span className="ml-2">Loading more...</span>
+                </CommandItem>
+              )}
             </CommandGroup>
           </CommandList>
         </Command>

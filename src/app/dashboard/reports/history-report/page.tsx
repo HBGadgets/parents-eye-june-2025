@@ -4,26 +4,44 @@ import { Combobox } from "@/components/ui/combobox";
 import DateRangeFilter from "@/components/ui/DateRangeFilter";
 import { useDeviceData } from "@/hooks/useDeviceData";
 import { PlaybackControls } from "@/components/history/playback-controls";
-import VehicleMap from "@/components/history/vehicle-map";
 import { Button } from "@/components/ui/button";
-import axios from "axios";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Card } from "@/components/ui/card";
 import FullScreenSpinner from "@/components/RouteLoader";
-import { formatDate, formatDateToYYYYMMDD } from "@/util/formatDate";
+import { formatDateToYYYYMMDD } from "@/util/formatDate";
 import { api } from "@/services/apiService";
-import { set } from "lodash";
-import { setDate } from "date-fns";
 import TripsSidebar from "@/components/history/sliding-side-bar";
 import { Menu } from "lucide-react";
+import dynamic from "next/dynamic";
+
+// Dynamically import VehicleMap with SSR disabled
+const VehicleMap = dynamic(() => import("@/components/history/vehicle-map"), {
+  ssr: false,
+  loading: () => (
+    <div className="w-full h-[400px] flex items-center justify-center bg-gray-100">
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
+        <p className="mt-2 text-gray-600">Loading map...</p>
+      </div>
+    </div>
+  ),
+});
 
 export default function HistoryReport() {
-  const { data: vehicleData } = useDeviceData();
+  const [searchTerm, setSearchTerm] = useState("");
+  
+  const { 
+    data: vehicleData, 
+    fetchNextPage, 
+    hasNextPage, 
+    isFetchingNextPage,
+    isLoading: vehiclesLoading 
+  } = useDeviceData({ searchTerm });
+  
   const [selectedVehicle, setSelectedVehicle] = useState("");
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
-  const [isGraphControlling, setIsGraphControlling] = useState(false); // Track if graph is controlling playback
+  const [isGraphControlling, setIsGraphControlling] = useState(false);
   const [isMapExpanded, setIsMapExpanded] = useState(false);
   const [fromDate, setFromDate] = useState<String | null>(null);
   const [toDate, setToDate] = useState<String | null>(null);
@@ -62,15 +80,19 @@ export default function HistoryReport() {
 
   const currentData = data[currentIndex];
 
-  // *****************************************For Filter (Start)***********************************************************//
+  // Flatten all pages of vehicle data
+  const allVehicles = useMemo(() => {
+    if (!vehicleData?.pages) return [];
+    return vehicleData.pages.flat();
+  }, [vehicleData]);
 
   const vehicleMetaData = useMemo(() => {
-    if (!Array.isArray(vehicleData)) return [];
-    return vehicleData.map((vehicle) => ({
-      value: vehicle.deviceId,
+    if (!Array.isArray(allVehicles)) return [];
+    return allVehicles.map((vehicle) => ({
+      value: vehicle.deviceId.toString(),
       label: vehicle.name,
     }));
-  }, [vehicleData]);
+  }, [allVehicles]);
 
   useEffect(() => {
     console.log("Selected Vehicle ID:", selectedVehicle);
@@ -78,7 +100,6 @@ export default function HistoryReport() {
 
   const handleDateFilter = useMemo(
     () => (startDate: Date | null, endDate: Date | null) => {
-      // console.log("Selected Date Range:", startDate, endDate);
       const formattedStart = formatDateToYYYYMMDD(startDate);
       const formattedEnd = formatDateToYYYYMMDD(endDate);
       setFromDate(formattedStart);
@@ -86,6 +107,18 @@ export default function HistoryReport() {
     },
     []
   );
+
+  // Handle infinite scroll for vehicle combobox
+  const handleVehicleReachEnd = useCallback(() => {
+    if (hasNextPage && !isFetchingNextPage) {
+      fetchNextPage();
+    }
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+
+  // Handle search functionality with debounce
+  const handleSearchChange = useCallback((search: string) => {
+    setSearchTerm(search);
+  }, []);
 
   // *****************************************Auto Play Functionality (Start)***********************************************************//
 
@@ -95,7 +128,7 @@ export default function HistoryReport() {
 
     let animationFrameId: number;
     let lastTime = performance.now();
-    const frameInterval = 1000 / playbackSpeed; // ms between frames
+    const frameInterval = 1000 / playbackSpeed;
 
     function tick(currentTime: number) {
       const elapsed = currentTime - lastTime;
@@ -126,12 +159,12 @@ export default function HistoryReport() {
 
   const handlePlayPause = useCallback(() => {
     setIsPlaying(!isPlaying);
-    setIsGraphControlling(false); // Resume normal playback
+    setIsGraphControlling(false);
   }, [isPlaying]);
 
   const handleSeek = useCallback((index: number) => {
     setCurrentIndex(index);
-    setIsGraphControlling(false); // Manual seek, resume normal behavior
+    setIsGraphControlling(false);
   }, []);
 
   const handlePrevious = () => {
@@ -151,46 +184,6 @@ export default function HistoryReport() {
   const handleSpeedChange = (speed: number) => {
     setPlaybackSpeed(speed);
   };
-
-  // *****************************************Auto Play Functionality (End)***********************************************************//
-
-  // const handleShow = () => {
-  //   const url =
-  //     "https://vts.credencetracker.com/backend/history/device-history-playback";
-  //   const bearerToken =
-  //     "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6InNhaXNodSIsImlkIjoiNjcxMzY1M2I2MTNjZjJkMmM1MzJlZDBlIiwidXNlcnMiOmZhbHNlLCJzdXBlcmFkbWluIjp0cnVlLCJ1c2VyIjpudWxsLCJyb2xlIjoic3VwZXJhZG1pbiIsImlhdCI6MTc1Nzc0NTE1MH0.rP639lrm5Z_LvgfIQ1czKR91Ftw7O_ZGAzijWsLZPic";
-
-  //   const payload = {
-  //     period: "Last Seven Days",
-  //     from: "2025-09-10T00:01:00.000Z",
-  //     to: "2025-09-17T11:37:04.248Z",
-  //     deviceId: "3028",
-  //   };
-
-  //   setLoading(true);
-
-  //   axios
-  //     .post(url, payload, {
-  //       headers: {
-  //         Authorization: `Bearer ${bearerToken}`,
-  //         "Content-Type": "application/json",
-  //       },
-  //     })
-  //     .then((response) => {
-  //       // const sortedData = [...response.data.deviceHistory].sort(
-  //       //   (a, b) =>
-  //       //     new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-  //       // );
-  //       setData(response.data.deviceHistory);
-  //       setLoading(false);
-  //       setCurrentIndex(0); // Reset to start
-  //       console.log(response.data.deviceHistory);
-  //     })
-  //     .catch((error) => {
-  //       console.error(error);
-  //       setLoading(false);
-  //     });
-  // };
 
   const handleShow = async () => {
     if (!selectedVehicle) {
@@ -214,7 +207,7 @@ export default function HistoryReport() {
       alert("Failed to fetch data. Please try again.");
     } finally {
       setLoading(false);
-      setCurrentIndex(0); // Reset to start
+      setCurrentIndex(0);
     }
   };
 
@@ -233,10 +226,16 @@ export default function HistoryReport() {
               value={selectedVehicle}
               onValueChange={setSelectedVehicle}
               placeholder="Select Vehicle"
+              searchPlaceholder="Search vehicles..."
               emptyMessage="No vehicles found"
               width="w-[300px]"
+              infiniteScroll={true} 
+              limit={20} 
+              onReachEnd={handleVehicleReachEnd}
+              isLoadingMore={isFetchingNextPage}
+              onSearchChange={handleSearchChange}
+              searchValue={searchTerm}
             />
-
             <DateRangeFilter
               onDateRangeChange={handleDateFilter}
               title="Select Date Range"
