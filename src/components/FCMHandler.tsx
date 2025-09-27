@@ -36,7 +36,7 @@ export default function FCMHandler(): null {
         const storedToken = localStorage.getItem("fcm_token");
 
         if (storedToken) {
-          console.log("📦 Reusing stored FCM Token:", storedToken);
+          // console.log("📦 Reusing stored FCM Token:", storedToken);
         } else {
           try {
             const newToken = await getToken(messaging as Messaging, {
@@ -44,7 +44,7 @@ export default function FCMHandler(): null {
             });
 
             if (!newToken) {
-              console.warn("❌ Failed to retrieve new FCM token.");
+              // console.warn("❌ Failed to retrieve new FCM token.");
               return;
             }
 
@@ -55,9 +55,9 @@ export default function FCMHandler(): null {
             const token = Cookies.get("token");
 
             if (!token) {
-              console.warn(
-                "⚠️ Auth token not found. Cannot send FCM token to server."
-              );
+              // console.warn(
+              //   "⚠️ Auth token not found. Cannot send FCM token to server."
+              // );
               return;
             }
 
@@ -69,13 +69,13 @@ export default function FCMHandler(): null {
 
             // console.log("📤 FCM token successfully sent to backend.");
           } catch (err) {
-            console.error("🚨 Error during FCM token generation/storage:", err);
+            // console.error("🚨 Error during FCM token generation/storage:", err);
           }
         }
 
         // Set up listener once
         onMessage(messaging as Messaging, (payload) => {
-          console.log("🔔 Foreground notification:", payload);
+          // console.log("🔔 Foreground notification:", payload);
 
           const title = payload.notification?.title ?? "New Notification";
           const body = payload.notification?.body ?? "";
@@ -83,7 +83,7 @@ export default function FCMHandler(): null {
 
           // Play sound
           notificationSound.play().catch((err) => {
-            console.warn("🔇 Sound blocked:", err);
+            // console.warn("🔇 Sound blocked:", err);
           });
 
           if ("serviceWorker" in navigator) {
@@ -97,7 +97,7 @@ export default function FCMHandler(): null {
                   );
                 })
                 .catch((err) => {
-                  console.error("Service Worker registration failed:", err);
+                  // console.error("Service Worker registration failed:", err);
                 });
             });
           }
@@ -124,7 +124,7 @@ export default function FCMHandler(): null {
           });
         });
       } catch (err) {
-        console.error("🔥 FCM Init Error:", err);
+        // console.error("🔥 FCM Init Error:", err);
       }
     };
 

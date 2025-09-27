@@ -1,0 +1,337 @@
+/* Vehicle marker styles */
+.custom-vehicle-marker {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+.vehicle-marker-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+}
+
+.vehicle-marker-img {
+    display: block;
+    max-width: 100%;
+    max-height: 100%;
+    pointer-events: none;
+}
+
+/* styles/VehicleMap.css */
+.vehicle-map-container {
+    position: relative;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    z-index: 0;
+}
+
+/* Map Controls */
+.map-controls {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    z-index: 1000;
+}
+
+.map-control-button {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 12px;
+    background: white;
+    border: none;
+    border-radius: 6px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 500;
+    color: #333;
+    transition: all 0.2s ease;
+}
+
+.map-control-button:hover {
+    background: #f8f9fa;
+    box-shadow: 0 3px 12px rgba(0, 0, 0, 0.2);
+    transform: translateY(-1px);
+}
+
+.map-control-button:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+}
+
+.control-icon {
+    font-size: 14px;
+}
+
+.control-text {
+    font-weight: 600;
+}
+
+.fit-bounds-btn {
+    background: #007bff;
+    color: white;
+}
+
+.fit-bounds-btn:hover {
+    background: #0056b3;
+}
+
+/* Existing styles */
+/* Vehicle popup with gap between content and scrollbar */
+.vehicle-popup-content {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    width: fit-content;
+    /* Width adjusts to content */
+    max-width: 300px;
+    /* Prevent excessively wide popups */
+    min-width: 250px;
+    /* Minimum readable width */
+    max-height: 200px;
+    /* Minimum height before scrolling */
+    overflow-y: auto;
+    /* Enable vertical scrolling */
+    overflow-x: hidden !important;
+    /* Prevent horizontal scrolling */
+    word-wrap: break-word;
+    /* Break long words to prevent horizontal overflow */
+    white-space: normal;
+    /* Allow text wrapping */
+    box-sizing: border-box;
+    padding-right: 12px;
+    /* Add gap between content and scrollbar */
+    padding-left: 8px;
+    /* Balance left padding */
+    padding-top: 8px;
+    /* Top padding */
+    padding-bottom: 8px;
+    /* Bottom padding */
+}
+
+.vehicle-popup-content * {
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow-wrap: break-word;
+    /* Break long words */
+}
+
+/* Enhanced scrollbar with gap */
+.vehicle-popup-content::-webkit-scrollbar {
+    width: 8px;
+    /* Slightly wider scrollbar */
+    margin-left: 4px;
+    /* Additional space from content */
+}
+
+.vehicle-popup-content::-webkit-scrollbar-track {
+    background: transparent;
+    /* Clean transparent track */
+    margin: 4px 0;
+    /* Add margin top/bottom */
+}
+
+.vehicle-popup-content::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 4px;
+    border: 1px solid transparent;
+    /* Visual separation */
+    background-clip: content-box;
+    /* Clean edge clipping */
+}
+
+.vehicle-popup-content::-webkit-scrollbar-thumb:hover {
+    background: #a8a8a8;
+    background-clip: content-box;
+}
+
+.vehicle-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.vehicle-name {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+    color: #333;
+    flex: 1;
+}
+
+.status-badge {
+    padding: 4px 8px;
+    border-radius: 12px;
+    color: white;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.vehicle-details {
+    margin: 12px 0;
+}
+
+.detail-row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 6px;
+    font-size: 13px;
+    flex-wrap: wrap;
+}
+
+.detail-row .label {
+    color: #666;
+    font-weight: 500;
+}
+
+.detail-row .value {
+    font-weight: 600;
+    color: #333;
+    word-break: break-word;
+    overflow-wrap: break-word;
+    max-width: 100px;
+    /* Limit to prevent overflow */
+    text-align: right;
+}
+
+.detail-row .value.online {
+    color: #28a745;
+}
+
+.detail-row .value.offline {
+    color: #dc3545;
+}
+
+.vehicle-coordinates {
+    margin-top: 12px;
+    padding-top: 8px;
+    border-top: 1px solid #e9ecef;
+    text-align: center;
+}
+
+.vehicle-coordinates small {
+    color: #666;
+    font-family: monospace;
+    word-break: break-all;
+    /* Allow coordinate text to break */
+}
+
+/* Map Legend */
+.map-legend {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: white;
+    padding: 12px;
+    border-radius: 6px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    z-index: 1000;
+    font-size: 12px;
+}
+
+.map-legend h4 {
+    margin: 0 0 8px 0;
+    font-size: 13px;
+    color: #333;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    margin-bottom: 4px;
+}
+
+.legend-color {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    margin-right: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.8);
+}
+
+/* Marker Animation */
+.vehicle-marker {
+    transition: transform 0.3s ease;
+}
+
+.vehicle-marker:hover {
+    transform: scale(1.1);
+    z-index: 1000;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .vehicle-popup-content {
+        min-width: 150px;
+        /* Smaller minimum width on mobile */
+        max-width: calc(100vw - 40px);
+        /* Prevent popup from exceeding screen width */
+        max-height: 300px;
+        /* Smaller max height on mobile */
+    }
+
+    .map-controls {
+        top: auto;
+        bottom: 70px;
+        left: 10px;
+        right: 10px;
+    }
+
+    .map-legend {
+        top: auto;
+        bottom: 10px;
+        right: 10px;
+        left: 10px;
+    }
+
+    .legend-item {
+        display: inline-flex;
+        margin-right: 12px;
+        margin-bottom: 0;
+    }
+
+    .control-text {
+        display: none;
+    }
+}
+
+/* Highlighted marker styles */
+.custom-vehicle-marker.highlighted {
+    z-index: 1000 !important;
+}
+
+.custom-vehicle-marker.highlighted .vehicle-marker-img {
+    transform: scale(1.3) !important;
+    border: 3px solid #007bff !important;
+    border-radius: 50% !important;
+    box-shadow: 0 0 15px rgba(0, 123, 255, 0.6) !important;
+    animation: pulse-highlight 2s ease-in-out;
+}
+
+/* Pulse animation for highlighted markers */
+@keyframes pulse-highlight {
+    0% {
+        box-shadow: 0 0 15px rgba(0, 123, 255, 0.6);
+    }
+
+    50% {
+        box-shadow: 0 0 25px rgba(0, 123, 255, 0.9);
+    }
+
+    100% {
+        box-shadow: 0 0 15px rgba(0, 123, 255, 0.6);
+    }
+}
+
+/* Ensure proper z-index layering */
+.custom-vehicle-marker {
+    transition: all 0.3s ease;
+}

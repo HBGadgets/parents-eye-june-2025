@@ -1,19 +1,32 @@
-// types/socket.ts
-
 // Device data structure based on your backend
 export interface DeviceData {
-  deviceId?: string;
-  name?: string;
-  uniqueId?: string;
   speed: number;
+  longitude: number;
+  latitude: number;
+  course: number;
+  deviceId: number;
+  imei: string;
   attributes: {
+    charge: boolean;
     ignition: boolean;
+    motion: boolean;
+    sat: number;
+    distance: number;
     totalDistance: number;
+    todayDistance: number;
   };
+  batteryLevel: number;
+  gsmSignal: number;
+  category: string;
+  status: string;
   lastUpdate: string;
-  runningDuration?: string;
-  tripDistance?: number;
-  matchesSearch?: boolean;
+  name: string;
+  TD: number;
+  mileage: string;
+  speedLimit: string;
+  fuelConsumption: string;
+  matchesSearch: boolean;
+  total: number;
 }
 
 // Filter options for device queries
