@@ -573,7 +573,11 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
   }, [currentPoint, currentIndex, isRouteDrawn]);
 
   if (!data || data.length === 0) {
-    return <p>No Data Available</p>;
+    return (
+      <div className="w-full h-full flex items-center justify-center">
+        <p>No Data Available</p>
+      </div>
+    );
   }
 
   // Enhanced resize handler

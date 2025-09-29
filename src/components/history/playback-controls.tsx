@@ -1,3 +1,4 @@
+"use client";
 import React, { useMemo, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
@@ -61,7 +62,10 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({
     };
   };
 
-  const { date, time } = formatDateTime(currentData.createdAt);
+  const { date, time } = formatDateTime(currentData?.createdAt) || {
+    date: "",
+    time: "",
+  };
 
   // Prepare chart data
   // Memoize base chart data (only recalculates when historyData changes)
@@ -259,7 +263,7 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({
           <Gauge className="w-4 h-4" />
           <span>Speed</span>
           <span className="bg-gray-200 px-2 py-1 rounded-sm">
-            {currentData.speed.toFixed(1)} kmph
+            {currentData?.speed.toFixed(1)} kmph
           </span>
         </div>
 
@@ -268,7 +272,7 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({
           <Clock className="w-4 h-4" />
           <span>Timestamp</span>
           <span className="bg-gray-200 px-2 py-1 rounded-sm">
-            {date + " " + time}
+            {date ? `${date} ${time}` : "N/A"}
           </span>
         </div>
       </div>

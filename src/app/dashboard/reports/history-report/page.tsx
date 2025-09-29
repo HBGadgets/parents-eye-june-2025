@@ -28,15 +28,15 @@ const VehicleMap = dynamic(() => import("@/components/history/vehicle-map"), {
 
 export default function HistoryReport() {
   const [searchTerm, setSearchTerm] = useState("");
-  
-  const { 
-    data: vehicleData, 
-    fetchNextPage, 
-    hasNextPage, 
+
+  const {
+    data: vehicleData,
+    fetchNextPage,
+    hasNextPage,
     isFetchingNextPage,
-    isLoading: vehiclesLoading 
+    isLoading: vehiclesLoading,
   } = useDeviceData({ searchTerm });
-  
+
   const [selectedVehicle, setSelectedVehicle] = useState("");
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -102,8 +102,8 @@ export default function HistoryReport() {
     () => (startDate: Date | null, endDate: Date | null) => {
       const formattedStart = formatDateToYYYYMMDD(startDate);
       const formattedEnd = formatDateToYYYYMMDD(endDate);
-      setFromDate(formattedStart);
-      setToDate(formattedEnd);
+      setFromDate(formattedStart + "T00:00:00.000Z");
+      setToDate(formattedEnd + "T23:59:59.000Z");
     },
     []
   );
@@ -229,8 +229,8 @@ export default function HistoryReport() {
               searchPlaceholder="Search vehicles..."
               emptyMessage="No vehicles found"
               width="w-[300px]"
-              infiniteScroll={true} 
-              limit={20} 
+              infiniteScroll={true}
+              limit={20}
               onReachEnd={handleVehicleReachEnd}
               isLoadingMore={isFetchingNextPage}
               onSearchChange={handleSearchChange}

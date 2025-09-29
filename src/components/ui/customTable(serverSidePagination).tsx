@@ -86,6 +86,11 @@ export interface DataTableProps<T> {
   // New wrapping options
   defaultTextWrap?: TextWrapOption;
   enableColumnWrapping?: boolean;
+
+  selectedRowId?: number | string | null; // ID of the currently selected row
+  getRowId?: (row: T) => number | string; // Function to extract ID from row data
+  getRowClassName?: (row: T, isSelected: boolean) => string; // Function to get custom row classes
+  selectedRowClassName?: string; // Default class for selected rows
 }
 
 export function CustomTableServerSidePagination<T extends Record<string, any>>({
@@ -111,6 +116,10 @@ export function CustomTableServerSidePagination<T extends Record<string, any>>({
   enableRowClick = true,
   defaultTextWrap = "nowrap",
   enableColumnWrapping = true,
+  selectedRowId = null,
+  getRowId = (row: T) => row.id || row.deviceId || row.key, // Default ID extraction
+  getRowClassName,
+  selectedRowClassName = "bg-blue-100 hover:bg-blue-200 border-l-4 border-blue-500",
 }: DataTableProps<T>) {
   // Function to get wrapping classes based on wrap option
   const getWrapClasses = (wrapOption: TextWrapOption): string => {
@@ -340,6 +349,29 @@ export function CustomTableServerSidePagination<T extends Record<string, any>>({
                         );
                       }
 
+                      const rowId = getRowId(rowData);
+                      const isSelected =
+                        selectedRowId !== null && rowId === selectedRowId;
+
+                      // Build row className
+                      let rowClassName = `border-b transition-colors duration-200 ${
+                        enableRowClick && onRowClick ? "cursor-pointer" : ""
+                      }`;
+
+                      if (isSelected) {
+                        // Use custom className function or default selected className
+                        const selectedClass = getRowClassName
+                          ? getRowClassName(rowData, true)
+                          : selectedRowClassName;
+                        rowClassName += ` ${selectedClass}`;
+                      } else {
+                        // Apply normal hover effects for non-selected rows
+                        const normalClass = getRowClassName
+                          ? getRowClassName(rowData, false)
+                          : "hover:bg-muted/50";
+                        rowClassName += ` ${normalClass}`;
+                      }
+
                       return (
                         <TableRow
                           key={row.id}
@@ -347,6 +379,8 @@ export function CustomTableServerSidePagination<T extends Record<string, any>>({
                             enableRowClick && onRowClick ? "cursor-pointer" : ""
                           }`}
                           onClick={(event) => handleRowClick(row, event)}
+                          data-selected={isSelected} // Add data attribute for CSS targeting
+                          data-row-id={rowId} // Add row ID for debugging/testing
                         >
                           {row.getVisibleCells().map((cell) => {
                             // Get column-specific wrap config from meta

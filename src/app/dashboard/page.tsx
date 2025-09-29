@@ -22,6 +22,7 @@ import { useReverseGeocode } from "@/hooks/useReverseGeocoding";
 import { DeviceData } from "@/types/socket";
 import { calculateTimeSince } from "@/util/calculateTimeSince";
 import { Locate, MoveLeft, MoveRight } from "lucide-react";
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 type ViewState = "split" | "tableExpanded" | "mapExpanded";
@@ -482,6 +483,22 @@ export default function DashboardPage() {
     setSelectedDevice(device);
     setIsDrawerOpen(true);
   }, []);
+
+  // ✅ Function to get row styling based on selection
+  const getRowClassName = useCallback(
+    (device: DeviceData) => {
+      const baseClasses =
+        "cursor-pointer transition-colors duration-200 hover:bg-gray-50";
+      const selectedClasses =
+        "bg-blue-100 hover:bg-blue-200 border-l-4 border-blue-500";
+
+      return device.deviceId === selectedVehicleId
+        ? `${baseClasses} ${selectedClasses}`
+        : baseClasses;
+    },
+    [selectedVehicleId]
+  );
+
   // Handle view state changes - Simple toggle pattern
   const handleExpandTable = useCallback(() => {
     if (viewState === "mapExpanded") {
@@ -579,10 +596,26 @@ export default function DashboardPage() {
     enableSorting: true,
     showSerialNumber: true,
     onRowClick: handleDeviceSelection,
+    selectedRowId: selectedVehicleId,
+    getRowId: (row: DeviceData) => row.deviceId, // Extract device ID
+    selectedRowClassName:
+      "bg-blue-100 hover:bg-blue-200 border-l-4 border-blue-500", // Custom selected style
   });
 
   return (
     <>
+      <style jsx>{`
+        .table-row-selected {
+          background-color: #dbeafe !important;
+          border-left: 4px solid #3b82f6 !important;
+        }
+        .table-row-selected:hover {
+          background-color: #bfdbfe !important;
+        }
+        .table-row-hover:hover {
+          background-color: #f9fafb;
+        }
+      `}</style>
       <ResponseLoader isLoading={isLoading} />
       <div>
         <div className="flex justify-between">
@@ -718,11 +751,20 @@ export default function DashboardPage() {
             <DrawerOverlay className="pointer-events-none bg-transparent" />
             <DrawerContent>
               <DrawerHeader>
-                <DrawerTitle className="text-left">
+                <DrawerTitle className="flex justify-between items-center">
                   {selectedDevice && `${selectedDevice.name}`}
+                  <div className="mr-4">
+                    <button className="rounded-sm mr-1 text-primary border border-primary px-2 py-1 hover:bg-primary hover:text-white transition-colors duration-200 cursor-pointer">
+                      Track
+                    </button>
+                    <button className="rounded-sm mr-1 text-primary border border-primary px-2 py-1 hover:bg-primary hover:text-white transition-colors duration-200 cursor-pointer">
+                      History
+                    </button>
+                  </div>
                 </DrawerTitle>
+
                 <DrawerClose
-                  className="absolute right-4 top-7 cursor-pointer hover:text-gray-600"
+                  className="absolute top-10 right-1 rounded-sm text-white border border-primary px-2 py-1 bg-primary hover:bg-[#b4931b] transition-colors duration-200 cursor-pointer"
                   aria-label="Close"
                 >
                   X
@@ -732,24 +774,95 @@ export default function DashboardPage() {
               <div className="p-4 space-y-4">
                 {selectedDevice ? (
                   <>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-4 gap-4">
                       <div>
-                        <label className="font-semibold">Device ID:</label>
-                        <p>{selectedDevice.deviceId}</p>
+                        <label className="flex items-center gap-2">
+                          <img
+                            src="/dashboard-icons/speed.svg"
+                            className="w-6"
+                            alt=""
+                          />{" "}
+                          <span className="text-stone-600">Speed</span>
+                        </label>
+                        <p className="ml-8">
+                          {selectedDevice?.speed.toFixed(2) + " km/h" || "N/A"}
+                        </p>
                       </div>
                       <div>
-                        <label className="font-semibold">Device Name:</label>
-                        <p>{selectedDevice.name || "N/A"}</p>
+                        <label className="flex items-center gap-2">
+                          <img
+                            src="/dashboard-icons/odometer.svg"
+                            className="w-6"
+                            alt=""
+                          />{" "}
+                          <span className="text-stone-600">Odometer</span>
+                        </label>
+                        <p className="ml-8">
+                          {(
+                            selectedDevice?.attributes?.totalDistance / 1000
+                          ).toFixed(2) + " km/h" || "N/A"}
+                        </p>
                       </div>
                       <div>
-                        <label className="font-semibold">Status:</label>
-                        <p>{selectedDevice.status || "Unknown"}</p>
+                        <label className="flex items-center gap-2">
+                          <img
+                            src="/dashboard-icons/todays-distance.svg"
+                            className="w-6"
+                            alt=""
+                          />{" "}
+                          <span className="text-stone-600">
+                            Today's Distance
+                          </span>
+                        </label>
+                        <p className="ml-8">
+                          {(
+                            selectedDevice?.attributes?.todayDistance / 1000
+                          ).toFixed(2) + " km/h" || "N/A"}
+                        </p>
                       </div>
                       <div>
-                        <label className="font-semibold">Last Location:</label>
-                        {/* <p>{selectedDevice.location || "N/A"}</p> */}
+                        <label className="flex items-center gap-2">
+                          <img
+                            src="/dashboard-icons/todays-distance.svg"
+                            className="w-6"
+                            alt=""
+                          />{" "}
+                          <span className="text-stone-600">Co-ordinates</span>
+                        </label>
+                        <Link
+                          href={`https://www.google.com/maps?q=${selectedDevice?.latitude},${selectedDevice?.longitude}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="hover:underline"
+                        >
+                          <p className="ml-8 text-blue-700">
+                            {`${selectedDevice?.latitude}, ${selectedDevice?.longitude}` ||
+                              "N/A"}
+                          </p>
+                        </Link>
                       </div>
-                      {/* Add more device properties as needed */}
+                      <div>
+                        <label className="flex items-center gap-2">
+                          <img
+                            src="/dashboard-icons/last-update.svg"
+                            className="w-6"
+                            alt=""
+                          />{" "}
+                          <span className="text-stone-600">Last Update</span>
+                        </label>
+
+                        <p className="ml-8 ">
+                          {`${new Date(
+                            selectedDevice.lastUpdate
+                          ).toLocaleDateString("en-US", {
+                            year: "numeric",
+                            month: "short",
+                            day: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}` || "N/A"}
+                        </p>
+                      </div>
                     </div>
                   </>
                 ) : (
