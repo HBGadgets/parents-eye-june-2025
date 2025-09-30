@@ -17,7 +17,7 @@ import {
 import { useMediaQuery } from "usehooks-ts";
 import SingleDeviceLiveTrack from "./single-device-livetrack";
 import "./styles.css";
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import { useSingleDeviceData } from "@/hooks/livetrack/useLiveDeviceData";
 
 interface Imei {
@@ -34,7 +34,6 @@ interface LiveTrackProps {
 export const LiveTrack = ({ open, setOpen, selectedImei }: LiveTrackProps) => {
   const isDesktop = useMediaQuery("(min-width: 768px)");
 
-  // Use the single device data hook - it handles auto-streaming
   const {
     deviceData,
     isActive,
@@ -44,16 +43,13 @@ export const LiveTrack = ({ open, setOpen, selectedImei }: LiveTrackProps) => {
     switchToAllDevices,
   } = useSingleDeviceData(open ? selectedImei?.imei : undefined);
 
-  // Memoize the current imei and name
   const currentImei = useMemo(() => selectedImei?.imei, [selectedImei?.imei]);
   const currentName = useMemo(() => selectedImei?.name, [selectedImei?.name]);
 
-  // Handle dialog close with proper cleanup
   const handleDialogClose = useCallback(
     (isOpen: boolean) => {
       if (!isOpen) {
         console.log("[LiveTrack] Dialog closing, switching to all devices");
-        // Switch back to all devices mode when dialog closes
         if (isConnected && isAuthenticated) {
           switchToAllDevices();
         }
@@ -63,19 +59,16 @@ export const LiveTrack = ({ open, setOpen, selectedImei }: LiveTrackProps) => {
     [setOpen, switchToAllDevices, isConnected, isAuthenticated]
   );
 
-  // Memoize the child component props to prevent unnecessary re-renders
+  // FIX: Pass deviceData as vehicle prop
   const singleDeviceProps = useMemo(
     () => ({
-      deviceData,
-      isLoading,
-      isActive,
-      imei: currentImei,
-      deviceName: currentName,
+      vehicle: deviceData, // Changed from deviceData to vehicle
+      autoCenter: true, // Enable auto-centering
+      showTrail: false, // Optional: set to true if you want to show vehicle trail
     }),
-    [deviceData, isLoading, isActive, currentImei, currentName]
+    [deviceData]
   );
 
-  // Early return if no imei selected
   if (!currentImei) {
     return null;
   }

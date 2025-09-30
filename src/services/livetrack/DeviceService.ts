@@ -62,11 +62,6 @@ class DeviceService {
       return;
     }
 
-    // if (this.socket?.connected) {
-    //   console.log("[DeviceService] Already connected to socket");
-    //   return;
-    // }
-
     try {
       this.socket = io(this.baseUrl, {
         autoConnect: false,

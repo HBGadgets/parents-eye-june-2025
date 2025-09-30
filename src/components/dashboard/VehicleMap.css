@@ -1,3 +1,25 @@
+/* Smooth marker movement animation - 10 second duration */
+.smooth-marker {
+    transition: transform 9.5s linear,
+        margin-left 9.5s linear,
+        margin-top 9.5s linear !important;
+}
+
+.custom-single-vehicle-marker {
+    transition: all 9.5s linear;
+    /* Changed from 1s to 10s */
+}
+
+.vehicle-marker-img {
+    transition: transform 9.5s linear !important;
+    /* Smooth rotation over 10s */
+}
+
+/* Leaflet marker pane smooth transitions */
+.leaflet-marker-pane .smooth-marker {
+    transition: transform 9.5s linear !important;
+}
+
 /* Vehicle marker styles */
 .custom-vehicle-marker {
     background: transparent !important;

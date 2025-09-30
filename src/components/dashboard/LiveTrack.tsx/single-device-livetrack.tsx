@@ -52,7 +52,7 @@ interface SingleDeviceLiveTrackProps {
   showTrail?: boolean;
 }
 
-// Optimized marker component for single device
+// Optimized marker component with CONTROLLED ANIMATION
 const SingleVehicleMarker = React.memo(
   ({
     vehicle,
@@ -61,7 +61,11 @@ const SingleVehicleMarker = React.memo(
     vehicle: VehicleData;
     onClick?: (vehicle: VehicleData) => void;
   }) => {
-    // Memoize vehicle status calculation
+    const markerRef = useRef<L.Marker | null>(null);
+    const prevPositionRef = useRef<[number, number] | null>(null);
+    const isZoomingRef = useRef(false);
+
+    // Vehicle status calculation (keep your existing logic)
     const vehicleStatus = useMemo(() => {
       const lastUpdateTime = new Date(vehicle.lastUpdate).getTime();
       const currentTime = new Date().getTime();
@@ -106,7 +110,6 @@ const SingleVehicleMarker = React.memo(
       vehicle.attributes.ignition,
     ]);
 
-    // Memoize image URL
     const imageUrl = useMemo(() => {
       const statusToImageUrl = {
         running: "/bus/top-view/green-top.png",
@@ -119,9 +122,9 @@ const SingleVehicleMarker = React.memo(
       return statusToImageUrl[vehicleStatus] || statusToImageUrl.inactive;
     }, [vehicleStatus]);
 
-    // Memoize icon with proper sizing
     const busIcon = useMemo(() => {
       const rotationAngle = vehicle.course || 0;
+      const markerSize = 200;
 
       return L.divIcon({
         html: `
@@ -131,28 +134,64 @@ const SingleVehicleMarker = React.memo(
               class="vehicle-marker-img"
               style="
                 transform: rotate(${rotationAngle - 90}deg);
-                width: 200px;
-                height: 200px;
+                width: ${markerSize}px;
+                height: ${markerSize}px;
                 transform-origin: center center;
-                transition: transform 0.3s ease;
                 filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
               " 
               alt="Vehicle marker"
             />
           </div>
         `,
+        // Don't add smooth-marker class here - we'll control it with JavaScript
         className: "custom-single-vehicle-marker",
-        iconSize: [32, 32],
-        iconAnchor: [16, 16],
-        popupAnchor: [0, -16],
+        iconSize: [markerSize, markerSize],
+        iconAnchor: [markerSize / 2, markerSize / 2],
+        popupAnchor: [0, -(markerSize / 2)],
       });
     }, [imageUrl, vehicle.course]);
+
+    // NEW: Smooth position update with transition control
+    useEffect(() => {
+      if (markerRef.current) {
+        const newPosition: [number, number] = [
+          vehicle.latitude,
+          vehicle.longitude,
+        ];
+        const prevPosition = prevPositionRef.current;
+
+        // Only update if position has changed
+        if (
+          !prevPosition ||
+          prevPosition[0] !== newPosition[0] ||
+          prevPosition[1] !== newPosition[1]
+        ) {
+          const markerElement = markerRef.current.getElement();
+
+          if (markerElement && !isZoomingRef.current) {
+            // Add smooth transition class ONLY for coordinate changes
+            markerElement.classList.add("smooth-marker");
+
+            // Update position
+            markerRef.current.setLatLng(newPosition);
+            prevPositionRef.current = newPosition;
+            console.log(`[Marker] Updated position to:`, newPosition);
+          } else if (markerElement) {
+            // During zoom, update without transition
+            markerRef.current.setLatLng(newPosition);
+            prevPositionRef.current = newPosition;
+          }
+        }
+
+        // Update icon for rotation changes
+        markerRef.current.setIcon(busIcon);
+      }
+    }, [vehicle.latitude, vehicle.longitude, busIcon]);
 
     const handleClick = useCallback(() => {
       onClick?.(vehicle);
     }, [vehicle, onClick]);
 
-    // Memoize formatted date
     const formattedLastUpdate = useMemo(() => {
       const utcDate = new Date(vehicle.lastUpdate);
       const istDate = new Date(utcDate.getTime() + 5.5 * 60 * 60 * 1000);
@@ -167,7 +206,6 @@ const SingleVehicleMarker = React.memo(
       return `${day}/${month}/${year}, ${hour12}:${minutes}:${seconds} ${ampm}`;
     }, [vehicle.lastUpdate]);
 
-    // Memoize status info
     const statusInfo = useMemo(() => {
       const statusMap = {
         running: { text: "Running", color: "#28a745" },
@@ -182,6 +220,7 @@ const SingleVehicleMarker = React.memo(
 
     return (
       <Marker
+        ref={markerRef}
         position={[vehicle.latitude, vehicle.longitude]}
         icon={busIcon}
         eventHandlers={{
@@ -260,6 +299,8 @@ const SingleVehicleMarker = React.memo(
     );
   }
 );
+
+SingleVehicleMarker.displayName = "SingleVehicleMarker";
 
 // Auto-center handler for single vehicle
 const AutoCenterHandler = ({
