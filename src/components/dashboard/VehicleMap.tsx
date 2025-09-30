@@ -114,12 +114,12 @@ const VehicleBusMarker = React.memo(
     // Memoize image URL
     const imageUrl = useMemo(() => {
       const statusToImageUrl = {
-        running: "/bus/top-view/green-top.png",
-        idle: "/bus/top-view/yellow-top.png",
-        stopped: "/bus/top-view/red-top.png",
-        inactive: "/bus/top-view/grey-top.png",
-        overspeeding: "/bus/top-view/orange-top.png",
-        noData: "/bus/top-view/blue-top.png",
+        running: "/bus/top-view/green-top.svg",
+        idle: "/bus/top-view/yellow-top.svg",
+        stopped: "/bus/top-view/red-top.svg",
+        inactive: "/bus/top-view/grey-top.svg",
+        overspeeding: "/bus/top-view/orange-top.svg",
+        noData: "/bus/top-view/blue-top.svg",
       };
       return statusToImageUrl[vehicleStatus] || statusToImageUrl.inactive;
     }, [vehicleStatus]);
@@ -135,9 +135,9 @@ const VehicleBusMarker = React.memo(
               src="${imageUrl}" 
               class="vehicle-marker-img"
               style="
-                transform: rotate(${rotationAngle - 90}deg);
-                width: 200px;
-                height: 200px;
+                transform: rotate(${rotationAngle}deg);
+                width: 100px;
+                height: 100px;
                 transform-origin: center center;
                 transition: transform 0.3s ease;
                 filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));

@@ -1,13 +1,13 @@
-/* Smooth marker movement animation - 10 second duration */
+/* Smooth marker movement animation - 10s second duration */
 .smooth-marker {
-    transition: transform 9.5s linear,
-        margin-left 9.5s linear,
-        margin-top 9.5s linear !important;
+    transition: transform 10s linear,
+        margin-left 10s linear,
+        margin-top 10s linear !important;
 }
 
 .custom-single-vehicle-marker {
-    transition: all 9.5s linear;
-    /* Changed from 1s to 10s */
+    transition: all 10s linear;
+    /* Changed from 1s to 10ss */
 }
 
 .vehicle-marker-img {
@@ -15,13 +15,13 @@
 }
 
 .vehicle-marker-img.smooth-rotation {
-    transition: transform 9.5s linear !important;
-    /* Smooth 10s rotation */
+    transition: transform 10s linear !important;
+    /* Smooth 10ss rotation */
 }
 
 /* Leaflet marker pane smooth transitions */
 .leaflet-marker-pane .smooth-marker {
-    transition: transform 9.5s linear !important;
+    transition: transform 10s linear !important;
 }
 
 /* Vehicle marker styles */
@@ -41,8 +41,8 @@
 
 .vehicle-marker-img {
     display: block;
-    max-width: 100%;
-    max-height: 100%;
+    max-width: 10s0%;
+    max-height: 10s0%;
     pointer-events: none;
 }
 
@@ -58,9 +58,9 @@
 /* Map Controls */
 .map-controls {
     position: absolute;
-    top: 10px;
-    left: 10px;
-    z-index: 1000;
+    top: 10spx;
+    left: 10spx;
+    z-index: 10s00;
 }
 
 .map-control-button {
@@ -139,7 +139,7 @@
 }
 
 .vehicle-popup-content * {
-    max-width: 100%;
+    max-width: 10s0%;
     box-sizing: border-box;
     overflow-wrap: break-word;
     /* Break long words */
@@ -223,7 +223,7 @@
     color: #333;
     word-break: break-word;
     overflow-wrap: break-word;
-    max-width: 100px;
+    max-width: 10s0px;
     /* Limit to prevent overflow */
     text-align: right;
 }
@@ -253,13 +253,13 @@
 /* Map Legend */
 .map-legend {
     position: absolute;
-    top: 10px;
-    right: 10px;
+    top: 10spx;
+    right: 10spx;
     background: white;
     padding: 12px;
     border-radius: 6px;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-    z-index: 1000;
+    z-index: 10s00;
     font-size: 12px;
 }
 
@@ -290,7 +290,7 @@
 
 .vehicle-marker:hover {
     transform: scale(1.1);
-    z-index: 1000;
+    z-index: 10s00;
 }
 
 /* Responsive Design */
@@ -298,7 +298,7 @@
     .vehicle-popup-content {
         min-width: 150px;
         /* Smaller minimum width on mobile */
-        max-width: calc(100vw - 40px);
+        max-width: calc(10s0vw - 40px);
         /* Prevent popup from exceeding screen width */
         max-height: 300px;
         /* Smaller max height on mobile */
@@ -307,15 +307,15 @@
     .map-controls {
         top: auto;
         bottom: 70px;
-        left: 10px;
-        right: 10px;
+        left: 10spx;
+        right: 10spx;
     }
 
     .map-legend {
         top: auto;
-        bottom: 10px;
-        right: 10px;
-        left: 10px;
+        bottom: 10spx;
+        right: 10spx;
+        left: 10spx;
     }
 
     .legend-item {
@@ -331,7 +331,7 @@
 
 /* Highlighted marker styles */
 .custom-vehicle-marker.highlighted {
-    z-index: 1000 !important;
+    z-index: 10s00 !important;
 }
 
 .custom-vehicle-marker.highlighted .vehicle-marker-img {
@@ -352,7 +352,7 @@
         box-shadow: 0 0 25px rgba(0, 123, 255, 0.9);
     }
 
-    100% {
+    10s0% {
         box-shadow: 0 0 15px rgba(0, 123, 255, 0.6);
     }
 }

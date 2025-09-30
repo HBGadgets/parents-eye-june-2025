@@ -11,6 +11,8 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import "../VehicleMap.css";
 import { calculateTimeSince } from "@/util/calculateTimeSince";
+import { OfflineIndicator } from "./offline-indicator";
+import { VehiclePathTrail } from "./vehicle-path-trail";
 
 // Types based on your socket response - kept the same
 interface VehicleData {
@@ -114,19 +116,19 @@ const SingleVehicleMarker = React.memo(
 
     const imageUrl = useMemo(() => {
       const statusToImageUrl = {
-        running: "/bus/top-view/green-top.png",
-        idle: "/bus/top-view/yellow-top.png",
-        stopped: "/bus/top-view/red-top.png",
-        inactive: "/bus/top-view/grey-top.png",
-        overspeeding: "/bus/top-view/orange-top.png",
-        noData: "/bus/top-view/blue-top.png",
+        running: "/bus/top-view/green-top.svg",
+        idle: "/bus/top-view/yellow-top.svg",
+        stopped: "/bus/top-view/red-top.svg",
+        inactive: "/bus/top-view/grey-top.svg",
+        overspeeding: "/bus/top-view/orange-top.svg",
+        noData: "/bus/top-view/blue-top.svg",
       };
       return statusToImageUrl[vehicleStatus] || statusToImageUrl.inactive;
     }, [vehicleStatus]);
 
     // Icon without rotation (rotation applied separately via JS)
     const busIcon = useMemo(() => {
-      const markerSize = 200;
+      const markerSize = 100;
 
       return L.divIcon({
         html: `
@@ -147,7 +149,7 @@ const SingleVehicleMarker = React.memo(
         className: "custom-single-vehicle-marker",
         iconSize: [markerSize, markerSize],
         iconAnchor: [markerSize / 2, markerSize / 2],
-        popupAnchor: [0, -(markerSize / 2)],
+        popupAnchor: [0, -20],
       });
     }, [imageUrl]);
 
@@ -208,7 +210,7 @@ const SingleVehicleMarker = React.memo(
             }
 
             // FIXED: Always use newRotation - 90
-            imgElement.style.transform = `rotate(${newRotation - 90}deg)`;
+            imgElement.style.transform = `rotate(${newRotation}deg)`;
 
             if (rotationChanged) {
               prevRotationRef.current = newRotation;
@@ -504,6 +506,17 @@ const SingleDeviceLiveTrackControls = ({
   );
 };
 
+// Helper function to interpolate between two points
+const interpolatePoint = (
+  start: [number, number],
+  end: [number, number],
+  progress: number
+): [number, number] => {
+  const lat = start[0] + (end[0] - start[0]) * progress;
+  const lng = start[1] + (end[1] - start[1]) * progress;
+  return [lat, lng];
+};
+
 const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
   vehicle,
   center = [21.99099777777778, 78.92973111111111],
@@ -514,6 +527,153 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
   showTrail = false,
 }) => {
   const mapRef = useRef<L.Map | null>(null);
+  const [vehiclePath, setVehiclePath] = useState<[number, number][]>([]);
+  const animationRef = useRef<number | null>(null);
+  const startTimeRef = useRef<number>(0);
+  const startPointRef = useRef<[number, number] | null>(null);
+  const targetPointRef = useRef<[number, number] | null>(null);
+  const currentPathRef = useRef<[number, number][]>([]); // Track current path
+  const maxPathPoints = 500; // Increased limit for interpolated points
+  const animationDuration = 10000; // 10 seconds
+  const samplingInterval = 500; // Add point every 500ms (not every frame)
+
+  // Get vehicle status
+  const vehicleStatus = useMemo(() => {
+    if (!vehicle) return "noData";
+
+    const lastUpdateTime = new Date(vehicle.lastUpdate).getTime();
+    const currentTime = new Date().getTime();
+    const timeDifference = currentTime - lastUpdateTime;
+    const thirtyFiveHoursInMs = 35 * 60 * 60 * 1000;
+
+    if (timeDifference > thirtyFiveHoursInMs) return "inactive";
+
+    const speedLimit = parseFloat(vehicle.speedLimit) || 60;
+    if (vehicle.speed > speedLimit) return "overspeeding";
+
+    const runningConditions = [
+      vehicle.speed > 5,
+      vehicle.attributes.motion === true,
+      vehicle.attributes.ignition === true,
+    ];
+    const idleConditions = [
+      vehicle.speed < 5,
+      vehicle.attributes.motion === false,
+      vehicle.attributes.ignition === true,
+    ];
+    const stoppedConditions = [
+      vehicle.speed < 5,
+      vehicle.attributes.motion === false,
+      vehicle.attributes.ignition === false,
+    ];
+
+    const trueConditionsCount = runningConditions.filter(Boolean).length;
+    const trueIdleConditionsCount = idleConditions.filter(Boolean).length;
+    const trueStoppedConditionsCount = stoppedConditions.filter(Boolean).length;
+
+    if (trueStoppedConditionsCount >= 2) return "stopped";
+    if (trueConditionsCount >= 2) return "running";
+    if (trueIdleConditionsCount >= 2) return "idle";
+    return "noData";
+  }, [vehicle]);
+
+  // FIXED: Smooth polyline growth with throttled sampling
+  useEffect(() => {
+    if (!vehicle || !showTrail) return;
+
+    const newPoint: [number, number] = [vehicle.latitude, vehicle.longitude];
+    const currentPath = currentPathRef.current;
+    const lastPoint = currentPath[currentPath.length - 1];
+
+    // Check if this is a new position
+    if (
+      lastPoint &&
+      lastPoint[0] === newPoint[0] &&
+      lastPoint[1] === newPoint[1]
+    ) {
+      return; // Same position, no animation needed
+    }
+
+    // Set up animation
+    startPointRef.current = lastPoint || newPoint;
+    targetPointRef.current = newPoint;
+    startTimeRef.current = Date.now();
+    let lastSampleTime = Date.now();
+
+    // Cancel any existing animation
+    if (animationRef.current) {
+      cancelAnimationFrame(animationRef.current);
+    }
+
+    // Animation loop with throttled sampling
+    const animate = () => {
+      const elapsed = Date.now() - startTimeRef.current;
+      const progress = Math.min(elapsed / animationDuration, 1);
+      const currentTime = Date.now();
+
+      if (startPointRef.current && targetPointRef.current) {
+        // Only add point at intervals, not every frame
+        if (
+          currentTime - lastSampleTime >= samplingInterval ||
+          progress === 1
+        ) {
+          const interpolatedPoint = interpolatePoint(
+            startPointRef.current,
+            targetPointRef.current,
+            progress
+          );
+
+          // Update ref and state
+          currentPathRef.current = [
+            ...currentPathRef.current,
+            interpolatedPoint,
+          ];
+
+          // Trim if needed
+          if (currentPathRef.current.length > maxPathPoints) {
+            currentPathRef.current = currentPathRef.current.slice(
+              -maxPathPoints
+            );
+          }
+
+          setVehiclePath([...currentPathRef.current]);
+          lastSampleTime = currentTime;
+
+          console.log(
+            `[Trail] Added point at ${(progress * 100).toFixed(1)}% progress`
+          );
+        }
+      }
+
+      if (progress < 1) {
+        animationRef.current = requestAnimationFrame(animate);
+      } else {
+        // Animation complete
+        console.log("[Trail] Animation complete");
+        animationRef.current = null;
+      }
+    };
+
+    // Start animation
+    animationRef.current = requestAnimationFrame(animate);
+
+    return () => {
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
+      }
+    };
+  }, [vehicle?.latitude, vehicle?.longitude, showTrail]);
+
+  // Clear path when vehicle changes
+  useEffect(() => {
+    if (vehicle?.imei) {
+      setVehiclePath([]);
+      currentPathRef.current = [];
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
+      }
+    }
+  }, [vehicle?.imei]);
 
   // Validate vehicle data
   const isValidVehicle = useMemo(() => {
@@ -528,7 +688,6 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
     );
   }, [vehicle]);
 
-  // Calculate initial map center
   const mapCenter = useMemo(() => {
     if (isValidVehicle && vehicle) {
       return [vehicle.latitude, vehicle.longitude] as [number, number];
@@ -543,7 +702,6 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
     [onVehicleClick]
   );
 
-  // Center map to vehicle manually
   const handleCenterToVehicle = useCallback(() => {
     if (!isValidVehicle || !vehicle) return;
 
@@ -562,6 +720,8 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
       className="single-device-map-container"
       style={{ height, width: "100%" }}
     >
+      {vehicle && <OfflineIndicator isOffline={!vehicle.gsmSignal} />}
+
       <MapContainer
         ref={mapRef}
         center={mapCenter}
@@ -578,31 +738,31 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
         />
 
         <MapResizeHandler />
-
-        {/* NEW: Add zoom transition controller */}
         <ZoomTransitionController vehicle={vehicle} />
-
         <AutoCenterHandler vehicle={vehicle} autoCenter={autoCenter} />
 
+        {/* Render vehicle path trail */}
+        {showTrail && vehiclePath.length > 1 && (
+          <VehiclePathTrail path={vehiclePath} vehicleStatus={vehicleStatus} />
+        )}
+
+        {/* Render vehicle marker */}
         {isValidVehicle && vehicle && (
           <SingleVehicleMarker vehicle={vehicle} onClick={handleVehicleClick} />
         )}
       </MapContainer>
 
-      {/* Map Controls */}
       <SingleDeviceLiveTrackControls
         vehicle={vehicle}
         onCenterToVehicle={handleCenterToVehicle}
       />
 
-      {/* No vehicle message */}
       {!vehicle && (
         <div className="no-vehicle-message">
           <p>No vehicle data available</p>
         </div>
       )}
 
-      {/* Invalid vehicle message */}
       {vehicle && !isValidVehicle && (
         <div className="invalid-vehicle-message">
           <p>Invalid vehicle coordinates: {vehicle.name}</p>

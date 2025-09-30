@@ -62,9 +62,9 @@ export const LiveTrack = ({ open, setOpen, selectedImei }: LiveTrackProps) => {
   // FIX: Pass deviceData as vehicle prop
   const singleDeviceProps = useMemo(
     () => ({
-      vehicle: deviceData, // Changed from deviceData to vehicle
-      autoCenter: true, // Enable auto-centering
-      showTrail: false, // Optional: set to true if you want to show vehicle trail
+      vehicle: deviceData,
+      autoCenter: true,
+      showTrail: true,
     }),
     [deviceData]
   );

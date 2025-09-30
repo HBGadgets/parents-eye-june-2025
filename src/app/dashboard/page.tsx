@@ -27,7 +27,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { LiveTrack } from "@/components/dashboard/LiveTrack.tsx/livetrack";
 type ViewState = "split" | "tableExpanded" | "mapExpanded";
-
+type StatusFilter = "all" | "running" | "idle" | "stopped" | "inactive" | "new";
 export default function DashboardPage() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
