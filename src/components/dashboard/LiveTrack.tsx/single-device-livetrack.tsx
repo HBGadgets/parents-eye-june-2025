@@ -52,7 +52,7 @@ interface SingleDeviceLiveTrackProps {
   showTrail?: boolean;
 }
 
-// Optimized marker component with CONTROLLED ANIMATION
+// Optimized marker component with SMOOTH ROTATION
 const SingleVehicleMarker = React.memo(
   ({
     vehicle,
@@ -63,9 +63,11 @@ const SingleVehicleMarker = React.memo(
   }) => {
     const markerRef = useRef<L.Marker | null>(null);
     const prevPositionRef = useRef<[number, number] | null>(null);
+    const prevRotationRef = useRef<number>(0);
+    const prevImageUrlRef = useRef<string>(""); // Track previous image URL
     const isZoomingRef = useRef(false);
 
-    // Vehicle status calculation (keep your existing logic)
+    // Vehicle status calculation
     const vehicleStatus = useMemo(() => {
       const lastUpdateTime = new Date(vehicle.lastUpdate).getTime();
       const currentTime = new Date().getTime();
@@ -122,8 +124,8 @@ const SingleVehicleMarker = React.memo(
       return statusToImageUrl[vehicleStatus] || statusToImageUrl.inactive;
     }, [vehicleStatus]);
 
+    // Icon without rotation (rotation applied separately via JS)
     const busIcon = useMemo(() => {
-      const rotationAngle = vehicle.course || 0;
       const markerSize = 200;
 
       return L.divIcon({
@@ -133,7 +135,6 @@ const SingleVehicleMarker = React.memo(
               src="${imageUrl}" 
               class="vehicle-marker-img"
               style="
-                transform: rotate(${rotationAngle - 90}deg);
                 width: ${markerSize}px;
                 height: ${markerSize}px;
                 transform-origin: center center;
@@ -143,50 +144,90 @@ const SingleVehicleMarker = React.memo(
             />
           </div>
         `,
-        // Don't add smooth-marker class here - we'll control it with JavaScript
         className: "custom-single-vehicle-marker",
         iconSize: [markerSize, markerSize],
         iconAnchor: [markerSize / 2, markerSize / 2],
         popupAnchor: [0, -(markerSize / 2)],
       });
-    }, [imageUrl, vehicle.course]);
+    }, [imageUrl]);
 
-    // NEW: Smooth position update with transition control
+    // FIXED: Apply position and rotation updates with proper element handling
     useEffect(() => {
       if (markerRef.current) {
         const newPosition: [number, number] = [
           vehicle.latitude,
           vehicle.longitude,
         ];
+        const newRotation = vehicle.course || 0;
         const prevPosition = prevPositionRef.current;
+        const prevRotation = prevRotationRef.current;
+        const prevImageUrl = prevImageUrlRef.current;
 
-        // Only update if position has changed
-        if (
+        // Check what has changed
+        const positionChanged =
           !prevPosition ||
           prevPosition[0] !== newPosition[0] ||
-          prevPosition[1] !== newPosition[1]
-        ) {
-          const markerElement = markerRef.current.getElement();
+          prevPosition[1] !== newPosition[1];
 
-          if (markerElement && !isZoomingRef.current) {
-            // Add smooth transition class ONLY for coordinate changes
-            markerElement.classList.add("smooth-marker");
+        const rotationChanged = prevRotation !== newRotation;
+        const imageChanged = prevImageUrl !== imageUrl;
 
-            // Update position
+        // Get marker element
+        let markerElement = markerRef.current.getElement();
+
+        // Only update icon if the image URL changed (status change)
+        if (imageChanged) {
+          markerRef.current.setIcon(busIcon);
+          prevImageUrlRef.current = imageUrl;
+
+          // Re-query for element after setIcon recreates DOM
+          markerElement = markerRef.current.getElement();
+          console.log("[Marker] Icon updated due to status change");
+        }
+
+        if (markerElement) {
+          const imgElement = markerElement.querySelector(
+            ".vehicle-marker-img"
+          ) as HTMLElement;
+
+          // Update position with smooth transition
+          if (positionChanged) {
+            if (!isZoomingRef.current) {
+              markerElement.classList.add("smooth-marker");
+            }
+
             markerRef.current.setLatLng(newPosition);
             prevPositionRef.current = newPosition;
             console.log(`[Marker] Updated position to:`, newPosition);
-          } else if (markerElement) {
-            // During zoom, update without transition
-            markerRef.current.setLatLng(newPosition);
-            prevPositionRef.current = newPosition;
+          }
+
+          // Update rotation with smooth transition
+          if (imgElement) {
+            if (rotationChanged && !isZoomingRef.current) {
+              imgElement.classList.add("smooth-rotation");
+            }
+
+            // FIXED: Always use newRotation - 90
+            imgElement.style.transform = `rotate(${newRotation - 90}deg)`;
+
+            if (rotationChanged) {
+              prevRotationRef.current = newRotation;
+              console.log(
+                `[Marker] Updated rotation to: ${newRotation}° (applied as ${
+                  newRotation - 90
+                }°)`
+              );
+            }
           }
         }
-
-        // Update icon for rotation changes
-        markerRef.current.setIcon(busIcon);
       }
-    }, [vehicle.latitude, vehicle.longitude, busIcon]);
+    }, [
+      vehicle.latitude,
+      vehicle.longitude,
+      vehicle.course,
+      busIcon,
+      imageUrl,
+    ]);
 
     const handleClick = useCallback(() => {
       onClick?.(vehicle);
@@ -301,6 +342,67 @@ const SingleVehicleMarker = React.memo(
 );
 
 SingleVehicleMarker.displayName = "SingleVehicleMarker";
+
+// Component to disable transitions during zoom
+const ZoomTransitionController = ({
+  vehicle,
+}: {
+  vehicle: VehicleData | null;
+}) => {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!map) return;
+
+    const handleZoomStart = () => {
+      // Remove smooth transitions during zoom
+      const markers = document.querySelectorAll(
+        ".custom-single-vehicle-marker"
+      );
+      const images = document.querySelectorAll(".vehicle-marker-img");
+
+      markers.forEach((marker) => {
+        marker.classList.remove("smooth-marker");
+      });
+
+      images.forEach((img) => {
+        (img as HTMLElement).classList.remove("smooth-rotation");
+      });
+
+      console.log("[ZoomController] Transitions disabled");
+    };
+
+    const handleZoomEnd = () => {
+      // Re-enable smooth transitions after zoom
+      setTimeout(() => {
+        const markers = document.querySelectorAll(
+          ".custom-single-vehicle-marker"
+        );
+        const images = document.querySelectorAll(".vehicle-marker-img");
+
+        markers.forEach((marker) => {
+          marker.classList.add("smooth-marker");
+        });
+
+        images.forEach((img) => {
+          (img as HTMLElement).classList.add("smooth-rotation");
+        });
+
+        console.log("[ZoomController] Transitions enabled");
+      }, 100);
+    };
+
+    map.on("zoomstart", handleZoomStart);
+    map.on("zoomend", handleZoomEnd);
+
+    return () => {
+      map.off("zoomstart", handleZoomStart);
+      map.off("zoomend", handleZoomEnd);
+    };
+  }, [map]);
+
+  return null;
+};
 
 // Auto-center handler for single vehicle
 const AutoCenterHandler = ({
@@ -475,13 +577,13 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
           maxZoom={19}
         />
 
-        {/* Handle container resize issues */}
         <MapResizeHandler />
 
-        {/* Auto-center functionality */}
+        {/* NEW: Add zoom transition controller */}
+        <ZoomTransitionController vehicle={vehicle} />
+
         <AutoCenterHandler vehicle={vehicle} autoCenter={autoCenter} />
 
-        {/* Render single vehicle marker */}
         {isValidVehicle && vehicle && (
           <SingleVehicleMarker vehicle={vehicle} onClick={handleVehicleClick} />
         )}

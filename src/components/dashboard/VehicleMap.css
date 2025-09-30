@@ -11,8 +11,12 @@
 }
 
 .vehicle-marker-img {
+    transition: none;
+}
+
+.vehicle-marker-img.smooth-rotation {
     transition: transform 9.5s linear !important;
-    /* Smooth rotation over 10s */
+    /* Smooth 10s rotation */
 }
 
 /* Leaflet marker pane smooth transitions */
