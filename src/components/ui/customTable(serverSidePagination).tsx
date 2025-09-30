@@ -238,7 +238,7 @@ export function CustomTableServerSidePagination<T extends Record<string, any>>({
     }
 
     if (enableRowClick && onRowClick && !isExpandedRow(row.original)) {
-      console.log("Row clicked:", row.original);
+      // console.log("Row clicked:", row.original);
       onRowClick(row.original);
     }
   };

@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useEffect, useState, useCallback } from "react";
+import { useMemo, useEffect, useState, useCallback, useRef } from "react";
 import { Combobox } from "@/components/ui/combobox";
 import DateRangeFilter from "@/components/ui/DateRangeFilter";
 import { useDeviceData } from "@/hooks/useDeviceData";
@@ -12,6 +12,7 @@ import { api } from "@/services/apiService";
 import TripsSidebar from "@/components/history/sliding-side-bar";
 import { Menu } from "lucide-react";
 import dynamic from "next/dynamic";
+import { useRouter, useSearchParams } from "next/navigation";
 
 // Dynamically import VehicleMap with SSR disabled
 const VehicleMap = dynamic(() => import("@/components/history/vehicle-map"), {
@@ -28,6 +29,14 @@ const VehicleMap = dynamic(() => import("@/components/history/vehicle-map"), {
 
 export default function HistoryReport() {
   const [searchTerm, setSearchTerm] = useState("");
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const vehicleIdFromUrl = searchParams.get("vehicleId");
+  const vehicleNameFromUrl = searchParams.get("vehicleName");
+
+  // Track if this is initial load from dashboard
+  const isFromDashboardRef = useRef(false);
+  const hasInitializedRef = useRef(false);
 
   const {
     data: vehicleData,
@@ -46,6 +55,13 @@ export default function HistoryReport() {
   const [fromDate, setFromDate] = useState<String | null>(null);
   const [toDate, setToDate] = useState<String | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+  // Add state for default date range (for UI display)
+  const [defaultDateRange, setDefaultDateRange] = useState<{
+    startDate: Date;
+    endDate: Date;
+  } | null>(null);
+
   const [data, setData] = useState([
     {
       attributes: {
@@ -61,6 +77,7 @@ export default function HistoryReport() {
       createdAt: "2025-09-09T07:36:36.720Z",
     },
   ]);
+
   const metaPosition = [
     {
       attributes: {
@@ -76,8 +93,8 @@ export default function HistoryReport() {
       createdAt: "2025-09-09T07:36:36.720Z",
     },
   ];
-  const [loading, setLoading] = useState(false);
 
+  const [loading, setLoading] = useState(false);
   const currentData = data[currentIndex];
 
   // Flatten all pages of vehicle data
@@ -94,12 +111,117 @@ export default function HistoryReport() {
     }));
   }, [allVehicles]);
 
+  // Initialize dashboard redirect detection and auto-setup
   useEffect(() => {
-    console.log("Selected Vehicle ID:", selectedVehicle);
-  }, [selectedVehicle]);
+    if (!hasInitializedRef.current && vehicleIdFromUrl) {
+      // This is a redirect from dashboard (URL has vehicleId)
+      isFromDashboardRef.current = true;
+      hasInitializedRef.current = true;
+
+      console.log(
+        "Detected redirect from dashboard with vehicleId:",
+        vehicleIdFromUrl
+      );
+
+      // Set today's date range as default when coming from dashboard
+      const today = new Date();
+      setDefaultDateRange({
+        startDate: today,
+        endDate: today,
+      });
+
+      // Set the date range in the required format
+      const formattedStart = formatDateToYYYYMMDD(today);
+      const formattedEnd = formatDateToYYYYMMDD(today);
+      setFromDate(formattedStart + "T00:00:00.000Z");
+      setToDate(formattedEnd + "T23:59:59.000Z");
+
+      // Set search term if vehicle name is provided
+      if (vehicleNameFromUrl) {
+        setSearchTerm(vehicleNameFromUrl);
+      }
+    } else if (!hasInitializedRef.current) {
+      // Direct page visit (no vehicleId in URL)
+      isFromDashboardRef.current = false;
+      hasInitializedRef.current = true;
+      console.log("Direct page visit detected");
+    }
+  }, [vehicleIdFromUrl, vehicleNameFromUrl]);
+
+  // Pre-select vehicle from URL parameter (only when coming from dashboard)
+  useEffect(() => {
+    if (
+      vehicleIdFromUrl &&
+      allVehicles.length > 0 &&
+      isFromDashboardRef.current &&
+      !selectedVehicle // Only set if not already selected
+    ) {
+      const vehicleExists = allVehicles.find(
+        (vehicle) => vehicle.deviceId.toString() === vehicleIdFromUrl
+      );
+      if (vehicleExists) {
+        console.log("Auto-selecting vehicle:", vehicleExists.name);
+        setSelectedVehicle(vehicleIdFromUrl);
+      }
+    }
+  }, [vehicleIdFromUrl, allVehicles, selectedVehicle]);
+
+  // Auto-load data ONLY when coming from dashboard
+  useEffect(() => {
+    if (
+      selectedVehicle &&
+      fromDate &&
+      toDate &&
+      isFromDashboardRef.current &&
+      vehicleIdFromUrl // Ensure it's from dashboard redirect
+    ) {
+      // console.log("Auto-loading data for dashboard redirect");
+      // handleAutoLoad();
+      // Reset the flag after auto-loading to prevent future auto-loads
+      isFromDashboardRef.current = false;
+    }
+  }, [selectedVehicle, fromDate, toDate, vehicleIdFromUrl]);
+
+  // const handleAutoLoad = async () => {
+  //   try {
+  //     setLoading(true);
+  //     console.log("Fetching auto-load data...");
+
+  //     const response = await api.get(
+  //       `/device-history-playback?deviceId=${selectedVehicle}&from=${fromDate}&to=${toDate}`
+  //     );
+
+  //     setData(response.deviceHistory);
+  //     setCurrentIndex(0);
+  //     console.log("Auto-load completed successfully");
+  //   } catch (error) {
+  //     console.error("Error in auto-load:", error);
+  //   } finally {
+  //     setLoading(false);
+  //   }
+  // };
+
+  // Handle vehicle selection changes (this allows clearing and changing)
+  const handleVehicleChange = (vehicleId: string) => {
+    console.log("Vehicle change to:", vehicleId);
+    setSelectedVehicle(vehicleId);
+
+    // Update URL parameter
+    const params = new URLSearchParams(searchParams.toString());
+    if (vehicleId) {
+      params.set("vehicleId", vehicleId);
+      // Remove vehicleName when manually changing
+      params.delete("vehicleName");
+    } else {
+      params.delete("vehicleId");
+      params.delete("vehicleName");
+    }
+    router.replace(`/dashboard/reports/history-report?${params.toString()}`);
+  };
 
   const handleDateFilter = useMemo(
     () => (startDate: Date | null, endDate: Date | null) => {
+      console.log("Manual date filter change");
       const formattedStart = formatDateToYYYYMMDD(startDate);
       const formattedEnd = formatDateToYYYYMMDD(endDate);
       setFromDate(formattedStart + "T00:00:00.000Z");
@@ -120,8 +242,7 @@ export default function HistoryReport() {
     setSearchTerm(search);
   }, []);
 
-  // *****************************************Auto Play Functionality (Start)***********************************************************//
-
+  // Rest of your existing functions remain the same...
   useEffect(() => {
     if (!isPlaying || currentIndex >= data.length - 1 || isGraphControlling)
       return;
@@ -196,6 +317,7 @@ export default function HistoryReport() {
       return;
     }
     try {
+      console.log("Manual show button clicked");
       setLoading(true);
       const response = await api.get(
         `/device-history-playback?deviceId=${selectedVehicle}&from=${fromDate}&to=${toDate}`
@@ -223,8 +345,8 @@ export default function HistoryReport() {
           <div className="flex gap-4">
             <Combobox
               items={vehicleMetaData}
-              value={selectedVehicle}
-              onValueChange={setSelectedVehicle}
+              value={selectedVehicle} // Use only selectedVehicle as the controlled value
+              onValueChange={handleVehicleChange} // This handles both selection and clearing
               placeholder="Select Vehicle"
               searchPlaceholder="Search vehicles..."
               emptyMessage="No vehicles found"
@@ -240,6 +362,8 @@ export default function HistoryReport() {
               onDateRangeChange={handleDateFilter}
               title="Select Date Range"
               maxDays={7}
+              defaultStartDate={defaultDateRange?.startDate}
+              defaultEndDate={defaultDateRange?.endDate}
             />
 
             <Button className="cursor-pointer" onClick={handleShow}>
@@ -248,6 +372,7 @@ export default function HistoryReport() {
           </div>
         </header>
 
+        {/* Rest of your existing JSX remains exactly the same... */}
         {/* Sliding Menu Trigger */}
         <div>
           <Button

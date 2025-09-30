@@ -1,4 +1,5 @@
 "use client";
+import { useRouter } from "next/navigation";
 import { ColumnVisibilitySelector } from "@/components/column-visibility-selector";
 import VehicleMap from "@/components/dashboard/VehicleMap";
 import ResponseLoader from "@/components/ResponseLoader";
@@ -24,10 +25,13 @@ import { calculateTimeSince } from "@/util/calculateTimeSince";
 import { Locate, MoveLeft, MoveRight } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-
+import { LiveTrack } from "@/components/dashboard/LiveTrack.tsx/livetrack";
 type ViewState = "split" | "tableExpanded" | "mapExpanded";
 
 export default function DashboardPage() {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+
   const [pagination, setPagination] = useState({
     pageIndex: 0,
     pageSize: 10,
@@ -41,6 +45,13 @@ export default function DashboardPage() {
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [selectedDevice, setSelectedDevice] = useState<DeviceData | null>(null);
+  const [selectedImei, setSelectedImei] = useState<{
+    imei: string;
+    name: string;
+  }>({
+    imei: "",
+    name: "",
+  });
   const { addresses, loadingAddresses, queueForGeocoding } =
     useReverseGeocode();
   const statusColors: Record<string, string> = {
@@ -91,10 +102,6 @@ export default function DashboardPage() {
       );
     }
   }, [selectedDevice, queueForGeocoding]);
-
-  useEffect(() => {
-    console.log("position data", devices);
-  }, [devices]);
 
   const columns: ColumnDef<DeviceData>[] = [
     {
@@ -539,6 +546,17 @@ export default function DashboardPage() {
     [queueForGeocoding]
   );
 
+  const handleOpenLiveTrack = (imei: string, name: string) => {
+    setOpen(true);
+    setSelectedImei({ imei, name });
+  };
+
+  const handleHistoryClick = (deviceId: number) => {
+    router.push(
+      `/dashboard/reports/history-report?vehicleId=${deviceId}&vehicleName=${selectedDevice?.name}`
+    );
+  };
+
   // Effect for queueing visible devices
   useEffect(() => {
     queueVisibleDevicesForGeocoding();
@@ -754,10 +772,26 @@ export default function DashboardPage() {
                 <DrawerTitle className="flex justify-between items-center">
                   {selectedDevice && `${selectedDevice.name}`}
                   <div className="mr-4">
-                    <button className="rounded-sm mr-1 text-primary border border-primary px-2 py-1 hover:bg-primary hover:text-white transition-colors duration-200 cursor-pointer">
+                    <button
+                      className="rounded-sm mr-1 text-primary border border-primary px-2 py-1 hover:bg-primary hover:text-white transition-colors duration-200 cursor-pointer"
+                      onClick={() => {
+                        if (selectedDevice?.imei) {
+                          handleOpenLiveTrack(
+                            selectedDevice.imei,
+                            selectedDevice.name
+                          );
+                        }
+                      }}
+                    >
                       Track
                     </button>
-                    <button className="rounded-sm mr-1 text-primary border border-primary px-2 py-1 hover:bg-primary hover:text-white transition-colors duration-200 cursor-pointer">
+                    <button
+                      className="rounded-sm mr-1 text-primary border border-primary px-2 py-1 hover:bg-primary hover:text-white transition-colors duration-200 cursor-pointer"
+                      onClick={() =>
+                        selectedDevice?.deviceId !== undefined &&
+                        handleHistoryClick(selectedDevice.deviceId)
+                      }
+                    >
                       History
                     </button>
                   </div>
@@ -774,7 +808,7 @@ export default function DashboardPage() {
               <div className="p-4 space-y-4">
                 {selectedDevice ? (
                   <>
-                    <div className="grid grid-cols-4 gap-4">
+                    <div className="grid grid-cols-5 gap-4">
                       <div>
                         <label className="flex items-center gap-2">
                           <img
@@ -823,7 +857,7 @@ export default function DashboardPage() {
                       <div>
                         <label className="flex items-center gap-2">
                           <img
-                            src="/dashboard-icons/todays-distance.svg"
+                            src="/dashboard-icons/coordinate.svg"
                             className="w-6"
                             alt=""
                           />{" "}
@@ -873,6 +907,9 @@ export default function DashboardPage() {
           </DrawerPortal>
         </Drawer>
       </div>
+
+      {/* Single Device Live Track */}
+      <LiveTrack open={open} setOpen={setOpen} selectedImei={selectedImei} />
     </>
   );
 }

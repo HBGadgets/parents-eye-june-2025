@@ -56,6 +56,7 @@ export interface AllDeviceResponse {
 // Socket event interfaces for type safety
 export interface ServerToClientEvents {
   "all-device-data": (data: AllDeviceResponse) => void;
+  "single-device-data": (data: DeviceData) => void;
   "shared device data": (data: DeviceData) => void;
   "auth-success": () => void;
   error: (error: { message: string; details?: string }) => void;
