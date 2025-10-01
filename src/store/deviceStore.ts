@@ -8,7 +8,14 @@ import { AllDeviceResponse } from "@/types/socket";
 export interface DeviceFilters {
   page: number;
   limit: number;
-  filter: "all" | "running" | "idle" | "stopped" | "inactive" | "new";
+  filter:
+    | "all"
+    | "running"
+    | "overspeed"
+    | "idle"
+    | "stopped"
+    | "inactive"
+    | "new";
   searchTerm: string;
 }
 

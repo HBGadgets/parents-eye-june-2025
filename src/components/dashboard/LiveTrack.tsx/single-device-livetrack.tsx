@@ -54,6 +54,13 @@ interface SingleDeviceLiveTrackProps {
   showTrail?: boolean;
 }
 
+// Helper function to calculate the shortest rotation path
+const getShortestRotation = (from: number, to: number): number => {
+  // Normalize the difference to be within -180 to 180 degrees
+  let delta = ((((to - from) % 360) + 540) % 360) - 180;
+  return from + delta;
+};
+
 // Optimized marker component with SMOOTH ROTATION
 const SingleVehicleMarker = React.memo(
   ({
@@ -160,9 +167,9 @@ const SingleVehicleMarker = React.memo(
           vehicle.latitude,
           vehicle.longitude,
         ];
-        const newRotation = vehicle.course || 0;
+        const targetRotation = vehicle.course || 0;
         const prevPosition = prevPositionRef.current;
-        const prevRotation = prevRotationRef.current;
+        const currentRotation = prevRotationRef.current;
         const prevImageUrl = prevImageUrlRef.current;
 
         // Check what has changed
@@ -171,7 +178,17 @@ const SingleVehicleMarker = React.memo(
           prevPosition[0] !== newPosition[0] ||
           prevPosition[1] !== newPosition[1];
 
-        const rotationChanged = prevRotation !== newRotation;
+        // FIXED: Calculate shortest rotation path
+        const normalizedTarget = targetRotation % 360; // Normalize target to 0-360
+        const normalizedCurrent = currentRotation % 360; // Normalize current to 0-360
+
+        // Calculate shortest path rotation
+        const shortestRotation = getShortestRotation(
+          currentRotation,
+          normalizedTarget
+        );
+        const rotationChanged = currentRotation !== shortestRotation;
+
         const imageChanged = prevImageUrl !== imageUrl;
 
         // Get marker element
@@ -203,21 +220,25 @@ const SingleVehicleMarker = React.memo(
             console.log(`[Marker] Updated position to:`, newPosition);
           }
 
-          // Update rotation with smooth transition
+          // Update rotation with smooth transition (shortest path)
           if (imgElement) {
             if (rotationChanged && !isZoomingRef.current) {
               imgElement.classList.add("smooth-rotation");
             }
 
-            // FIXED: Always use newRotation - 90
-            imgElement.style.transform = `rotate(${newRotation}deg)`;
+            // FIXED: Apply rotation using shortest path calculation
+            imgElement.style.transform = `rotate(${shortestRotation}deg)`;
 
             if (rotationChanged) {
-              prevRotationRef.current = newRotation;
+              prevRotationRef.current = shortestRotation;
               console.log(
-                `[Marker] Updated rotation to: ${newRotation}° (applied as ${
-                  newRotation - 90
-                }°)`
+                `[Marker] Rotated from ${currentRotation.toFixed(
+                  1
+                )}° to ${shortestRotation.toFixed(
+                  1
+                )}° (target: ${targetRotation}°, delta: ${(
+                  shortestRotation - currentRotation
+                ).toFixed(1)}°)`
               );
             }
           }

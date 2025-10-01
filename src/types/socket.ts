@@ -45,6 +45,7 @@ export interface AllDeviceResponse {
   pageCount: number;
   total: number;
   runningCount: number;
+  overspeedCount: number;
   idleCount: number;
   stoppedCount: number;
   inactiveCount: number;
