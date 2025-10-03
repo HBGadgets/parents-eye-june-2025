@@ -19,6 +19,9 @@ import SingleDeviceLiveTrack from "./single-device-livetrack";
 import "./styles.css";
 import { useCallback, useEffect, useMemo } from "react";
 import { useSingleDeviceData } from "@/hooks/livetrack/useLiveDeviceData";
+import DataRefreshIndicator, {
+  useDataRefreshIndicator,
+} from "./data-refresh-indicator";
 
 interface Imei {
   imei?: string;
@@ -42,9 +45,17 @@ export const LiveTrack = ({ open, setOpen, selectedImei }: LiveTrackProps) => {
     isAuthenticated,
     switchToAllDevices,
   } = useSingleDeviceData(open ? selectedImei?.imei : undefined);
+  const { key: refreshKey, triggerRefresh } = useDataRefreshIndicator(10);
+  const isOffline = !deviceData?.gsmSignal;
 
   const currentImei = useMemo(() => selectedImei?.imei, [selectedImei?.imei]);
   const currentName = useMemo(() => selectedImei?.name, [selectedImei?.name]);
+
+  useEffect(() => {
+    if (deviceData) {
+      triggerRefresh();
+    }
+  }, [deviceData?.lastUpdate]);
 
   const handleDialogClose = useCallback(
     (isOpen: boolean) => {
@@ -74,19 +85,27 @@ export const LiveTrack = ({ open, setOpen, selectedImei }: LiveTrackProps) => {
   }
 
   const dialogTitle = currentName || "Live Tracking";
+  console.log("[LiveTrack] data reciving in the LiveTrack:", deviceData);
 
   if (isDesktop) {
     return (
       <Dialog open={open} onOpenChange={handleDialogClose}>
         <DialogContent className="h-[100vh] max-h-[100vh] w-full">
           <DialogHeader className="px-6 py-4 border-b">
-            <DialogTitle className="text-lg font-semibold">
-              {dialogTitle}
-              {isActive && (
-                <span className="ml-2 inline-flex items-center px-2 py-1 text-xs font-medium bg-green-100 text-green-800 rounded-full">
-                  Live
-                </span>
-              )}
+            <DialogTitle className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <span className="text-lg font-semibold">{dialogTitle}</span>
+                {isActive && (
+                  <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-green-100 text-green-800 rounded-full">
+                    Live
+                  </span>
+                )}
+              </div>
+              <DataRefreshIndicator
+                key={refreshKey}
+                intervalSeconds={10}
+                className="flex-shrink-0"
+              />
             </DialogTitle>
           </DialogHeader>
 

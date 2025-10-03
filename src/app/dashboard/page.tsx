@@ -21,15 +21,7 @@ import { useLiveDeviceData } from "@/hooks/livetrack/useLiveDeviceData";
 import { useReverseGeocode } from "@/hooks/useReverseGeocoding";
 import { DeviceData } from "@/types/socket";
 import { calculateTimeSince } from "@/util/calculateTimeSince";
-import {
-  ChevronLeftIcon,
-  ChevronRight,
-  ChevronsLeft,
-  ChevronsRight,
-  Locate,
-  MoveLeft,
-  MoveRight,
-} from "lucide-react";
+import { ChevronsLeft, ChevronsRight, Locate } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import { LiveTrack } from "@/components/dashboard/LiveTrack.tsx/livetrack";
@@ -275,55 +267,55 @@ export default function DashboardPage() {
       enableHiding: true,
       enableSorting: true,
     },
-    {
-      id: "address",
-      header: "Location",
-      cell: ({ row }) => {
-        const device = row.original;
-        const deviceId = device.deviceId;
-        const address = addresses[deviceId];
-        const isLoading = loadingAddresses[deviceId];
+    // {
+    //   id: "address",
+    //   header: "Location",
+    //   cell: ({ row }) => {
+    //     const device = row.original;
+    //     const deviceId = device.deviceId;
+    //     const address = addresses[deviceId];
+    //     const isLoading = loadingAddresses[deviceId];
 
-        if (isLoading) {
-          return (
-            <div className="flex items-center space-x-2 text-gray-500">
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
-              <span className="text-sm">Loading...</span>
-            </div>
-          );
-        }
+    //     if (isLoading) {
+    //       return (
+    //         <div className="flex items-center space-x-2 text-gray-500">
+    //           <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
+    //           <span className="text-sm">Loading...</span>
+    //         </div>
+    //       );
+    //     }
 
-        if (address) {
-          return (
-            <div className="flex items-start space-x-2 max-w-xs">
-              <span className="text-sm text-gray-700 leading-tight break-words">
-                {address}
-              </span>
-            </div>
-          );
-        }
+    //     if (address) {
+    //       return (
+    //         <div className="flex items-start space-x-2 max-w-xs">
+    //           <span className="text-sm text-gray-700 leading-tight break-words">
+    //             {address}
+    //           </span>
+    //         </div>
+    //       );
+    //     }
 
-        if (device.latitude && device.longitude) {
-          return (
-            <div className="flex items-center space-x-2 text-gray-500">
-              <span className="text-sm">
-                {device.latitude.toFixed(6)}, {device.longitude.toFixed(6)}
-              </span>
-            </div>
-          );
-        }
+    //     if (device.latitude && device.longitude) {
+    //       return (
+    //         <div className="flex items-center space-x-2 text-gray-500">
+    //           <span className="text-sm">
+    //             {device.latitude.toFixed(6)}, {device.longitude.toFixed(6)}
+    //           </span>
+    //         </div>
+    //       );
+    //     }
 
-        return <span className="text-gray-400 text-sm">No location</span>;
-      },
-      meta: {
-        wrapConfig: {
-          wrap: "break-word",
-          maxWidth: "300px",
-        },
-      },
-      enableHiding: true,
-      enableSorting: false,
-    },
+    //     return <span className="text-gray-400 text-sm">No location</span>;
+    //   },
+    //   meta: {
+    //     wrapConfig: {
+    //       wrap: "break-word",
+    //       maxWidth: "300px",
+    //     },
+    //   },
+    //   enableHiding: true,
+    //   enableSorting: false,
+    // },
     {
       id: "lastUpdate",
       header: "Last Update",
@@ -866,10 +858,50 @@ export default function DashboardPage() {
             <DrawerContent>
               <DrawerHeader>
                 <DrawerTitle className="flex justify-between items-center">
-                  {selectedDevice && `${selectedDevice.name}`}
-                  <div className="mr-4">
+                  <div className="flex items-center gap-4">
+                    {selectedDevice && selectedDevice.name}
+
+                    {/* Address display below the device name */}
+                    <div className="mt-1 text-sm text-gray-600 ">
+                      {selectedDevice &&
+                        (() => {
+                          const deviceId = selectedDevice.deviceId;
+                          const address = addresses[deviceId];
+                          const isLoading = loadingAddresses[deviceId];
+
+                          if (isLoading) {
+                            return (
+                              <div className="flex items-center space-x-2 text-gray-500">
+                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
+                                <span>Loading...</span>
+                              </div>
+                            );
+                          }
+
+                          if (address) {
+                            return <span>{address}</span>;
+                          }
+
+                          if (
+                            selectedDevice.latitude &&
+                            selectedDevice.longitude
+                          ) {
+                            return (
+                              <span>
+                                {selectedDevice.latitude.toFixed(6)},{" "}
+                                {selectedDevice.longitude.toFixed(6)}
+                              </span>
+                            );
+                          }
+
+                          return <span>Address not available</span>;
+                        })()}
+                    </div>
+                  </div>
+
+                  <div className="min-w-max flex gap-1 items-center">
                     <button
-                      className="rounded-sm mr-1 text-primary border border-primary px-2 py-1 hover:bg-primary hover:text-white transition-colors duration-200 cursor-pointer"
+                      className="rounded-sm text-primary border border-primary px-2 py-1 hover:bg-primary hover:text-white transition-colors duration-200 cursor-pointer"
                       onClick={() => {
                         if (selectedDevice?.imei) {
                           handleOpenLiveTrack(
@@ -890,15 +922,14 @@ export default function DashboardPage() {
                     >
                       History
                     </button>
+                    <DrawerClose
+                      className="rounded-sm text-white border border-primary px-2 py-1 bg-primary hover:bg-[#b4931b] transition-colors duration-200 cursor-pointer"
+                      aria-label="Close"
+                    >
+                      X
+                    </DrawerClose>
                   </div>
                 </DrawerTitle>
-
-                <DrawerClose
-                  className="absolute top-10 right-1 rounded-sm text-white border border-primary px-2 py-1 bg-primary hover:bg-[#b4931b] transition-colors duration-200 cursor-pointer"
-                  aria-label="Close"
-                >
-                  X
-                </DrawerClose>
               </DrawerHeader>
               <div className="h-px bg-primary"></div>
               <div className="p-4 space-y-4">

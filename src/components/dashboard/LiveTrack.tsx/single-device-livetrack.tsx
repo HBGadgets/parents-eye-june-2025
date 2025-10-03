@@ -13,9 +13,14 @@ import "../VehicleMap.css";
 import { calculateTimeSince } from "@/util/calculateTimeSince";
 import { OfflineIndicator } from "./offline-indicator";
 import { VehiclePathTrail } from "./vehicle-path-trail";
+import DataRefreshIndicator, {
+  useDataRefreshIndicator,
+} from "./data-refresh-indicator";
+import { SingleDeviceLiveTrackControls } from "./single-device-livetrack-controls";
+import { VehicleMarker } from "./VehicleMarker";
 
 // Types based on your socket response - kept the same
-interface VehicleData {
+export interface VehicleData {
   speed: number;
   longitude: number;
   latitude: number;
@@ -61,310 +66,300 @@ const getShortestRotation = (from: number, to: number): number => {
   return from + delta;
 };
 
-// Optimized marker component with SMOOTH ROTATION
-const SingleVehicleMarker = React.memo(
-  ({
-    vehicle,
-    onClick,
-  }: {
-    vehicle: VehicleData;
-    onClick?: (vehicle: VehicleData) => void;
-  }) => {
-    const markerRef = useRef<L.Marker | null>(null);
-    const prevPositionRef = useRef<[number, number] | null>(null);
-    const prevRotationRef = useRef<number>(0);
-    const prevImageUrlRef = useRef<string>(""); // Track previous image URL
-    const isZoomingRef = useRef(false);
+// // Optimized marker component with SMOOTH ROTATION
+// const SingleVehicleMarker = React.memo(
+//   ({
+//     vehicle,
+//     onClick,
+//   }: {
+//     vehicle: VehicleData;
+//     onClick?: (vehicle: VehicleData) => void;
+//   }) => {
+//     const markerRef = useRef<L.Marker | null>(null);
+//     const prevPositionRef = useRef<[number, number] | null>(null);
+//     const prevRotationRef = useRef<number>(0);
+//     const prevImageUrlRef = useRef<string>(""); // Track previous image URL
+//     const isZoomingRef = useRef(false);
 
-    // Vehicle status calculation
-    const vehicleStatus = useMemo(() => {
-      const lastUpdateTime = new Date(vehicle.lastUpdate).getTime();
-      const currentTime = new Date().getTime();
-      const timeDifference = currentTime - lastUpdateTime;
-      const thirtyFiveHoursInMs = 35 * 60 * 60 * 1000;
+//     // Vehicle status calculation
+//     const vehicleStatus = useMemo(() => {
+//       const lastUpdateTime = new Date(vehicle.lastUpdate).getTime();
+//       const currentTime = new Date().getTime();
+//       const timeDifference = currentTime - lastUpdateTime;
+//       const thirtyFiveHoursInMs = 35 * 60 * 60 * 1000;
 
-      if (timeDifference > thirtyFiveHoursInMs) return "inactive";
+//       // Check if vehicle is inactive
+//       if (vehicle.latitude === 0 && vehicle.longitude === 0) return "noData";
 
-      const speedLimit = parseFloat(vehicle.speedLimit) || 60;
-      if (vehicle.speed > speedLimit) return "overspeeding";
+//       if (timeDifference > thirtyFiveHoursInMs) return "inactive";
 
-      const runningConditions = [
-        vehicle.speed > 5,
-        vehicle.attributes.motion === true,
-        vehicle.attributes.ignition === true,
-      ];
-      const idleConditions = [
-        vehicle.speed < 5,
-        vehicle.attributes.motion === false,
-        vehicle.attributes.ignition === true,
-      ];
-      const stoppedConditions = [
-        vehicle.speed < 5,
-        vehicle.attributes.motion === false,
-        vehicle.attributes.ignition === false,
-      ];
+//       // Check for overspeeding
+//       const speedLimit = parseFloat(vehicle.speedLimit) || 60;
+//       if (vehicle.speed > speedLimit) return "overspeeding";
 
-      const trueConditionsCount = runningConditions.filter(Boolean).length;
-      const trueIdleConditionsCount = idleConditions.filter(Boolean).length;
-      const trueStoppedConditionsCount =
-        stoppedConditions.filter(Boolean).length;
+//       // Extract vehicle attributes
+//       const { ignition, motion } = vehicle.attributes;
+//       const speed = vehicle.speed;
+//       if (ignition === true) {
+//         if (speed > 5 && speed < speedLimit) {
+//           return "running";
+//         } else {
+//           return "idle";
+//         }
+//       } else if (ignition === false) {
+//         return "stopped";
+//       }
+//     }, [
+//       vehicle.speed,
+//       vehicle.speedLimit,
+//       vehicle.lastUpdate,
+//       vehicle.attributes.ignition,
+//     ]);
 
-      if (trueStoppedConditionsCount >= 2) return "stopped";
-      if (trueConditionsCount >= 2) return "running";
-      if (trueIdleConditionsCount >= 2) return "idle";
-      return "noData";
-    }, [
-      vehicle.speed,
-      vehicle.speedLimit,
-      vehicle.lastUpdate,
-      vehicle.attributes.motion,
-      vehicle.attributes.ignition,
-    ]);
+//     const imageUrl = useMemo(() => {
+//       const statusToImageUrl = {
+//         running: "/bus/top-view/green-top.svg",
+//         idle: "/bus/top-view/yellow-top.svg",
+//         stopped: "/bus/top-view/red-top.svg",
+//         inactive: "/bus/top-view/grey-top.svg",
+//         overspeeding: "/bus/top-view/orange-top.svg",
+//         noData: "/bus/top-view/blue-top.svg",
+//       };
+//       return statusToImageUrl[vehicleStatus] || statusToImageUrl.inactive;
+//     }, [vehicleStatus]);
 
-    const imageUrl = useMemo(() => {
-      const statusToImageUrl = {
-        running: "/bus/top-view/green-top.svg",
-        idle: "/bus/top-view/yellow-top.svg",
-        stopped: "/bus/top-view/red-top.svg",
-        inactive: "/bus/top-view/grey-top.svg",
-        overspeeding: "/bus/top-view/orange-top.svg",
-        noData: "/bus/top-view/blue-top.svg",
-      };
-      return statusToImageUrl[vehicleStatus] || statusToImageUrl.inactive;
-    }, [vehicleStatus]);
+//     // Icon without rotation (rotation applied separately via JS)
+//     const busIcon = useMemo(() => {
+//       const markerSize = 100;
 
-    // Icon without rotation (rotation applied separately via JS)
-    const busIcon = useMemo(() => {
-      const markerSize = 100;
+//       return L.divIcon({
+//         html: `
+//           <div class="single-vehicle-marker-container">
+//             <img
+//               src="${imageUrl}"
+//               class="vehicle-marker-img"
+//               style="
+//                 width: ${markerSize}px;
+//                 height: ${markerSize}px;
+//                 transform-origin: center center;
+//                 filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+//               "
+//               alt="Vehicle marker"
+//             />
+//           </div>
+//         `,
+//         className: "custom-single-vehicle-marker",
+//         iconSize: [markerSize, markerSize],
+//         iconAnchor: [markerSize / 2, markerSize / 2],
+//         popupAnchor: [0, -20],
+//       });
+//     }, [imageUrl]);
 
-      return L.divIcon({
-        html: `
-          <div class="single-vehicle-marker-container">
-            <img 
-              src="${imageUrl}" 
-              class="vehicle-marker-img"
-              style="
-                width: ${markerSize}px;
-                height: ${markerSize}px;
-                transform-origin: center center;
-                filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
-              " 
-              alt="Vehicle marker"
-            />
-          </div>
-        `,
-        className: "custom-single-vehicle-marker",
-        iconSize: [markerSize, markerSize],
-        iconAnchor: [markerSize / 2, markerSize / 2],
-        popupAnchor: [0, -20],
-      });
-    }, [imageUrl]);
+//     // FIXED: Apply position and rotation updates with proper element handling
+//     useEffect(() => {
+//       if (markerRef.current) {
+//         const newPosition: [number, number] = [
+//           vehicle.latitude,
+//           vehicle.longitude,
+//         ];
+//         const targetRotation = vehicle.course || 0;
+//         const prevPosition = prevPositionRef.current;
+//         const currentRotation = prevRotationRef.current;
+//         const prevImageUrl = prevImageUrlRef.current;
 
-    // FIXED: Apply position and rotation updates with proper element handling
-    useEffect(() => {
-      if (markerRef.current) {
-        const newPosition: [number, number] = [
-          vehicle.latitude,
-          vehicle.longitude,
-        ];
-        const targetRotation = vehicle.course || 0;
-        const prevPosition = prevPositionRef.current;
-        const currentRotation = prevRotationRef.current;
-        const prevImageUrl = prevImageUrlRef.current;
+//         // Check what has changed
+//         const positionChanged =
+//           !prevPosition ||
+//           prevPosition[0] !== newPosition[0] ||
+//           prevPosition[1] !== newPosition[1];
 
-        // Check what has changed
-        const positionChanged =
-          !prevPosition ||
-          prevPosition[0] !== newPosition[0] ||
-          prevPosition[1] !== newPosition[1];
+//         // FIXED: Calculate shortest rotation path
+//         const normalizedTarget = targetRotation % 360; // Normalize target to 0-360
+//         const normalizedCurrent = currentRotation % 360; // Normalize current to 0-360
 
-        // FIXED: Calculate shortest rotation path
-        const normalizedTarget = targetRotation % 360; // Normalize target to 0-360
-        const normalizedCurrent = currentRotation % 360; // Normalize current to 0-360
+//         // Calculate shortest path rotation
+//         const shortestRotation = getShortestRotation(
+//           currentRotation,
+//           normalizedTarget
+//         );
+//         const rotationChanged = currentRotation !== shortestRotation;
 
-        // Calculate shortest path rotation
-        const shortestRotation = getShortestRotation(
-          currentRotation,
-          normalizedTarget
-        );
-        const rotationChanged = currentRotation !== shortestRotation;
+//         const imageChanged = prevImageUrl !== imageUrl;
 
-        const imageChanged = prevImageUrl !== imageUrl;
+//         // Get marker element
+//         let markerElement = markerRef.current.getElement();
 
-        // Get marker element
-        let markerElement = markerRef.current.getElement();
+//         // Only update icon if the image URL changed (status change)
+//         if (imageChanged) {
+//           markerRef.current.setIcon(busIcon);
+//           prevImageUrlRef.current = imageUrl;
 
-        // Only update icon if the image URL changed (status change)
-        if (imageChanged) {
-          markerRef.current.setIcon(busIcon);
-          prevImageUrlRef.current = imageUrl;
+//           // Re-query for element after setIcon recreates DOM
+//           markerElement = markerRef.current.getElement();
+//           console.log("[Marker] Icon updated due to status change");
+//         }
 
-          // Re-query for element after setIcon recreates DOM
-          markerElement = markerRef.current.getElement();
-          console.log("[Marker] Icon updated due to status change");
-        }
+//         if (markerElement) {
+//           const imgElement = markerElement.querySelector(
+//             ".vehicle-marker-img"
+//           ) as HTMLElement;
 
-        if (markerElement) {
-          const imgElement = markerElement.querySelector(
-            ".vehicle-marker-img"
-          ) as HTMLElement;
+//           // Update position with smooth transition
+//           if (positionChanged) {
+//             if (!isZoomingRef.current) {
+//               markerElement.classList.add("smooth-marker");
+//             }
 
-          // Update position with smooth transition
-          if (positionChanged) {
-            if (!isZoomingRef.current) {
-              markerElement.classList.add("smooth-marker");
-            }
+//             markerRef.current.setLatLng(newPosition);
+//             prevPositionRef.current = newPosition;
+//             console.log(`[Marker] Updated position to:`, newPosition);
+//           }
 
-            markerRef.current.setLatLng(newPosition);
-            prevPositionRef.current = newPosition;
-            console.log(`[Marker] Updated position to:`, newPosition);
-          }
+//           // Update rotation with smooth transition (shortest path)
+//           if (imgElement) {
+//             if (rotationChanged && !isZoomingRef.current) {
+//               imgElement.classList.add("smooth-rotation");
+//             }
 
-          // Update rotation with smooth transition (shortest path)
-          if (imgElement) {
-            if (rotationChanged && !isZoomingRef.current) {
-              imgElement.classList.add("smooth-rotation");
-            }
+//             // FIXED: Apply rotation using shortest path calculation
+//             imgElement.style.transform = `rotate(${shortestRotation}deg)`;
 
-            // FIXED: Apply rotation using shortest path calculation
-            imgElement.style.transform = `rotate(${shortestRotation}deg)`;
+//             if (rotationChanged) {
+//               prevRotationRef.current = shortestRotation;
+//               console.log(
+//                 `[Marker] Rotated from ${currentRotation.toFixed(
+//                   1
+//                 )}° to ${shortestRotation.toFixed(
+//                   1
+//                 )}° (target: ${targetRotation}°, delta: ${(
+//                   shortestRotation - currentRotation
+//                 ).toFixed(1)}°)`
+//               );
+//             }
+//           }
+//         }
+//       }
+//     }, [
+//       vehicle.latitude,
+//       vehicle.longitude,
+//       vehicle.course,
+//       busIcon,
+//       imageUrl,
+//     ]);
 
-            if (rotationChanged) {
-              prevRotationRef.current = shortestRotation;
-              console.log(
-                `[Marker] Rotated from ${currentRotation.toFixed(
-                  1
-                )}° to ${shortestRotation.toFixed(
-                  1
-                )}° (target: ${targetRotation}°, delta: ${(
-                  shortestRotation - currentRotation
-                ).toFixed(1)}°)`
-              );
-            }
-          }
-        }
-      }
-    }, [
-      vehicle.latitude,
-      vehicle.longitude,
-      vehicle.course,
-      busIcon,
-      imageUrl,
-    ]);
+//     const handleClick = useCallback(() => {
+//       onClick?.(vehicle);
+//     }, [vehicle, onClick]);
 
-    const handleClick = useCallback(() => {
-      onClick?.(vehicle);
-    }, [vehicle, onClick]);
+//     const formattedLastUpdate = useMemo(() => {
+//       const utcDate = new Date(vehicle.lastUpdate);
+//       const istDate = new Date(utcDate.getTime() + 5.5 * 60 * 60 * 1000);
+//       const day = istDate.getUTCDate().toString().padStart(2, "0");
+//       const month = (istDate.getUTCMonth() + 1).toString().padStart(2, "0");
+//       const year = istDate.getUTCFullYear();
+//       const hours = istDate.getUTCHours();
+//       const minutes = istDate.getUTCMinutes().toString().padStart(2, "0");
+//       const seconds = istDate.getUTCSeconds().toString().padStart(2, "0");
+//       const hour12 = hours % 12 || 12;
+//       const ampm = hours >= 12 ? "PM" : "AM";
+//       return `${day}/${month}/${year}, ${hour12}:${minutes}:${seconds} ${ampm}`;
+//     }, [vehicle.lastUpdate]);
 
-    const formattedLastUpdate = useMemo(() => {
-      const utcDate = new Date(vehicle.lastUpdate);
-      const istDate = new Date(utcDate.getTime() + 5.5 * 60 * 60 * 1000);
-      const day = istDate.getUTCDate().toString().padStart(2, "0");
-      const month = (istDate.getUTCMonth() + 1).toString().padStart(2, "0");
-      const year = istDate.getUTCFullYear();
-      const hours = istDate.getUTCHours();
-      const minutes = istDate.getUTCMinutes().toString().padStart(2, "0");
-      const seconds = istDate.getUTCSeconds().toString().padStart(2, "0");
-      const hour12 = hours % 12 || 12;
-      const ampm = hours >= 12 ? "PM" : "AM";
-      return `${day}/${month}/${year}, ${hour12}:${minutes}:${seconds} ${ampm}`;
-    }, [vehicle.lastUpdate]);
+//     const statusInfo = useMemo(() => {
+//       const statusMap = {
+//         running: { text: "Running", color: "#28a745" },
+//         idle: { text: "Idle", color: "#ffc107" },
+//         stopped: { text: "Stopped", color: "#dc3545" },
+//         inactive: { text: "Inactive", color: "#666666" },
+//         overspeeding: { text: "Overspeeding", color: "#fd7e14" },
+//         noData: { text: "No Data", color: "#007bff" },
+//       };
+//       return statusMap[vehicleStatus] || statusMap.noData;
+//     }, [vehicleStatus]);
 
-    const statusInfo = useMemo(() => {
-      const statusMap = {
-        running: { text: "Running", color: "#28a745" },
-        idle: { text: "Idle", color: "#ffc107" },
-        stopped: { text: "Stopped", color: "#dc3545" },
-        inactive: { text: "Inactive", color: "#666666" },
-        overspeeding: { text: "Overspeeding", color: "#fd7e14" },
-        noData: { text: "No Data", color: "#007bff" },
-      };
-      return statusMap[vehicleStatus] || statusMap.noData;
-    }, [vehicleStatus]);
+//     return (
+//       <Marker
+//         ref={markerRef}
+//         position={[vehicle.latitude, vehicle.longitude]}
+//         icon={busIcon}
+//         eventHandlers={{
+//           click: handleClick,
+//         }}
+//       >
+//         <Popup maxWidth={290} className="vehicle-popup" maxHeight={300}>
+//           <div className="vehicle-popup-content">
+//             <div className="vehicle-header">
+//               <h3 className="vehicle-name">{vehicle.name}</h3>
+//               <span
+//                 className="status-badge"
+//                 style={{ backgroundColor: statusInfo.color }}
+//               >
+//                 {statusInfo.text}
+//               </span>
+//             </div>
 
-    return (
-      <Marker
-        ref={markerRef}
-        position={[vehicle.latitude, vehicle.longitude]}
-        icon={busIcon}
-        eventHandlers={{
-          click: handleClick,
-        }}
-      >
-        <Popup maxWidth={290} className="vehicle-popup" maxHeight={300}>
-          <div className="vehicle-popup-content">
-            <div className="vehicle-header">
-              <h3 className="vehicle-name">{vehicle.name}</h3>
-              <span
-                className="status-badge"
-                style={{ backgroundColor: statusInfo.color }}
-              >
-                {statusInfo.text}
-              </span>
-            </div>
+//             <div className="vehicle-details scrollable-details">
+//               <div className="detail-row">
+//                 <span className="label">Speed:</span>
+//                 <span className="value">{vehicle.speed.toFixed(2)} km/h</span>
+//               </div>
+//               <div className="detail-row">
+//                 <span className="label">Speed Limit:</span>
+//                 <span className="value">{vehicle.speedLimit}</span>
+//               </div>
+//               <div className="detail-row">
+//                 <span className="label">Category:</span>
+//                 <span className="value">{vehicle.category}</span>
+//               </div>
+//               <div className="detail-row">
+//                 <span className="label">Mileage:</span>
+//                 <span className="value">{vehicle.mileage}</span>
+//               </div>
+//               <div className="detail-row">
+//                 <span className="label">Fuel Consumption:</span>
+//                 <span className="value">{vehicle.fuelConsumption} L</span>
+//               </div>
+//               <div className="detail-row">
+//                 <span className="label">Last Update:</span>
+//                 <span className="value">{formattedLastUpdate}</span>
+//               </div>
+//               <div className="detail-row">
+//                 <span className="label">Since:</span>
+//                 <span className="value">
+//                   {calculateTimeSince(vehicle.lastUpdate)}
+//                 </span>
+//               </div>
+//               <div className="detail-row">
+//                 <span className="label">Today's Distance:</span>
+//                 <span className="value">
+//                   {vehicle.attributes.todayDistance} km
+//                 </span>
+//               </div>
+//               <div className="detail-row">
+//                 <span className="label">Network:</span>
+//                 <span
+//                   className={`value ${
+//                     vehicle.gsmSignal ? "online" : "offline"
+//                   }`}
+//                 >
+//                   {vehicle.gsmSignal ? "Online" : "Offline"}
+//                 </span>
+//               </div>
+//             </div>
 
-            <div className="vehicle-details scrollable-details">
-              <div className="detail-row">
-                <span className="label">Speed:</span>
-                <span className="value">{vehicle.speed.toFixed(2)} km/h</span>
-              </div>
-              <div className="detail-row">
-                <span className="label">Speed Limit:</span>
-                <span className="value">{vehicle.speedLimit}</span>
-              </div>
-              <div className="detail-row">
-                <span className="label">Category:</span>
-                <span className="value">{vehicle.category}</span>
-              </div>
-              <div className="detail-row">
-                <span className="label">Mileage:</span>
-                <span className="value">{vehicle.mileage}</span>
-              </div>
-              <div className="detail-row">
-                <span className="label">Fuel Consumption:</span>
-                <span className="value">{vehicle.fuelConsumption} L</span>
-              </div>
-              <div className="detail-row">
-                <span className="label">Last Update:</span>
-                <span className="value">{formattedLastUpdate}</span>
-              </div>
-              <div className="detail-row">
-                <span className="label">Since:</span>
-                <span className="value">
-                  {calculateTimeSince(vehicle.lastUpdate)}
-                </span>
-              </div>
-              <div className="detail-row">
-                <span className="label">Today's Distance:</span>
-                <span className="value">
-                  {vehicle.attributes.todayDistance} km
-                </span>
-              </div>
-              <div className="detail-row">
-                <span className="label">Network:</span>
-                <span
-                  className={`value ${
-                    vehicle.gsmSignal ? "online" : "offline"
-                  }`}
-                >
-                  {vehicle.gsmSignal ? "Online" : "Offline"}
-                </span>
-              </div>
-            </div>
+//             <div className="vehicle-coordinates">
+//               <small>
+//                 📍 {vehicle.latitude.toFixed(6)}, {vehicle.longitude.toFixed(6)}
+//               </small>
+//             </div>
+//           </div>
+//         </Popup>
+//       </Marker>
+//     );
+//   }
+// );
 
-            <div className="vehicle-coordinates">
-              <small>
-                📍 {vehicle.latitude.toFixed(6)}, {vehicle.longitude.toFixed(6)}
-              </small>
-            </div>
-          </div>
-        </Popup>
-      </Marker>
-    );
-  }
-);
-
-SingleVehicleMarker.displayName = "SingleVehicleMarker";
+// SingleVehicleMarker.displayName = "SingleVehicleMarker";
 
 // Component to disable transitions during zoom
 const ZoomTransitionController = ({
@@ -504,28 +499,6 @@ const MapResizeHandler = () => {
 };
 
 // Simplified map controls for single device
-const SingleDeviceLiveTrackControls = ({
-  vehicle,
-  onCenterToVehicle,
-}: {
-  vehicle: VehicleData | null;
-  onCenterToVehicle: () => void;
-}) => {
-  if (!vehicle) return null;
-
-  return (
-    <div className="map-controls">
-      <button
-        className="map-control-button center-vehicle-btn"
-        onClick={onCenterToVehicle}
-        title={`Center on ${vehicle.name}`}
-      >
-        <span className="control-icon">🎯</span>
-        <span className="control-text">Center Vehicle</span>
-      </button>
-    </div>
-  );
-};
 
 // Helper function to interpolate between two points
 const interpolatePoint = (
@@ -553,10 +526,12 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
   const startTimeRef = useRef<number>(0);
   const startPointRef = useRef<[number, number] | null>(null);
   const targetPointRef = useRef<[number, number] | null>(null);
-  const currentPathRef = useRef<[number, number][]>([]); // Track current path
-  const maxPathPoints = 500; // Increased limit for interpolated points
-  const animationDuration = 10000; // 10 seconds
-  const samplingInterval = 500; // Add point every 500ms (not every frame)
+  const currentPathRef = useRef<[number, number][]>([]);
+  const maxPathPoints = 500;
+  const animationDuration = 10000;
+  const samplingInterval = 500;
+  const [isSatelliteView, setIsSatelliteView] = useState(false);
+  const [showTraffic, setShowTraffic] = useState(false);
 
   // Get vehicle status
   const vehicleStatus = useMemo(() => {
@@ -736,12 +711,17 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
     }
   }, [isValidVehicle, vehicle]);
 
+  const handleSatelliteToggle = useCallback(() => {
+    setIsSatelliteView(!isSatelliteView);
+  }, [isSatelliteView]);
+
   return (
     <div
       className="single-device-map-container"
-      style={{ height, width: "100%" }}
+      style={{ position: "relative", height, width: "100%" }}
     >
       {vehicle && <OfflineIndicator isOffline={!vehicle.gsmSignal} />}
+      {/* <DataRefreshIndicator key={refreshKey} intervalSeconds={10} /> */}
 
       <MapContainer
         ref={mapRef}
@@ -754,7 +734,11 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
       >
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          url={
+            isSatelliteView
+              ? "https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}"
+              : "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          }
           maxZoom={19}
         />
 
@@ -769,13 +753,22 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
 
         {/* Render vehicle marker */}
         {isValidVehicle && vehicle && (
-          <SingleVehicleMarker vehicle={vehicle} onClick={handleVehicleClick} />
+          <VehicleMarker
+            vehicle={vehicle}
+            onClick={handleVehicleClick}
+            markerSize={100}
+            popupMaxWidth={300}
+          />
         )}
       </MapContainer>
 
       <SingleDeviceLiveTrackControls
         vehicle={vehicle}
         onCenterToVehicle={handleCenterToVehicle}
+        isSatelliteView={isSatelliteView}
+        onSatelliteToggle={handleSatelliteToggle}
+        showTraffic={showTraffic}
+        setShowTraffic={setShowTraffic}
       />
 
       {!vehicle && (
