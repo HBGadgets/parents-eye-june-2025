@@ -32,6 +32,7 @@ export const useLiveDeviceData = () => {
     counts: [
       { total: store.deviceData?.total || 0 },
       { running: store.deviceData?.runningCount || 0 },
+      { overspeed: store.deviceData?.overspeedCount || 0 },
       { idle: store.deviceData?.idleCount || 0 },
       { stopped: store.deviceData?.stoppedCount || 0 },
       { inactive: store.deviceData?.inactiveCount || 0 },

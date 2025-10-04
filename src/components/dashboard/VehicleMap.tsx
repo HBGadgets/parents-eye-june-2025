@@ -73,41 +73,31 @@ const VehicleBusMarker = React.memo(
       const timeDifference = currentTime - lastUpdateTime;
       const thirtyFiveHoursInMs = 35 * 60 * 60 * 1000;
 
+      // Check if vehicle is inactive
+      if (vehicle.latitude === 0 && vehicle.longitude === 0) return "noData";
+
       if (timeDifference > thirtyFiveHoursInMs) return "inactive";
 
+      // Check for overspeeding
       const speedLimit = parseFloat(vehicle.speedLimit) || 60;
       if (vehicle.speed > speedLimit) return "overspeeding";
 
-      const runningConditions = [
-        vehicle.speed > 5,
-        vehicle.attributes.motion === true,
-        vehicle.attributes.ignition === true,
-      ];
-      const idleConditions = [
-        vehicle.speed < 5,
-        vehicle.attributes.motion === false,
-        vehicle.attributes.ignition === true,
-      ];
-      const stoppedConditions = [
-        vehicle.speed < 5,
-        vehicle.attributes.motion === false,
-        vehicle.attributes.ignition === false,
-      ];
-
-      const trueConditionsCount = runningConditions.filter(Boolean).length;
-      const trueIdleConditionsCount = idleConditions.filter(Boolean).length;
-      const trueStoppedConditionsCount =
-        stoppedConditions.filter(Boolean).length;
-
-      if (trueStoppedConditionsCount >= 2) return "stopped";
-      if (trueConditionsCount >= 2) return "running";
-      if (trueIdleConditionsCount >= 2) return "idle";
-      return "noData";
+      // Extract vehicle attributes
+      const { ignition, motion } = vehicle.attributes;
+      const speed = vehicle.speed;
+      if (ignition === true) {
+        if (speed > 5 && speed < speedLimit) {
+          return "running";
+        } else {
+          return "idle";
+        }
+      } else if (ignition === false) {
+        return "stopped";
+      }
     }, [
       vehicle.speed,
       vehicle.speedLimit,
       vehicle.lastUpdate,
-      vehicle.attributes.motion,
       vehicle.attributes.ignition,
     ]);
 
