@@ -177,15 +177,15 @@ export default function DashboardPage() {
           const timeDifference = currentTime - lastUpdateTime;
           const thirtyFiveHoursInMs = 35 * 60 * 60 * 1000;
 
+          // Check for overspeeding
+          const speedLimit = parseFloat(vehicle.speedLimit) || 60;
+          if (vehicle.speed > speedLimit) return "overspeeding";
+
           // Check if vehicle is inactive
           if (vehicle.latitude === 0 && vehicle.longitude === 0)
             return "noData";
 
           if (timeDifference > thirtyFiveHoursInMs) return "inactive";
-
-          // Check for overspeeding
-          const speedLimit = parseFloat(vehicle.speedLimit) || 60;
-          if (vehicle.speed > speedLimit) return "overspeeding";
 
           // Extract vehicle attributes
           const { ignition, motion } = vehicle.attributes;
