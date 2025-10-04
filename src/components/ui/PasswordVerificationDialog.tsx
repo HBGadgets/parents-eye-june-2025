@@ -26,7 +26,7 @@ const PasswordVerificationDialog: React.FC<PasswordVerificationDialogProps> = ({
   open,
   onClose,
   onSuccess,
-  fieldKey,
+  // fieldKey,
 }) => {
   const [password, setPassword] = React.useState("");
   const [passwordError, setPasswordError] = React.useState("");
@@ -54,7 +54,7 @@ const PasswordVerificationDialog: React.FC<PasswordVerificationDialogProps> = ({
       } else {
         setPasswordError("Incorrect password");
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Password verify error", err);
       setPasswordError(
         err?.response?.data?.message || "Failed to verify password"

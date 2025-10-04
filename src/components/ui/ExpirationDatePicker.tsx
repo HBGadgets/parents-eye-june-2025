@@ -9,7 +9,7 @@
 //   showLabel?: boolean;
 // }
 
-// const CustomInput = forwardRef(({ value, onClick, placeholder }: any, ref) => (
+// const CustomInput = forwardRef(({ value, onClick, placeholder }: unknown, ref) => (
 //   <div
 //     onClick={onClick}
 //     ref={ref}
@@ -53,10 +53,10 @@
 //   );
 // }
 // components/ExpirationDatePicker.tsx
-import React, { forwardRef } from 'react';
-import DatePicker from 'react-datepicker';
-import { CalendarDays } from 'lucide-react';
-import 'react-datepicker/dist/react-datepicker.css';
+import React, { forwardRef } from "react";
+import DatePicker from "react-datepicker";
+import { CalendarDays } from "lucide-react";
+import "react-datepicker/dist/react-datepicker.css";
 
 interface ExpirationDatePickerProps {
   value: Date | null;
@@ -64,9 +64,8 @@ interface ExpirationDatePickerProps {
   showLabel?: boolean;
 }
 
-
 const CustomInput = forwardRef(
-  ({ value, onClick, placeholder }: any, ref) => (
+  ({ value, onClick, placeholder }: unknown, ref) => (
     <div
       onClick={onClick}
       ref={ref}
@@ -84,7 +83,7 @@ const CustomInput = forwardRef(
   )
 );
 
-CustomInput.displayName = 'CustomInput';
+CustomInput.displayName = "CustomInput";
 
 export default function ExpirationDatePicker({
   value,
@@ -108,10 +107,8 @@ export default function ExpirationDatePicker({
         onChange={onChange}
         placeholderText="Enter date"
         dateFormat="yyyy-MM-dd"
-        customInput={<CustomInput />} 
-       />
-    
-
+        customInput={<CustomInput />}
+      />
     </div>
   );
 }

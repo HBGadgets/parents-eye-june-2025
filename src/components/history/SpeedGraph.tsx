@@ -3,15 +3,15 @@ import throttle from "lodash.throttle";
 import { Line } from "react-chartjs-2";
 
 interface SpeedTimelineGraphProps {
-  data: any;
-  options: any;
+  data: unknown;
+  options: unknown;
   onHoverSeek: (index: number) => void;
   isExpanded?: boolean; // Add this prop
 }
 
 export const SpeedTimelineGraph = memo<SpeedTimelineGraphProps>(
   ({ data, options, onHoverSeek, isExpanded }) => {
-    const chartRef = useRef<any>(null);
+    const chartRef = useRef<unknown>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const [mousePosition, setMousePosition] = useState<number | null>(null);
     const [isHovering, setIsHovering] = useState(false);
@@ -30,7 +30,7 @@ export const SpeedTimelineGraph = memo<SpeedTimelineGraphProps>(
 
     // Enhanced hover handler that respects blocking state
     const throttledHover = useCallback(
-      throttle((event: any) => {
+      throttle((event: unknown) => {
         // Don't process hover if blocked
         if (hoverBlocked || !chartRef.current || !containerRef.current) return;
 

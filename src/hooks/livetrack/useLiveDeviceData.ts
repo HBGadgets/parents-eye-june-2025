@@ -1,4 +1,5 @@
 // hooks/useLiveDeviceData.ts
+"use client";
 import { useCallback, useEffect, useRef } from "react";
 import { useDeviceStore } from "@/store/deviceStore";
 import Cookies from "js-cookie";
@@ -24,7 +25,7 @@ export const useLiveDeviceData = () => {
       store.disconnect();
       hasInitialized.current = false;
     };
-  }, []); // Keep empty dependency array
+  }, []);
 
   return {
     // Data
@@ -143,25 +144,21 @@ export const useSingleDeviceData = (uniqueId?: string) => {
   // Auto-start stream if uniqueId is provided
   useEffect(() => {
     if (uniqueId && store.isConnected && store.isAuthenticated) {
-      // Only start if not already streaming
       if (!store.isDeviceStreamActive(uniqueId)) {
         startStream(uniqueId);
       }
     }
-
-    // Cleanup on unmount or when uniqueId changes
     return () => {
       if (activeStreamRef.current) {
         console.log(
           "[useSingleDeviceData] Cleaning up stream:",
           activeStreamRef.current
         );
-        // Don't stop the stream on unmount, just clear the ref
-        // The component using this hook should explicitly call stopStream or switchToAllDevices
+
         activeStreamRef.current = null;
       }
     };
-  }, [uniqueId, store.isConnected, store.isAuthenticated]); // Intentionally excluding startStream to avoid re-triggering
+  }, [uniqueId, store.isConnected, store.isAuthenticated]);
 
   return {
     // Single Device Data

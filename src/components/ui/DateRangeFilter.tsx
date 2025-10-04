@@ -29,48 +29,65 @@ const DateRangeFilter: React.FC<DateRangeFilterProps> = ({
   const [showMonthSelector, setShowMonthSelector] = useState<boolean>(false);
 
   const months = [
-    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "May",
+    "Jun",
+    "Jul",
+    "Aug",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dec",
   ];
   const currentYear = new Date().getFullYear();
   const years = Array.from({ length: 101 }, (_, i) => currentYear - 50 + i);
 
   // Helper function to calculate days between dates (inclusive)
   const getDaysBetween = (date1: Date, date2: Date): number => {
-    const utc1 = Date.UTC(date1.getFullYear(), date1.getMonth(), date1.getDate());
-    const utc2 = Date.UTC(date2.getFullYear(), date2.getMonth(), date2.getDate());
+    const utc1 = Date.UTC(
+      date1.getFullYear(),
+      date1.getMonth(),
+      date1.getDate()
+    );
+    const utc2 = Date.UTC(
+      date2.getFullYear(),
+      date2.getMonth(),
+      date2.getDate()
+    );
     const diffTime = Math.abs(utc2 - utc1);
     return Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1; // +1 for inclusive count
   };
 
   // Helper function to check if a date should be disabled due to max limit
   const isDateDisabled = (date: Date): boolean => {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0); // Strip time
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Strip time
 
-  // Disable if date is in the future
-  if (date > today) return true;
+    // Disable if date is in the future
+    if (date > today) return true;
 
-  // Existing maxDays logic
-  if (!maxDays || !selectedStartDate || selectedEndDate) return false;
-  
-  const daysDiff = getDaysBetween(selectedStartDate, date);
-  return daysDiff > maxDays;
-};
+    // Existing maxDays logic
+    if (!maxDays || !selectedStartDate || selectedEndDate) return false;
+
+    const daysDiff = getDaysBetween(selectedStartDate, date);
+    return daysDiff > maxDays;
+  };
 
   // Helper function to get maximum allowed end date
   const getMaxEndDate = (startDate: Date): Date => {
-  const today = new Date();
-  today.setHours(23, 59, 59, 999);
+    const today = new Date();
+    today.setHours(23, 59, 59, 999);
 
-  if (!maxDays) return today; // Limit end date only up to today if no maxDays
+    if (!maxDays) return today; // Limit end date only up to today if no maxDays
 
-  const maxEnd = new Date(startDate);
-  maxEnd.setDate(startDate.getDate() + maxDays - 1);
+    const maxEnd = new Date(startDate);
+    maxEnd.setDate(startDate.getDate() + maxDays - 1);
 
-  return maxEnd > today ? today : maxEnd;
-};
-
+    return maxEnd > today ? today : maxEnd;
+  };
 
   const getDaysInMonth = (date: Date): Date[] => {
     const year = date.getFullYear(),
@@ -178,7 +195,7 @@ const DateRangeFilter: React.FC<DateRangeFilterProps> = ({
       disabled: isDisabled,
       action: () => {
         if (isDisabled) return; // Don't execute if disabled
-        
+
         if (maxDays && daysDiff > maxDays) {
           // Adjust end date to respect max limit
           const adjustedEnd = getMaxEndDate(startDate);
@@ -215,49 +232,65 @@ const DateRangeFilter: React.FC<DateRangeFilterProps> = ({
   lastWeekEnd.setDate(lastWeekStart.getDate() + 6);
 
   const allPresets = [
-  createPreset("Today", today, today, true),
-  createPreset("Yesterday", yesterday, yesterday, true),
-  createPreset("Last Week", lastWeekStart, lastWeekEnd, true),
-  createPreset("This Week", thisWeekStart, today, true),
-  createPreset("This Month", thisMonthStart, today, true),
-  createPreset("Last Month", lastMonthStart, lastMonthEnd, true),
-  {
-    label: "Custom Range",
-    disabled: false,
-    action: () => {
-      setSelectedStartDate(null);
-      setSelectedEndDate(null);
+    createPreset("Today", today, today, true),
+    createPreset("Yesterday", yesterday, yesterday, true),
+    createPreset("Last Week", lastWeekStart, lastWeekEnd, true),
+    createPreset("This Week", thisWeekStart, today, true),
+    createPreset("This Month", thisMonthStart, today, true),
+    createPreset("Last Month", lastMonthStart, lastMonthEnd, true),
+    {
+      label: "Custom Range",
+      disabled: false,
+      action: () => {
+        setSelectedStartDate(null);
+        setSelectedEndDate(null);
+      },
     },
-  },
-];
+  ];
 
- // Filter presets based on maxDays limit
-const presets = maxDays 
-  ? allPresets.filter(preset => {
-      // Always show Custom Range
-      if (preset.label === "Custom Range") return true;
-      
-      // For other presets, check if they exceed maxDays
-      const startDate = preset.label === "Today" ? today :
-                       preset.label === "Yesterday" ? yesterday :
-                       preset.label === "Last Week" ? lastWeekStart :
-                       preset.label === "This Week" ? thisWeekStart :
-                       preset.label === "This Month" ? thisMonthStart :
-                       preset.label === "Last Month" ? lastMonthStart : null;
-      
-      const endDate = preset.label === "Today" ? today :
-                     preset.label === "Yesterday" ? yesterday :
-                     preset.label === "Last Week" ? lastWeekEnd :
-                     preset.label === "This Week" ? today :
-                     preset.label === "This Month" ? today :
-                     preset.label === "Last Month" ? lastMonthEnd : null;
-      
-      if (!startDate || !endDate) return true;
-      
-      const daysDiff = getDaysBetween(startDate, endDate);
-      return daysDiff <= maxDays;
-    })
-  : allPresets;
+  // Filter presets based on maxDays limit
+  const presets = maxDays
+    ? allPresets.filter((preset) => {
+        // Always show Custom Range
+        if (preset.label === "Custom Range") return true;
+
+        // For other presets, check if they exceed maxDays
+        const startDate =
+          preset.label === "Today"
+            ? today
+            : preset.label === "Yesterday"
+            ? yesterday
+            : preset.label === "Last Week"
+            ? lastWeekStart
+            : preset.label === "This Week"
+            ? thisWeekStart
+            : preset.label === "This Month"
+            ? thisMonthStart
+            : preset.label === "Last Month"
+            ? lastMonthStart
+            : null;
+
+        const endDate =
+          preset.label === "Today"
+            ? today
+            : preset.label === "Yesterday"
+            ? yesterday
+            : preset.label === "Last Week"
+            ? lastWeekEnd
+            : preset.label === "This Week"
+            ? today
+            : preset.label === "This Month"
+            ? today
+            : preset.label === "Last Month"
+            ? lastMonthEnd
+            : null;
+
+        if (!startDate || !endDate) return true;
+
+        const daysDiff = getDaysBetween(startDate, endDate);
+        return daysDiff <= maxDays;
+      })
+    : allPresets;
 
   const isPresetActive = (label: string): boolean => {
     if (!selectedStartDate || !selectedEndDate) return false;
@@ -321,9 +354,9 @@ const presets = maxDays
     current,
   }: {
     show: boolean;
-    items: any[];
-    onSelect: (item: any) => void;
-    current: any;
+    items: unknown[];
+    onSelect: (item: unknown) => void;
+    current: unknown;
   }) =>
     show && (
       <div className="absolute top-full left-0 mt-1 bg-white border rounded-md shadow-lg z-10 max-h-48 overflow-y-auto">
@@ -353,9 +386,10 @@ const presets = maxDays
         >
           <Calendar className="mr-2 h-4 w-4" />
           {selectedStartDate && selectedEndDate
-            ? `${formatDate(selectedStartDate)} - ${formatDate(selectedEndDate)}`
+            ? `${formatDate(selectedStartDate)} - ${formatDate(
+                selectedEndDate
+              )}`
             : title}
-          
         </Button>
       </PopoverTrigger>
 
@@ -379,7 +413,7 @@ const presets = maxDays
                   {preset.label}
                   {preset.disabled && maxDays && (
                     <span className="ml-1 text-xs text-muted-foreground">
-                      (>{maxDays}d)
+                      ({maxDays}d)
                     </span>
                   )}
                 </Button>

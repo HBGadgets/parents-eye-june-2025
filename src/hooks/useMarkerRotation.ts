@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import L from "leaflet";
 
 const getShortestRotation = (from: number, to: number): number => {
-  let delta = ((((to - from) % 360) + 540) % 360) - 180;
+  const delta = ((((to - from) % 360) + 540) % 360) - 180;
   return from + delta;
 };
 

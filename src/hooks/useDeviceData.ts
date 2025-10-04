@@ -1,7 +1,7 @@
 "use client";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { api } from "@/services/apiService";
-import { Device, DeviceResponse } from "@/interface/modal";
+import { DeviceResponse } from "@/interface/modal";
 
 interface UseDeviceDataOptions {
   searchTerm?: string;
@@ -9,12 +9,16 @@ interface UseDeviceDataOptions {
 
 export const useDeviceData = (options: UseDeviceDataOptions = {}) => {
   const { searchTerm } = options;
-  
+
   return useInfiniteQuery({
     queryKey: ["deviceData", searchTerm],
     queryFn: async ({ pageParam = 1 }) => {
-      const searchQuery = searchTerm ? `&deviceName=${encodeURIComponent(searchTerm)}` : '';
-      const response = await api.get<DeviceResponse[]>(`/device?page=${pageParam}&limit=50${searchQuery}`);
+      const searchQuery = searchTerm
+        ? `&deviceName=${encodeURIComponent(searchTerm)}`
+        : "";
+      const response = await api.get<DeviceResponse[]>(
+        `/device?page=${pageParam}&limit=50${searchQuery}`
+      );
       return response.devices;
     },
     getNextPageParam: (lastPage, allPages) => {

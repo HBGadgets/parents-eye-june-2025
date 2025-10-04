@@ -54,11 +54,11 @@ export interface ColumnWrapConfig {
 }
 
 // Extend the meta property instead of the ColumnDef directly
-declare module "@tanstack/react-table" {
-  interface ColumnMeta<TData, TValue> {
-    wrapConfig?: ColumnWrapConfig;
-  }
-}
+// declare module "@tanstack/react-table" {
+//   interface ColumnMeta<TData, TValue> {
+//     wrapConfig?: ColumnWrapConfig;
+//   }
+// }
 
 // Main props interface
 export interface DataTableProps<T> {
@@ -93,7 +93,9 @@ export interface DataTableProps<T> {
   selectedRowClassName?: string; // Default class for selected rows
 }
 
-export function CustomTableServerSidePagination<T extends Record<string, any>>({
+export function CustomTableServerSidePagination<
+  T extends Record<string, unknown>
+>({
   data,
   columns,
   pagination,
@@ -118,9 +120,9 @@ export function CustomTableServerSidePagination<T extends Record<string, any>>({
   enableColumnWrapping = true,
   selectedRowId = null,
   getRowId = (row: T) => row.id || row.deviceId || row.key, // Default ID extraction
-  getRowClassName,
-  selectedRowClassName = "bg-blue-100 hover:bg-blue-200 border-l-4 border-blue-500",
-}: DataTableProps<T>) {
+}: // getRowClassName,
+// selectedRowClassName = "bg-blue-100 hover:bg-blue-200 border-l-4 border-blue-500",
+DataTableProps<T>) {
   // Function to get wrapping classes based on wrap option
   const getWrapClasses = (wrapOption: TextWrapOption): string => {
     const baseClasses = "leading-relaxed";
@@ -222,12 +224,12 @@ export function CustomTableServerSidePagination<T extends Record<string, any>>({
   };
 
   // Helper function to check if a row is an expanded row
-  const isExpandedRow = (rowData: any) => {
+  const isExpandedRow = (rowData: unknown) => {
     return rowData.isLoading || rowData.isDetailTable || rowData.isEmpty;
   };
 
   // Row click handler
-  const handleRowClick = (row: any, event: React.MouseEvent) => {
+  const handleRowClick = (row: unknown, event: React.MouseEvent) => {
     const target = event.target as HTMLElement;
     const isInteractiveElement = target.closest(
       'button, a, input, select, [role="button"]'
@@ -354,23 +356,23 @@ export function CustomTableServerSidePagination<T extends Record<string, any>>({
                         selectedRowId !== null && rowId === selectedRowId;
 
                       // Build row className
-                      let rowClassName = `border-b transition-colors duration-200 ${
-                        enableRowClick && onRowClick ? "cursor-pointer" : ""
-                      }`;
+                      // let rowClassName = `border-b transition-colors duration-200 ${
+                      //   enableRowClick && onRowClick ? "cursor-pointer" : ""
+                      // }`;
 
-                      if (isSelected) {
-                        // Use custom className function or default selected className
-                        const selectedClass = getRowClassName
-                          ? getRowClassName(rowData, true)
-                          : selectedRowClassName;
-                        rowClassName += ` ${selectedClass}`;
-                      } else {
-                        // Apply normal hover effects for non-selected rows
-                        const normalClass = getRowClassName
-                          ? getRowClassName(rowData, false)
-                          : "hover:bg-muted/50";
-                        rowClassName += ` ${normalClass}`;
-                      }
+                      // if (isSelected) {
+                      //   // Use custom className function or default selected className
+                      //   const selectedClass = getRowClassName
+                      //     ? getRowClassName(rowData, true)
+                      //     : selectedRowClassName;
+                      //   rowClassName += ` ${selectedClass}`;
+                      // } else {
+                      //   // Apply normal hover effects for non-selected rows
+                      //   const normalClass = getRowClassName
+                      //     ? getRowClassName(rowData, false)
+                      //     : "hover:bg-muted/50";
+                      //   rowClassName += ` ${normalClass}`;
+                      // }
 
                       return (
                         <TableRow
