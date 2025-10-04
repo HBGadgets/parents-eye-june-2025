@@ -11,8 +11,8 @@ import { Button } from "@/components/ui/button";
 import DateRangeFilter from "../ui/DateRangeFilter";
 import { ColumnVisibilitySelector } from "@/components/column-visibility-selector";
 import { Column } from "@tanstack/react-table";
-import { FloatingMenu } from "@/components/floatingMenu";
 import { useExport } from "@/hooks/useExport";
+import { Combobox } from "@/components/ui/combobox";
 
 interface SchoolBranchSelectorProps {
   enforceRoleBasedSelection?: boolean;
@@ -28,6 +28,14 @@ interface SchoolBranchSelectorProps {
   columns?: Column<any, unknown>[];
   onColumnVisibilityChange?: (visibility: any) => void;
   showColumnVisibility?: boolean;
+  vehicleMetaData?: Array<{ value: string; label: string }>;
+  selectedVehicle?: string;
+  onVehicleChange?: (value: string) => void;
+  searchTerm?: string;
+  onSearchChange?: (search: string) => void;
+  onVehicleReachEnd?: () => void;
+  isFetchingNextPage?: boolean;
+  hasNextPage?: boolean;
 }
 
 const SchoolBranchSelector: React.FC<SchoolBranchSelectorProps> = ({
@@ -37,11 +45,18 @@ const SchoolBranchSelector: React.FC<SchoolBranchSelectorProps> = ({
   columns = [],
   onColumnVisibilityChange,
   showColumnVisibility = false,
+  vehicleMetaData = [],
+  selectedVehicle = "",
+  onVehicleChange,
+  searchTerm = "",
+  onSearchChange,
+  onVehicleReachEnd,
+  isFetchingNextPage = false,
+  hasNextPage = false,
 }) => {
   const [role, setRole] = useState<string | null>(null);
   const [selectedSchool, setSelectedSchool] = useState<string | null>(null);
   const [selectedBranch, setSelectedBranch] = useState<string | null>(null);
-  const [selectedDevice, setSelectedDevice] = useState<string | null>(null);
   const [selectedDeviceName, setSelectedDeviceName] = useState<string | null>(
     null
   );
@@ -81,7 +96,6 @@ const SchoolBranchSelector: React.FC<SchoolBranchSelectorProps> = ({
     }
   }, []);
 
-  // Schools dropdown
   const schools = useMemo(() => {
     if (!schoolData) return [];
     return schoolData.map((school) => ({
@@ -90,49 +104,40 @@ const SchoolBranchSelector: React.FC<SchoolBranchSelectorProps> = ({
     }));
   }, [schoolData]);
 
-  // Branches dropdown
   const branches = useMemo(() => {
-    if (!branchData || !selectedSchool) return [];
-    return branchData
-      .filter((branch: any) => branch.schoolId?._id === selectedSchool)
-      .map((branch: any) => ({
-        label: branch.branchName,
-        value: branch._id,
-      }));
+    if (!branchData) return [];
+    if (selectedSchool) {
+      return branchData
+        .filter((branch: any) => branch.schoolId?._id === selectedSchool)
+        .map((branch: any) => ({
+          label: branch.branchName,
+          value: branch._id,
+        }));
+    }
+    return [];
   }, [branchData, selectedSchool]);
 
-  // Devices dropdown
-  const devices = useMemo(() => {
-    if (!deviceData || !selectedBranch) return [];
+  const filteredVehicleMetaData = useMemo(() => {
+    if (!selectedBranch) {
+      return [];
+    }
+    return vehicleMetaData.filter(() => true);
+  }, [vehicleMetaData, selectedBranch]);
 
-    const list = Array.isArray(deviceData)
-      ? deviceData
-      : deviceData.devices || [];
+  const handleVehicleChange = (value: string) => {
+    if (onVehicleChange) {
+      onVehicleChange(value);
+    }
+    const selected = vehicleMetaData.find((vehicle) => vehicle.value === value);
+    setSelectedDeviceName(selected?.label || null);
+  };
 
-    return list
-      .filter((d: any) => {
-        if (!d.branchId) return false;
-        if (typeof d.branchId === "string") {
-          return d.branchId === selectedBranch;
-        }
-        if (typeof d.branchId === "object" && d.branchId._id) {
-          return d.branchId._id === selectedBranch;
-        }
-        return false;
-      })
-      .map((d: any) => ({
-        label: d.name || d.deviceId || "Unnamed Device",
-        value: d.deviceId || d._id,
-      }));
-  }, [deviceData, selectedBranch]);
-
-  // Handle submit
   const handleSubmit = () => {
     const filterData = {
       schoolId: selectedSchool,
       branchId: selectedBranch,
       deviceName: selectedDeviceName,
-      deviceId: selectedDevice,
+      deviceId: selectedVehicle,
       startDate: dateRange.start,
       endDate: dateRange.end,
     };
@@ -141,17 +146,15 @@ const SchoolBranchSelector: React.FC<SchoolBranchSelectorProps> = ({
 
   if (role === null) return null;
 
-  const exportData: any[] = [];
-  const columnsForExport: any[] = [];
-
   return (
-    <div className="space-y-4">
-      <div className={`flex flex-wrap gap-4 items-center ${className}`}>
-        {/* School selector */}
-        {role !== "branch" && (
-          <>
-            {role !== "school" && (
-              <div className="min-w-[180px] max-w-[220px] flex-1">
+    <div className="w-full border border-gray-200 bg-white rounded-lg p-4 shadow-sm">
+      {/* Filters row */}
+      <div className={`flex flex-wrap gap-3 items-center ${className}`}>
+        {/* User Column */}
+        <div className="flex-1 min-w-[160px] max-w-[200px]">
+          {role !== "branch" && (
+            <>
+              {role !== "school" ? (
                 <SearchableDropdown
                   items={schools}
                   placeholder="Choose a school..."
@@ -161,107 +164,109 @@ const SchoolBranchSelector: React.FC<SchoolBranchSelectorProps> = ({
                   onSelect={(item) => {
                     setSelectedSchool(item.value);
                     setSelectedBranch(null);
-                    setSelectedDevice(null);
+                    if (onVehicleChange) {
+                      onVehicleChange("");
+                    }
                   }}
                   disabled={
                     enforceRoleBasedSelection &&
                     (role === "schooladmin" || role === "branchadmin")
                   }
                 />
-              </div>
-            )}
-
-            {/* Branch selector (always visible, but empty until school is selected) */}
-            <div className="min-w-[180px] max-w-[220px] flex-1">
-              <SearchableDropdown
-                items={branches}
-                placeholder="Choose a branch..."
-                searchPlaceholder="Search branch..."
-                emptyMessage={
-                  !selectedSchool
-                    ? "Select a school first."
-                    : "No branch found for this school."
-                }
-                value={selectedBranch}
-                onSelect={(item) => {
-                  setSelectedBranch(item.value);
-                  setSelectedDevice(null);
-                }}
-                disabled={
-                  !selectedSchool ||
-                  (enforceRoleBasedSelection && role === "branchadmin")
-                }
-              />
+              ) : (
+                <div className="px-3 py-2 border border-gray-200 rounded-md bg-gray-50 text-sm">
+                  School User
+                </div>
+              )}
+            </>
+          )}
+          {role === "branch" && (
+            <div className="px-3 py-2 border border-gray-200 rounded-md bg-gray-50 text-sm">
+              Branch User
             </div>
-          </>
-        )}
+          )}
+        </div>
 
-        {/* Device selector */}
-        <div className="min-w-[180px] max-w-[220px] flex-1">
-          <SearchableDropdown
-            items={devices}
-            placeholder="Choose a device..."
-            searchPlaceholder="Search device..."
+        {/* Groups Column */}
+        <div className="flex-1 min-w-[160px] max-w-[200px]">
+          {role !== "branch" ? (
+            <SearchableDropdown
+              items={branches}
+              placeholder="Choose a branch..."
+              searchPlaceholder="Search branch..."
+              emptyMessage={
+                !selectedSchool
+                  ? "Select a school first."
+                  : "No branch found for this school."
+              }
+              value={selectedBranch}
+              onSelect={(item) => {
+                setSelectedBranch(item.value);
+                if (onVehicleChange) {
+                  onVehicleChange("");
+                }
+              }}
+              disabled={
+                !selectedSchool ||
+                (enforceRoleBasedSelection && role === "branchadmin")
+              }
+            />
+          ) : (
+            <div className="px-3 py-2 border border-gray-200 rounded-md bg-gray-50 text-sm">
+              Branch Group
+            </div>
+          )}
+        </div>
+
+        {/* Vehicles Column */}
+        <div className="flex-1 min-w-[160px] max-w-[200px]">
+          <Combobox
+            items={filteredVehicleMetaData}
+            value={selectedVehicle}
+            onValueChange={handleVehicleChange}
+            placeholder="Search vehicle..."
+            searchPlaceholder="Search vehicles..."
             emptyMessage={
               !selectedBranch
                 ? "Select a branch first."
-                : "No devices found for this branch."
+                : "No vehicles found for this branch."
             }
-            value={selectedDevice}
-            onSelect={(item) => {
-              setSelectedDevice(item.value);
-              setSelectedDeviceName(item.label);
-            }}
-            disabled={!selectedBranch}
+            width="w-full"
+            infiniteScroll={true}
+            limit={20}
+            onReachEnd={onVehicleReachEnd}
+            isLoadingMore={isFetchingNextPage}
+            onSearchChange={onSearchChange}
+            searchValue={searchTerm}
           />
         </div>
 
-        {/* Date range filter */}
-        <div className="min-w-[200px] max-w-[260px] flex-1">
+        {/* Date + Columns in same row */}
+        <div className="flex min-w-[340px] max-w-[380px] gap-2">
           <DateRangeFilter
             onDateRangeChange={(start, end) => setDateRange({ start, end })}
+            placeholderClassName="font-bold" // 👈 makes placeholder bold
           />
-        </div>
 
-        {/* Column visibility */}
-        {showColumnVisibility && columns.length > 0 && (
-          <div className="min-w-[150px] max-w-[200px] flex-1">
+          {showColumnVisibility && columns.length > 0 ? (
             <ColumnVisibilitySelector
               columns={columns}
               buttonVariant="outline"
               buttonSize="default"
             />
-          </div>
-        )}
-
-        {/* Show report button */}
-        <div className="min-w-[120px] max-w-[160px] flex-1">
-          <Button
-            onClick={handleSubmit}
-            className="mt-1 w-full"
-            disabled={loading}
-          >
-            {loading ? "Loading..." : "Show Report"}
-          </Button>
+          ) : (
+            <div className="px-3 py-2 border border-gray-200 rounded-md bg-gray-50 text-sm flex items-center">
+              Select...
+            </div>
+          )}
         </div>
+      </div>
 
-        {/* Export menu */}
-        <div className="min-w-[120px] max-w-[160px] flex-1">
-          <FloatingMenu
-            onExportPdf={() =>
-              exportToPDF(exportData, columnsForExport, {
-                title: "Export",
-                companyName: "Parents Eye",
-              })
-            }
-            onExportExcel={() =>
-              exportToExcel(exportData, columnsForExport, {
-                title: "Export",
-                companyName: "Parents Eye",
-              })
-            }
-          />
-        </div>
+      {/* Show Now Button (below, right aligned) */}
+      <div className="flex justify-end mt-4">
+        <Button onClick={handleSubmit} disabled={loading}>
+          {loading ? "Loading..." : "Show Report"}
+        </Button>
       </div>
     </div>
   );

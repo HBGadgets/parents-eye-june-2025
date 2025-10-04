@@ -1,38 +1,33 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import ReportFilter from "@/components/report-filters/Report-Filter";
 import { type ColumnDef, VisibilityState } from "@tanstack/react-table";
 import { CustomTableServerSidePagination } from "@/components/ui/customTable(serverSidePagination)";
 import { api } from "@/services/apiService";
 import ResponseLoader from "@/components/ResponseLoader";
 import { reverseGeocode } from "@/util/reverse-geocode";
+import { useDeviceData } from "@/hooks/useDeviceData";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { FaPause } from "react-icons/fa";
-import {
-  startOfMonth,
-  endOfMonth,
-  startOfWeek,
-  endOfWeek,
-  subDays,
-  format,
-} from "date-fns";
+// ✅ FIX: Changed import to FaPowerOff, as requested
+import { FaPowerOff } from "react-icons/fa"; 
+import { format } from "date-fns";
 
 interface IdleReportData {
   id: string;
   sn: number;
   deviceName: string;
   vehicleStatus: string;
-  startTime: string;
+  idleStartTime: string;
+  idleEndTime: string;
   duration: string;
   location: string;
   coordinates: string;
-  endTime: string;
 }
 
 const IdleReportPage: React.FC = () => {
@@ -41,12 +36,51 @@ const IdleReportPage: React.FC = () => {
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
   const [isLoading, setIsLoading] = useState(false);
   const [showTable, setShowTable] = useState(false);
-  const [pagination, setPagination] = useState({
-    pageIndex: 0,
-    pageSize: 10,
-  });
+  const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 10 });
   const [sorting, setSorting] = useState<any[]>([]);
   const [currentFilters, setCurrentFilters] = useState<any>(null);
+
+  // vehicle selection state
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedVehicle, setSelectedVehicle] = useState("");
+  const [selectedVehicleName, setSelectedVehicleName] = useState("");
+
+  const {
+    data: vehicleData,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useDeviceData({ searchTerm });
+
+  const allVehicles = useMemo(() => {
+    if (!vehicleData?.pages) return [];
+    return vehicleData.pages.flat();
+  }, [vehicleData]);
+
+  const vehicleMetaData = useMemo(() => {
+    if (!Array.isArray(allVehicles)) return [];
+    return allVehicles.map((vehicle) => ({
+      value: vehicle.deviceId.toString(),
+      label: vehicle.name,
+    }));
+  }, [allVehicles]);
+
+  const handleVehicleReachEnd = useCallback(() => {
+    if (hasNextPage && !isFetchingNextPage) fetchNextPage();
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+
+  const handleSearchChange = useCallback((search: string) => {
+    setSearchTerm(search);
+  }, []);
+
+  const handleVehicleChange = useCallback(
+    (value: string) => {
+      setSelectedVehicle(value.toString());
+      const selected = vehicleMetaData.find((v) => v.value === value);
+      setSelectedVehicleName(selected?.label || "");
+    },
+    [vehicleMetaData]
+  );
 
   const columns: ColumnDef<IdleReportData>[] = [
     { accessorKey: "sn", header: "SN" },
@@ -56,26 +90,17 @@ const IdleReportPage: React.FC = () => {
       header: "Vehicle Status",
       size: 200,
       cell: ({ row }) => {
-        const status = row.original.vehicleStatus?.toLowerCase();
-        let iconColor = "text-yellow-500";
-        let tooltipText = "Idle";
-
-        if (status?.includes("engine idle")) {
-          iconColor = "text-orange-500";
-          tooltipText = "Engine Idle";
-        } else if (status?.includes("stationary")) {
-          iconColor = "text-yellow-600";
-          tooltipText = "Stationary";
-        }
+        // ✅ FIX: Use FaPowerOff with yellow color and "Idle" text
+        const iconColor = "text-yellow-500";
+        const tooltipText = "Idle";
+        const IconComponent = FaPowerOff; // Use the imported FaPowerOff icon
 
         return (
           <div className="flex justify-center">
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <FaPause
-                    className={`text-lg cursor-pointer ${iconColor}`}
-                  />
+                  <IconComponent className={`text-lg cursor-pointer ${iconColor}`} />
                 </TooltipTrigger>
                 <TooltipContent className="bg-black/80 text-white font-bold rounded-md px-3 py-2 shadow-lg">
                   <p>{tooltipText}</p>
@@ -87,27 +112,30 @@ const IdleReportPage: React.FC = () => {
       },
     },
     {
-      accessorKey: "startTime",
+      accessorKey: "idleStartTime",
       header: "Start Time ↑",
       size: 280,
       cell: ({ row }) =>
-        row.original.startTime
-          ? new Date(row.original.startTime).toLocaleString()
+        row.original.idleStartTime
+          ? new Date(row.original.idleStartTime).toLocaleString()
           : "-",
     },
-    { accessorKey: "duration", header: "Duration", size: 180 },
+    {
+      accessorKey: "duration",
+      header: "Duration",
+      size: 180,
+      cell: ({ row }) => (row.original.duration ? row.original.duration : "-"),
+    },
     {
       accessorKey: "location",
       header: "Location",
       size: 350,
       cell: ({ row }) =>
-        row.original.location !== "Loading..."
-          ? row.original.location
-          : "-",
+        row.original.location !== "Loading..." ? row.original.location : "-",
     },
     {
       accessorKey: "coordinates",
-      header: "Co-ordinates",
+      header: "Coordinates",
       size: 200,
       cell: ({ row }) => {
         const coords = row.original.coordinates.split(",");
@@ -117,199 +145,168 @@ const IdleReportPage: React.FC = () => {
       },
     },
     {
-      accessorKey: "endTime",
+      accessorKey: "idleEndTime",
       header: "End Time",
       size: 280,
       cell: ({ row }) =>
-        row.original.endTime
-          ? new Date(row.original.endTime).toLocaleString()
+        row.original.idleEndTime
+          ? new Date(row.original.idleEndTime).toLocaleString()
           : "-",
     },
   ];
 
   const formatDate = (date: Date) => format(date, "yyyy-MM-dd");
 
-  const resolvePeriodRange = (period: string) => {
-    const now = new Date();
-
-    switch (period) {
-      case "Today":
-        return {
-          from: formatDate(now),
-          to: formatDate(now),
-        };
-      case "This Week":
-        return {
-          from: formatDate(startOfWeek(now)),
-          to: formatDate(endOfWeek(now)),
-        };
-      case "Last 7 Days":
-        return {
-          from: formatDate(subDays(now, 7)),
-          to: formatDate(now),
-        };
-      case "This Month":
-        return {
-          from: formatDate(startOfMonth(now)),
-          to: formatDate(endOfMonth(now)),
-        };
-      default:
-        return null;
-    }
-  };
-
-  const fetchIdleReportData = async (
-    filters: any,
-    paginationState: any,
-    sortingState: any
-  ) => {
+  const fetchIdleReportData = async (filters: any, paginationState: any, sortingState: any) => {
     if (!filters) return;
     setIsLoading(true);
     try {
-      // Build query parameters one by one to avoid formatting issues
       const queryParams = new URLSearchParams();
-      
-      // Add deviceIds (make sure it's a string)
-      if (filters.deviceId) {
-        queryParams.append("deviceIds", filters.deviceId.toString());
-      }
-      
-      // Add pagination parameters
-      queryParams.append("page", (paginationState.pageIndex + 1).toString());
-      queryParams.append("limit", paginationState.pageSize.toString());
-      queryParams.append("period", filters.period || "Custom");
 
-      // Handle date ranges
-      let from = "";
-      let to = "";
+      queryParams.append("period", "Custom");
 
-      if (filters.period === "Custom") {
-        if (filters.startDate && filters.endDate) {
-          from = formatDate(new Date(filters.startDate));
-          to = formatDate(new Date(filters.endDate));
-        }
-      } else {
-        const range = resolvePeriodRange(filters.period || "Today");
-        if (range) {
-          from = range.from;
-          to = range.to;
-        }
-      }
+      if (filters.deviceId) queryParams.append("deviceIds", filters.deviceId.toString());
 
-      // Validate dates
-      if (!from || !to) {
-        alert("Please select a valid period (from & to are required).");
+      if (!filters.startDate || !filters.endDate) {
+        alert("Please select both start and end dates");
         setIsLoading(false);
         return;
       }
 
-      
+      const from = formatDate(new Date(filters.startDate));
+      const to = formatDate(new Date(filters.endDate));
       queryParams.append("from", from);
       queryParams.append("to", to);
 
-      // Add sorting if available
       if (sortingState?.length) {
         const sort = sortingState[0];
         queryParams.append("sortBy", sort.id);
         queryParams.append("sortOrder", sort.desc ? "desc" : "asc");
       }
 
-      const finalUrl = `/report/idle-report?${queryParams.toString()}`;
-      console.log("Final API URL:", finalUrl);
-      console.log("Query Parameters:", Object.fromEntries(queryParams.entries()));
+      console.log("API URL:", `/report/idle-report?${queryParams}`);
 
-      const response = await api.get(finalUrl);
-      const json = response.data;
+      const response = await api.get(`/report/idle-report?${queryParams}`);
+      
+      console.log("Full API Response:", response);
+      console.log("Response.data:", response.data);
+      
+      // Handle the nested data structure correctly
+      let json = response.data;
+      
+      // If response.data has a 'data' property, use that
+      if (json && json.data) {
+        console.log("Using json.data");
+      } else {
+        console.log("Using json directly");
+        json = { data: response.data, success: true };
+      }
+      
+      console.log("Processed JSON:", json);
+      console.log("JSON.data:", json.data);
 
-      console.log("API Response:", json);
+      if (json.success === false) throw new Error(json.message || "API request failed");
 
-      // Check if response is successful
-      if (json.success === false) {
-        throw new Error(json.message || "API request failed");
+      // Flatten the nested structure
+      let flatIdleEvents: any[] = [];
+      
+      if (json.data && Array.isArray(json.data)) {
+        console.log("Processing devices, count:", json.data.length);
+        
+        json.data.forEach((device: any, deviceIndex: number) => {
+          console.log(`Device ${deviceIndex}:`, device);
+          console.log(`Device ${deviceIndex} idleArray:`, device.idleArray);
+          
+          if (device.idleArray && Array.isArray(device.idleArray)) {
+            console.log(`Device ${deviceIndex} idleArray length:`, device.idleArray.length);
+            
+            device.idleArray.forEach((idleEvent: any, eventIndex: number) => {
+              // Skip null/undefined entries
+              if (!idleEvent) {
+                console.log(`Skipping null/undefined event at index ${eventIndex}`);
+                return;
+              }
+              
+              console.log(`Adding idle event ${eventIndex}:`, idleEvent);
+              flatIdleEvents.push({
+                ...idleEvent,
+                deviceId: device.deviceId,
+              });
+            });
+          } else {
+            console.log(`Device ${deviceIndex} has no valid idleArray`);
+          }
+        });
+      } else {
+        console.log("json.data is not an array or is missing");
       }
 
-      if (!json || (Array.isArray(json) && json.length === 0)) {
+      console.log("Flattened idle events count:", flatIdleEvents.length);
+      console.log("Flattened idle events:", flatIdleEvents);
+
+      if (flatIdleEvents.length === 0) {
+        console.warn("No idle events found after flattening");
         setData([]);
         setTotalCount(0);
+        setIsLoading(false);
         return;
       }
 
-      // Handle different response structures
-      let responseData = json;
-      let total = 0;
+      // Apply client-side pagination
+      const startIndex = paginationState.pageIndex * paginationState.pageSize;
+      const endIndex = startIndex + paginationState.pageSize;
+      const paginatedEvents = flatIdleEvents.slice(startIndex, endIndex);
 
-      // If response has data property (common in paginated APIs)
-      if (json.data && Array.isArray(json.data)) {
-        responseData = json.data;
-        total = json.total || json.totalCount || json.data.length;
-      } else if (Array.isArray(json)) {
-        responseData = json;
-        total = json.length;
-      } else {
-        responseData = [json];
-        total = 1;
-      }
+      console.log("Pagination - startIndex:", startIndex, "endIndex:", endIndex);
+      console.log("Paginated events:", paginatedEvents);
+      console.log("Paginated events length:", paginatedEvents.length);
 
-      const dataArray = Array.isArray(responseData) ? responseData : [responseData];
-      
-      console.log("👉 Processed data:", dataArray);
-
-      const initialTransformed = dataArray.map(
-        (item: any, index: number) => ({
-          id: item.deviceId || item.id || `row-${index}`,
-          sn: paginationState.pageIndex * paginationState.pageSize + index + 1,
-          deviceName: item.deviceName || filters.deviceName || "Unknown Device",
-          vehicleStatus: item.vehicleStatus || item.status || "Idle",
-          startTime: item.startDateTime || item.startTime || item.createdAt,
-          duration: item.duration || item.time || "N/A",
+      const initialTransformed = paginatedEvents.map((item: any, index: number) => {
+        console.log(`Transforming item ${index}:`, item);
+        return {
+          id: `${item.deviceId}-${item.idleStartTime}-${index}`,
+          sn: startIndex + index + 1,
+          deviceName: filters.deviceName || "Unknown Device",
+          vehicleStatus: "Idle",
+          idleStartTime: item.idleStartTime,
+          idleEndTime: item.idleEndTime,
+          duration: item.duration || "N/A",
           location: "Loading...",
-          coordinates: item.location || item.coordinates || item.latLng || "21.991253888888888, 78.92976777777777",
-          endTime: item.endDateTime || item.endTime || item.updatedAt,
-        })
-      );
+          coordinates: `${item.latitude}, ${item.longitude}`,
+        };
+      });
+
+      console.log("Initial transformed data:", initialTransformed);
+      console.log("Initial transformed data length:", initialTransformed.length);
 
       setData(initialTransformed);
-      setTotalCount(total);
+      setTotalCount(flatIdleEvents.length);
+      
+      console.log("Data set in state, totalCount:", flatIdleEvents.length);
 
-      // Resolve addresses in background
+      // Fetch addresses asynchronously
       const transformedWithAddresses = await Promise.all(
         initialTransformed.map(async (item) => {
           try {
-            const [lat, lon] = item.coordinates
-              .split(",")
-              .map((c: string) => parseFloat(c.trim()));
-            
-            if (isNaN(lat) || isNaN(lon)) {
-              return { ...item, location: "Invalid coordinates" };
-            }
-
+            const [lat, lon] = item.coordinates.split(",").map((c: string) => parseFloat(c.trim()));
+            if (isNaN(lat) || isNaN(lon)) return { ...item, location: "Invalid coordinates" };
             const address = await reverseGeocode(lat, lon);
             return { ...item, location: address };
           } catch (error) {
-            console.error("Reverse geocoding error:", error);
+            console.error("Reverse geocode error:", error);
             return { ...item, location: "Address not found" };
           }
         })
       );
       
+      console.log("Data with addresses:", transformedWithAddresses);
       setData(transformedWithAddresses);
     } catch (error: any) {
-      console.error(" Error fetching idle report data:", error);
+      console.error("Error fetching idle report data:", error);
+      console.error("Error details:", error?.response?.data);
+      alert(error?.response?.data?.message || error.message || "Unknown error");
       setData([]);
       setTotalCount(0);
-      
-      // Detailed error handling
-      if (error.response) {
-        console.error("Error response data:", error.response.data);
-        console.error("Error response status:", error.response.status);
-        alert(`Error ${error.response.status}: ${error.response.data?.message || error.response.data?.error || "Request failed"}`);
-      } else if (error.request) {
-        console.error("No response received:", error.request);
-        alert("Network error: Could not connect to server. Please check your connection.");
-      } else {
-        console.error("Error message:", error.message);
-        alert(`Error: ${error.message}`);
-      }
     } finally {
       setIsLoading(false);
     }
@@ -319,46 +316,26 @@ const IdleReportPage: React.FC = () => {
     if (currentFilters && showTable) {
       fetchIdleReportData(currentFilters, pagination, sorting);
     }
-  }, [pagination, sorting, currentFilters, showTable]);
+  }, [pagination, sorting]);
 
   const handleFilterSubmit = async (filters: any) => {
-    
-    if (!filters.deviceId) {
-      alert("Please select a device");
-      return;
-    }
-    
- 
-    if (filters.deviceId.toString().trim() === "") {
-      alert("Please select a valid device");
+    if (!selectedVehicle || !filters.startDate || !filters.endDate) {
+      alert("Please select a vehicle and a date range");
       return;
     }
 
-    
-    if (filters.period === "Custom" && (!filters.startDate || !filters.endDate)) {
-      alert("Please select both start and end dates for custom period");
-      return;
-    }
-
-    
-    if (filters.period === "Custom") {
-      const startDate = new Date(filters.startDate);
-      const endDate = new Date(filters.endDate);
-      if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
-        alert("Please select valid dates");
-        return;
-      }
-    }
+    const updatedFilters = {
+      ...filters,
+      deviceId: selectedVehicle,
+      deviceName: selectedVehicleName,
+    };
 
     setPagination({ pageIndex: 0, pageSize: 10 });
     setSorting([]);
-    setCurrentFilters(filters);
+    setCurrentFilters(updatedFilters);
     setShowTable(true);
-    
-    // Use setTimeout to ensure state updates before API call
-    setTimeout(() => {
-      fetchIdleReportData(filters, { pageIndex: 0, pageSize: 10 }, []);
-    }, 0);
+
+    await fetchIdleReportData(updatedFilters, { pageIndex: 0, pageSize: 10 }, []);
   };
 
   const { table, tableElement } = CustomTableServerSidePagination({
@@ -378,15 +355,25 @@ const IdleReportPage: React.FC = () => {
     showSerialNumber: false,
   });
 
+  console.log("Rendering table with data:", data);
+  console.log("Data length in render:", data.length);
+
   return (
     <div>
       <ResponseLoader isLoading={isLoading} />
-      <h1 className="text-xl font-bold mb-4">Idle Reports</h1>
       <ReportFilter
         onFilterSubmit={handleFilterSubmit}
         columns={table.getAllColumns()}
         showColumnVisibility
         className="mb-6"
+        vehicleMetaData={vehicleMetaData}
+        selectedVehicle={selectedVehicle}
+        onVehicleChange={handleVehicleChange}
+        searchTerm={searchTerm}
+        onSearchChange={handleSearchChange}
+        onVehicleReachEnd={handleVehicleReachEnd}
+        isFetchingNextPage={isFetchingNextPage}
+        hasNextPage={hasNextPage}
       />
       {showTable && <section className="mb-4">{tableElement}</section>}
     </div>
