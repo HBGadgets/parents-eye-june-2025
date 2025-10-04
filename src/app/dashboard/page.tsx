@@ -179,7 +179,7 @@ export default function DashboardPage() {
 
           // Check for overspeeding
           const speedLimit = parseFloat(vehicle.speedLimit) || 60;
-          if (vehicle.speed > speedLimit) return "overspeeding";
+          if (vehicle.speed > speedLimit) return "overspeed";
 
           // Check if vehicle is inactive
           if (vehicle.latitude === 0 && vehicle.longitude === 0)
