@@ -202,7 +202,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       ["superAdmin", "school", "branchGroup", "branch"].includes(role)
     ) {
       setUserRole(role as UserRole);
-      console.log(`User role set to: ${role}`);
+      // console.log(`User role set to: ${role}`);
     }
 
     setIsLoading(false); // Data fetching complete
@@ -337,7 +337,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
     sidebarData.forEach((item) => {
       router.prefetch(item.url);
-      console.log(`Prefetched: ${item.url}`);
+      // console.log(`Prefetched: ${item.url}`);
     });
   }, [sidebarData, router]);
 

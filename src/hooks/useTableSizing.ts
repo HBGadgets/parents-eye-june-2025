@@ -28,7 +28,7 @@ export const useTableSizing = (minHeight = 200, maxHeight = 480) => {
   }, [minHeight, maxHeight]);
 
   // --------------- column sizing helper --------
-  const getColumnStyle = (colOrCell: any): React.CSSProperties => {
+  const getColumnStyle = (colOrCell: unknown): React.CSSProperties => {
     const meta = colOrCell.column.columnDef.meta as
       | { minW?: number; maxW?: number; w?: number }
       | undefined;

@@ -18,7 +18,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 
-type DataItem = Record<string, any> | string | number;
+type DataItem = Record<string, unknown> | string | number;
 
 interface FilterState {
   [field: string]: string;
@@ -27,12 +27,12 @@ interface FilterState {
 interface CustomFilterProps {
   data: DataItem[];
   filterFields: string[]; // Now supports multiple fields
-  onFilter: (filtered: any[]) => void;
+  onFilter: (filtered: unknown[]) => void;
   originalData?: DataItem[]; // Pass the original unfiltered data
   placeholder?: string | ((field: string) => string); // Can be string or function
   className?: string;
-  valueFormatter?: (value: any) => string;
-  booleanToLable?: (value: any) => string;
+  valueFormatter?: (value: unknown) => string;
+  booleanToLable?: (value: unknown) => string;
   trueValue?: string;
   falseValue?: string;
 }
@@ -107,7 +107,7 @@ export const CustomFilter: React.FC<CustomFilterProps> = ({
       const filtered = sourceData.filter((item) => {
         if (typeof item === "object" && item !== null) {
           return Object.entries(filters).every(([field, value]) => {
-            let actualValue = item[field];
+            const actualValue = item[field];
 
             // Handle boolean-to-label mapping
             if (field === `${booleanToLable}`) {

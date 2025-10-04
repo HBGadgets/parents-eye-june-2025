@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Check, ChevronsUpDown, Search } from "lucide-react";
+import { Check, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -49,6 +49,11 @@ export function SearchableDropdown<T = DropdownItem>({
 }: SearchableDropdownProps<T>) {
   const [open, setOpen] = React.useState(false);
   const [selectedValue, setSelectedValue] = React.useState(value || "");
+
+  // 🆕 Add this useEffect to sync with external value changes
+  React.useEffect(() => {
+    setSelectedValue(value || "");
+  }, [value]);
 
   const getItemValue = (item: T) => String(item[valueKey]);
   const getItemLabel = (item: T) => String(item[labelKey]);

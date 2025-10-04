@@ -1,3 +1,5 @@
+// for server-side pagination
+
 import { useQuery } from "@tanstack/react-query";
 import {
   PaginationState,

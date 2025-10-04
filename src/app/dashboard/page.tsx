@@ -1,12 +1,16 @@
 "use client";
 
-// import { MyPageTable } from "@/components/example/MyPageTable";
+import dynamic from "next/dynamic";
+
+const DashboardClient = dynamic(() => import("./DashboardClient"), {
+  ssr: false,
+  loading: () => (
+    <div className="flex items-center justify-center h-screen">
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+    </div>
+  ),
+});
 
 export default function DashboardPage() {
-  return (
-    <div className="p-6">
-      <h1 className="text-3xl font-bold mb-4">Welcome to the Dashboard...</h1>
-      {/* <MyPageTable /> */}
-    </div>
-  );
+  return <DashboardClient />;
 }

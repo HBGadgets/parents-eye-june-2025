@@ -1,42 +1,15 @@
 export interface Student {
-  total: number;
-  page: number;
-  limit: number;
   _id: string;
   childName: string;
   className: string;
   section: string;
-  DOB: string;
-  age: number;
-  gender: string;
-  geofenceId: {
-    _id: string;
-    name: string;
-    busStopTime: string;
-  };
-  deviceId: {
-    _id: string;
-    name: string;
-    routeNo: string;
-  };
-  assignDevice: boolean;
-  parentId: {
-    _id: string;
-    parentName: string;
-    mobileNo: string;
-    username: string;
-    password: string;
-  };
-  schoolId: {
-    _id: string;
-    schoolName: string;
-  };
-  branchId: {
-    _id: string;
-    branchName: string;
-  };
+  age: string;
+  geofenceId: Geofence;
+  parentId: Parent;
+  schoolId: School;
+  branchId: Branch;
+  statusOfRegister: string;
   createdAt: string;
-  updatedAt: string;
 }
 
 export interface School {
@@ -69,28 +42,24 @@ export interface Branch {
 }
 
 export interface Device {
+  parkingMode: boolean;
+  toeingMode: boolean;
+  keyFeature: boolean;
+  TD: number;
+  TDTime: string;
   _id: string;
   name: string;
   uniqueId: string;
   sim: string;
   speed: string;
   average: string;
-  Driver: string;
+  driver: string | null;
   model: string;
   category: string;
-  installationdate: string;
-  subStart: string;
-  expirationdate: string;
-  extenddate: string;
-  inactiveDate: string;
-  modifiedDate: string;
   deviceId: string;
   routeNo: string;
-  positionId: string;
   status: string;
   lastUpdate: string;
-  TD: number;
-  TDTime: string;
   schoolId: {
     _id: string;
     schoolName: string;
@@ -101,31 +70,55 @@ export interface Device {
   };
   createdAt: string;
   updatedAt: string;
+  __v?: number; // optional if not always provided
+}
+
+export interface DeviceResponse {
+  total: number;
+  page: number;
+  limit: number;
+  devices: Device[];
 }
 
 export interface Geofence {
   _id: string;
-  name: string;
+  geofenceName: string;
   area: string;
   pickupTime: string;
   dropTime: string;
   isCrossed: boolean;
+  school: School | null;
   schoolId: School | null;
+  branch: Branch | null;
   branchId: Branch | null;
+  deviceObjId?: Device | null;
+  route: {
+    routeNumber: string;
+    device: Device | null;
+  };
+  routeObjId?: Route | null;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface Parent {
   _id: string;
   parentName: string;
+  mobileNo: string;
+  email: string;
   username: string;
   password: string;
-  email: string;
-  schoolMobile: string;
-  fullAccess: boolean;
-  schoolId: string | null;
-  branchId: string | null;
-  contactNo: string;
-  role: string;
+  schoolId?: {
+    _id: string;
+    schoolName: string;
+  };
+  branchId?: {
+    _id: string;
+    branchName: string;
+  };
+  isActive?: boolean;
+  createdAt: string;
+  updatedAt?: string;
 }
 
 export interface Driver {
@@ -138,7 +131,7 @@ export interface Driver {
   driverMobile: string;
   schoolId: School;
   branchId: Branch;
-  deviceObjId:deviceObjId;
+  deviceObjId: deviceObjId;
   role: string;
   createdAt: string;
   updatedAt: string;
@@ -153,7 +146,7 @@ export interface Supervisor {
   supervisorMobile: string;
   schoolId: School;
   branchId: Branch;
-    deviceObjId:deviceObjId;
+  deviceObjId: deviceObjId;
 
   role: string;
   createdAt: string;
@@ -179,4 +172,19 @@ export interface BranchGroup {
   email: string;
   role: string;
   fcmToken: string;
+}
+
+// Define the structure of a LeaveRequest
+export interface LeaveRequest {
+  _id: string;
+  childId: Student;
+  parentId: Parent;
+  schoolId: School;
+  branchId: Branch;
+  startDate: string;
+  endDate: string;
+  reason: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
 }

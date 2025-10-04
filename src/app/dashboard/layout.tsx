@@ -1,4 +1,7 @@
 "use client";
+import { useEffect } from "react";
+import Cookies from "js-cookie";
+import { useDeviceStore } from "@/store/deviceStore";
 import { AppSidebar } from "@/components/app-sidebar";
 import FCMHandler from "@/components/FCMHandler";
 import { Navbar } from "@/components/navbar";
@@ -15,6 +18,21 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
+  useEffect(() => {
+    const token = Cookies.get("token");
+
+    // Auto-connect if user is logged in
+    if (token) {
+      const connectToDevice = useDeviceStore.getState().connect;
+      connectToDevice();
+    }
+
+    // Cleanup on app unmount
+    return () => {
+      const disconnect = useDeviceStore.getState().disconnect;
+      disconnect();
+    };
+  }, []);
   return (
     <SidebarProvider>
       <AppSidebar />

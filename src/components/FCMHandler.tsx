@@ -5,6 +5,7 @@ import { messaging, getToken, onMessage } from "@/util/firebase";
 import { Messaging } from "firebase/messaging";
 import { toast } from "sonner";
 import authAxios from "@/lib/authAxios";
+import Cookies from "js-cookie";
 
 // Get VAPID key from environment
 const vapidKey = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY!;
@@ -33,23 +34,48 @@ export default function FCMHandler(): null {
         }
 
         const storedToken = localStorage.getItem("fcm_token");
+
         if (storedToken) {
-          console.log("📦 Reusing stored FCM Token:", storedToken);
+          // console.log("📦 Reusing stored FCM Token:", storedToken);
         } else {
-          const newToken = await getToken(messaging as Messaging, { vapidKey });
-          if (newToken) {
-            console.log("✅ New FCM Token:", newToken);
+          try {
+            const newToken = await getToken(messaging as Messaging, {
+              vapidKey,
+            });
+
+            if (!newToken) {
+              // console.warn("❌ Failed to retrieve new FCM token.");
+              return;
+            }
+
+            // console.log("✅ New FCM Token:", newToken);
             localStorage.setItem("fcm_token", newToken);
 
             const payload = { fcmToken: newToken };
-            // TODO: Send token to your backend
-            await authAxios.post("/fcmtoken/store", payload);
+            const token = Cookies.get("token");
+
+            if (!token) {
+              // console.warn(
+              //   "⚠️ Auth token not found. Cannot send FCM token to server."
+              // );
+              return;
+            }
+
+            await authAxios.post("/fcmtoken/store", payload, {
+              headers: {
+                Authorization: `Bearer ${token}`,
+              },
+            });
+
+            // console.log("📤 FCM token successfully sent to backend.");
+          } catch (err) {
+            // console.error("🚨 Error during FCM token generation/storage:", err);
           }
         }
 
         // Set up listener once
         onMessage(messaging as Messaging, (payload) => {
-          console.log("🔔 Foreground notification:", payload);
+          // console.log("🔔 Foreground notification:", payload);
 
           const title = payload.notification?.title ?? "New Notification";
           const body = payload.notification?.body ?? "";
@@ -57,7 +83,7 @@ export default function FCMHandler(): null {
 
           // Play sound
           notificationSound.play().catch((err) => {
-            console.warn("🔇 Sound blocked:", err);
+            // console.warn("🔇 Sound blocked:", err);
           });
 
           if ("serviceWorker" in navigator) {
@@ -71,7 +97,7 @@ export default function FCMHandler(): null {
                   );
                 })
                 .catch((err) => {
-                  console.error("Service Worker registration failed:", err);
+                  // console.error("Service Worker registration failed:", err);
                 });
             });
           }
@@ -98,7 +124,7 @@ export default function FCMHandler(): null {
           });
         });
       } catch (err) {
-        console.error("🔥 FCM Init Error:", err);
+        // console.error("🔥 FCM Init Error:", err);
       }
     };
 

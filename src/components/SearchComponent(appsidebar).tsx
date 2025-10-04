@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import {
@@ -10,7 +9,7 @@ import {
 } from "./ui/sidebar";
 import { Search } from "lucide-react";
 
-type DataItem = Record<string, any> | string | number;
+type DataItem = Record<string, unknown> | string | number;
 
 interface SearchComponentProps {
   data?: DataItem[];

@@ -8,7 +8,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { LogOut, Bell, CreditCard, Settings, User } from "lucide-react";
+import { LogOut, Bell, CreditCard, User } from "lucide-react";
 import { LogoutButton } from "./logout-button";
 import Link from "next/link";
 import Cookies from "js-cookie";

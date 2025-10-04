@@ -1,16 +1,23 @@
 "use client";
 
-import React, { useCallback, useEffect, useState } from "react";
-import {
-  AlertDialog,
-  AlertDialogContent,
-  AlertDialogHeader,
-  AlertDialogFooter,
-  AlertDialogCancel,
-  AlertDialogAction,
-  AlertDialogTitle,
-  AlertDialogDescription,
-} from "@/components/ui/alert-dialog";
+import React, { useEffect, useState, useRef, useMemo } from "react";
+import { CustomTableServerSidePagination } from "@/components/ui/customTable(serverSidePagination)";
+import { DynamicEditDialog, FieldConfig } from "@/components/ui/EditModal";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { FloatingMenu } from "@/components/floatingMenu";
+import type { ColumnDef, VisibilityState } from "@tanstack/react-table";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { api } from "@/services/apiService";
+import { Student, School, Branch, Route, Geofence } from "@/interface/modal";
+import { useExport } from "@/hooks/useExport";
+import { useStudents } from "@/hooks/useStudent";
+import { useRouteData } from "@/hooks/useRouteData";
+import { useGeofences } from "@/hooks/useGeofence";
+import { SearchBar } from "@/components/search-bar/SearchBarPagination";
+import { Alert } from "@/components/Alert";
+import { ColumnVisibilitySelector } from "@/components/column-visibility-selector";
 import {
   Dialog,
   DialogClose,
@@ -20,922 +27,725 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import {
-  CustomTableServerSidePagination,
-  CellContent,
-} from "@/components/ui/customTable(serverSidePagination)";
-import { DynamicEditDialog, FieldConfig } from "@/components/ui/EditModal";
-import SearchComponent from "@/components/ui/SearchOnlydata";
-import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
-import { DatePicker } from "@/components/ui/datePicker";
-import { SearchableSelect } from "@/components/custom-select";
-import DateRangeFilter from "@/components/ui/DateRangeFilter";
-import { FloatingMenu } from "@/components/floatingMenu";
-import type {
-  ColumnDef,
-  SortingState,
-  PaginationState,
-} from "@tanstack/react-table";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api } from "@/services/apiService";
-import { useSchoolData } from "@/hooks/useSchoolData";
-import { useBranchData } from "@/hooks/useBranchData";
-import { useDeviceData } from "@/hooks/useDeviceData";
-import { useGeofenceData } from "@/hooks/useGeofenceData";
-import { Student } from "@/interface/modal";
-import { useExport } from "@/hooks/useExport";
+
+const EDIT_FIELDS: FieldConfig[] = [
+  { key: "childName", label: "Student Name", type: "text", required: true },
+  { key: "age", label: "Age", type: "number", required: true },
+  { key: "className", label: "Class", type: "text", required: true },
+  { key: "section", label: "Section", type: "text", required: true },
+  { key: "schoolId", label: "School", type: "select", required: true },
+  { key: "branchId", label: "Branch", type: "select", required: true },
+  { key: "routeObjId", label: "Route", type: "select", required: true },
+  { key: "pickupGeoId", label: "Pickup Location", type: "select", required: true },
+  { key: "dropGeoId", label: "Drop Location", type: "select", required: true },
+];
+
+const EXPORT_COLUMNS = [
+  { key: "childName", header: "Child Name" },
+  { key: "section", header: "Section" },
+  { key: "age", header: "Age" },
+  { key: "schoolId.schoolName", header: "School" },
+  { key: "branchId.branchName", header: "Branch" },
+  { key: "routeObjId.routeNumber", header: "Route Number" },
+  { key: "parentId.parentName", header: "Parent Name" },
+  { key: "parentId.mobileNo", header: "Contact no" },
+  { key: "pickupGeoId.geofenceName", header: "Pickup Location" },
+  { key: "dropGeoId.geofenceName", header: "Drop Location" },
+  { key: "parentId.username", header: "Username" },
+  { key: "parentId.password", header: "Password" },
+];
+
+// Safe accessor functions
+const getSchoolId = (student: Student): string => {
+  if (!student.schoolId) return "";
+  return typeof student.schoolId === 'object' ? student.schoolId?._id || "" : student.schoolId || "";
+};
+
+const getBranchId = (student: Student): string => {
+  if (!student.branchId) return "";
+  return typeof student.branchId === 'object' ? student.branchId?._id || "" : student.branchId || "";
+};
+
+const getRouteId = (student: Student): string => {
+  if (student.routeObjId) {
+    return typeof student.routeObjId === 'object' ? student.routeObjId?._id || "" : student.routeObjId || "";
+  }
+  if (student.routeId) {
+    return typeof student.routeId === 'object' ? student.routeId?._id || "" : student.routeId || "";
+  }
+  return "";
+};
+
+const getGeofenceId = (geoField: any): string => {
+  if (!geoField) return "";
+  return typeof geoField === 'object' ? geoField?._id || "" : geoField || "";
+};
 
 export default function StudentDetails() {
-  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
-  const [filteredData, setFilteredData] = useState<Student[]>([]);
-  const [filterResults, setFilterResults] = useState<Student[]>([]);
-  const [selectedUser, setSelectedUser] = useState<Student | null>(null);
-  const [editDialogOpen, setEditDialogOpen] = useState(false);
-  const [open, setOpen] = useState(false);
-  const [dob, setDob] = useState<Date | undefined>(undefined);
   const queryClient = useQueryClient();
-  const [gender, setGender] = useState<string | undefined>(undefined);
-  const [pickupPoint, setPickupPoint] = useState<string | undefined>(undefined);
-  const [busNumber, setBusNumber] = useState<string | undefined>(undefined);
-  const [school, setSchool] = useState<string | undefined>(undefined);
-  const [branch, setBranch] = useState<string | undefined>(undefined);
-  const [pagination, setPagination] = useState({
-    pageIndex: 0,
-    pageSize: 10,
-  });
-  const [sorting, setSorting] = useState([]);
-  const [totalRecords, setTotalRecords] = useState(0);
-  const [pageCount, setPageCount] = useState(0);
-  const [showStudent, setShowStudent] = useState(false);
-
-  interface SelectOption {
-    label: string;
-    value: string;
-  }
-
-  // columns for export
-  const columnsForExport = [
-    { key: "childName", header: "Student Name" },
-    { key: "className", header: "Class" },
-    { key: "deviceId.routeNo", header: "Route No" },
-    { key: "section", header: "Section" },
-    { key: "schoolId.schoolName", header: "School" },
-    { key: "branchId.branchName", header: "Branch" },
-    {
-      key: "DOB",
-      header: "DOB",
-      formatter: (val: string) =>
-        new Date(val).toLocaleDateString("en-GB", {
-          day: "2-digit",
-          month: "short",
-          year: "numeric",
-        }),
-    },
-    { key: "age", header: "Age" },
-    { key: "parentId.parentName", header: "Parent Name" },
-    { key: "mobileNo", header: "Contact No" }, // Fix: this is at root, not under parentId
-    { key: "gender", header: "Gender" },
-    { key: "deviceId.name", header: "Bus No." },
-    { key: "geofenceId.name", header: "Pickup Point" },
-    {
-      key: "createdAt",
-      header: "Registration Date",
-      formatter: (val: string) =>
-        new Date(val).toLocaleDateString("en-GB", {
-          day: "2-digit",
-          month: "short",
-          year: "numeric",
-        }),
-    },
-    { key: "parentId.username", header: "UserName" },
-    { key: "parentId.password", header: "Password" },
-  ];
-
-  // Fetch students data
-  const {
-    data: students,
-    isLoading,
-    isError,
-    error,
-    refetch,
-  } = useQuery<Student[]>({
-    queryKey: ["students", pagination, sorting],
-    queryFn: async () => {
-      const params = new URLSearchParams({
-        page: (pagination.pageIndex + 1).toString(),
-        limit: pagination.pageSize.toString(),
-      });
-      const res = await api.get(`/child?${params.toString()}`);
-      console.log("params", params.toString());
-      return res;
-    },
-  });
-
-  console.log("students", filteredData);
-
-  const { data: schoolData } = useSchoolData();
-  const { data: branchData } = useBranchData();
-  const { data: deviceData } = useDeviceData();
-  const { data: geofenceData } = useGeofenceData();
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Student | null>(null);
+  const [editTarget, setEditTarget] = useState<Student | null>(null);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 10 });
+  const [sorting, setSorting] = useState([{ id: "createdAt", desc: false }]);
+  const [studentName, setStudentName] = useState("");
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
+  const [debouncedStudentName, setDebouncedStudentName] = useState(studentName);
+  
+  // Add form state for cascading dropdowns
+  const [selectedSchool, setSelectedSchool] = useState("");
+  const [selectedBranch, setSelectedBranch] = useState("");
+  
+  // Edit form state for cascading dropdowns
+  const [editSelectedSchool, setEditSelectedSchool] = useState("");
+  const [editSelectedBranch, setEditSelectedBranch] = useState("");
+  
   const { exportToPDF, exportToExcel } = useExport();
 
-  // fetch students every time there is some change in student
+  // Fetch schools, branches, routes
+  const { data: schools = [], isLoading: schoolsLoading } = useQuery<School[]>({
+    queryKey: ["schools"],
+    queryFn: () => api.get<School[]>("/school"),
+  });
+
+  const { data: branches = [], isLoading: branchesLoading } = useQuery<Branch[]>({
+    queryKey: ["branches"],
+    queryFn: () => api.get<Branch[]>("/branch"),
+  });
+
+  const { data: routesData, isLoading: routesLoading } = useRouteData();
+  const routes: Route[] = Array.isArray(routesData) ? routesData : routesData?.data || [];
+
+  // Fetch geofences
+  const {
+    data: geofencesData,
+    isLoading: geofencesLoading,
+  } = useGeofences({ pagination, sorting });
+
+  const geofences: Geofence[] = Array.isArray(geofencesData)
+    ? geofencesData
+    : Array.isArray(geofencesData?.data)
+    ? geofencesData.data
+    : [];
+
+  // Filter branches based on selected school (Add form)
+  const filteredBranches = useMemo(() => {
+    if (!selectedSchool) return [];
+    return branches.filter(branch => {
+      // Safe branch schoolId access
+      const branchSchoolId = branch.schoolId 
+        ? (typeof branch.schoolId === 'object' ? branch.schoolId?._id : branch.schoolId)
+        : null;
+      return branchSchoolId === selectedSchool;
+    });
+  }, [selectedSchool, branches]);
+
+  // Filter routes based on selected branch (Add form)
+  const filteredRoutes = useMemo(() => {
+    if (!selectedBranch) return [];
+    return routes.filter(route => {
+      const routeBranchId = route.branchId 
+        ? (typeof route.branchId === 'object' ? route.branchId?._id : route.branchId)
+        : null;
+      return routeBranchId === selectedBranch;
+    });
+  }, [selectedBranch, routes]);
+
+  // Filter branches for edit dialog
+  const editFilteredBranches = useMemo(() => {
+    if (!editSelectedSchool) return branches;
+    return branches.filter(branch => {
+      const branchSchoolId = branch.schoolId 
+        ? (typeof branch.schoolId === 'object' ? branch.schoolId?._id : branch.schoolId)
+        : null;
+      return branchSchoolId === editSelectedSchool;
+    });
+  }, [editSelectedSchool, branches]);
+
+  // Filter routes for edit dialog
+  const editFilteredRoutes = useMemo(() => {
+    if (!editSelectedBranch) return routes;
+    return routes.filter(route => {
+      const routeBranchId = route.branchId 
+        ? (typeof route.branchId === 'object' ? route.branchId?._id : route.branchId)
+        : null;
+      return routeBranchId === editSelectedBranch;
+    });
+  }, [editSelectedBranch, routes]);
+
+  // Debounce search
   useEffect(() => {
-    if (students && students) {
-      setFilteredData(students.children);
+    const handler = setTimeout(() => setDebouncedStudentName(studentName), 500);
+    return () => clearTimeout(handler);
+  }, [studentName]);
+
+  const { data: studentsData, isLoading, isFetching } = useStudents({
+    pagination,
+    sorting,
+    childName: debouncedStudentName,
+  });
+
+  // Set edit form initial values when edit target changes
+  useEffect(() => {
+    if (editTarget) {
+      setEditSelectedSchool(getSchoolId(editTarget));
+      setEditSelectedBranch(getBranchId(editTarget));
     }
-  }, [students]);
+  }, [editTarget]);
 
-  // Mutation to add a new student
+  // Mutations
   const addStudentMutation = useMutation({
-    mutationFn: async (newStudent: any) => {
-      return await api.post("/child", newStudent);
-    },
+    mutationFn: async (newStudent: any) => api.post("/child", newStudent),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["students"] });
-      // Reset form state if needed
-      setGender(undefined);
-      setDob(undefined);
-      setPickupPoint(undefined);
-      setBusNumber(undefined);
+      closeButtonRef.current?.click();
+      // Reset form state
+      setSelectedSchool("");
+      setSelectedBranch("");
+      alert("Student added successfully.");
     },
-    onError: (err) => {
-      console.error(err);
-      alert("Failed to add student.");
-    },
+    onError: (err: any) => alert(`Failed to add student.\nError: ${err.message}`),
   });
 
-  // Mutation to delete a student
-  const deleteStudentMutation = useMutation({
-    mutationFn: async (studentId: string) => {
-      return await api.delete(`/child/${studentId}`);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["students"] });
-    },
-    onError: (err) => {
-      console.error(err);
-      alert("Failed to delete student.");
-    },
-  });
-
-  // Mutation to edit a new student
   const updateStudentMutation = useMutation({
-    mutationFn: async (updatedStudent: Student) => {
-      return await api.put(`/child/${updatedStudent._id}`, updatedStudent);
-    },
+    mutationFn: ({ studentId, data }: { studentId: string; data: Partial<Student> }) =>
+      api.put(`/child/${studentId}`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["students"] });
       setEditDialogOpen(false);
-      setSelectedUser(null);
+      setEditTarget(null);
+      setEditSelectedSchool("");
+      setEditSelectedBranch("");
+      alert("Student updated successfully.");
     },
-    onError: (err) => {
-      console.error(err);
-      alert("Failed to update student.");
-    },
+    onError: (err: Error) => alert(`Failed to update student.\nError: ${err.message}`),
   });
 
-  // Dynamic field configuration for the edit dialog
-  const editFieldConfigs: FieldConfig[] = [
-    {
-      key: "childName",
-      label: "Student Name",
-      type: "text",
-      placeholder: "Enter student name",
-      required: true,
+  const deleteStudentMutation = useMutation({
+    mutationFn: async (id: string) => api.mulDelete("/child", { ids: [id] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["students"] });
+      setDeleteTarget(null);
+      alert("Student deleted successfully.");
     },
-    {
-      key: "className",
-      label: "Class",
-      type: "text",
-      placeholder: "Enter class name",
-    },
-    {
-      key: "deviceId.routeNo",
-      label: "Route No",
-      type: "text",
-      placeholder: "Enter route number",
-    },
-    {
-      key: "section",
-      label: "Section",
-      type: "text",
-      placeholder: "Enter section",
-    },
-    {
-      key: "schoolId.schoolName",
-      label: "School",
-      type: "text",
-      placeholder: "Enter School Name",
-    },
-    {
-      key: "branchId.branchName",
-      label: "Branch",
-      type: "text",
-      placeholder: "Enter Branch Name",
-    },
-    { key: "DOB", label: "Date of Birth", type: "date" },
-    { key: "age", label: "Age", type: "number", placeholder: "Enter age" },
-    {
-      key: "parentId.parentName",
-      label: "Parent Name",
-      type: "text",
-      placeholder: "Enter parent name",
-    },
-    {
-      key: "parentId.contactNo",
-      label: "Contact No",
-      type: "text",
-      placeholder: "Enter contact number",
-    },
-    {
-      key: "gender",
-      label: "Gender",
-      type: "select",
-      options: [
-        { label: "Male", value: "male" },
-        { label: "Female", value: "female" },
-      ],
-    },
-    {
-      key: "deviceId.name",
-      label: "Bus No.",
-      type: "text",
-      placeholder: "Enter bus number",
-    },
-    {
-      key: "geofenceId.name",
-      label: "Pickup Point",
-      type: "text",
-      placeholder: "Enter pickup point",
-    },
-    {
-      key: "createdAt",
-      label: "Registration Date",
-      type: "text",
-      disabled: true,
-    },
-    {
-      key: "parentId.userName",
-      label: "Username",
-      type: "text",
-      placeholder: "Enter username",
-    },
-    {
-      key: "parentId.password",
-      label: "Password",
-      type: "text",
-      placeholder: "Enter password",
-    },
-  ];
+    onError: (err: any) => alert(`Failed to delete student.\nError: ${err.message}`),
+  });
 
-  // Define the columns for the table
-  const columns: ColumnDef<Student, CellContent>[] = [
-    showStudent && {
-      id: "studentName",
-      header: "Student Name",
-      accessorFn: (row) => ({
-        type: "text",
-        value: row.childName ?? "",
-      }),
-      cell: (info) => info.getValue().value,
-      meta: { flex: 1, minWidth: 200, maxWidth: 300 },
-    },
-    {
-      header: "Class",
-      accessorFn: (row) => ({
-        type: "text",
-        value: row.className ?? "",
-      }),
-      cell: (info) => info.getValue().value,
-      meta: { flex: 1, minWidth: 150, maxWidth: 300 },
-    },
-    {
-      header: "Route No",
-      accessorFn: (row) => ({
-        type: "text",
-        value: row.deviceId?.routeNo ?? "",
-      }),
-      cell: (info) => info.getValue().value,
-      meta: { flex: 1, minWidth: 150, maxWidth: 300 },
-    },
-    {
-      header: "Section",
-      accessorFn: (row) => ({
-        type: "text",
-        value: row.section ?? "",
-      }),
-      cell: (info) => info.getValue().value,
-      meta: { flex: 1, minWidth: 150, maxWidth: 300 },
-    },
-    {
-      header: "School",
-      accessorFn: (row) => ({
-        type: "text",
-        value: row.schoolId?.schoolName ?? "",
-      }),
-      cell: (info) => info.getValue().value,
-      meta: { flex: 1, minWidth: 150, maxWidth: 300 },
-    },
-    {
-      header: "Branch",
-      accessorFn: (row) => ({
-        type: "text",
-        value: row.branchId?.branchName ?? "",
-      }),
-      cell: (info) => info.getValue().value,
-      meta: { flex: 1, minWidth: 150, maxWidth: 300 },
-    },
-    {
-      header: "DOB",
-      accessorFn: (row) => ({
-        type: "text",
-        value: row.DOB
-          ? new Date(row.DOB).toLocaleDateString("en-GB", {
-              day: "2-digit",
-              month: "short",
-              year: "numeric",
-            })
-          : "",
-      }),
-      cell: (info) => info.getValue().value,
-      meta: { flex: 1, minWidth: 150, maxWidth: 300 },
-    },
-    {
-      header: "Age",
-      accessorFn: (row) => ({
-        type: "text",
-        value: row.age?.toString() ?? "",
-      }),
-      cell: (info) => info.getValue().value,
-      meta: { flex: 1, minWidth: 100, maxWidth: 300 },
-    },
-    {
-      header: "Parent Name",
-      accessorFn: (row) => ({
-        type: "text",
-        value: row.parentId?.parentName ?? "",
-      }),
-      cell: (info) => info.getValue().value,
-      meta: { flex: 1, minWidth: 180, maxWidth: 300 },
-    },
-    {
-      header: "Contact No",
-      accessorFn: (row) => ({
-        type: "text",
-        value: row.parentId?.mobileNo ?? "",
-      }),
-      cell: (info) => info.getValue().value,
-      meta: { flex: 1, minWidth: 180, maxWidth: 300 },
-    },
-    {
-      header: "Gender",
-      accessorFn: (row) => ({
-        type: "text",
-        value: row.gender ?? "",
-      }),
-      cell: (info) => info.getValue().value,
-      meta: { flex: 1, minWidth: 150, maxWidth: 300 },
-    },
-    {
-      header: "Bus No.",
-      accessorFn: (row) => ({
-        type: "text",
-        value: row.deviceId?.name ?? "",
-      }),
-      cell: (info) => info.getValue().value,
-      meta: { flex: 1, minWidth: 150, maxWidth: 300 },
-    },
-    {
-      header: "Pickup Point",
-      accessorFn: (row) => ({
-        type: "text",
-        value: row.geofenceId?.name ?? "",
-      }),
-      cell: (info) => info.getValue().value,
-      meta: { flex: 1, minWidth: 180, maxWidth: 300 },
-    },
-    {
-      header: "Registration Date",
-      accessorFn: (row) => ({
-        type: "text",
-        value: row.createdAt
-          ? new Date(row.createdAt).toLocaleDateString("en-GB", {
-              day: "2-digit",
-              month: "short",
-              year: "numeric",
-            })
-          : "",
-      }),
-      cell: (info) => info.getValue().value,
-      meta: { flex: 1, minWidth: 220, maxWidth: 300 },
-    },
-    {
-      header: "UserName",
-      accessorFn: (row) => ({
-        type: "text",
-        value: row.parentId?.username ?? "",
-      }),
-      cell: (info) => info.getValue().value,
-      meta: { flex: 1, minWidth: 150, maxWidth: 300 },
-    },
-    {
-      header: "Password",
-      accessorFn: (row) => ({
-        type: "text",
-        value: row.parentId?.password ?? "",
-      }),
-      cell: (info) => info.getValue().value,
-      meta: { flex: 1, minWidth: 150, maxWidth: 300 },
-    },
-    {
-      header: "Action",
-      accessorFn: (row) => ({
-        type: "group",
-        items: [
-          {
-            type: "button",
-            label: "Edit",
-            onClick: () => handleEdit(row),
-          },
-          {
-            type: "button",
-            label: "Delete",
-            onClick: () => setSelectedStudent(row),
-            disabled: deleteStudentMutation.isPending,
-          },
-        ],
-      }),
-      cell: (info) => info.getValue().value,
-      meta: { flex: 1.5, minWidth: 150, maxWidth: 200 },
-      enableSorting: false,
-    },
-  ].filter(Boolean);
-
-  // Handle edit action
-  const handleEdit = useCallback((user: Student) => {
-    setSelectedUser(user);
-    setEditDialogOpen(true);
-  }, []);
-
-  // Handle save action for edit student
   const handleSave = (updatedData: Partial<Student>) => {
-    if (!selectedUser) return;
-
-    const updatedStudent: Student = {
-      ...selectedUser,
-      ...updatedData,
-      // nested updates if needed:
-      deviceId: {
-        ...selectedUser.deviceId,
-        ...(updatedData.deviceId ?? {}),
-      },
-      geofenceId: {
-        ...selectedUser.geofenceId,
-        ...(updatedData.geofenceId ?? {}),
-      },
-      parentId: {
-        ...selectedUser.parentId,
-        ...(updatedData.parentId ?? {}),
-      },
-      schoolId: {
-        ...selectedUser.schoolId,
-        ...(updatedData.schoolId ?? {}),
-      },
-      branchId: {
-        ...selectedUser.branchId,
-        ...(updatedData.branchId ?? {}),
-      },
-    };
-
-    // Optimistic update or API call
-    updateStudentMutation.mutate(updatedStudent);
-  };
-
-  // Handle form submission
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-
-    const formData = new FormData(e.currentTarget);
-    const data = Object.fromEntries(formData.entries());
-
-    // payload
-    const newStudent = {
-      childName: data.childName,
-      className: data.className,
-      section: data.section,
-      gender: gender,
-      DOB: dob?.toISOString().split("T")[0], // format: YYYY-MM-DD
-      age: Number(data.age),
-      geofenceId: pickupPoint, // must be the ID, not name
-      deviceId: busNumber, // must be the ID
-      parentId: data.parentId, // from select (if available) or input
-      parentName: data.parent,
-      email: data.email,
-      schoolMobile: data.mobileNo,
-      username: data.username,
-      password: data.password,
-      schoolId: school, // should be ID
-      branchId: branch, // should be ID
-      // statusOfRegister: "registered",
-    };
-
-    addStudentMutation.mutate(newStudent);
-  };
-
-  // Handle search
-  // const handleSearchResults = useCallback((results: Student[]) => {
-  //   setFilteredData(results);
-  // }, []);
-
-  // Handle date filter
-  const handleDateFilter = useCallback(
-    (start: Date | null, end: Date | null) => {
-      if (!students || (!start && !end)) {
-        setFilteredData(students || []);
-        return;
+    if (!editTarget) return;
+    const changedFields: Partial<Record<keyof Student, unknown>> = {};
+    
+    // Map routeObjId to routeId for the API
+    const dataToCompare = { ...updatedData };
+    if (dataToCompare.routeObjId) {
+      (dataToCompare as any).routeId = dataToCompare.routeObjId;
+      delete dataToCompare.routeObjId;
+    }
+    
+    for (const key in dataToCompare) {
+      const newValue = dataToCompare[key as keyof Student];
+      const oldValue = editTarget[key as keyof Student];
+      if (newValue !== undefined && newValue !== oldValue) {
+        changedFields[key as keyof Student] = newValue;
       }
+    }
+    
+    if (Object.keys(changedFields).length === 0) return;
+    updateStudentMutation.mutate({ studentId: editTarget._id, data: changedFields });
+  };
 
-      const filtered = students.filter((student) => {
-        if (!student.createdAt) return false;
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const form = e.currentTarget as typeof e.currentTarget & {
+      parentName: { value: string };
+      mobileNo: { value: string };
+      username: { value: string };
+      email: { value: string };
+      password: { value: string };
+      schoolId: { value: string };
+      branchId: { value: string };
+      routeId: { value: string };
+      pickupGeoId: { value: string };
+      dropGeoId: { value: string };
+      childName: { value: string };
+      className: { value: string };
+      section: { value: string };
+      DOB: { value: string };
+      age: { value: string };
+      gender: { value: string };
+    };
 
-        const createdDate = new Date(student.createdAt);
-        return (!start || createdDate >= start) && (!end || createdDate <= end);
-      });
+    const data = {
+      parent: {
+        parentName: form.parentName.value.trim(),
+        username: form.username.value.trim(),
+        email: form.email.value.trim(),
+        password: form.password.value,
+        mobileNo: form.mobileNo.value.trim(),
+        schoolId: form.schoolId.value,
+        branchId: form.branchId.value,
+      },
+      children: [
+        {
+          childName: form.childName.value.trim(),
+          className: form.className.value.trim(),
+          section: form.section.value.trim(),
+          DOB: form.DOB.value,
+          age: parseInt(form.age.value),
+          gender: form.gender.value,
+          routeId: form.routeId.value,
+          pickupGeoId: form.pickupGeoId.value,
+          dropGeoId: form.dropGeoId.value,
+        },
+      ],
+    };
 
-      setFilteredData(filtered);
+    try {
+      await addStudentMutation.mutateAsync(data);
+      form.reset();
+      setSelectedSchool("");
+      setSelectedBranch("");
+    } catch (err) {
+      console.error("SUBMISSION FAILED:", err);
+    }
+  };
+
+  // Table columns with safe accessors
+  const columns: ColumnDef<Student>[] = [
+    { 
+      id: "childName", 
+      header: "Student Name", 
+      accessorFn: (row) => row.childName ?? "N/A" 
     },
-    [students]
-  );
-
-  const genderOptions = [
-    { label: "male", value: "male" },
-    { label: "female", value: "female" },
+    { 
+      id: "age", 
+      header: "Age", 
+      accessorFn: (row) => row.age ?? "N/A" 
+    },
+    { 
+      id: "className", 
+      header: "Class", 
+      accessorFn: (row) => row.className ?? "N/A" 
+    },
+    { 
+      id: "section", 
+      header: "Section", 
+      accessorFn: (row) => row.section ?? "N/A" 
+    },
+    { 
+      id: "schoolName", 
+      header: "School", 
+      accessorFn: (row) => row.schoolId && typeof row.schoolId === 'object' 
+        ? row.schoolId.schoolName ?? "N/A" 
+        : "N/A" 
+    },
+    { 
+      id: "branchName", 
+      header: "Branch", 
+      accessorFn: (row) => row.branchId && typeof row.branchId === 'object' 
+        ? row.branchId.branchName ?? "N/A" 
+        : "N/A" 
+    },
+    { 
+      id: "routeNumber", 
+      header: "Route Number", 
+      accessorFn: (row) => {
+        if (row.routeObjId && typeof row.routeObjId === 'object') {
+          return row.routeObjId.routeNumber || "N/A";
+        }
+        if (row.routeId && typeof row.routeId === 'object') {
+          return row.routeId.routeNumber || "N/A";
+        }
+        return "N/A";
+      }
+    },
+    { 
+      id: "parentName", 
+      header: "Parent Name", 
+      accessorFn: (row) => row.parentId && typeof row.parentId === 'object' 
+        ? row.parentId.parentName ?? "N/A" 
+        : "N/A" 
+    },
+    { 
+      id: "mobileNo", 
+      header: "Contact no", 
+      accessorFn: (row) => row.parentId && typeof row.parentId === 'object' 
+        ? row.parentId.mobileNo ?? "N/A" 
+        : "N/A" 
+    },
+    { 
+      id: "pickupLocation", 
+      header: "Pickup Location", 
+      accessorFn: (row) => row.pickupGeoId && typeof row.pickupGeoId === 'object' 
+        ? row.pickupGeoId.geofenceName ?? "N/A" 
+        : "N/A" 
+    },
+    { 
+      id: "dropLocation", 
+      header: "Drop Location", 
+      accessorFn: (row) => row.dropGeoId && typeof row.dropGeoId === 'object' 
+        ? row.dropGeoId.geofenceName ?? "N/A" 
+        : "N/A" 
+    },
+    { 
+      id: "username", 
+      header: "Username", 
+      accessorFn: (row) => row.parentId && typeof row.parentId === 'object' 
+        ? row.parentId.username ?? "N/A" 
+        : "N/A" 
+    },
+    { 
+      id: "password", 
+      header: "Password", 
+      accessorFn: (row) => row.parentId && typeof row.parentId === 'object' 
+        ? row.parentId.password ?? "N/A" 
+        : "N/A" 
+    },
+    {
+      id: "action",
+      header: "Action",
+      cell: ({ row }) => (
+        <div className="flex items-center justify-center gap-2">
+          <button
+            className="bg-yellow-400 hover:bg-yellow-500 text-[#733e0a] font-semibold py-1 px-3 rounded-md"
+            onClick={() => {
+              setEditTarget(row.original);
+              setEditDialogOpen(true);
+            }}
+          >
+            Edit
+          </button>
+          <button
+            className="bg-red-500 hover:bg-red-600 text-white font-semibold py-1 px-3 rounded-md"
+            onClick={() => setDeleteTarget(row.original)}
+          >
+            Delete
+          </button>
+        </div>
+      ),
+    },
   ];
-  const pickupPointOptions: SelectOption[] = geofenceData
-    ? Array.from(
-        new Map(
-          geofenceData
-            .filter((s) => s._id && s.name)
-            .map((s) => [s._id, { label: s.name, value: s._id }])
-        ).values()
-      )
-    : [];
-  const busNumberOptions: SelectOption[] = deviceData
-    ? Array.from(
-        new Map(
-          deviceData
-            .filter((d) => d._id && d.name)
-            .map((d) => [d._id, { label: d.name, value: d._id }])
-        ).values()
-      )
-    : [];
-  const schoolOptions: SelectOption[] = schoolData
-    ? Array.from(
-        new Map(
-          schoolData
-            .filter((s) => s._id && s.schoolName)
-            .map((s) => [s._id, { label: s.schoolName, value: s._id }])
-        ).values()
-      )
-    : [];
-  const branchOptions: SelectOption[] = branchData
-    ? Array.from(
-        new Map(
-          branchData
-            .filter((b) => b._id && b.branchName)
-            .map((b) => [b._id, { label: b.branchName, value: b._id }])
-        ).values()
-      )
-    : [];
 
-  if (isLoading) return <p className="p-4">Loading student details...</p>;
-  if (isError)
-    return (
-      <p className="p-4 text-red-600">
-        {(error as Error).message || "Failed to load student details."}
-      </p>
-    );
+  const { table, tableElement } = CustomTableServerSidePagination({
+    data: studentsData?.children || [],
+    columns,
+    pagination,
+    totalCount: studentsData?.total || 0,
+    loading: isLoading || isFetching,
+    onPaginationChange: setPagination,
+    onSortingChange: setSorting,
+    sorting,
+    columnVisibility,
+    onColumnVisibilityChange: setColumnVisibility,
+    emptyMessage: "No students found",
+    pageSizeOptions: [5, 10, 20, 30, 50],
+    enableSorting: true,
+    showSerialNumber: true,
+  });
+
+  // Prepare data for edit modal with cascading dropdown support
+  const editData = editTarget
+    ? {
+        _id: editTarget._id,
+        childName: editTarget.childName || "",
+        age: editTarget.age || "",
+        className: editTarget.className || "",
+        section: editTarget.section || "",
+        schoolId: getSchoolId(editTarget),
+        branchId: getBranchId(editTarget),
+        routeObjId: getRouteId(editTarget),
+        pickupGeoId: getGeofenceId(editTarget.pickupGeoId),
+        dropGeoId: getGeofenceId(editTarget.dropGeoId),
+      }
+    : null;
+
+  // Custom field change handler for edit dialog
+  const handleEditFieldChange = (key: string, value: any) => {
+    if (key === "schoolId") {
+      setEditSelectedSchool(value);
+      setEditSelectedBranch(""); // Reset branch when school changes
+    } else if (key === "branchId") {
+      setEditSelectedBranch(value);
+    }
+  };
 
   return (
-    <main>
-      <section>
-        <section className="flex items-center justify-between mb-4">
-          <section className="flex space-x-4">
-            {/* Search component */}
-            {/* <SearchComponent
-              data={filterResults}
-              displayKey={[
-                "childName",
-                "className",
-                "section",
-                "gender",
-                "schoolId.schoolName",
-                "branchId.branchName",
-                "parentId.parentName",
-                "parentId.contactNo",
-                "deviceId.routeNo",
-                "geofenceId.name",
-              ]}
-              onResults={handleSearchResults}
-              className="w-[300px] mb-4"
-            /> */}
-            <p>Add column selector</p>
-            {/* Date range picker */}
-            <DateRangeFilter onDateRangeChange={handleDateFilter} />
-          </section>
-          {/* Add student button */}
-          <Dialog>
-            <DialogTrigger asChild>
-              <Button variant="default">Add student</Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <DialogHeader>
-                  <DialogTitle>Add Student</DialogTitle>
-                </DialogHeader>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* Student Name */}
-                  <div className="grid gap-2">
-                    <Label htmlFor="childName">Student Name</Label>
-                    <Input
-                      id="childName"
-                      name="childName"
-                      placeholder="Enter student name"
-                      required
-                    />
-                  </div>
+    <>
+      <header className="flex items-center gap-4 mb-4 justify-between">
+        <section className="flex space-x-4">
+          <div className="h-9">
+            <SearchBar
+              value={studentName}
+              onChange={setStudentName}
+              placeholder="Search by student name..."
+              width="w-[300px]"
+            />
+          </div>
+          <ColumnVisibilitySelector columns={table?.getAllColumns() || []} buttonVariant="outline" />
+        </section>
 
-                  {/* Gender */}
-                  <div className="grid gap-2">
-                    <Label htmlFor="gender">Gender</Label>
-                    <SearchableSelect
-                      value={gender}
-                      onChange={setGender}
-                      options={genderOptions}
-                      placeholder="Select gender"
-                      allowClear={true}
-                      className=""
-                    />
-                  </div>
+        {/* Add Student Dialog */}
+        <Dialog>
+          <DialogTrigger asChild>
+            <Button variant="default">Add Student</Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-[700px] max-h-[80vh] overflow-y-auto">
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <DialogHeader>
+                <DialogTitle>Add Student</DialogTitle>
+              </DialogHeader>
 
-                  {/* School */}
-                  <div className="grid gap-2">
-                    <Label htmlFor="schoolId">School</Label>
-                    <SearchableSelect
-                      value={school}
-                      onChange={setSchool}
-                      options={schoolOptions}
-                      placeholder="Select school"
-                      allowClear={true}
-                      className=""
-                    />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Parent Fields */}
+                {[ 
+                  { id: "parentName", label: "Parent Name *", type: "text" },
+                  { id: "mobileNo", label: "Mobile No *", type: "tel", pattern: "[0-9]{10}", maxLength: 10 },
+                  { id: "username", label: "Username *", type: "text" },
+                  { id: "email", label: "Email *", type: "email" },
+                  { id: "password", label: "Password *", type: "text" },
+                ].map(({ id, label, type, ...props }) => (
+                  <div key={id} className="grid gap-2">
+                    <Label htmlFor={id}>{label}</Label>
+                    <Input id={id} name={id} type={type} required {...props} />
                   </div>
+                ))}
 
-                  {/* Branch */}
-                  <div className="grid gap-2">
-                    <Label htmlFor="branchId">Branch</Label>
-                    <SearchableSelect
-                      value={branch}
-                      onChange={setBranch}
-                      options={branchOptions}
-                      placeholder="Select branch"
-                      allowClear={true}
-                      className=""
-                    />
-                  </div>
-
-                  {/* Class */}
-                  <div className="grid gap-2">
-                    <Label htmlFor="className">Class</Label>
-                    <Input
-                      id="className"
-                      name="className"
-                      placeholder="Enter class name"
-                    />
-                  </div>
-
-                  {/* Section */}
-                  <div className="grid gap-2">
-                    <Label htmlFor="section">Section</Label>
-                    <Input
-                      id="section"
-                      name="section"
-                      placeholder="Enter section"
-                    />
-                  </div>
-
-                  {/* Date of Birth */}
-                  <div className="grid gap-2">
-                    <DatePicker
-                      label="Date of Birth"
-                      open={open}
-                      setOpen={setOpen}
-                      date={dob}
-                      setDate={setDob}
-                      className="w-full"
-                    />
-                  </div>
-
-                  {/* Age */}
-                  <div className="grid gap-2">
-                    <Label htmlFor="age">Age</Label>
-                    <Input
-                      id="age"
-                      name="age"
-                      type="number"
-                      min={0}
-                      placeholder="Enter age"
-                    />
-                  </div>
-
-                  {/* Pickup Point */}
-                  <div className="grid gap-2">
-                    <Label htmlFor="geofenceId">Pickup Point</Label>
-                    <SearchableSelect
-                      value={pickupPoint}
-                      onChange={setPickupPoint}
-                      options={pickupPointOptions}
-                      placeholder="Select pickup point"
-                      allowClear={true}
-                      className=""
-                    />
-                  </div>
-
-                  {/* Bus Number */}
-                  <div className="grid gap-2">
-                    <Label htmlFor="deviceId">Bus Number</Label>
-                    <SearchableSelect
-                      value={busNumber}
-                      onChange={setBusNumber}
-                      options={busNumberOptions}
-                      placeholder="Select bus number"
-                      allowClear={true}
-                      className=""
-                    />
-                  </div>
-
-                  {/* Parent Name */}
-                  <div className="grid gap-2">
-                    <Label htmlFor="parent">Parent Name</Label>
-                    <Input
-                      id="parent"
-                      name="parent"
-                      placeholder="Enter parent name"
-                    />
-                  </div>
-
-                  {/* Email */}
-                  <div className="grid gap-2">
-                    <Label htmlFor="email">Email</Label>
-                    <Input
-                      id="email"
-                      name="email"
-                      type="email"
-                      placeholder="Enter email address"
-                    />
-                  </div>
-
-                  {/* Mobile No */}
-                  <div className="grid gap-2">
-                    <Label htmlFor="mobileNo">Mobile No</Label>
-                    <Input
-                      id="mobileNo"
-                      name="mobileNo"
-                      type="tel"
-                      placeholder="Enter mobile number"
-                      pattern="[0-9]{10}"
-                      maxLength={10}
-                      autoComplete="tel"
-                    />
-                  </div>
-
-                  {/* Username and Password */}
-                  <div className="grid gap-2">
-                    <Label htmlFor="username">Username</Label>
-                    <Input
-                      id="username"
-                      name="username"
-                      type="text"
-                      placeholder="Enter username"
-                      required
-                    />
-                  </div>
-
-                  <div className="grid gap-2">
-                    <Label htmlFor="password">Password</Label>
-                    <Input
-                      id="password"
-                      name="password"
-                      type="text"
-                      placeholder="Enter password"
-                      required
-                    />
-                  </div>
+                {/* School - with onChange handler */}
+                <div className="grid gap-2">
+                  <Label htmlFor="schoolId">School *</Label>
+                  <select
+                    id="schoolId"
+                    name="schoolId"
+                    required
+                    disabled={schoolsLoading}
+                    value={selectedSchool}
+                    onChange={(e) => {
+                      setSelectedSchool(e.target.value);
+                      setSelectedBranch(""); // Reset branch when school changes
+                    }}
+                    className="flex h-10 w-full rounded-md border px-3 py-2 text-sm"
+                  >
+                    <option value="">Select School</option>
+                    {schools.map((school) => (
+                      <option key={school._id} value={school._id}>{school.schoolName}</option>
+                    ))}
+                  </select>
                 </div>
 
-                <DialogFooter>
-                  <DialogClose asChild>
-                    <Button variant="outline">Cancel</Button>
-                  </DialogClose>
-                  <Button type="submit">Save changes</Button>
-                </DialogFooter>
-              </form>
-            </DialogContent>
-          </Dialog>
+                {/* Branch - filtered by school */}
+                <div className="grid gap-2">
+                  <Label htmlFor="branchId">Branch *</Label>
+                  <select
+                    id="branchId"
+                    name="branchId"
+                    required
+                    disabled={branchesLoading || !selectedSchool}
+                    value={selectedBranch}
+                    onChange={(e) => setSelectedBranch(e.target.value)}
+                    className="flex h-10 w-full rounded-md border px-3 py-2 text-sm"
+                  >
+                    <option value="">
+                      {!selectedSchool ? "Select School First" : "Select Branch"}
+                    </option>
+                    {filteredBranches.map((branch) => (
+                      <option key={branch._id} value={branch._id}>{branch.branchName}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Route - filtered by branch */}
+                <div className="grid gap-2">
+                  <Label htmlFor="routeId">Route *</Label>
+                  <select
+                    id="routeId"
+                    name="routeId"
+                    required
+                    disabled={routesLoading || !selectedBranch}
+                    className="flex h-10 w-full rounded-md border px-3 py-2 text-sm"
+                  >
+                    <option value="">
+                      {!selectedBranch ? "Select Branch First" : "Select Route"}
+                    </option>
+                    {filteredRoutes.map((route) => (
+                      <option key={route._id} value={route._id}>
+                        {route.routeNumber || `Route ${route.routeName || route._id}`}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Pickup Location */}
+                <div className="grid gap-2">
+                  <Label htmlFor="pickupGeoId">Pickup Location *</Label>
+                  <select
+                    id="pickupGeoId"
+                    name="pickupGeoId"
+                    required
+                    disabled={geofencesLoading}
+                    className="flex h-10 w-full rounded-md border px-3 py-2 text-sm"
+                  >
+                    <option value="">Select Pickup Location</option>
+                    {geofences.map((geo) => (
+                      <option key={geo._id} value={geo._id}>{geo.geofenceName}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Drop Location */}
+                <div className="grid gap-2">
+                  <Label htmlFor="dropGeoId">Drop Location *</Label>
+                  <select
+                    id="dropGeoId"
+                    name="dropGeoId"
+                    required
+                    disabled={geofencesLoading}
+                    className="flex h-10 w-full rounded-md border px-3 py-2 text-sm"
+                  >
+                    <option value="">Select Drop Location</option>
+                    {geofences.map((geo) => (
+                      <option key={geo._id} value={geo._id}>{geo.geofenceName}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Child Fields */}
+                {[ 
+                  { id: "childName", label: "Student Name *", type: "text" },
+                  { id: "age", label: "Age *", type: "number", min: "3", max: "18" },
+                  { id: "className", label: "Class *", type: "text" },
+                  { id: "section", label: "Section *", type: "text" },
+                  { id: "DOB", label: "Date of Birth *", type: "date" },
+                  { 
+                    id: "gender", 
+                    label: "Gender *", 
+                    type: "select",
+                    options: [
+                      { value: "male", label: "Male" },
+                      { value: "female", label: "Female" },
+                      { value: "other", label: "Other" }
+                    ]
+                  },
+                ].map(({ id, label, type, options, ...props }) => (
+                  <div key={id} className="grid gap-2">
+                    <Label htmlFor={id}>{label}</Label>
+                    {type === "select" ? (
+                      <select
+                        id={id}
+                        name={id}
+                        required
+                        className="flex h-10 w-full rounded-md border px-3 py-2 text-sm"
+                      >
+                        <option value="">Select {label.replace(' *', '')}</option>
+                        {options?.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <Input id={id} name={id} type={type} required {...props} />
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              <DialogFooter>
+                <DialogClose asChild>
+                  <Button ref={closeButtonRef} variant="outline">Cancel</Button>
+                </DialogClose>
+                <Button
+                  type="submit"
+                  disabled={addStudentMutation.isPending || schoolsLoading || branchesLoading || routesLoading || geofencesLoading}
+                >
+                  {addStudentMutation.isPending ? "Saving..." : "Save Student"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+      </header>
+
+      <main>
+        <section>{tableElement}</section>
+
+        <section>
+          {deleteTarget && (
+            <Alert<Student>
+              title="Are you absolutely sure?"
+              description={`This will permanently delete ${deleteTarget?.childName || 'this student'} and all associated data.`}
+              actionButton={(target) => deleteStudentMutation.mutate(target._id)}
+              target={deleteTarget}
+              setTarget={setDeleteTarget}
+              butttonText="Delete"
+            />
+          )}
+
+          {/* Edit Dialog with cascading dropdowns */}
+          {editTarget && editData && (
+            <DynamicEditDialog
+              data={editData}
+              isOpen={editDialogOpen}
+              onClose={() => { 
+                setEditDialogOpen(false); 
+                setEditTarget(null);
+                setEditSelectedSchool("");
+                setEditSelectedBranch("");
+              }}
+              onSave={handleSave}
+              onFieldChange={handleEditFieldChange}
+              fields={EDIT_FIELDS.map((f) => {
+                if (f.key === "schoolId") {
+                  return { 
+                    ...f, 
+                    options: schools.map(s => ({ label: s.schoolName, value: s._id })) 
+                  };
+                }
+                if (f.key === "branchId") {
+                  return { 
+                    ...f, 
+                    options: editFilteredBranches.map(b => ({ label: b.branchName, value: b._id })),
+                    disabled: !editSelectedSchool
+                  };
+                }
+                if (f.key === "routeObjId") {
+                  return { 
+                    ...f, 
+                    options: editFilteredRoutes.map(r => ({ 
+                      label: r.routeNumber || `Route ${r.routeName || r._id}`, 
+                      value: r._id 
+                    })),
+                    disabled: !editSelectedBranch
+                  };
+                }
+                if (f.key === "pickupGeoId" || f.key === "dropGeoId") {
+                  return { 
+                    ...f, 
+                    options: geofences.map(g => ({ label: g.geofenceName, value: g._id })) 
+                  };
+                }
+                return f;
+              })}
+              title="Edit Student"
+              description="Update the student information below."
+              loading={updateStudentMutation.isPending}
+            />
+          )}
         </section>
-      </section>
 
-      {/* Table component */}
-      <section className="mb-4">
-        <CustomTableServerSidePagination
-          data={filteredData || []}
-          columns={columns}
-          pagination={pagination}
-          totalCount={students?.total || 0}
-          loading={isLoading}
-          onPaginationChange={setPagination}
-          onSortingChange={setSorting}
-          sorting={sorting}
-          emptyMessage="No students found"
-          pageSizeOptions={[5, 10, 20, 30, 50]}
-        />
-      </section>
-
-      {/* Floating action menu */}
-      <FloatingMenu
-        onExportPdf={() => {
-          console.log("Export PDF triggered"); // ✅ Add this for debugging
-          exportToPDF(filteredData, columnsForExport, {
-            title: "Student Report",
+        <FloatingMenu
+          onExportPdf={() => exportToPDF(studentsData?.children || [], EXPORT_COLUMNS, {
+            title: "All Students Data",
             companyName: "Parents Eye",
-            metadata: {
-              Total: `${filteredData.length} students`,
-            },
-          });
-        }}
-        onExportExcel={() => {
-          console.log("Export Excel triggered"); // ✅ Add this too
-          exportToExcel(filteredData, columnsForExport, {
-            title: "Student Report",
+            metadata: { Total: `${studentsData?.children?.length || 0} students` },
+          })}
+          onExportExcel={() => exportToExcel(studentsData?.children || [], EXPORT_COLUMNS, {
+            title: "All Students Data",
             companyName: "Parents Eye",
-            metadata: {
-              Total: `${filteredData.length} students`,
-            },
-          });
-        }}
-      />
-
-      {/* Delete student alert box */}
-      {selectedStudent && (
-        <AlertDialog
-          open={!!selectedStudent}
-          onOpenChange={() => setSelectedStudent(null)}
-        >
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-              <AlertDialogDescription>
-                This action cannot be undone and will permanently delete the
-                student record along with all associated data.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={() => {
-                  deleteStudentMutation.mutate(selectedStudent._id);
-                  setSelectedStudent(null);
-                }}
-              >
-                Delete
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-      )}
-
-      {/* Edit Dialog */}
-      {selectedUser && (
-        <DynamicEditDialog
-          data={selectedUser}
-          isOpen={editDialogOpen}
-          onClose={() => {
-            setEditDialogOpen(false);
-            setSelectedUser(null);
-          }}
-          onSave={handleSave}
-          fields={editFieldConfigs}
-          title="Edit Student"
-          description="Update the student information below. Fields marked with * are required."
-          avatarConfig={{
-            imageKey: "image",
-            nameKeys: ["childName"],
-          }}
+            metadata: { Total: `${studentsData?.children?.length || 0} students` },
+          })}
         />
-      )}
-    </main>
+      </main>
+    </>
   );
 }

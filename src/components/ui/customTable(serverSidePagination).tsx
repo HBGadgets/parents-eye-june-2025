@@ -9,9 +9,6 @@ import {
   SortingState,
   VisibilityState,
 } from "@tanstack/react-table";
-
-// Re-export types for convenience
-export type { ColumnDef, SortingState, PaginationState };
 import {
   Table,
   TableBody,
@@ -19,30 +16,54 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
-import { Button } from "@/components/ui/button";
+} from "./table";
+import { Skeleton } from "./skeleton";
+import {
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+} from "lucide-react";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
-import {
-  ChevronLeft,
-  ChevronRight,
-  ChevronsLeft,
-  ChevronsRight,
-  ArrowUpDown,
-  ArrowUp,
-  ArrowDown,
-} from "lucide-react";
+} from "./select";
+import { Button } from "./button";
+
+// Re-export types for convenience
+export type { ColumnDef, SortingState, PaginationState };
+
+// Text wrapping options
+export type TextWrapOption =
+  | "wrap" // Normal text wrapping
+  | "nowrap" // No wrapping (default)
+  | "ellipsis" // Truncate with ellipsis
+  | "break-word" // Break long words
+  | "break-all"; // Break anywhere
+
+export interface ColumnWrapConfig {
+  wrap?: TextWrapOption;
+  maxWidth?: string;
+  minWidth?: string;
+}
+
+// Extend the meta property instead of the ColumnDef directly
+// declare module "@tanstack/react-table" {
+//   interface ColumnMeta<TData, TValue> {
+//     wrapConfig?: ColumnWrapConfig;
+//   }
+// }
 
 // Main props interface
 export interface DataTableProps<T> {
   data: T[];
-  columns: ColumnDef<T>[];
+  columns: ColumnDef<T>[]; // Use standard ColumnDef
   pagination: PaginationState;
   totalCount: number;
   loading?: boolean;
@@ -59,9 +80,22 @@ export interface DataTableProps<T> {
   maxHeight?: string;
   columnVisibility?: VisibilityState;
   onColumnVisibilityChange?: (visibility: VisibilityState) => void;
+  onRowClick?: (row: T) => void;
+  enableRowClick?: boolean;
+
+  // New wrapping options
+  defaultTextWrap?: TextWrapOption;
+  enableColumnWrapping?: boolean;
+
+  selectedRowId?: number | string | null; // ID of the currently selected row
+  getRowId?: (row: T) => number | string; // Function to extract ID from row data
+  getRowClassName?: (row: T, isSelected: boolean) => string; // Function to get custom row classes
+  selectedRowClassName?: string; // Default class for selected rows
 }
 
-export function CustomTableServerSidePagination<T extends Record<string, any>>({
+export function CustomTableServerSidePagination<
+  T extends Record<string, unknown>
+>({
   data,
   columns,
   pagination,
@@ -76,11 +110,52 @@ export function CustomTableServerSidePagination<T extends Record<string, any>>({
   manualSorting = true,
   manualPagination = true,
   showSerialNumber = true,
-  serialNumberHeader = "S.No.",
+  serialNumberHeader = "SN",
   maxHeight = "500px",
   columnVisibility,
   onColumnVisibilityChange,
-}: DataTableProps<T>) {
+  onRowClick,
+  enableRowClick = true,
+  defaultTextWrap = "nowrap",
+  enableColumnWrapping = true,
+  selectedRowId = null,
+  getRowId = (row: T) => row.id || row.deviceId || row.key, // Default ID extraction
+}: // getRowClassName,
+// selectedRowClassName = "bg-blue-100 hover:bg-blue-200 border-l-4 border-blue-500",
+DataTableProps<T>) {
+  // Function to get wrapping classes based on wrap option
+  const getWrapClasses = (wrapOption: TextWrapOption): string => {
+    const baseClasses = "leading-relaxed";
+
+    switch (wrapOption) {
+      case "wrap":
+        return `${baseClasses} whitespace-normal break-words`;
+      case "nowrap":
+        return `${baseClasses} whitespace-nowrap`;
+      case "ellipsis":
+        return `${baseClasses} whitespace-nowrap overflow-hidden text-ellipsis`;
+      case "break-word":
+        return `${baseClasses} whitespace-normal break-words overflow-wrap-anywhere`;
+      case "break-all":
+        return `${baseClasses} whitespace-normal break-all`;
+      default:
+        return `${baseClasses} whitespace-nowrap`;
+    }
+  };
+
+  // Function to get inline styles for wrapping
+  const getWrapStyles = (
+    wrapConfig?: ColumnWrapConfig
+  ): React.CSSProperties => {
+    if (!wrapConfig) return {};
+
+    return {
+      maxWidth: wrapConfig.maxWidth,
+      minWidth: wrapConfig.minWidth,
+      width: wrapConfig.maxWidth || wrapConfig.minWidth,
+    };
+  };
+
   // Create serial number column
   const serialNumberColumn: ColumnDef<T> = {
     id: "serialNumber",
@@ -93,6 +168,9 @@ export function CustomTableServerSidePagination<T extends Record<string, any>>({
     enableSorting: false,
     enableHiding: false,
     size: 60,
+    meta: {
+      wrapConfig: { wrap: "nowrap" }, // Serial numbers should never wrap
+    },
   };
 
   const [internalColumnVisibility, setInternalColumnVisibility] =
@@ -143,6 +221,28 @@ export function CustomTableServerSidePagination<T extends Record<string, any>>({
       pageIndex: 0,
       pageSize: parseInt(pageSize),
     });
+  };
+
+  // Helper function to check if a row is an expanded row
+  const isExpandedRow = (rowData: unknown) => {
+    return rowData.isLoading || rowData.isDetailTable || rowData.isEmpty;
+  };
+
+  // Row click handler
+  const handleRowClick = (row: unknown, event: React.MouseEvent) => {
+    const target = event.target as HTMLElement;
+    const isInteractiveElement = target.closest(
+      'button, a, input, select, [role="button"]'
+    );
+
+    if (isInteractiveElement) {
+      return;
+    }
+
+    if (enableRowClick && onRowClick && !isExpandedRow(row.original)) {
+      // console.log("Row clicked:", row.original);
+      onRowClick(row.original);
+    }
   };
 
   return {
@@ -215,38 +315,114 @@ export function CustomTableServerSidePagination<T extends Record<string, any>>({
               ) : (
                 <TableBody>
                   {table.getRowModel().rows?.length ? (
-                    table.getRowModel().rows.map((row) => (
-                      <TableRow
-                        key={row.id}
-                        className="border-b hover:bg-muted/50"
-                      >
-                        {row.getVisibleCells().map((cell) => (
-                          <TableCell
-                            key={cell.id}
-                            className="px-2 py-2 sm:px-4 sm:py-2 text-xs sm:text-sm border-r last:border-r-0 text-center"
-                            style={{
-                              width:
-                                cell.column.id === "serialNumber"
-                                  ? "60px"
-                                  : "auto",
-                              minWidth:
-                                cell.column.id === "serialNumber"
-                                  ? "60px"
-                                  : "auto",
-                            }}
+                    table.getRowModel().rows.map((row) => {
+                      const rowData = row.original;
+                      const isExpanded = isExpandedRow(rowData);
+
+                      if (isExpanded) {
+                        return (
+                          <TableRow
+                            key={row.id}
+                            className="border-b hover:bg-muted/50"
                           >
-                            <div className="w-full">
-                              <div className="break-words overflow-wrap-anywhere leading-relaxed">
-                                {flexRender(
-                                  cell.column.columnDef.cell,
-                                  cell.getContext()
-                                )}
+                            <TableCell
+                              colSpan={tableColumns.length}
+                              className="p-0 border-r-0"
+                            >
+                              <div className="w-full">
+                                {(() => {
+                                  const vehicleNumberCell = row
+                                    .getVisibleCells()
+                                    .find(
+                                      (cell) =>
+                                        cell.column.id === "vehicleNumber"
+                                    );
+                                  if (vehicleNumberCell) {
+                                    return flexRender(
+                                      vehicleNumberCell.column.columnDef.cell,
+                                      vehicleNumberCell.getContext()
+                                    );
+                                  }
+                                  return null;
+                                })()}
                               </div>
-                            </div>
-                          </TableCell>
-                        ))}
-                      </TableRow>
-                    ))
+                            </TableCell>
+                          </TableRow>
+                        );
+                      }
+
+                      const rowId = getRowId(rowData);
+                      const isSelected =
+                        selectedRowId !== null && rowId === selectedRowId;
+
+                      // Build row className
+                      // let rowClassName = `border-b transition-colors duration-200 ${
+                      //   enableRowClick && onRowClick ? "cursor-pointer" : ""
+                      // }`;
+
+                      // if (isSelected) {
+                      //   // Use custom className function or default selected className
+                      //   const selectedClass = getRowClassName
+                      //     ? getRowClassName(rowData, true)
+                      //     : selectedRowClassName;
+                      //   rowClassName += ` ${selectedClass}`;
+                      // } else {
+                      //   // Apply normal hover effects for non-selected rows
+                      //   const normalClass = getRowClassName
+                      //     ? getRowClassName(rowData, false)
+                      //     : "hover:bg-muted/50";
+                      //   rowClassName += ` ${normalClass}`;
+                      // }
+
+                      return (
+                        <TableRow
+                          key={row.id}
+                          className={`border-b hover:bg-muted/50 ${
+                            enableRowClick && onRowClick ? "cursor-pointer" : ""
+                          }`}
+                          onClick={(event) => handleRowClick(row, event)}
+                          data-selected={isSelected} // Add data attribute for CSS targeting
+                          data-row-id={rowId} // Add row ID for debugging/testing
+                        >
+                          {row.getVisibleCells().map((cell) => {
+                            // Get column-specific wrap config from meta
+                            const wrapConfig = enableColumnWrapping
+                              ? cell.column.columnDef.meta?.wrapConfig
+                              : undefined;
+
+                            const wrapOption =
+                              wrapConfig?.wrap || defaultTextWrap;
+                            const wrapClasses = getWrapClasses(wrapOption);
+                            const wrapStyles = getWrapStyles(wrapConfig);
+
+                            return (
+                              <TableCell
+                                key={cell.id}
+                                className="px-2 py-2 sm:px-4 sm:py-2 text-xs sm:text-sm border-r last:border-r-0 text-center"
+                                style={{
+                                  width:
+                                    cell.column.id === "serialNumber"
+                                      ? "60px"
+                                      : "auto",
+                                  minWidth:
+                                    cell.column.id === "serialNumber"
+                                      ? "60px"
+                                      : "auto",
+                                  ...wrapStyles,
+                                }}
+                              >
+                                <div className={`w-full ${wrapClasses}`}>
+                                  {flexRender(
+                                    cell.column.columnDef.cell,
+                                    cell.getContext()
+                                  )}
+                                </div>
+                              </TableCell>
+                            );
+                          })}
+                        </TableRow>
+                      );
+                    })
                   ) : (
                     <TableRow>
                       <TableCell
@@ -263,7 +439,7 @@ export function CustomTableServerSidePagination<T extends Record<string, any>>({
           </div>
         </div>
 
-        {/* Pagination Controls */}
+        {/* Pagination Controls remain the same */}
         <div className="flex items-center justify-between px-2">
           <div className="flex items-center space-x-2 text-sm text-muted-foreground">
             <span>
