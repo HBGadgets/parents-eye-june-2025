@@ -113,6 +113,10 @@ export default function ParentsMaster() {
   const { data: branchData } = useBranchData();
   const [debouncedName, setDebouncedName] = useState("");
 
+  // Search states
+  const [filteredData, setFilteredData] = useState<Parent[]>([]);
+  const [filterResults, setFilterResults] = useState<Parent[]>([]);
+
   // Use the custom hook for fetching parents data
   const {
     data: parentsData,
@@ -125,6 +129,14 @@ export default function ParentsMaster() {
     sorting,
     name: debouncedName,
   });
+
+  // Initialize filtered data when parents data changes
+  useEffect(() => {
+    if (parentsData?.data) {
+      setFilteredData(parentsData.data);
+      setFilterResults(parentsData.data);
+    }
+  }, [parentsData?.data]);
 
   // Debug logging to see pagination changes
   console.log("parentsData", parentsData?.data);
@@ -222,57 +234,14 @@ export default function ParentsMaster() {
     {
       id: "actions",
       header: "Actions",
-
       cell: ({ row }) => (
         <div className="flex items-center justify-center gap-2">
           <Button
             variant="outline"
             size="sm"
             onClick={() => {
-              const parent = row.original;
-              console.log("🔧 Edit button clicked for geofence:", parent._id);
-
-              // Set basic data
-              setMode("edit");
-              setParentId(parent._id);
-              setSelectedGeofence(parent);
-
-              let foundSchool = null;
-              let foundBranch = null;
-              let foundRoute = null;
-
-              // Find related objects
-              if (parent.branchId && branchData) {
-                foundBranch = branchData.find(
-                  (branch) => branch._id === parent.branchId
-                );
-                console.log("Found Branch:", foundBranch);
-
-                if (foundBranch && foundBranch.schoolId) {
-                  foundSchool = foundBranch.schoolId;
-                  console.log("Found School from Branch:", foundSchool);
-                }
-              }
-
-              if (parent.routeObjId && routeData) {
-                foundRoute = routeData.find(
-                  (route) => route._id === parent.routeObjId
-                );
-                console.log("Found Route:", foundRoute);
-              }
-
-              // Set the found objects
-              setParentSchoolId(foundSchool);
-              setParentBranchId(foundBranch);
-              setParentRouteId(foundRoute);
-
-              // 🆕 NEW: Log coordinates for debugging
-              if (geofence.area?.center) {
-                console.log("📍 Parent coordinates:", geofence.area.center);
-              }
-
-              // Open dialog
-              setOpen(true);
+              setEditTarget(row.original);
+              setEditDialogOpen(true);
             }}
             className="cursor-pointer bg-[#f3c623] hover:bg-[#D3A80C]"
           >
@@ -282,7 +251,6 @@ export default function ParentsMaster() {
             variant="destructive"
             size="sm"
             onClick={() => setDeleteTarget(row.original)}
-            // disabled={deleteGeofenceMutation.isPending}
             className="cursor-pointer hover:bg-red-700"
           >
             Delete
@@ -390,6 +358,11 @@ export default function ParentsMaster() {
     },
   });
 
+  // Handle search results
+  const handleSearchResults = useCallback((results: Parent[]) => {
+    setFilteredData(results);
+  }, []);
+
   // Handle search with debounce
   const handleSearch = useCallback((searchTerm: string) => {
     setGlobalFilter(searchTerm);
@@ -483,7 +456,7 @@ export default function ParentsMaster() {
 
   // Create table instance with server-side features
   const { table, tableElement } = CustomTableServerSidePagination({
-    data: parentsData?.data || [],
+    data: filteredData || [],
     columns,
     pagination,
     totalCount: parentsData?.total || 0,
@@ -506,21 +479,20 @@ export default function ParentsMaster() {
 
       <header className="flex items-center justify-between mb-4">
         <section className="flex space-x-4">
-          {/* Search component - now with server-side functionality */}
-          <div className="w-[300px] mb-4">
-            <Input
-              placeholder="Search parents..."
-              value={globalFilter}
-              onChange={(e) => handleSearch(e.target.value)}
-              className="w-full"
-            />
-          </div>
+          {/* Search component - updated to match notification page design */}
+          <SearchComponent
+            data={filterResults}
+            displayKey={["parentName", "mobileNo", "email", "username", "schoolId.schoolName", "branchId.branchName"]}
+            onResults={handleSearchResults}
+            className="w-[300px] mb-4"
+          />
 
           {/* Date range picker */}
           <DateRangeFilter
             onDateRangeChange={handleDateFilter}
             title="Search by Registration Date"
           />
+          
           {/* Column visibility selector */}
           <ColumnVisibilitySelector
             columns={table.getAllColumns()}
@@ -657,28 +629,6 @@ export default function ParentsMaster() {
 
       {/* Table component with server-side functionality */}
       <section className="mb-4">
-        {/* <CustomTable
-          data={parents || []}
-          columns={columns}
-          columnVisibility={columnVisibility}
-          onColumnVisibilityChange={setColumnVisibility}
-          // Server-side table props
-          pagination={pagination}
-          onPaginationChange={handlePaginationChange} // Use custom handler
-          sorting={sorting}
-          onSortingChange={setSorting}
-          totalPages={response.totalPages}
-          totalRows={response.total}
-          // Other props
-          pageSizeArray={[5, 10, 20, 50]}
-          maxHeight={600}
-          minHeight={200}
-          showSerialNumber={true}
-          noDataMessage="No parents found"
-          isLoading={isLoading || isFetching}
-          enableServerSidePagination={true}
-          enableServerSideSorting={true}
-        /> */}
         {tableElement}
       </section>
 
@@ -731,22 +681,20 @@ export default function ParentsMaster() {
       <section>
         <FloatingMenu
           onExportPdf={() => {
-            //console.log("Export PDF triggered");
-            exportToPDF(parents, columnsForExport, {
+            exportToPDF(filteredData, columnsForExport, {
               title: "Parents Master Report",
               companyName: "Parents Eye",
               metadata: {
-                Total: `${response.total} parents`,
+                Total: `${filteredData.length} parents`,
               },
             });
           }}
           onExportExcel={() => {
-            //console.log("Export Excel triggered");
-            exportToExcel(parents, columnsForExport, {
+            exportToExcel(filteredData, columnsForExport, {
               title: "Parents Master Report",
               companyName: "Parents Eye",
               metadata: {
-                Total: `${response.total} parents`,
+                Total: `${filteredData.length} parents`,
               },
             });
           }}

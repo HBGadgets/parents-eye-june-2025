@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import ReportFilter from "@/components/report-filters/Report-Filter";
 import { type ColumnDef, VisibilityState } from "@tanstack/react-table";
 import { CustomTableServerSidePagination } from "@/components/ui/customTable(serverSidePagination)";
@@ -9,6 +9,7 @@ import ResponseLoader from "@/components/ResponseLoader";
 import { reverseGeocode } from "@/util/reverse-geocode";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { FaPowerOff } from "react-icons/fa";
+import { useDeviceData } from "@/hooks/useDeviceData";
 
 interface StatusReportData {
   id: string;
@@ -35,6 +36,52 @@ const StatusReportPage: React.FC = () => {
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 10 });
   const [sorting, setSorting] = useState<any[]>([]);
   const [currentFilters, setCurrentFilters] = useState<any>(null);
+  
+  // Infinite scroll states for vehicle selection
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedVehicle, setSelectedVehicle] = useState("");
+  const [selectedVehicleName, setSelectedVehicleName] = useState("");
+
+  const { 
+    data: vehicleData, 
+    fetchNextPage, 
+    hasNextPage, 
+    isFetchingNextPage,
+    isLoading: vehiclesLoading 
+  } = useDeviceData({ searchTerm });
+
+  // Flatten all pages of vehicle data
+  const allVehicles = useMemo(() => {
+    if (!vehicleData?.pages) return [];
+    return vehicleData.pages.flat();
+  }, [vehicleData]);
+
+  const vehicleMetaData = useMemo(() => {
+    if (!Array.isArray(allVehicles)) return [];
+    return allVehicles.map((vehicle) => ({
+      value: vehicle.deviceId.toString(),
+      label: vehicle.name,
+    }));
+  }, [allVehicles]);
+
+  // Handle infinite scroll for vehicle combobox
+  const handleVehicleReachEnd = useCallback(() => {
+    if (hasNextPage && !isFetchingNextPage) {
+      fetchNextPage();
+    }
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+
+  // Handle search functionality
+  const handleSearchChange = useCallback((search: string) => {
+    setSearchTerm(search);
+  }, []);
+
+  const handleVehicleChange = useCallback((value: string) => {
+    setSelectedVehicle(value);
+    // Find the selected vehicle name
+    const selected = vehicleMetaData.find(vehicle => vehicle.value === value);
+    setSelectedVehicleName(selected?.label || "");
+  }, [vehicleMetaData]);
 
   const columns: ColumnDef<StatusReportData>[] = [
     { accessorKey: "sn", header: "SN" },
@@ -183,15 +230,23 @@ const StatusReportPage: React.FC = () => {
   }, [pagination, sorting, currentFilters, showTable]);
 
   const handleFilterSubmit = async (filters: any) => {
-    if (!filters.deviceId || !filters.startDate || !filters.endDate) {
-      alert("Please select a device and both dates");
+    // Use the selected vehicle from the combobox
+    if (!selectedVehicle || !filters.startDate || !filters.endDate) {
+      alert("Please select a vehicle and both dates");
       return;
     }
+    
+    const updatedFilters = {
+      ...filters,
+      deviceId: selectedVehicle,
+      deviceName: selectedVehicleName
+    };
+    
     setPagination({ pageIndex: 0, pageSize: 10 });
     setSorting([]);
-    setCurrentFilters(filters);
+    setCurrentFilters(updatedFilters);
     setShowTable(true);
-    await fetchStatusReportData(filters, { pageIndex: 0, pageSize: 10 }, []);
+    await fetchStatusReportData(updatedFilters, { pageIndex: 0, pageSize: 10 }, []);
   };
 
   const { table, tableElement } = CustomTableServerSidePagination({
@@ -205,13 +260,23 @@ const StatusReportPage: React.FC = () => {
   return (
     <div>
       <ResponseLoader isLoading={isLoading} />
-      <h1 className="text-xl font-bold mb-4">Status Reports</h1>
+
       <ReportFilter
         onFilterSubmit={handleFilterSubmit}
         columns={table.getAllColumns()}
         showColumnVisibility
         className="mb-6"
+        // Pass the infinite scroll combobox props
+        vehicleMetaData={vehicleMetaData}
+        selectedVehicle={selectedVehicle}
+        onVehicleChange={handleVehicleChange}
+        searchTerm={searchTerm}
+        onSearchChange={handleSearchChange}
+        onVehicleReachEnd={handleVehicleReachEnd}
+        isFetchingNextPage={isFetchingNextPage}
+        hasNextPage={hasNextPage}
       />
+      
       {showTable && <section className="mb-4">{tableElement}</section>}
     </div>
   );

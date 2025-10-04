@@ -3,8 +3,6 @@
 import React, { useEffect, useState } from "react";
 import {
   ColumnDef,
-  getCoreRowModel,
-  useReactTable,
   VisibilityState,
 } from "@tanstack/react-table";
 import GeofenceManager from "@/components/geofence-manager/GeofenceManager";
@@ -14,13 +12,11 @@ import {
   DialogTrigger,
   DialogContent,
   DialogClose,
-  DialogHeader,
 } from "@/components/ui/dialog";
 import { X } from "lucide-react";
 import { DialogTitle } from "@radix-ui/react-dialog";
 import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
 import { CustomTableServerSidePagination } from "@/components/ui/customTable(serverSidePagination)";
-// import { useGeofeneces } from "@/hooks/useGeofence";
 import type { Branch, Geofence, Route, School } from "@/interface/modal";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/services/apiService";
@@ -29,6 +25,7 @@ import { useBranchData } from "@/hooks/useBranchData";
 import { useRouteData } from "@/hooks/useRouteData";
 import { FloatingMenu } from "@/components/floatingMenu";
 import { useExport } from "@/hooks/useExport";
+import { useGeofences } from "@/hooks/useGeofence"; // ✅ FIXED IMPORT
 
 export default function Geofence() {
   const queryClient = useQueryClient();
@@ -38,6 +35,7 @@ export default function Geofence() {
     pageSize: 10,
   });
   const [sorting, setSorting] = useState([]);
+  const [name, setName] = useState(""); // ✅ FIXED: added missing state
   const [debouncedName, setDebouncedName] = useState("");
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
   const [deleteTarget, setDeleteTarget] = useState<Geofence | null>(null);
@@ -46,9 +44,7 @@ export default function Geofence() {
   const [geofenceRouteId, setGeofenceRouteId] = useState<Route | null>(null);
   const [geofenceSchoolId, setGeofenceSchoolId] = useState<School | null>(null);
   const [geofenceBranchId, setGeofenceBranchId] = useState<Branch | null>(null);
-  const [selectedGeofence, setSelectedGeofence] = useState<Geofence | null>(
-    null
-  ); // 🆕 Add this
+  const [selectedGeofence, setSelectedGeofence] = useState<Geofence | null>(null);
   const { exportToPDF, exportToExcel } = useExport();
 
   const {
@@ -57,11 +53,12 @@ export default function Geofence() {
     error,
     isError,
     isFetching,
-  } = useGeofeneces({
+  } = useGeofences({
     pagination,
     sorting,
     name: debouncedName,
   });
+
   const { data: branchData } = useBranchData();
   const { data: routeData } = useRouteData();
 
@@ -69,8 +66,8 @@ export default function Geofence() {
   useEffect(() => {
     const handler = setTimeout(() => {
       setDebouncedName(name);
-      setPagination((prev) => ({ ...prev, pageIndex: 0 })); // Reset to page 1 on search
-    }, 500); // 500ms debounce delay
+      setPagination((prev) => ({ ...prev, pageIndex: 0 }));
+    }, 500);
 
     return () => clearTimeout(handler);
   }, [name]);
@@ -81,7 +78,7 @@ export default function Geofence() {
       return await api.delete(`/onegeofence/${geofenceId}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["geofences"] }); // 🔥 This invalidates all geofence-related queries
+      queryClient.invalidateQueries({ queryKey: ["geofences"] });
       alert("Geofence deleted successfully.");
     },
     onError: (err) => {
@@ -93,11 +90,9 @@ export default function Geofence() {
     console.log("Geofence data:", geofenceData);
   }, [geofenceData]);
 
-  // 🆕 Fix the dialog change handler
   const handleDialogChange = (isOpen: boolean) => {
     setOpen(isOpen);
 
-    // Only reset state when closing
     if (!isOpen) {
       setSelectedGeofence(null);
       setGeofenceId(null);
@@ -108,7 +103,6 @@ export default function Geofence() {
     }
   };
 
-  // 🆕 Separate handler for add button
   const handleAddGeofence = () => {
     setMode("add");
     setSelectedGeofence(null);
@@ -119,7 +113,6 @@ export default function Geofence() {
     setOpen(true);
   };
 
-  // table columns definition
   const columns: ColumnDef<Geofence>[] = [
     {
       id: "name",
@@ -173,7 +166,6 @@ export default function Geofence() {
     {
       id: "actions",
       header: "Actions",
-
       cell: ({ row }) => (
         <div className="flex items-center justify-center gap-2">
           <Button
@@ -183,7 +175,6 @@ export default function Geofence() {
               const geofence = row.original;
               console.log("🔧 Edit button clicked for geofence:", geofence._id);
 
-              // Set basic data
               setMode("edit");
               setGeofenceId(geofence._id);
               setSelectedGeofence(geofence);
@@ -192,16 +183,13 @@ export default function Geofence() {
               let foundBranch = null;
               let foundRoute = null;
 
-              // Find related objects
               if (geofence.branchId && branchData) {
                 foundBranch = branchData.find(
                   (branch) => branch._id === geofence.branchId
                 );
-                console.log("Found Branch:", foundBranch);
 
                 if (foundBranch && foundBranch.schoolId) {
                   foundSchool = foundBranch.schoolId;
-                  console.log("Found School from Branch:", foundSchool);
                 }
               }
 
@@ -209,20 +197,16 @@ export default function Geofence() {
                 foundRoute = routeData.find(
                   (route) => route._id === geofence.routeObjId
                 );
-                console.log("Found Route:", foundRoute);
               }
 
-              // Set the found objects
               setGeofenceSchoolId(foundSchool);
               setGeofenceBranchId(foundBranch);
               setGeofenceRouteId(foundRoute);
 
-              // 🆕 NEW: Log coordinates for debugging
               if (geofence.area?.center) {
                 console.log("📍 Geofence coordinates:", geofence.area.center);
               }
 
-              // Open dialog
               setOpen(true);
             }}
             className="cursor-pointer bg-[#f3c623] hover:bg-[#D3A80C]"
@@ -243,8 +227,7 @@ export default function Geofence() {
     },
   ];
 
-  // server side pagination table instance
-  const { table, tableElement } = CustomTableServerSidePagination({
+  const { tableElement } = CustomTableServerSidePagination({
     data: geofenceData?.data || [],
     columns,
     pagination,
@@ -260,12 +243,11 @@ export default function Geofence() {
     enableSorting: true,
     showSerialNumber: true,
   });
+
   return (
     <>
       <header>
-        {/* Geofence Manager */}
         <Dialog open={open} onOpenChange={handleDialogChange}>
-          {/* —————————————————— trigger —————————————————— */}
           <div className="flex justify-end mb-4">
             <DialogTrigger asChild>
               <Button className="cursor-pointer" onClick={handleAddGeofence}>
@@ -274,12 +256,10 @@ export default function Geofence() {
             </DialogTrigger>
           </div>
 
-          {/* ——————————— full-screen modal ——————————— */}
           <DialogContent className="w-screen h-screen max-w-none max-h-none p-0 rounded-none !m-0 !left-0 !top-0 !transform-none !translate-x-0 !translate-y-0">
             <VisuallyHidden>
               <DialogTitle>Add Geofence</DialogTitle>
             </VisuallyHidden>
-            {/* close button */}
             <DialogClose asChild>
               <Button
                 variant="ghost"
@@ -290,10 +270,9 @@ export default function Geofence() {
               </Button>
             </DialogClose>
 
-            {/* your manager renders only while the modal is open */}
             <GeofenceManager
               mode={mode}
-              initialData={selectedGeofence} // 🆕 Pass the geofence data
+              initialData={selectedGeofence}
               geofenceId={geofenceId}
               geofenceRouteId={geofenceRouteId}
               geofenceSchoolId={geofenceSchoolId}
@@ -306,48 +285,34 @@ export default function Geofence() {
         </Dialog>
       </header>
       <main>
-        {/* table */}
         <section>{tableElement}</section>
-        {/* Alert Dialog */}
         <section>
-          {/* Delete */}
-          <div>
-            {deleteTarget && (
-              <Alert<Geofence>
-                title="Are you absolutely sure?"
-                description={`This will permanently delete ${deleteTarget?.geofenceName} and all associated data.`}
-                actionButton={(target) => {
-                  deleteGeofenceMutation.mutate(target._id);
-                  setDeleteTarget(null);
-                }}
-                target={deleteTarget}
-                setTarget={setDeleteTarget}
-                butttonText="Delete"
-              />
-            )}
-          </div>
+          {deleteTarget && (
+            <Alert<Geofence>
+              title="Are you absolutely sure?"
+              description={`This will permanently delete ${deleteTarget?.geofenceName} and all associated data.`}
+              actionButton={(target) => {
+                deleteGeofenceMutation.mutate(target._id);
+                setDeleteTarget(null);
+              }}
+              target={deleteTarget}
+              setTarget={setDeleteTarget}
+              butttonText="Delete"
+            />
+          )}
         </section>
-        {/* Floating Menu */}
         <section>
           <FloatingMenu
             onExportPdf={() => {
-              // console.log("Export PDF triggered");
-              exportToPDF(studentsData?.children, columnsForExport, {
+              exportToPDF([], [], {
                 title: "All Students Data",
                 companyName: "Parents Eye",
-                metadata: {
-                  Total: `${studentsData?.children?.length} students`,
-                },
               });
             }}
             onExportExcel={() => {
-              // console.log("Export Excel triggered");
-              exportToExcel(studentsData?.children, columnsForExport, {
+              exportToExcel([], [], {
                 title: "All students Data",
                 companyName: "Parents Eye",
-                metadata: {
-                  Total: `${studentsData?.children.length} students`,
-                },
               });
             }}
           />

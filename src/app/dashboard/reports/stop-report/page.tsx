@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import ReportFilter from "@/components/report-filters/Report-Filter";
 import { VisibilityState, type ColumnDef } from "@tanstack/react-table";
 import { CustomTableServerSidePagination } from "@/components/ui/customTable(serverSidePagination)";
@@ -8,6 +8,7 @@ import { api } from "@/services/apiService";
 import ResponseLoader from "@/components/ResponseLoader";
 import { FaPowerOff } from "react-icons/fa";
 import { reverseGeocode } from "@/util/reverse-geocode";
+import { useDeviceData } from "@/hooks/useDeviceData";
 import {
   Tooltip,
   TooltipContent,
@@ -35,13 +36,57 @@ const StopReportPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [showTable, setShowTable] = useState(false);
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 10 });
-  const [sorting, setSorting] = useState([]);
-
+  const [sorting, setSorting] = useState<any[]>([]);
   const [currentFilters, setCurrentFilters] = useState<any>(null);
+
+  // Infinite scroll states for vehicle selection
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedVehicle, setSelectedVehicle] = useState("");
+  const [selectedVehicleName, setSelectedVehicleName] = useState("");
+
+  const {
+    data: vehicleData,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    isLoading: vehiclesLoading,
+  } = useDeviceData({ searchTerm });
+
+  // Flatten all pages of vehicles
+  const allVehicles = useMemo(() => {
+    if (!vehicleData?.pages) return [];
+    return vehicleData.pages.flat();
+  }, [vehicleData]);
+
+  const vehicleMetaData = useMemo(() => {
+    if (!Array.isArray(allVehicles)) return [];
+    return allVehicles.map((vehicle) => ({
+      value: vehicle.deviceId.toString(),
+      label: vehicle.name,
+    }));
+  }, [allVehicles]);
+
+  // Infinite scroll trigger
+  const handleVehicleReachEnd = useCallback(() => {
+    if (hasNextPage && !isFetchingNextPage) fetchNextPage();
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+
+  const handleSearchChange = useCallback((search: string) => {
+    setSearchTerm(search);
+  }, []);
+
+  const handleVehicleChange = useCallback(
+    (value: string) => {
+      setSelectedVehicle(value);
+      const selected = vehicleMetaData.find((v) => v.value === value);
+      setSelectedVehicleName(selected?.label || "");
+    },
+    [vehicleMetaData]
+  );
 
   const columns: ColumnDef<StopReportData>[] = [
     { accessorKey: "sn", header: "SN" },
-    { accessorKey: "deviceName", header: "Device Name", size: 200 },
+    { accessorKey: "deviceName", header: "Vehicle Name", size: 200 },
     {
       accessorKey: "ignition",
       header: "Ignition",
@@ -58,10 +103,7 @@ const StopReportPage: React.FC = () => {
                 <TooltipTrigger asChild>
                   <FaPowerOff className={`text-xl cursor-pointer ${iconColor}`} />
                 </TooltipTrigger>
-                <TooltipContent
-                  side="top"
-                  className="bg-black/80 text-white font-bold rounded-md px-3 py-2 shadow-lg"
-                >
+                <TooltipContent className="bg-black/80 text-white font-bold rounded-md px-3 py-2 shadow-lg">
                   <p>{tooltipText}</p>
                 </TooltipContent>
               </Tooltip>
@@ -77,16 +119,16 @@ const StopReportPage: React.FC = () => {
       accessorKey: "speed",
       header: "Speed (km/h)",
       size: 150,
-      cell: ({ row }) => row.original.speed?.toFixed(2) ?? "0.00", // ✅ fixed to 2 digits
+      cell: ({ row }) => row.original.speed?.toFixed(2) ?? "0.00",
     },
     {
       accessorKey: "stopAddress",
       header: "Location",
       size: 300,
-      cell: ({ row }) => {
-        const stopAddress = row.original.stopAddress;
-        return stopAddress && stopAddress !== "Loading..." ? stopAddress : "-";
-      },
+      cell: ({ row }) =>
+        row.original.stopAddress && row.original.stopAddress !== "Loading..."
+          ? row.original.stopAddress
+          : "-",
     },
     {
       accessorKey: "stopCoordinates",
@@ -114,13 +156,17 @@ const StopReportPage: React.FC = () => {
     return `${h}H ${m}M ${s}S`;
   };
 
-  const fetchStopReportData = async (filters: any, paginationState: any, sortingState: any) => {
+  const fetchStopReportData = async (
+    filters: any,
+    paginationState: any,
+    sortingState: any
+  ) => {
     if (!filters) return;
     setIsLoading(true);
 
     try {
-      const fromDate = new Date(filters.startDate).toISOString().split("T")[0];
-      const toDate = new Date(filters.endDate).toISOString().split("T")[0];
+      const fromDate = new Date(filters.startDate).toISOString();
+      const toDate = new Date(filters.endDate).toISOString();
 
       const queryParams = new URLSearchParams({
         deviceId: filters.deviceId,
@@ -130,24 +176,14 @@ const StopReportPage: React.FC = () => {
         limit: paginationState.pageSize.toString(),
       });
 
-      if (sortingState.length > 0) {
+      if (sortingState?.length) {
         const sort = sortingState[0];
         queryParams.append("sortBy", sort.id);
         queryParams.append("sortOrder", sort.desc ? "desc" : "asc");
       }
 
-      const [deviceRes, stopRes] = await Promise.all([
-        api.get("/device"),
-        api.get(`/report/stop-report?${queryParams.toString()}`),
-      ]);
-
-      const deviceList = deviceRes.data || [];
-      const deviceMap: Record<string, string> = {};
-      deviceList.forEach((d: any) => {
-        deviceMap[d.deviceId] = d.name;
-      });
-
-      const json = stopRes.data;
+      const response = await api.get(`/report/stop-report?${queryParams}`);
+      const json = response.data;
 
       if (!json || (Array.isArray(json) && json.length === 0)) {
         setData([]);
@@ -157,33 +193,37 @@ const StopReportPage: React.FC = () => {
 
       const dataArray = Array.isArray(json) ? json : [json];
 
-      const initialTransformed: StopReportData[] = dataArray.map((item: any, index: number) => {
-        const sn = paginationState.pageIndex * paginationState.pageSize + index + 1;
-        return {
-          id: item._id || `row-${index}`,
-          sn,
-          deviceName: deviceMap[item.deviceId] || filters.deviceName || item.deviceId,
-          stopAddress: "Loading...",
-          stopCoordinates: { lat: item.latitude, lng: item.longitude },
-          arrivalTime: new Date(item.arrivalTime).toLocaleString(),
-          departureTime: new Date(item.departureTime).toLocaleString(),
-          duration: calculateDuration(item.arrivalTime, item.departureTime),
-          ignition: item.ignition,
-          speed: item.speed || 0,
-        };
-      });
+      const initialTransformed: StopReportData[] = dataArray.map(
+        (item: any, index: number) => {
+          const sn =
+            paginationState.pageIndex * paginationState.pageSize + index + 1;
+          return {
+            id: item._id || `row-${index}`,
+            sn,
+            deviceName: filters.deviceName,
+            stopAddress: "Loading...",
+            stopCoordinates: { lat: item.latitude, lng: item.longitude },
+            arrivalTime: new Date(item.arrivalTime).toLocaleString(),
+            departureTime: new Date(item.departureTime).toLocaleString(),
+            duration: calculateDuration(item.arrivalTime, item.departureTime),
+            ignition: item.ignition,
+            speed: item.speed || 0,
+          };
+        }
+      );
 
       setData(initialTransformed);
-      setTotalCount(stopRes.total || initialTransformed.length); // Better to get total from API if possible
+      setTotalCount(response.total || initialTransformed.length);
 
-      // Reverse geocode addresses asynchronously
       const transformedWithAddresses = await Promise.all(
         initialTransformed.map(async (item) => {
           try {
-            const address = await reverseGeocode(item.stopCoordinates.lat, item.stopCoordinates.lng);
+            const address = await reverseGeocode(
+              item.stopCoordinates.lat,
+              item.stopCoordinates.lng
+            );
             return { ...item, stopAddress: address };
-          } catch (error) {
-            console.error("Error reverse geocoding:", error);
+          } catch (err) {
             return { ...item, stopAddress: "Address not found" };
           }
         })
@@ -192,19 +232,7 @@ const StopReportPage: React.FC = () => {
       setData(transformedWithAddresses);
     } catch (error: any) {
       console.error("Error fetching stop report data:", error);
-
-      if (error.response) {
-        alert(
-          `Error ${error.response.status}: ${
-            error.response.data?.error || error.response.data?.message
-          }`
-        );
-      } else if (error.request) {
-        alert("Network error. Please check your connection and try again.");
-      } else {
-        alert(`Error: ${error.message}`);
-      }
-
+      alert(error.response?.data?.error || error.message || "Network error");
       setData([]);
       setTotalCount(0);
     } finally {
@@ -219,21 +247,23 @@ const StopReportPage: React.FC = () => {
   }, [pagination, sorting, currentFilters, showTable]);
 
   const handleFilterSubmit = async (filters: any) => {
-    if (!filters.deviceId) {
-      alert("Please select a device before generating the report");
+    if (!selectedVehicle || !filters.startDate || !filters.endDate) {
+      alert("Please select a vehicle and both dates");
       return;
     }
-    if (!filters.startDate || !filters.endDate) {
-      alert("Please select both start and end dates");
-      return;
-    }
+
+    const updatedFilters = {
+      ...filters,
+      deviceId: selectedVehicle,
+      deviceName: selectedVehicleName,
+    };
 
     setPagination({ pageIndex: 0, pageSize: 10 });
     setSorting([]);
-    setCurrentFilters(filters);
+    setCurrentFilters(updatedFilters);
     setShowTable(true);
 
-    await fetchStopReportData(filters, { pageIndex: 0, pageSize: 10 }, []);
+    await fetchStopReportData(updatedFilters, { pageIndex: 0, pageSize: 10 }, []);
   };
 
   const { table, tableElement } = CustomTableServerSidePagination({
@@ -250,20 +280,26 @@ const StopReportPage: React.FC = () => {
     emptyMessage: "No stop reports found",
     pageSizeOptions: [5, 10, 20, 30, 50],
     enableSorting: true,
-    showSerialNumber: false, 
+    showSerialNumber: false,
   });
 
   return (
     <div>
       <ResponseLoader isLoading={isLoading} />
 
-      <h1 className="text-xl font-bold mb-4">Stop Reports</h1>
-
       <ReportFilter
         onFilterSubmit={handleFilterSubmit}
         columns={table.getAllColumns()}
-        showColumnVisibility={true}
+        showColumnVisibility
         className="mb-6"
+        vehicleMetaData={vehicleMetaData}
+        selectedVehicle={selectedVehicle}
+        onVehicleChange={handleVehicleChange}
+        searchTerm={searchTerm}
+        onSearchChange={handleSearchChange}
+        onVehicleReachEnd={handleVehicleReachEnd}
+        isFetchingNextPage={isFetchingNextPage}
+        hasNextPage={hasNextPage}
       />
 
       {showTable && <section className="mb-4">{tableElement}</section>}
