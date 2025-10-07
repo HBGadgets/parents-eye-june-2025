@@ -1,211 +1,110 @@
-// "use client";
-
-// import * as React from "react";
-// import Cookies from "js-cookie";
-// import { getDecodedToken } from "@/lib/jwt";
-// import { useNavigationStore } from "@/store/navigationStore";
-// import {
-//   Sidebar,
-//   SidebarHeader,
-//   SidebarMenu,
-//   SidebarMenuButton,
-//   SidebarMenuItem,
-//   SidebarRail,
-// } from "@/components/ui/sidebar";
-// import SearchComponent from "@/components/SearchComponent(appsidebar)";
-// import { useRouter } from "next/navigation";
-// import RouteLoader from "@/components/RouteLoader";
-// import { useTransition } from "react"; // Import for transition handling
-
-// type UserRole = "superAdmin" | "school" | "branchGroup" | "branch" | null;
-
-// export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
-//   const [userRole, setUserRole] = React.useState<UserRole>(null);
-//   const activeSection = useNavigationStore((state) => state.activeSection);
-//   const [userInfo, setUserInfo] = React.useState<string>("");
-//   const router = useRouter();
-//   const [isPending, startTransition] = useTransition(); // Navigation state tracker
-
-//   React.useEffect(() => {
-//     const token = Cookies.get("token");
-//     const decoded = token ? getDecodedToken(token) : null;
-//     const role = decoded?.role;
-//     const user = decoded?.username;
-
-//     if (user) {
-//       setUserInfo(user);
-//     }
-
-//     if (
-//       typeof role === "string" &&
-//       ["superAdmin", "school", "branchGroup", "branch"].includes(role)
-//     ) {
-//       setUserRole(role as UserRole);
-//     }
-//   }, []);
-
-//   const getSidebarData = React.useCallback(
-//     (section: string, role: UserRole) => {
-//       switch (section) {
-//         case "School":
-//           return [
-//             { title: "Student Details", url: "/dashboard/school/student-details" },
-//             { title: "Geofence", url: "/dashboard/school/geofence" },
-//             { title: "Pickup And Drop", url: "/dashboard/school/pickup-drop" },
-//             { title: "Absent", url: "/dashboard/school/absent" },
-//             { title: "Present", url: "/dashboard/school/present" },
-//             { title: "Leave Request", url: "/dashboard/school/leave-request" },
-//             { title: "Status", url: "/dashboard/school/status" },
-//             { title: "Approved Request", url: "/dashboard/school/approved-request" },
-//             { title: "Denied Request", url: "/dashboard/school/denied-request" },
-//           ];
-//         case "Users":
-//           if (role === "superAdmin") {
-//             return [
-//               { title: "School Master", url: "/dashboard/users/school-master" },
-//               { title: "Branch Master", url: "/dashboard/users/branch-master" },
-//               { title: "Driver Approve", url: "/dashboard/users/driver-approve" },
-//               { title: "Student Approve", url: "/dashboard/users/student-approve" },
-//               { title: "Supervisor Approve", url: "/dashboard/users/supervisor-approve" },
-//               { title: "Add Device", url: "/dashboard/users/add-device" },
-//               { title: "Read Device", url: "/dashboard/users/read-device" },
-//               { title: "User Access", url: "/dashboard/users/user-access" },
-//               { title: "Notification", url: "/dashboard/users/notification" },
-//             ];
-//           } else if (role === "school" || role === "branchGroup") {
-//             return [
-//               { title: "Branch Master", url: "/dashboard/users/branch-master" },
-//               { title: "Driver Approve", url: "/dashboard/users/driver-approve" },
-//               { title: "Student Approve", url: "/dashboard/users/student-approve" },
-//               { title: "Supervisor Approve", url: "/dashboard/users/supervisor-approve" },
-//               { title: "Read Device", url: "/dashboard/users/read-device" },
-//             ];
-//           } else {
-//             return [
-//               { title: "Driver Approve", url: "/dashboard/users/driver-approve" },
-//               { title: "Student Approve", url: "/dashboard/users/student-approve" },
-//               { title: "Supervisor Approve", url: "/dashboard/users/supervisor-approve" },
-//               { title: "Read Device", url: "/dashboard/users/read-device" },
-//             ];
-//           }
-//         case "Reports":
-//           return [
-//             { title: "Status Report", url: "/dashboard/reports/status-report" },
-//             { title: "Distance Report", url: "/dashboard/reports/distance-report" },
-//             { title: "History Report", url: "/dashboard/reports/history-report" },
-//             { title: "Stop Report", url: "/dashboard/reports/stop-report" },
-//             { title: "Travel Summary", url: "/dashboard/reports/travel-summary" },
-//             { title: "Trip Report", url: "/dashboard/reports/trip-report" },
-//             { title: "Idle Report", url: "/dashboard/reports/idle-report" },
-//             { title: "Alerts/Events", url: "/dashboard/reports/events" },
-//             { title: "Geofence Report", url: "/dashboard/reports/geofence-report" },
-//           ];
-//         default:
-//           return [];
-//       }
-//     },
-//     []
-//   );
-
-//   const sidebarData = React.useMemo(() => {
-//     if (!activeSection || !userRole) return [];
-//     return getSidebarData(activeSection, userRole);
-//   }, [activeSection, userRole, getSidebarData]);
-
-//   React.useEffect(() => {
-//     if (!sidebarData || sidebarData.length === 0) return;
-
-//     sidebarData.forEach((item) => {
-//       router.prefetch(item.url);
-//       console.log(`Prefetched: ${item.url}`);
-//     });
-//   }, [sidebarData, router]);
-
-//   if (!userRole) return null;
-
-//   return (
-//     <>
-//       {/* Show loader only during actual page transition */}
-//       {isPending && <RouteLoader />}
-
-//       <Sidebar
-//         {...props}
-//         className="bg-[#ffdc00]"
-//         style={{ backgroundColor: "#ffdc00" }}
-//       >
-//         <SidebarHeader className="bg-primary h-full">
-//           <SidebarMenu>
-//             <SidebarMenuItem>
-//               <SidebarMenuButton size="lg" asChild>
-//                 <SearchComponent
-//                   data={sidebarData}
-//                   displayKey={["title"]}
-//                   debounceDelay={500}
-//                   onSelect={(item) => {
-//                     // Wrap navigation in transition to track loading state
-//                     startTransition(() => {
-//                       router.push(item.url);
-//                     });
-//                   }}
-//                 />
-//               </SidebarMenuButton>
-//             </SidebarMenuItem>
-//           </SidebarMenu>
-//         </SidebarHeader>
-//         <SidebarRail className="bg-primary" />
-//       </Sidebar>
-//     </>
-//   );
-// }
 "use client";
 
 import * as React from "react";
 import Cookies from "js-cookie";
 import { getDecodedToken } from "@/lib/jwt";
 import { useNavigationStore } from "@/store/navigationStore";
+import { useSidebar } from "@/components/ui/sidebar";
 import {
   Sidebar,
   SidebarHeader,
+  SidebarContent,
+  SidebarGroup,
+  SidebarGroupLabel,
+  SidebarGroupContent,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail,
+  SidebarSeparator,
 } from "@/components/ui/sidebar";
-import SearchComponent from "@/components/SearchComponent(appsidebar)";
-import { useRouter } from "next/navigation";
+import { Input } from "@/components/ui/input";
+import { useRouter, usePathname } from "next/navigation";
 import RouteLoader from "@/components/RouteLoader";
 import { useTransition } from "react";
-import { Skeleton } from "@/components/ui/skeleton"; // Import skeleton component
+import { Skeleton } from "@/components/ui/skeleton";
+import Link from "next/link";
+import {
+  GraduationCap,
+  Users,
+  FileText,
+  Search,
+  School,
+  MapPin,
+  UserCheck,
+  UserX,
+  FileBarChart,
+  Route,
+  Clock,
+  TrendingUp,
+  Map,
+  AlertCircle,
+  Settings,
+  Smartphone,
+  Bell,
+  CheckCircle,
+  XCircle,
+} from "lucide-react";
+import Image from "next/image";
 
 type UserRole = "superAdmin" | "school" | "branchGroup" | "branch" | null;
+
+// Icon mapping for menu items
+const iconMap: Record<string, React.ElementType> = {
+  "Student Details": GraduationCap,
+  Geofence: MapPin,
+  "Pickup And Drop": Route,
+  Absent: UserX,
+  Present: UserCheck,
+  "Leave Request": FileText,
+  Status: AlertCircle,
+  "Approved Request": CheckCircle,
+  "Denied Request": XCircle,
+  "School Master": School,
+  "Branch Master": School,
+  "Parents Master": Users,
+  "Driver Approve": UserCheck,
+  "Student Approve": UserCheck,
+  "Supervisor Approve": UserCheck,
+  "Add Device": Smartphone,
+  "Read Device": Smartphone,
+  "User Access": Settings,
+  Notification: Bell,
+  "Status Report": FileBarChart,
+  "Distance Report": Route,
+  "History Report": Clock,
+  "Stop Report": AlertCircle,
+  "Travel Summary": TrendingUp,
+  "Trip Report": Route,
+  "Idle Report": Clock,
+  "Alerts/Events": Bell,
+  "Geofence Report": Map,
+};
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const [userRole, setUserRole] = React.useState<UserRole>(null);
   const activeSection = useNavigationStore((state) => state.activeSection);
-  const [userInfo, setUserInfo] = React.useState<string>("");
+  const [isLoading, setIsLoading] = React.useState(true);
+  const [searchQuery, setSearchQuery] = React.useState("");
+
   const router = useRouter();
+  const pathname = usePathname();
   const [isPending, startTransition] = useTransition();
-  const [isLoading, setIsLoading] = React.useState(true); // Track loading state
+  const { setOpenMobile, isMobile, state } = useSidebar();
 
   React.useEffect(() => {
     const token = Cookies.get("token");
     const decoded = token ? getDecodedToken(token) : null;
     const role = decoded?.role;
-    const user = decoded?.username;
-
-    if (user) {
-      setUserInfo(user);
-    }
 
     if (
       typeof role === "string" &&
       ["superAdmin", "school", "branchGroup", "branch"].includes(role)
     ) {
       setUserRole(role as UserRole);
-      // console.log(`User role set to: ${role}`);
     }
 
-    setIsLoading(false); // Data fetching complete
+    setIsLoading(false);
   }, []);
 
   const getSidebarData = React.useCallback(
@@ -332,58 +231,178 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     return getSidebarData(activeSection, userRole);
   }, [activeSection, userRole, getSidebarData]);
 
+  const filteredData = React.useMemo(() => {
+    if (!searchQuery.trim()) return sidebarData;
+    return sidebarData.filter((item) =>
+      item.title.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  }, [sidebarData, searchQuery]);
+
   React.useEffect(() => {
     if (!sidebarData || sidebarData.length === 0) return;
-
     sidebarData.forEach((item) => {
       router.prefetch(item.url);
-      // console.log(`Prefetched: ${item.url}`);
     });
   }, [sidebarData, router]);
 
-  // Always render sidebar structure with loading state
+  const handleItemSelect = React.useCallback(
+    (url: string) => {
+      startTransition(() => {
+        router.push(url);
+        if (isMobile) {
+          setOpenMobile(false);
+        }
+      });
+    },
+    [router, isMobile, setOpenMobile]
+  );
+
+  const isCollapsed = state === "collapsed";
+
   return (
     <>
       {isPending && <RouteLoader />}
 
       <Sidebar
+        collapsible="icon"
         {...props}
-        className="bg-[#ffdc00]"
+        className="border-r border-yellow-600/20 transition-all duration-300 ease-in-out"
         style={{ backgroundColor: "#ffdc00" }}
       >
-        <SidebarHeader className="bg-primary h-full">
-          {isLoading || !userRole || sidebarData.length === 0 ? (
-            <div className="flex flex-col gap-3 p-4">
-              <Skeleton className="h-10 w-full rounded-md bg-yellow-300/60" />{" "}
-              {/* Search bar */}
-              <Skeleton className="h-6 w-3/4 rounded bg-yellow-300/60" />
-              <Skeleton className="h-6 w-2/3 rounded bg-yellow-300/60" />
-              <Skeleton className="h-6 w-4/5 rounded bg-yellow-300/60" />
-              <Skeleton className="h-6 w-1/2 rounded bg-yellow-300/60" />
-              <Skeleton className="h-6 w-3/4 rounded bg-yellow-300/60" />
-              <Skeleton className="h-6 w-2/3 rounded bg-yellow-300/60" />
+        {/* Header with Search - Fixed Height */}
+        <SidebarHeader className="border-b border-yellow-600/20 bg-primary h-[60px] flex items-center justify-center transition-all duration-300 ease-in-out">
+          {isLoading ? (
+            <div className={isCollapsed ? "w-auto" : "w-full px-3"}>
+              <Skeleton
+                className={`rounded-md bg-yellow-300/60 transition-all duration-300 ${
+                  isCollapsed ? "h-10 w-10" : "h-9 w-full"
+                }`}
+              />
             </div>
           ) : (
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton size="lg" asChild>
-                  <SearchComponent
-                    data={sidebarData}
-                    displayKey={["title"]}
-                    debounceDelay={500}
-                    onSelect={(item) => {
-                      startTransition(() => {
-                        router.push(item.url);
-                      });
-                    }}
-                  />
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            </SidebarMenu>
+            <>
+              {/* Expanded Search Bar - Only show when NOT collapsed */}
+              {!isCollapsed && (
+                <div className="w-full px-3 animate-in fade-in duration-200">
+                  <div className="relative">
+                    {/* <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-yellow-800/60 z-10" />
+                    <Input
+                      type="text"
+                      placeholder="Search..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="w-full bg-white/90 pl-9 pr-3 h-9 text-sm placeholder:text-yellow-800/50 focus-visible:ring-2 focus-visible:ring-yellow-600 border-yellow-600/30 hover:bg-white transition-all duration-200"
+                    /> */}
+                    <Image
+                      width={150}
+                      height={150}
+                      src="/logo.svg"
+                      alt="Logo"
+                      className="relative left-10 -top-2.5"
+                    />
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </SidebarHeader>
 
-        <SidebarRail className="bg-primary" />
+        {/* Scrollable Content - Animated */}
+        <SidebarContent className="bg-primary px-2 py-2 transition-all duration-300 ease-in-out">
+          {isLoading || !userRole || sidebarData.length === 0 ? (
+            <div className="flex flex-col gap-2 p-2">
+              {[...Array(6)].map((_, i) => (
+                <Skeleton
+                  key={i}
+                  className="h-10 w-full rounded bg-yellow-300/60 transition-all duration-300"
+                  style={{ animationDelay: `${i * 50}ms` }}
+                />
+              ))}
+            </div>
+          ) : (
+            <SidebarGroup className="p-0">
+              {/* Group Label with Fade Animation */}
+              <SidebarGroupLabel className="px-2 py-2 text-xs font-bold uppercase tracking-wider text-yellow-900 group-data-[collapsible=icon]:opacity-0 group-data-[collapsible=icon]:scale-90 group-data-[collapsible=icon]:h-0 group-data-[collapsible=icon]:py-0 transition-all duration-300 ease-out overflow-hidden">
+                {activeSection || "Menu"}
+              </SidebarGroupLabel>
+
+              <SidebarSeparator className="bg-yellow-600/20 my-1 group-data-[collapsible=icon]:opacity-0 transition-all duration-200" />
+
+              <SidebarGroupContent className="mt-4">
+                <SidebarMenu className="gap-0.5">
+                  {filteredData.length === 0 ? (
+                    <div className="px-3 py-8 text-center text-sm text-yellow-800/60 group-data-[collapsible=icon]:hidden transition-all duration-300">
+                      No results
+                    </div>
+                  ) : (
+                    filteredData.map((item, index) => {
+                      const Icon = iconMap[item.title] || FileText;
+                      const isActive = pathname === item.url;
+
+                      return (
+                        <SidebarMenuItem
+                          key={item.title}
+                          className="animate-in fade-in slide-in-from-left-2 fill-mode-both"
+                          style={{
+                            animationDelay: `${index * 30}ms`,
+                            animationDuration: "300ms",
+                          }}
+                        >
+                          <SidebarMenuButton
+                            asChild
+                            isActive={isActive}
+                            tooltip={item.title}
+                            className={`
+                              group/button relative transition-all duration-200
+                              ${
+                                isActive
+                                  ? "bg-yellow-600 text-white font-semibold shadow-sm hover:bg-yellow-700"
+                                  : "text-yellow-900 hover:bg-yellow-500/30 hover:text-yellow-950 font-medium"
+                              }
+                              rounded-lg h-11
+                              group-data-[collapsible=icon]:h-11 group-data-[collapsible=icon]:w-11
+                              group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:mb-2
+                            `}
+                          >
+                            <Link
+                              href={item.url}
+                              onClick={(e) => {
+                                e.preventDefault();
+                                handleItemSelect(item.url);
+                              }}
+                              className="flex items-center gap-3 w-full px-3 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0 transition-all duration-200"
+                            >
+                              {/* Icon with rotate animation on collapse */}
+                              <Icon
+                                className={`
+                                  h-7 w-7 flex-shrink-0 transition-all duration-300
+                                  group-hover/button:scale-110 group-hover/button:rotate-3
+                                  group-data-[collapsible=icon]:rotate-0 group-data-[collapsible=icon]:scale-150
+                                  text-yellow-700
+                                `}
+                              />
+                              {/* Text with slide and fade animation */}
+                              <span className="flex-1 truncate text-sm transition-all duration-300 ease-out group-data-[collapsible=icon]:opacity-0 group-data-[collapsible=icon]:translate-x-2 group-data-[collapsible=icon]:w-0 group-data-[collapsible=icon]:hidden">
+                                {item.title}
+                              </span>
+                              {/* Active indicator with pulse */}
+                              {isActive && (
+                                <div className="h-1.5 w-1.5 rounded-full bg-white animate-pulse group-data-[collapsible=icon]:absolute group-data-[collapsible=icon]:top-1 group-data-[collapsible=icon]:right-1 group-data-[collapsible=icon]:h-2 group-data-[collapsible=icon]:w-2 transition-all duration-200" />
+                              )}
+                            </Link>
+                          </SidebarMenuButton>
+                        </SidebarMenuItem>
+                      );
+                    })
+                  )}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          )}
+        </SidebarContent>
+
+        {/* Animated Rail */}
+        <SidebarRail className="bg-yellow-600/40 hover:bg-yellow-600/60 transition-all duration-300 ease-in-out hover:w-2" />
       </Sidebar>
     </>
   );

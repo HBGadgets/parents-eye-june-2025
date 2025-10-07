@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useNavigationStore } from "@/store/navigationStore";
-import { useSidebar } from "@/components/ui/sidebar"; // Import the hook
+import { useSidebar } from "@/components/ui/sidebar";
 import {
   NavigationMenu,
   NavigationMenuItem,
@@ -17,24 +17,28 @@ export function Navbar() {
   const setActiveSection = useNavigationStore(
     (state) => state.setActiveSection
   );
-  const { setOpen, setOpenMobile, isMobile } = useSidebar(); // Get sidebar controls
+  const { setOpen, setOpenMobile, isMobile } = useSidebar();
 
-  const handleNavClick = (section: string) => {
-    if (section !== "Dashboard") {
-      setActiveSection(section);
-      // Open sidebar based on device type
-      if (isMobile) {
-        setOpenMobile(true);
-      } else {
-        setOpen(true);
+  const handleNavClick = React.useCallback(
+    (section: string) => {
+      if (section !== "Dashboard") {
+        setActiveSection(section);
+        // Open sidebar based on device type
+        if (isMobile) {
+          setOpenMobile(true);
+        } else {
+          setOpen(true);
+        }
       }
-    }
-  };
+    },
+    [setActiveSection, setOpen, setOpenMobile, isMobile]
+  );
 
   return (
-    <div className="w-full h-full flex items-center relative px-2 sm:px-4 bg-primary">
+    <div className="w-full h-16 flex items-center relative px-2 sm:px-4 bg-primary border-b border-yellow-600/20">
+      {/* <div className="w-full h-16 fixed flex items-center px-2 sm:px-4 bg-primary border-b border-yellow-600/20"> */}
       {/* Left: Logo and title */}
-      <div className="flex items-center flex-shrink-0">
+      {/* <div className="flex items-center flex-shrink-0 h-full">
         <Image
           width={150}
           height={150}
@@ -42,9 +46,10 @@ export function Navbar() {
           alt="Logo"
           className="relative left-10 -top-2.5"
         />
-      </div>
+      </div> */}
+
       {/* Centered nav links with responsive spacing */}
-      <div className="flex-1 flex justify-center relative z-30">
+      <div className="flex-1 flex justify-center items-center relative z-30">
         <div className="max-w-[calc(100%-80px)] sm:max-w-none">
           <NavigationMenu>
             <NavigationMenuList className="flex-wrap justify-center gap-1 sm:gap-2">
@@ -52,10 +57,12 @@ export function Navbar() {
                 <NavigationMenuItem key={section}>
                   <NavigationMenuLink
                     asChild
-                    className={`text-xs sm:text-sm px-1.5 sm:px-3 py-1 sm:py-2 whitespace-nowrap font-semibold hover:font-bold transition-colors duration-200 focus:font-bold`}
-                    onClick={() => handleNavClick(section)}
+                    className="text-xs sm:text-sm px-1.5 sm:px-3 py-1 sm:py-2 whitespace-nowrap font-semibold hover:font-bold transition-colors duration-200 focus:font-bold hover:bg-yellow-500/20 rounded-md"
                   >
-                    <Link href={section === "Dashboard" ? "/dashboard" : "#"}>
+                    <Link
+                      href={section === "Dashboard" ? "/dashboard" : "#"}
+                      onClick={() => handleNavClick(section)}
+                    >
                       {section}
                     </Link>
                   </NavigationMenuLink>
@@ -67,7 +74,7 @@ export function Navbar() {
       </div>
 
       {/* Right: Profile dropdown positioned at the right edge */}
-      <div className="absolute right-2 sm:right-4 top-1/2 transform -translate-y-1/2 flex-shrink-0 z-30">
+      <div className="absolute right-2 sm:right-4 top-1/2 transform -translate-y-1/2 flex-shrink-0 z-[9999] h-full flex items-center">
         <ProfileDropdown />
       </div>
     </div>
