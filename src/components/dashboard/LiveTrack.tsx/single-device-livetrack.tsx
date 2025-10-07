@@ -325,9 +325,9 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
           setVehiclePath([...currentPathRef.current]);
           lastSampleTime = currentTime;
 
-          console.log(
-            `[Trail] Added point at ${(progress * 100).toFixed(1)}% progress`
-          );
+          // console.log(
+          //   `[Trail] Added point at ${(progress * 100).toFixed(1)}% progress`
+          // );
         }
       }
 
