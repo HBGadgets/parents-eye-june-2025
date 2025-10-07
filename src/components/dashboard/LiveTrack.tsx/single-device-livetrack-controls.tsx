@@ -1,3 +1,4 @@
+import { FaStreetView } from "react-icons/fa";
 import { VehicleData } from "./single-device-livetrack";
 
 export const SingleDeviceLiveTrackControls = ({
@@ -56,6 +57,18 @@ export const SingleDeviceLiveTrackControls = ({
       >
         {showTraffic ? "🚦 Hide traffic view" : "🚦 Show traffic view"}
       </button>
+      <a
+        className={`${
+          showTraffic ? `bg-[#f3c623]` : "bg-gray-50"
+        } border-2 border-gray-300 rounded px-3 py-2 cursor-pointer flex items-center gap-1.5 text-sm text-black font-medium shadow-md transition-all duration-200 hover:bg-gray-50 hover:border-gray-400 hover:shadow-lg active:translate-y-0.5 active:shadow-sm whitespace-nowrap`}
+        href={`http://maps.google.com/maps?q=&layer=c&cbll=${vehicle?.latitude},${vehicle?.longitude}&cbp=11,0,0,0,0`}
+        target="_blank"
+        rel="noopener noreferrer"
+        title="Street View"
+      >
+        <FaStreetView size={14} color="black" />
+        <span className="font-sans">Street View</span>
+      </a>
     </div>
   );
 };
