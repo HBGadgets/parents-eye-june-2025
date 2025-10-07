@@ -503,7 +503,7 @@ export default function UserAccessPage() {
     },
   ], []);
 
-  const { tableElement } = CustomTableServerSidePagination({
+  const { table, tableElement } = CustomTableServerSidePagination({
     data: filteredData || [],
     columns,
     pagination,
@@ -534,7 +534,7 @@ export default function UserAccessPage() {
             className="w-[300px] mb-4"
           />
           <DateRangeFilter onDateRangeChange={(s, e) => setDateRange({ start: s, end: e })} title="Search by Registration Date" />
-          <ColumnVisibilitySelector columns={[]} buttonVariant="outline" buttonSize="default" />
+          <ColumnVisibilitySelector columns={table?.getAllColumns() || []} buttonVariant="outline" buttonSize="default" />
         </section>
 
         <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>

@@ -602,6 +602,8 @@ const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     getCoreRowModel: getCoreRowModel(),
   });
 
+  console.log("driver............",drivers)
+
   return (
     <main>
       {/* Progress loader at the top */}

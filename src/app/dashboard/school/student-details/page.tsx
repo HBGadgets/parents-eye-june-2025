@@ -152,15 +152,27 @@ export default function StudentDetails() {
     });
   }, [selectedBranch, routes]);
 
-  // Filter branches for edit dialog
+  // Filter branches for edit dialog 
   const editFilteredBranches = useMemo(() => {
-    if (!editSelectedSchool) return branches;
-    return branches.filter(branch => {
-      const branchSchoolId = branch.schoolId 
-        ? (typeof branch.schoolId === 'object' ? branch.schoolId?._id : branch.schoolId)
-        : null;
+    console.log("Filtering branches for edit:", { editSelectedSchool, branchesCount: branches.length });
+    
+    if (!editSelectedSchool) {
+      // If no school selected, return all branches
+      return branches;
+    }
+    
+    const filtered = branches.filter(branch => {
+      if (!branch.schoolId) return false;
+      
+      const branchSchoolId = typeof branch.schoolId === 'object' 
+        ? branch.schoolId?._id 
+        : branch.schoolId;
+      
       return branchSchoolId === editSelectedSchool;
     });
+    
+    console.log("Filtered branches:", filtered);
+    return filtered;
   }, [editSelectedSchool, branches]);
 
   // Filter routes for edit dialog
@@ -186,11 +198,27 @@ export default function StudentDetails() {
     childName: debouncedStudentName,
   });
 
-  // Set edit form initial values when edit target changes
+  // Set edit form initial values when edit target changes - IMPROVED VERSION
   useEffect(() => {
     if (editTarget) {
-      setEditSelectedSchool(getSchoolId(editTarget));
-      setEditSelectedBranch(getBranchId(editTarget));
+      const schoolId = getSchoolId(editTarget);
+      const branchId = getBranchId(editTarget);
+      
+      console.log("Setting edit form state:", { schoolId, branchId, editTarget });
+      
+      setEditSelectedSchool(schoolId);
+      setEditSelectedBranch(branchId);
+      
+      // Force a small delay to ensure state is set before render
+      setTimeout(() => {
+        console.log("Edit form state after set:", { 
+          editSelectedSchool: schoolId, 
+          editSelectedBranch: branchId 
+        });
+      }, 0);
+    } else {
+      setEditSelectedSchool("");
+      setEditSelectedBranch("");
     }
   }, [editTarget]);
 
@@ -701,11 +729,20 @@ export default function StudentDetails() {
                     options: schools.map(s => ({ label: s.schoolName, value: s._id })) 
                   };
                 }
+                // In the DynamicEditDialog fields mapping, update the branch field configuration:
+                // TEMPORARY WORKAROUND - In the DynamicEditDialog fields mapping:
                 if (f.key === "branchId") {
+                  const branchOptions = editFilteredBranches.length > 0 
+                    ? editFilteredBranches 
+                    : branches; // Fallback to all branches if filtered is empty
+                  
                   return { 
                     ...f, 
-                    options: editFilteredBranches.map(b => ({ label: b.branchName, value: b._id })),
-                    disabled: !editSelectedSchool
+                    options: branchOptions.map(b => ({ 
+                      label: b.branchName || `Branch ${b._id}`, 
+                      value: b._id 
+                    })),
+                    disabled: false // Always enable the dropdown
                   };
                 }
                 if (f.key === "routeObjId") {
