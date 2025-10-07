@@ -560,7 +560,6 @@ export default function StudentDetails() {
                     ))}
                   </select>
                 </div>
-
                 {/* Branch - filtered by school */}
                 <div className="grid gap-2">
                   <Label htmlFor="branchId">Branch *</Label>

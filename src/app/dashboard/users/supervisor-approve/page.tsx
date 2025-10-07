@@ -655,8 +655,6 @@ valueFormatter={(value) => {
   return value;
 }}
 
-
-
 />
 
 
