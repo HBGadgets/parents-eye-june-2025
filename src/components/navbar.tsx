@@ -3,6 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useNavigationStore } from "@/store/navigationStore";
+import { useSidebar } from "@/components/ui/sidebar"; // Import the hook
 import {
   NavigationMenu,
   NavigationMenuItem,
@@ -16,6 +17,19 @@ export function Navbar() {
   const setActiveSection = useNavigationStore(
     (state) => state.setActiveSection
   );
+  const { setOpen, setOpenMobile, isMobile } = useSidebar(); // Get sidebar controls
+
+  const handleNavClick = (section: string) => {
+    if (section !== "Dashboard") {
+      setActiveSection(section);
+      // Open sidebar based on device type
+      if (isMobile) {
+        setOpenMobile(true);
+      } else {
+        setOpen(true);
+      }
+    }
+  };
 
   return (
     <div className="w-full h-full flex items-center relative px-2 sm:px-4 bg-primary">
@@ -39,11 +53,7 @@ export function Navbar() {
                   <NavigationMenuLink
                     asChild
                     className={`text-xs sm:text-sm px-1.5 sm:px-3 py-1 sm:py-2 whitespace-nowrap font-semibold hover:font-bold transition-colors duration-200 focus:font-bold`}
-                    onClick={() => {
-                      if (section !== "Dashboard") {
-                        setActiveSection(section);
-                      }
-                    }}
+                    onClick={() => handleNavClick(section)}
                   >
                     <Link href={section === "Dashboard" ? "/dashboard" : "#"}>
                       {section}
