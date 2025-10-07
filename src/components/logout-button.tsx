@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/authStore";
 // import { Button } from "@/components/ui/button";
 // import { LogOut } from "lucide-react";
-import { messaging } from "@/util/firebase";
+import { onMessage } from "@/util/firebase";
 import { deleteToken } from "firebase/messaging";
 
 export function LogoutButton() {
@@ -13,8 +13,8 @@ export function LogoutButton() {
 
   const handleLogout = async () => {
     try {
-      if (messaging) {
-        const isDeleted = await deleteToken(messaging);
+      if (onMessage) {
+        const isDeleted = await deleteToken(onMessage);
         localStorage.removeItem("fcm_token");
         console.log(
           isDeleted ? "🗑️ FCM token deleted" : "⚠️ FCM token not deleted"

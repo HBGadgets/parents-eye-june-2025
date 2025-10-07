@@ -91,7 +91,7 @@ export const LiveTrack = ({ open, setOpen, selectedImei }: LiveTrackProps) => {
     return (
       <Dialog open={open} onOpenChange={handleDialogClose}>
         <DialogContent className="h-[100vh] max-h-[100vh] w-full">
-          <DialogHeader className="px-6 py-4 border-b">
+          <DialogHeader className="px-6 border-b">
             <DialogTitle className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <span className="text-lg font-semibold">{dialogTitle}</span>
@@ -101,15 +101,17 @@ export const LiveTrack = ({ open, setOpen, selectedImei }: LiveTrackProps) => {
                   </span>
                 )}
               </div>
-              <DataRefreshIndicator
-                key={refreshKey}
-                intervalSeconds={10}
-                className="flex-shrink-0"
-              />
+              <div className="mb-1">
+                <DataRefreshIndicator
+                  key={refreshKey}
+                  intervalSeconds={10}
+                  className="flex-shrink-0"
+                />
+              </div>
             </DialogTitle>
           </DialogHeader>
 
-          <div className="flex-1 h-[calc(100vh-80px)] w-full">
+          <div className="h-[calc(100vh-80px)] w-full">
             <SingleDeviceLiveTrack {...singleDeviceProps} />
           </div>
         </DialogContent>

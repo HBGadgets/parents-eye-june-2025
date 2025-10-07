@@ -206,7 +206,6 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
   vehicle,
   center = [21.99099777777778, 78.92973111111111],
   zoom = 10,
-  height = "500px",
   onVehicleClick,
   autoCenter = false,
   showTrail = false,
@@ -407,17 +406,14 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
   }, [isSatelliteView]);
 
   return (
-    <div
-      className="single-device-map-container"
-      style={{ position: "relative", height, width: "100%" }}
-    >
+    <div className="single-device-map-container relative w-full h-[600px]">
       {vehicle && <OfflineIndicator isOffline={!vehicle.gsmSignal} />}
 
       <MapContainer
         ref={mapRef}
         center={mapCenter}
         zoom={zoom}
-        style={{ height: "100%", width: "100%" }}
+        className="h-full w-full"
         preferCanvas={true}
         zoomControl={true}
         attributionControl={true}
