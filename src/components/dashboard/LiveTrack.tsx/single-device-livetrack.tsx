@@ -100,7 +100,7 @@ const ZoomTransitionController = () => {
           (img as HTMLElement).classList.add("smooth-rotation");
         });
 
-        console.log("[ZoomController] Transitions enabled");
+        // console.log("[ZoomController] Transitions enabled");
       }, 100);
     };
 
@@ -335,7 +335,7 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
         animationRef.current = requestAnimationFrame(animate);
       } else {
         // Animation complete
-        console.log("[Trail] Animation complete");
+        // console.log("[Trail] Animation complete");
         animationRef.current = null;
       }
     };

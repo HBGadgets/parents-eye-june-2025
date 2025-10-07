@@ -17,11 +17,14 @@ import {
 import { useMediaQuery } from "usehooks-ts";
 import SingleDeviceLiveTrack from "./single-device-livetrack";
 import "./styles.css";
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useSingleDeviceData } from "@/hooks/livetrack/useLiveDeviceData";
 import DataRefreshIndicator, {
   useDataRefreshIndicator,
 } from "./data-refresh-indicator";
+import { useReverseGeocode } from "@/hooks/useReverseGeocoding";
+import { calculateDistance } from "@/util/calculate-distance";
+import { FaMapMarkerAlt } from "react-icons/fa";
 
 interface Imei {
   imei?: string;
@@ -34,25 +37,116 @@ interface LiveTrackProps {
   selectedImei?: Imei | null;
 }
 
+const DISTANCE_THRESHOLD = 500; // 500 meters
+const MODAL_HISTORY_KEY = "livetrack-modal-open";
+
 export const LiveTrack = ({ open, setOpen, selectedImei }: LiveTrackProps) => {
   const isDesktop = useMediaQuery("(min-width: 768px)");
-
   const {
     deviceData,
     isActive,
-    isLoading,
     isConnected,
     isAuthenticated,
     switchToAllDevices,
   } = useSingleDeviceData(open ? selectedImei?.imei : undefined);
+
   const { key: refreshKey, triggerRefresh } = useDataRefreshIndicator(10);
-  const isOffline = !deviceData?.gsmSignal;
+  const { addresses, loadingAddresses, queueForGeocoding } =
+    useReverseGeocode();
+
+  // Store last geocoded position
+  const lastGeocodedPosition = useRef<{
+    deviceId: number;
+    latitude: number;
+    longitude: number;
+  } | null>(null);
+
+  // Track if close was triggered by popstate to prevent double history manipulation
+  const closedByPopState = useRef(false);
 
   const currentImei = useMemo(() => selectedImei?.imei, [selectedImei?.imei]);
   const currentName = useMemo(() => selectedImei?.name, [selectedImei?.name]);
 
+  // Handle browser back button
   useEffect(() => {
-    if (deviceData) {
+    if (!open) return;
+
+    // Push a new history state when modal opens
+    const currentState = window.history.state;
+    if (!currentState?.[MODAL_HISTORY_KEY]) {
+      window.history.pushState(
+        { ...currentState, [MODAL_HISTORY_KEY]: true },
+        "",
+        window.location.href
+      );
+    }
+
+    // Listen for popstate (back button)
+    const handlePopState = (event: PopStateEvent) => {
+      // Check if modal should close (back button was pressed)
+      if (open && !event.state?.[MODAL_HISTORY_KEY]) {
+        closedByPopState.current = true;
+        setOpen?.(false);
+      }
+    };
+
+    window.addEventListener("popstate", handlePopState);
+
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+    };
+  }, [open, setOpen]);
+
+  // Optimized geocoding with distance check
+  useEffect(() => {
+    if (
+      !deviceData?.deviceId ||
+      !deviceData?.latitude ||
+      !deviceData?.longitude
+    ) {
+      return;
+    }
+
+    const { deviceId, latitude, longitude } = deviceData;
+
+    // Check if we need to fetch a new address
+    const shouldFetchAddress = (() => {
+      // First time fetching for this device
+      if (
+        !lastGeocodedPosition.current ||
+        lastGeocodedPosition.current.deviceId !== deviceId
+      ) {
+        return true;
+      }
+
+      // Calculate distance from last geocoded position
+      const distance = calculateDistance(
+        lastGeocodedPosition.current.latitude,
+        lastGeocodedPosition.current.longitude,
+        latitude,
+        longitude
+      );
+
+      // Only fetch if distance exceeds threshold
+      return distance >= DISTANCE_THRESHOLD;
+    })();
+
+    if (shouldFetchAddress) {
+      queueForGeocoding(deviceId, latitude, longitude, true);
+
+      // Update last geocoded position
+      lastGeocodedPosition.current = { deviceId, latitude, longitude };
+    }
+  }, [
+    deviceData?.deviceId,
+    deviceData?.latitude,
+    deviceData?.longitude,
+    queueForGeocoding,
+  ]);
+
+  // Trigger refresh indicator
+  useEffect(() => {
+    if (deviceData?.lastUpdate) {
       triggerRefresh();
     }
   }, [deviceData?.lastUpdate]);
@@ -60,17 +154,28 @@ export const LiveTrack = ({ open, setOpen, selectedImei }: LiveTrackProps) => {
   const handleDialogClose = useCallback(
     (isOpen: boolean) => {
       if (!isOpen) {
-        console.log("[LiveTrack] Dialog closing, switching to all devices");
         if (isConnected && isAuthenticated) {
           switchToAllDevices();
         }
+        // Reset last geocoded position on close
+        lastGeocodedPosition.current = null;
+
+        // Only manipulate history if close wasn't triggered by popstate
+        if (
+          !closedByPopState.current &&
+          window.history.state?.[MODAL_HISTORY_KEY]
+        ) {
+          window.history.back();
+        }
+
+        // Reset the flag
+        closedByPopState.current = false;
       }
       setOpen?.(isOpen);
     },
     [setOpen, switchToAllDevices, isConnected, isAuthenticated]
   );
 
-  // FIX: Pass deviceData as vehicle prop
   const singleDeviceProps = useMemo(
     () => ({
       vehicle: deviceData,
@@ -80,28 +185,71 @@ export const LiveTrack = ({ open, setOpen, selectedImei }: LiveTrackProps) => {
     [deviceData]
   );
 
+  // Get address and loading state
+  const address = useMemo(() => {
+    if (!deviceData?.deviceId) return null;
+    return addresses[deviceData.deviceId] || null;
+  }, [deviceData?.deviceId, addresses]);
+
+  const isLoadingAddress = useMemo(() => {
+    if (!deviceData?.deviceId) return false;
+    return loadingAddresses[deviceData.deviceId] || false;
+  }, [deviceData?.deviceId, loadingAddresses]);
+
   if (!currentImei) {
     return null;
   }
 
   const dialogTitle = currentName || "Live Tracking";
-  console.log("[LiveTrack] data reciving in the LiveTrack:", deviceData);
+
+  // Address display component
+  const AddressDisplay = () => {
+    if (isLoadingAddress) {
+      return (
+        <div className="flex items-center gap-2 text-sm text-gray-500 font-normal">
+          <FaMapMarkerAlt
+            className="flex-shrink-0 text-gray-400 animate-pulse"
+            size={14}
+          />
+          <span className="animate-pulse">Loading address...</span>
+        </div>
+      );
+    }
+
+    if (address) {
+      return (
+        <div className="flex items-start gap-2 text-sm text-gray-600 font-normal">
+          <FaMapMarkerAlt
+            className="mt-0.5 flex-shrink-0 text-blue-500"
+            size={14}
+          />
+          <span className="line-clamp-2">{address}</span>
+        </div>
+      );
+    }
+
+    return null;
+  };
 
   if (isDesktop) {
     return (
       <Dialog open={open} onOpenChange={handleDialogClose}>
         <DialogContent className="h-[100vh] max-h-[100vh] w-full">
-          <DialogHeader className="px-6 border-b">
+          <DialogHeader className="px-6 border-b pb-3">
             <DialogTitle className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <span className="text-lg font-semibold">{dialogTitle}</span>
-                {isActive && (
-                  <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-green-100 text-green-800 rounded-full">
-                    Live
-                  </span>
-                )}
+              <div className="flex flex-col gap-2 flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-lg font-semibold">{dialogTitle}</span>
+                  {isActive && (
+                    <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-green-100 text-green-800 rounded-full">
+                      Live
+                    </span>
+                  )}
+                </div>
+                <AddressDisplay />
               </div>
-              <div className="mb-1">
+
+              <div className="flex-shrink-0">
                 <DataRefreshIndicator
                   key={refreshKey}
                   intervalSeconds={10}
@@ -111,7 +259,7 @@ export const LiveTrack = ({ open, setOpen, selectedImei }: LiveTrackProps) => {
             </DialogTitle>
           </DialogHeader>
 
-          <div className="h-[calc(100vh-80px)] w-full">
+          <div className="h-[calc(100vh-120px)] w-full">
             <SingleDeviceLiveTrack {...singleDeviceProps} />
           </div>
         </DialogContent>
@@ -123,17 +271,20 @@ export const LiveTrack = ({ open, setOpen, selectedImei }: LiveTrackProps) => {
     <Drawer open={open} onOpenChange={handleDialogClose}>
       <DrawerContent className="h-[100vh] max-h-[100vh]">
         <DrawerHeader className="text-left border-b px-4 py-3">
-          <DrawerTitle className="text-lg font-semibold">
-            {dialogTitle}
-            {isActive && (
-              <span className="ml-2 inline-flex items-center px-2 py-1 text-xs font-medium bg-green-100 text-green-800 rounded-full">
-                Live
-              </span>
-            )}
+          <DrawerTitle className="flex flex-col gap-2">
+            <div className="flex items-center gap-2">
+              <span className="text-lg font-semibold">{dialogTitle}</span>
+              {isActive && (
+                <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-green-100 text-green-800 rounded-full">
+                  Live
+                </span>
+              )}
+            </div>
+            <AddressDisplay />
           </DrawerTitle>
         </DrawerHeader>
 
-        <div className="flex-1 h-[calc(100vh-140px)] w-full">
+        <div className="flex-1 h-[calc(100vh-200px)] w-full">
           <SingleDeviceLiveTrack {...singleDeviceProps} />
         </div>
 
