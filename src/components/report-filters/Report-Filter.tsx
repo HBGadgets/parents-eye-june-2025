@@ -6,12 +6,12 @@ import Cookies from "js-cookie";
 import { getDecodedToken } from "@/lib/jwt";
 import { useSchoolData } from "@/hooks/useSchoolData";
 import { useBranchData } from "@/hooks/useBranchData";
-import { useDeviceData } from "@/hooks/useDeviceData";
+// import { useDeviceData } from "@/hooks/useDeviceData";
 import { Button } from "@/components/ui/button";
 import DateRangeFilter from "../ui/DateRangeFilter";
 import { ColumnVisibilitySelector } from "@/components/column-visibility-selector";
 import { Column } from "@tanstack/react-table";
-import { useExport } from "@/hooks/useExport";
+// import { useExport } from "@/hooks/useExport";
 import { Combobox } from "@/components/ui/combobox";
 
 interface SchoolBranchSelectorProps {
@@ -25,8 +25,8 @@ interface SchoolBranchSelectorProps {
     endDate: Date | null;
   }) => void;
   className?: string;
-  columns?: Column<any, unknown>[];
-  onColumnVisibilityChange?: (visibility: any) => void;
+  columns?: Column<unknown, unknown>[];
+  onColumnVisibilityChange?: (visibility: unknown) => void;
   showColumnVisibility?: boolean;
   vehicleMetaData?: Array<{ value: string; label: string }>;
   selectedVehicle?: string;
@@ -43,7 +43,7 @@ const SchoolBranchSelector: React.FC<SchoolBranchSelectorProps> = ({
   onFilterSubmit,
   className = "",
   columns = [],
-  onColumnVisibilityChange,
+  // onColumnVisibilityChange,
   showColumnVisibility = false,
   vehicleMetaData = [],
   selectedVehicle = "",
@@ -52,7 +52,7 @@ const SchoolBranchSelector: React.FC<SchoolBranchSelectorProps> = ({
   onSearchChange,
   onVehicleReachEnd,
   isFetchingNextPage = false,
-  hasNextPage = false,
+  // hasNextPage = false,
 }) => {
   const [role, setRole] = useState<string | null>(null);
   const [selectedSchool, setSelectedSchool] = useState<string | null>(null);
@@ -64,12 +64,12 @@ const SchoolBranchSelector: React.FC<SchoolBranchSelectorProps> = ({
     start: Date | null;
     end: Date | null;
   }>({ start: null, end: null });
-  const [loading, setLoading] = useState(false);
+  // const [loading, setLoading] = useState(false);
 
   const { data: schoolData } = useSchoolData();
   const { data: branchData } = useBranchData();
-  const { data: deviceData } = useDeviceData();
-  const { exportToPDF, exportToExcel } = useExport();
+  // const { data: deviceData } = useDeviceData();
+  // const { exportToPDF, exportToExcel } = useExport();
 
   useEffect(() => {
     const token = Cookies.get("token");
@@ -108,8 +108,8 @@ const SchoolBranchSelector: React.FC<SchoolBranchSelectorProps> = ({
     if (!branchData) return [];
     if (selectedSchool) {
       return branchData
-        .filter((branch: any) => branch.schoolId?._id === selectedSchool)
-        .map((branch: any) => ({
+        .filter((branch: unknown) => branch.schoolId?._id === selectedSchool)
+        .map((branch: unknown) => ({
           label: branch.branchName,
           value: branch._id,
         }));
@@ -264,9 +264,7 @@ const SchoolBranchSelector: React.FC<SchoolBranchSelectorProps> = ({
 
       {/* Show Now Button (below, right aligned) */}
       <div className="flex justify-end mt-4">
-        <Button onClick={handleSubmit} disabled={loading}>
-          {loading ? "Loading..." : "Show Report"}
-        </Button>
+        <Button onClick={handleSubmit}>Show Report</Button>
       </div>
     </div>
   );

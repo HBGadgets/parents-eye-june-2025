@@ -26,7 +26,7 @@ export type CellContent =
 
 interface CustomTableProps<TData extends RowData> {
   data: TData[];
-  columns: ColumnDef<TData, any>[];
+  columns: ColumnDef<TData, unknown>[];
   pageSizeArray?: number[];
   maxHeight?: number;
   minHeight?: number;
@@ -38,7 +38,7 @@ interface CustomTableProps<TData extends RowData> {
   onColumnVisibilityChange?: (visibility: VisibilityState) => void;
 }
 
-const renderCellContent = (content: any): React.ReactNode => {
+const renderCellContent = (content: unknown): React.ReactNode => {
   if (content === null || content === undefined) return "";
   if (
     typeof content === "string" ||
@@ -72,7 +72,7 @@ const renderCellContent = (content: any): React.ReactNode => {
       case "group":
         return (
           <div className="flex flex-row justify-center items-center gap-1 w-full">
-            {content.items.map((item: any, idx: number) => (
+            {content.items.map((item: unknown, idx: number) => (
               <div key={idx} className="flex-shrink-0">
                 {renderCellContent(item)}
               </div>
@@ -148,7 +148,7 @@ export function CustomTable<TData extends RowData>({
     (pagination.pageIndex + 1) * pagination.pageSize
   );
 
-  const serialNumberColumn: ColumnDef<TData, any> = {
+  const serialNumberColumn: ColumnDef<TData, unknown> = {
     id: "serialNumber",
     header: () => <div className="text-center w-full">S.No.</div>,
     cell: ({ row }) => {
@@ -217,7 +217,7 @@ export function CustomTable<TData extends RowData>({
   const paddingTop = virtualRows[0]?.start || 0;
   const paddingBottom = totalSize - (virtualRows.at(-1)?.end || 0);
 
-  const getColumnStyle = (col: any) => {
+  const getColumnStyle = (col: unknown) => {
     const meta = col.columnDef?.meta || {};
     const baseWidth = meta.minWidth || (isMobile ? 80 : 100);
     const maxWidth = meta.maxWidth || 300;

@@ -9,14 +9,14 @@ export interface SingleDeviceData {
   attributes: {
     ignition: boolean;
     totalDistance: number;
-    [key: string]: any;
+    [key: string]: unknown;
   };
   runningDuration: string;
   tripDistance: number;
   latitude: number;
   longitude: number;
   createdAt: string;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 export interface DeviceServiceEvents {

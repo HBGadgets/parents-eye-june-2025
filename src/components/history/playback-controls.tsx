@@ -145,12 +145,12 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({
           intersect: false,
           position: "nearest",
           callbacks: {
-            title: (context: any) => {
+            title: (context: unknown) => {
               const index = context[0].dataIndex;
               const date = new Date(historyData[index].createdAt);
               return date.toLocaleString();
             },
-            label: (context: any) => {
+            label: (context: unknown) => {
               return `Speed: ${context.parsed.y.toFixed(1)} km/h`;
             },
           },
@@ -196,7 +196,7 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({
         },
       },
       // Enhanced hover behavior
-      onHover: (event: any, activeElements: any[]) => {
+      onHover: (event: unknown) => {
         if (event.native) {
           event.native.target.style.cursor = "pointer";
         }

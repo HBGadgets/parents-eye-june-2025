@@ -62,7 +62,7 @@ export interface FieldConfig {
     | "searchable-select";
   required?: boolean;
   placeholder?: string;
-  options?: string[] | { value: string; label: string }[] | any[];
+  options?: string[] | { value: string; label: string }[] | unknown[];
   // For searchable-select with complex objects
   labelKey?: string; // Field to use for display label (e.g., "schoolName")
   valueKey?: string; // Field to use as value (e.g., "_id")
@@ -82,22 +82,26 @@ export interface FieldConfig {
   isProtected?: boolean; // New property for protected fields
 }
 
-interface DynamicEditDialogProps<T = any> {
+interface DynamicEditDialogProps<T = unknown> {
   data: T | null;
   isOpen: boolean;
   onClose: () => void;
-  onSave: (formData: any) => void;
-  onFieldChange?: (fieldKey: string, value: any, option?: any) => void;
+  onSave: (formData: unknown) => void;
+  onFieldChange?: (fieldKey: string, value: unknown, option?: unknown) => void;
   fields: FieldConfig[];
   title?: string;
   description?: string;
   avatarConfig?: { imageKey: string; nameKeys: string[] };
 }
 
-const getNestedValue = (obj: any, path: string): any =>
+const getNestedValue = (obj: unknown, path: string): unknown =>
   path.split(".").reduce((current, key) => current?.[key], obj);
 
-const setNestedValue = (obj: any, path: string, value: any): any => {
+const setNestedValue = (
+  obj: unknown,
+  path: string,
+  value: unknown
+): unknown => {
   const keys = path.split(".");
   const result = { ...obj };
   let current = result;
@@ -110,7 +114,10 @@ const setNestedValue = (obj: any, path: string, value: any): any => {
   return result;
 };
 
-const validateField = (value: any, config: FieldConfig): string | undefined => {
+const validateField = (
+  value: unknown,
+  config: FieldConfig
+): string | undefined => {
   if (config.required && (!value || value === ""))
     return `${config.label} is required`;
   if (!config.validation || !value) return undefined;
@@ -158,13 +165,13 @@ const validateField = (value: any, config: FieldConfig): string | undefined => {
 };
 
 // Helper function to get option value and label
-const getOptionValue = (option: any, field: FieldConfig): string => {
+const getOptionValue = (option: unknown, field: FieldConfig): string => {
   if (typeof option === "string") return option;
   if (field.valueKey) return option[field.valueKey];
   return option.value || option._id || option.id || "";
 };
 
-const getOptionLabel = (option: any, field: FieldConfig): string => {
+const getOptionLabel = (option: unknown, field: FieldConfig): string => {
   if (typeof option === "string") return option;
   if (field.labelKey) return option[field.labelKey];
   return option.label || option.name || option.title || "";
@@ -182,17 +189,17 @@ export const DynamicEditDialog: React.FC<DynamicEditDialogProps> = ({
   avatarConfig,
 }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [unlockedFields, setUnlockedFields] = useState<Set<string>>(new Set());
-  const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
-  const [currentProtectedField, setCurrentProtectedField] = useState<
-    string | null
-  >(null);
+  // const [unlockedFields, setUnlockedFields] = useState<Set<string>>(new Set());
+  // const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
+  // const [currentProtectedField, setCurrentProtectedField] = useState<
+  //   string | null
+  // >(null);
 
-  const form = useForm<Record<string, any>>({ defaultValues: {} });
+  const form = useForm<Record<string, unknown>>({ defaultValues: {} });
 
   useEffect(() => {
     if (data && isOpen) {
-      const formData: any = {};
+      const formData: unknown = {};
 
       fields.forEach((field) => {
         const value = getNestedValue(data, field.key);
@@ -205,16 +212,16 @@ export const DynamicEditDialog: React.FC<DynamicEditDialogProps> = ({
         }
       });
       form.reset(formData);
-      setUnlockedFields(new Set());
+      // setUnlockedFields(new Set());
     }
   }, [data, isOpen, fields, form]);
 
-  const handleUnlockClick = (fieldKey: string) => {
-    setCurrentProtectedField(fieldKey);
-    setPasswordDialogOpen(true);
-  };
+  // const handleUnlockClick = (fieldKey: string) => {
+  //   setCurrentProtectedField(fieldKey);
+  //   setPasswordDialogOpen(true);
+  // };
 
-  const onSubmit = async (formData: any) => {
+  const onSubmit = async (formData: unknown) => {
     setIsSubmitting(true);
     try {
       const errors: { [key: string]: string } = {};
@@ -225,7 +232,7 @@ export const DynamicEditDialog: React.FC<DynamicEditDialogProps> = ({
 
       if (Object.keys(errors).length > 0) {
         Object.entries(errors).forEach(([key, message]) => {
-          form.setError(key as any, { type: "manual", message });
+          form.setError(key as unknown, { type: "manual", message });
         });
         return;
       }
@@ -259,8 +266,8 @@ export const DynamicEditDialog: React.FC<DynamicEditDialogProps> = ({
   const renderField = (field: FieldConfig) => {
     if (field.hidden) return null;
 
-    const isProtected = field.isProtected && !unlockedFields.has(field.key);
-    const fieldValue = form.watch(field.key);
+    // const isProtected = field.isProtected && !unlockedFields.has(field.key);
+    // const fieldValue = form.watch(field.key);
 
     return (
       <FormField

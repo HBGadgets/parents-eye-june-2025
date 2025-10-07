@@ -1,3 +1,4 @@
+"use client";
 import { toast } from "react-hot-toast";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -15,13 +16,13 @@ interface ExportColumn {
   key: string;
   header: string;
   width?: number;
-  formatter?: (value: any) => string;
+  formatter?: (value: unknown) => string;
 }
 
 interface ExportConfig {
   filename?: string;
   title?: string;
-  companyName?: string;
+  compunknownName?: string;
   metadata?: Record<string, string>;
   colors?: {
     primary?: number[];
@@ -39,7 +40,7 @@ export const useExport = () => {
       background: [249, 250, 251] as [number, number, number],
       border: [220, 220, 220] as [number, number, number],
     },
-    company: { name: "Parents Eye" },
+    compunknown: { name: "Parents Eye" },
     fonts: { primary: "helvetica" },
     layout: { margin: 15, lineHeight: 6 },
   };
@@ -54,7 +55,7 @@ export const useExport = () => {
       .replace(",", "");
 
   const exportToPDF = async (
-    data: any[],
+    data: unknown[],
     columns: ExportColumn[],
     config: ExportConfig = {}
   ) => {
@@ -66,7 +67,7 @@ export const useExport = () => {
         unit: "mm",
         format: "a4",
       });
-      const companyName = config.companyName || CONFIG.company.name;
+      const compunknownName = config.compunknownName || CONFIG.compunknown.name;
       const title = config.title || "Data Report";
       const filename =
         config.filename ||
@@ -80,7 +81,7 @@ export const useExport = () => {
       doc.setFont(CONFIG.fonts.primary, "bold");
       doc.setFontSize(16);
       doc.setTextColor(...CONFIG.colors.tertiary);
-      doc.text(companyName, 28, 21);
+      doc.text(compunknownName, 28, 21);
 
       doc.setDrawColor(...CONFIG.colors.primary);
       doc.setLineWidth(0.5);
@@ -119,7 +120,7 @@ export const useExport = () => {
             ? col.key.split(".").reduce((obj, key) => obj?.[key], item)
             : item[col.key];
           return col.formatter
-            ? col.formatter(value, item)   // 👈 pass the whole row too
+            ? col.formatter(value, item) // 👈 pass the whole row too
             : value?.toString() || "--";
         })
       );
@@ -148,7 +149,7 @@ export const useExport = () => {
         // columnStyles: columns.reduce((acc, col, idx) => {
         //   if (col.width) acc[idx] = { cellWidth: col.width }
         //   return acc
-        // }, {} as any),
+        // }, {} as unknown),
 
         tableWidth: "auto",
 
@@ -179,7 +180,7 @@ export const useExport = () => {
         doc.setFontSize(9);
         doc.setFont(CONFIG.fonts.primary, "normal");
         doc.setTextColor(150, 150, 150);
-        doc.text(`© ${companyName}`, 15, doc.internal.pageSize.height - 10);
+        doc.text(`© ${compunknownName}`, 15, doc.internal.pageSize.height - 10);
 
         const pageText = `Page ${i} of ${pageCount}`;
         const pageWidth = doc.getTextWidth(pageText);
@@ -201,7 +202,7 @@ export const useExport = () => {
   };
 
   const exportToExcel = async (
-    data: any[],
+    data: unknown[],
     columns: ExportColumn[],
     config: ExportConfig = {}
   ) => {
@@ -210,7 +211,7 @@ export const useExport = () => {
 
       const workbook = new ExcelJS.Workbook();
       const worksheet = workbook.addWorksheet("Data Report");
-      const companyName = config.companyName || CONFIG.company.name;
+      const compunknownName = config.compunknownName || CONFIG.compunknown.name;
       const title = config.title || "Data Report";
       const filename =
         config.filename ||
@@ -218,8 +219,8 @@ export const useExport = () => {
           new Date().toISOString().split("T")[0]
         }.xlsx`;
 
-      // Company title
-      const titleRow = worksheet.addRow([companyName]);
+      // Compunknown title
+      const titleRow = worksheet.addRow([compunknownName]);
       titleRow.font = { bold: true, size: 16, color: { argb: "000000" } };
       titleRow.fill = {
         type: "pattern",
@@ -296,7 +297,7 @@ export const useExport = () => {
       // Footer
       worksheet.addRow([]);
       const footerRow = worksheet.addRow([
-        `© ${new Date().getFullYear()} ${companyName}`,
+        `© ${new Date().getFullYear()} ${compunknownName}`,
       ]);
       footerRow.font = { italic: true };
       worksheet.mergeCells(

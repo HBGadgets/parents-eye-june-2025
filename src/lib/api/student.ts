@@ -5,7 +5,7 @@ export const fetchStudents = async () => {
   return data.children;
 };
 
-export const createStudent = async (payload: any) => {
+export const createStudent = async (payload: unknown) => {
   return axios.post("/child", payload);
 };
 
@@ -14,7 +14,7 @@ export const updateStudent = async ({
   payload,
 }: {
   id: string;
-  payload: any;
+  payload: unknown;
 }) => {
   const { data } = await axios.put(`/child/${id}`, payload);
   return data;

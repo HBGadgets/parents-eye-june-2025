@@ -1,5 +1,12 @@
 "use client";
-import { useMemo, useEffect, useState, useCallback, useRef } from "react";
+import {
+  useMemo,
+  useEffect,
+  useState,
+  useCallback,
+  useRef,
+  Suspense,
+} from "react";
 import { Combobox } from "@/components/ui/combobox";
 import DateRangeFilter from "@/components/ui/DateRangeFilter";
 import { useDeviceData } from "@/hooks/useDeviceData";
@@ -27,7 +34,7 @@ const VehicleMap = dynamic(() => import("@/components/history/vehicle-map"), {
   ),
 });
 
-export default function HistoryReport() {
+function HistoryReportContent() {
   const [searchTerm, setSearchTerm] = useState("");
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -551,5 +558,13 @@ export default function HistoryReport() {
         </div>
       </section>
     </>
+  );
+}
+
+export default function HistoryReportPage() {
+  return (
+    <Suspense fallback={<FullScreenSpinner />}>
+      <HistoryReportContent />
+    </Suspense>
   );
 }

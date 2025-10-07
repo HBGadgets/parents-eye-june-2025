@@ -20,11 +20,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  ArrowUpDown,
-  ArrowUp,
-  ArrowDown,
-} from "lucide-react";
+import { ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 
 // Main props interface
 export interface TravelTableProps<T> {
@@ -44,11 +40,11 @@ export interface TravelTableProps<T> {
   onColumnVisibilityChange?: (visibility: VisibilityState) => void;
 }
 
-export function TravelTable<T extends Record<string, any>>({
+export function TravelTable<T extends Record<string, unknown>>({
   data,
   columns,
-  totalCount,
-  loading = false, // no effect now
+  // totalCount,
+  // loading = false, // no effect now
   onSortingChange,
   sorting = [],
   emptyMessage = "No travel data available",
@@ -160,10 +156,7 @@ export function TravelTable<T extends Record<string, any>>({
             <TableBody>
               {table.getRowModel().rows?.length ? (
                 table.getRowModel().rows.map((row) => (
-                  <TableRow
-                    key={row.id}
-                    className="border-b hover:bg-muted/50"
-                  >
+                  <TableRow key={row.id} className="border-b hover:bg-muted/50">
                     {row.getVisibleCells().map((cell) => (
                       <TableCell
                         key={cell.id}

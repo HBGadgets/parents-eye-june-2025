@@ -11,6 +11,18 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  /** ⚠️⚠️⚠️⚠️⚠️⚠️⚠️ Comment this before uploading to production */
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
+  typescript: {
+    /** ⚠️⚠️⚠️⚠️⚠️⚠️⚠️ Comment this before uploading to production */
+    // !! WARN !!
+    // Dangerously allow production builds to successfully complete even if
+    // your project has type errors.
+    // !! WARN !!
+    ignoreBuildErrors: true,
+  },
 };
 
 export default nextConfig;

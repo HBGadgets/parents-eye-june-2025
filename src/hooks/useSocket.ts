@@ -1,35 +1,20 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import { io, Socket } from "socket.io-client";
 
-interface DeviceData {
-  deviceId: string;
-  name: string;
-  uniqueId: string;
-  speed: number;
-  attributes: {
-    ignition: boolean;
-    totalDistance: number;
-  };
-  lastUpdate: string;
-  runningDuration?: string;
-  tripDistance?: number;
-  matchesSearch?: boolean;
-}
-
-interface AllDeviceResponse {
-  filteredData: DeviceData[];
-  page: number;
-  pageLimit: number;
-  pageCount: number;
-  total: number;
-  runningCount: number;
-  idleCount: number;
-  stoppedCount: number;
-  inactiveCount: number;
-  newCount: number;
-  remainingCount: number;
-  totalCountCheck: number;
-}
+// interface DeviceData {
+//   deviceId: string;
+//   name: string;
+//   uniqueId: string;
+//   speed: number;
+//   attributes: {
+//     ignition: boolean;
+//     totalDistance: number;
+//   };
+//   lastUpdate: string;
+//   runningDuration?: string;
+//   tripDistance?: number;
+//   matchesSearch?: boolean;
+// }
 
 export const useSocket = (serverUrl: string) => {
   const [socket, setSocket] = useState<Socket | null>(null);

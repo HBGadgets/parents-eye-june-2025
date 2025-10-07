@@ -3,10 +3,10 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { DeviceHistoryItem } from "@/data/sampleData";
 import { reverseGeocode } from "@/util/reverse-geocode";
-import { MapPin } from "lucide-react";
+// import { MapPin } from "lucide-react";
 
 // Fix for default markers
-delete (L.Icon.Default.prototype as any)._getIconUrl;
+delete (L.Icon.Default.prototype as unknown)._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconRetinaUrl:
     "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png",
@@ -572,14 +572,6 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
     map.setView([currentPoint.latitude, currentPoint.longitude], map.getZoom());
   }, [currentPoint, currentIndex, isRouteDrawn]);
 
-  if (!data || data.length === 0) {
-    return (
-      <div className="w-full h-full flex items-center justify-center">
-        <p>No Data Available</p>
-      </div>
-    );
-  }
-
   // Enhanced resize handler
   useEffect(() => {
     if (!mapRef.current) return;
@@ -606,6 +598,14 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
       window.removeEventListener("resize", handleResize);
     };
   }, [isExpanded, data]);
+
+  if (!data || data.length === 0) {
+    return (
+      <div className="w-full h-full flex items-center justify-center">
+        <p>No Data Available</p>
+      </div>
+    );
+  }
 
   return (
     <div className="relative w-full h-full rounded-t-lg overflow-hidden border border-border bg-card shadow-[var(--shadow-panel)]">

@@ -1,6 +1,8 @@
 "use client";
 
-import React, { useCallback, useEffect, useState, useRef, useMemo } from "react";
+import React, { useCallback, useEffect, useState, useRef } from "react";
+import React, { useMemo } from 'react';
+
 import {
   Dialog,
   DialogClose,
@@ -26,7 +28,7 @@ import {
 } from "@tanstack/react-table";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/services/apiService";
-import { Supervisor } from "@/interface/modal";
+import { supervisor } from "@/interface/modal";
 import { useExport } from "@/hooks/useExport";
 import { formatDate } from "@/util/formatDate";
 import { Alert } from "@/components/Alert";
@@ -37,7 +39,19 @@ import { useSchoolData } from "@/hooks/useSchoolData";
 import { SearchableSelect } from "@/components/custom-select";
 import { useBranchData } from "@/hooks/useBranchData";
 import { useDeviceData } from "@/hooks/useDeviceData";
-
+// import { headers } from "next/headers";
+// interface SchoolMinimal {
+//   _id: string;
+//   schoolName: string;
+// }
+// interface BranchMinimal {
+//   _id: string;
+//   branchName: string;
+// }
+// interface DeviceMinimal {
+//   _id: string;
+//   name: string;
+// }
 declare module "@tanstack/react-table" {
   interface ColumnMeta<TData, TValue> {
     flex?: number;
@@ -61,24 +75,26 @@ interface SelectOption {
 export default function SupervisorApprove() {
   const queryClient = useQueryClient();
   const closeButtonRef = useRef<HTMLButtonElement>(null);
-  const [filteredData, setFilteredData] = useState<Supervisor[]>([]);
-  const [filterResults, setFilterResults] = useState<Supervisor[]>([]);
-  const [deleteTarget, setDeleteTarget] = useState<Supervisor | null>(null);
-  const [editTarget, setEditTarget] = useState<Supervisor | null>(null);
+  const [filteredData, setFilteredData] = useState<supervisor[]>([]);
+  const [filterResults, setFilterResults] = useState<supervisor[]>([]);
+  // const [accessTarget, setAccessTarget] = useState<supervisor | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<supervisor | null>(null);
+  const [editTarget, setEditTarget] = useState<supervisor | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
-  const [accessApprove, setAccessApprove] = useState<Supervisor | null>(null);
-  const [school, setSchool] = useState<string | undefined>(undefined);
-  const [branch, setBranch] = useState<string | undefined>(undefined);
-  const [device, setDevice] = useState<string | undefined>(undefined);
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
-  const [selectedStatus, setSelectedStatus] = useState<string>("all");
+  const [columnVisibility, setColumnVisibility] =
+    React.useState<VisibilityState>({});
+  const { exportToPDF, exportToExcel } = useExport();
+const [accessApprove,setAccessApprove]=useState<supervisor |null>(null);
+    const [school, setSchool] = useState<string | undefined>(undefined);
+    const { data: schoolData } = useSchoolData();
+const[branch,setbranch]=useState<string|undefined>(undefined);
+const { data: branchData } = useBranchData();
+const[device,setdevice]=useState<string|undefined>(undefined);
+const { data: deviceData } = useDeviceData();
 
-  const { data: schoolData } = useSchoolData();
-  const { data: branchData } = useBranchData();
-  const { data: deviceData } = useDeviceData();
+const [selectedDate, setSelectedDate] = useState<Date | null>(null);
 
-  // Fetch supervisor data - FIXED: Extract supervisors array from response
+// Fetch supervisor data
   const {
     data: supervisors,
     isLoading,
@@ -92,16 +108,13 @@ export default function SupervisorApprove() {
     },
   });
 
-  // School data
-  const schoolOptions: SelectOption[] = schoolData
-    ? Array.from(
-        new Map(
-          schoolData
-            .filter((s) => s._id && s.schoolName)
-            .map((s) => [s._id, { label: s.schoolName, value: s._id }])
-        ).values()
-      )
-    : [];
+  //school data 
+  const schoolOptions:selectOption[]=schoolData?
+  Array.from(
+    new Map(
+      schoolData.filter((s)=>s._id&& s.schoolName).map((s)=>[s._id,{label:s.schoolName,value:s._id}])
+    ).values()
+  ):[];
 
   useEffect(() => {
     if (supervisors && supervisors.length > 0) {
@@ -109,37 +122,34 @@ export default function SupervisorApprove() {
       setFilterResults(supervisors); // For search base
     }
   }, [supervisors]);
+ 
+  //branch DATA
+  const branchOptions:selectOption[]=branchData?
+  Array.from(
+    new Map(
+      branchData.filter((s)=>s._id&& s.branchName).map((s)=>[s._id,{label:s.branchName,value:s._id}])
+    ).values()
+  ):[];
 
-  // Branch data
-  const branchOptions: SelectOption[] = branchData
-    ? Array.from(
-        new Map(
-          branchData
-            .filter((s) => s._id && s.branchName)
-            .map((s) => [s._id, { label: s.branchName, value: s._id }])
-        ).values()
-      )
-    : [];
-
-  // Device data
-  const deviceOptions: SelectOption[] = deviceData?.devices
-    ? Array.from(
-        new Map(
-          deviceData.devices
-            .filter((s) => s._id && s.name)
-            .map((s) => [s._id, { label: s.name, value: s._id }])
-        ).values()
-      )
-    : [];
+//device DATA
+const deviceOptions: selectOption[] = deviceData?.devices
+  ? Array.from(
+      new Map(
+        deviceData.devices
+          .filter((s) => s._id && s.name)
+          .map((s) => [s._id, { label: s.name, value: s._id }])
+      ).values()
+    )
+  : [];
 
   const filteredBranchOptions = useMemo(() => {
     if (!school || !branchData) return [];
     console.log("my school", school);
     return branchData
-      .filter(branch => branch.schoolId?._id === school)
-      .map(branch => ({
+      .filter((branch) => branch.schoolId?._id === school)
+      .map((branch) => ({
         label: branch.branchName,
-        value: branch._id
+        value: branch._id,
       }));
   }, [school, branchData]);
 
@@ -147,10 +157,10 @@ export default function SupervisorApprove() {
   const filteredDeviceOptions = useMemo(() => {
     if (!branch || !deviceData?.devices) return [];
     return deviceData.devices
-      .filter(device => device.branchId?._id === branch)
-      .map(device => ({
+      .filter((device) => device.branchId?._id === branch)
+      .map((device) => ({
         label: device.name,
-        value: device._id
+        value: device._id,
       }));
   }, [branch, deviceData]);
 
@@ -165,29 +175,8 @@ export default function SupervisorApprove() {
     setDevice(undefined);
   }, [branch]);
 
-  // Status Filter Handler - FIXED: No infinite loop
-  const handleStatusChange = useCallback((status: string) => {
-    setSelectedStatus(status);
-    
-    if (!supervisors) {
-      setFilteredData([]);
-      setFilterResults([]);
-      return;
-    }
-    
-    if (status === "all") {
-      setFilteredData(supervisors);
-      setFilterResults(supervisors);
-    } else {
-      const filtered = supervisors.filter(
-        (supervisor) => supervisor.status === status
-      );
-      setFilteredData(filtered);
-      setFilterResults(filtered);
-    }
-  }, [supervisors]);
 
-  const columns: ColumnDef<Supervisor, CellContent>[] = [
+  const columns: ColumnDef<supervisor, CellContent>[] = [
     {
       header: "Supervisor Name",
       accessorFn: (row) => ({
@@ -197,7 +186,7 @@ export default function SupervisorApprove() {
       meta: { flex: 1, minWidth: 200, maxWidth: 300 },
       enableHiding: true,
     },
-     {
+    {
       header: "School Name",
       accessorFn: (row) => ({
         type: "text",
@@ -206,7 +195,7 @@ export default function SupervisorApprove() {
       meta: { flex: 1, minWidth: 200, maxWidth: 300 },
       enableHiding: true,
     },
-     {
+    {
       header: "Branch Name",
       accessorFn: (row) => ({
         type: "text",
@@ -260,29 +249,21 @@ export default function SupervisorApprove() {
       meta: { flex: 1, minWidth: 200 },
       enableHiding: true,
     },
-    {
-      header: "Status",
-      accessorFn: (row) => ({
-        type: "text",
-        value: row.status ?? "Pending",
-      }),
-      meta: { flex: 1, minWidth: 120, maxWidth: 150 },
-      enableHiding: true,
-    },
+   
 
     {
       header: "Approve/Reject",
       accessorFn: (row) => ({
         type: "group",
-        items: row.status === "Pending"
+        items: row.isApproved === "Pending"
           ? [
               {
                 type: "button",
-                label: "Approve",
+                label: "Approved",
                 onClick: () =>
                   ApproveMutation.mutate({
                     _id: row._id,
-                    status: "Approve",
+                    isApproved: "Approved",
                   }),
                 disabled: ApproveMutation.isPending,
                 className:
@@ -294,7 +275,7 @@ export default function SupervisorApprove() {
                 onClick: () =>
                   ApproveMutation.mutate({
                     _id: row._id,
-                    status: "Rejected",
+                    isApproved: "Rejected",
                   }),
                 disabled: ApproveMutation.isPending,
                 className:
@@ -304,11 +285,11 @@ export default function SupervisorApprove() {
           : [
               {
                 type: "button",
-                label: row.status === "Approved" ? "Approved" : "Rejected",
+                label: row.isApproved === "Approved" ? "Approved" : "Rejected",
                 onClick: () => {},
                 disabled: true,
                 className: `flex-shrink-0 text-xs w-24 ${
-                  row.status === "Approved"
+                  row.isApproved === "Approved"
                     ? "bg-green-300 text-green-800"
                     : "bg-red-300 text-red-800"
                 } font-semibold rounded-full px-2 py-1`,
@@ -361,10 +342,14 @@ export default function SupervisorApprove() {
     { key: "username", header: "Supervisor Username" },
     { key: "password", header: "Supervisor Password" },
     { key: "schoolId.schoolName", header: "School Name" },
-    { key: "branchId.branchName", header: "Branch Name" },
-    { key: "deviceObjId.name", header: "Device Name" },
-    { key: "status", header: "Status" },
-    { key: "createdAt", header: "Registration Date" },
+{key:"branchId.branchName",header:"Branch Name"},
+{
+  key:"deviceObjId.name",header:"Device Name"
+},
+{
+  key:"isApproved",header:"status"
+},
+  { key: "createdAt", header: "Registration Date" },
   ];
 
   // Define the fields for the edit dialog
@@ -417,46 +402,48 @@ export default function SupervisorApprove() {
   ];
 
   // Mutation to add a new supervisor
-  const addSupervisorMutation = useMutation({
-    mutationFn: async (newSupervisor: any) => {
-      const response = await api.post("/supervisor", newSupervisor);
-      return response.data;
-    },
-    onSuccess: (createdSupervisor, variables) => {
-      const school = schoolData?.find(s => s._id === variables.schoolId);
-      const branch = branchData?.find(b => b._id === variables.branchId);
-      const device = deviceData?.devices?.find(d => d._id === variables.deviceObjId);
+ 
+const addsupervisorMutation = useMutation({
+  mutationFn: async (newsupervisor: any) => {
+    const response = await api.post("/supervisor", newsupervisor);
+    return response.data; // assumes `data` has the created supervisor object
+  },
+  onSuccess: (createdsupervisor, variables) => {
+  const school = schoolData?.find(s => s._id === variables.schoolId);
+  const branch = branchData?.find(b => b._id === variables.branchId);
+  const device = deviceData?.devices?.find(d => d._id === variables.deviceObjId);
 
-      const newSupervisorWithResolvedReferences = {
-        ...createdSupervisor,
-        password: variables.password,
-        schoolId: school
-          ? { _id: school._id, schoolName: school.schoolName }
-          : { _id: variables.schoolId, schoolName: "Unknown School" },
-        branchId: branch
-          ? { _id: branch._id, branchName: branch.branchName }
-          : { _id: variables.branchId, branchName: "Unknown Branch" },
-        deviceObjId: device
-          ? { _id: device._id, device: device.name }
-          : { _id: variables.deviceObjId, device: "Unknown Device" },
-      };
+  const newsupervisorWithResolvedReferences = {
+    ...createdsupervisor,
+    password: variables.password, // since backend likely won't return it
+    schoolId: school
+      ? { _id: school._id, schoolName: school.schoolName }
+      : { _id: variables.schoolId, schoolName: "Unknown School" },
+    branchId: branch
+      ? { _id: branch._id, branchName: branch.branchName }
+      : { _id: variables.branchId, branchName: "Unknown Branch" },
+    deviceObjId: device
+      ? { _id: device._id, device: device.name }
+      : { _id: variables.deviceObjId, device: "Unknown Device" },
+  };
 
-      queryClient.setQueryData<Supervisor[]>(["supervisors"], (oldSupervisors = []) => {
-        return [...oldSupervisors, newSupervisorWithResolvedReferences];
-      });
-    },
-    onError: (error: any) => {
-      alert(
-        `Failed to add supervisor: ${
-          error.response?.data?.message || error.message
-        }`
-      );
-    },
+  queryClient.setQueryData<supervisor[]>(["supervisors"], (oldsupervisors = []) => {
+    return [...oldsupervisors, newsupervisorWithResolvedReferences];
   });
+},
 
-  // Fixed: ApproveMutation with correct status values
-  const ApproveMutation = useMutation({
-    mutationFn: async (supervisor: { _id: string; status: "Approve" | "Rejected" }) => {
+  onError: (error: any) => {
+    alert(
+      `Failed to add supervisor: ${
+        error.response?.data?.message || error.message
+      }`
+    );
+  },
+});
+
+ 
+ const ApproveMutation = useMutation({
+    mutationFn: async (supervisor: { _id: string; isApproved: "Approve" | "Rejected" }) => {
       return await api.post(`/supervisor/approve/${supervisor._id}`, {
         status: supervisor.status,
       });
@@ -480,7 +467,7 @@ export default function SupervisorApprove() {
   });
 
   // Mutation for edit supervisor data
-  const updateSupervisorMutation = useMutation({
+ const updatesupervisorMutation = useMutation({
     mutationFn: async ({
       supervisorId,
       data,
@@ -491,7 +478,7 @@ export default function SupervisorApprove() {
       return await api.put(`/supervisor/${supervisorId}`, data);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['supervisors'] });
+      queryClient.invalidateQueries({ queryKey: ['supervisor'] });
       setEditDialogOpen(false);
       setEditTarget(null);
       alert("Supervisor updated successfully.");
@@ -526,14 +513,13 @@ export default function SupervisorApprove() {
   const handleSave = (updatedData: Partial<Supervisor>) => {
     if (!editTarget) return;
 
-    const changedFields: Partial<Record<keyof Supervisor, unknown>> = {};
-    const flatEditTarget = {
-      ...editTarget,
-      schoolId: editTarget.schoolId._id,
-      branchId: editTarget.branchId._id,
-      deviceObjId: editTarget.deviceObjId._id,
-    };
-
+    const changedFields: Partial<Record<keyof supervisor, unknown>> = {};
+const flatEditTarget={
+  ...editTarget,
+  schoolId:editTarget.schoolId._id,
+  branchId:editTarget.branchId._id,
+deviceObjId:editTarget.deviceObjId._id,
+};
     for (const key in updatedData) {
       const newValue = updatedData[key as keyof Supervisor];
       const oldValue = editTarget[key as keyof Supervisor];
@@ -581,17 +567,17 @@ export default function SupervisorApprove() {
       deviceObjId: device,
     };
 
-    await addSupervisorMutation.mutateAsync(data);
+  await addsupervisorMutation.mutateAsync(data); // let onSuccess/onError handle feedback
 
-    if (!addSupervisorMutation.isError) {
-      closeButtonRef.current?.click();
-      form.reset();
-      setSchool(undefined);
-      setBranch(undefined);
-      setDevice(undefined);
-      alert("Supervisor added successfully.");
-    }
-  };
+  if (!addsupervisorMutation.isError) {
+    closeButtonRef.current?.click();
+    form.reset();
+    setSchool(undefined);
+    alert("supervisor added successfully.");
+  }
+};
+
+
 
   const handleDateFilter = useCallback(
     (start: Date | null, end: Date | null) => {
@@ -632,7 +618,12 @@ export default function SupervisorApprove() {
           {/* Search component */}
           <SearchComponent
             data={filterResults}
-            displayKey={["supervisorName", "username", "email", "supervisorMobile"]}
+            displayKey={[
+              "supervisorName",
+              "username",
+              "email",
+              "supervisorMobile",
+            ]}
             onResults={handleSearchResults}
             className="w-[300px] mb-4"
           />
@@ -643,28 +634,31 @@ export default function SupervisorApprove() {
             title="Search by Registration Date"
           />
          
-          {/* Custom Filter Component Look */}
-          <div className="flex flex-col space-y-2">
-            
-            <div className="relative">
-              <select
-                id="status-filter"
-                value={selectedStatus}
-                onChange={(e) => handleStatusChange(e.target.value)}
-                className="h-10 w-[200px] px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white appearance-none cursor-pointer"
-              >
-                <option value="all">All Status</option>
-                <option value="Approved">Approved</option>
-                <option value="Pending">Pending</option>
-                <option value="Rejected">Rejected</option>
-              </select>
-              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
-                <svg className="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                </svg>
-              </div>
-            </div>
-          </div>
+       <CustomFilter
+  data={filteredData}
+  originalData={supervisors}
+  filterFields={["isApproved"]}
+  onFilter={handleCustomFilter}
+  placeholder={"Filter by Approval"}
+ 
+valueFormatter={(value) => {
+  if (!value) return "";
+
+  console.log("myval", value);
+
+  const formatted = value.toString().toLowerCase();
+
+  if (formatted === "rejected") return "Rejected";
+  if (formatted === "approved") return "Approved";
+  if (formatted === "pending") return "Pending";
+
+  return value;
+}}
+
+
+
+/>
+
 
           {/* Column visibility selector */}
           <ColumnVisibilitySelector
@@ -695,43 +689,45 @@ export default function SupervisorApprove() {
                       required
                     />
                   </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="schoolId">School</Label>
-                    <SearchableSelect
-                      value={school}
-                      onChange={setSchool}
-                      options={schoolOptions}
-                      placeholder="Select school"
-                      allowClear={true}
-                    />
-                  </div>
-                  
-                  <div className="grid gap-2">
-                    <Label htmlFor="branchId">Branch</Label>
-                    <SearchableSelect
-                      value={branch}
-                      onChange={setBranch}
-                      options={filteredBranchOptions}
-                      placeholder={
-                        !school ? "Select school first" : filteredBranchOptions.length ? "Select branch" : "No branches available"
-                      }
-                      allowClear={true}
-                      disabled={!school}
-                    />
-                  </div>
-                  
-                  <div className="grid gap-2">
-                    <Label htmlFor="deviceObjId">Device</Label>
-                    <SearchableSelect
-                      value={device}
-                      onChange={setDevice}
-                      options={filteredDeviceOptions}
-                      placeholder={!school ? "Select school first" : !branch ? "Select branch first" : filteredDeviceOptions.length ? "Select device" : "No device available"} 
-                      allowClear={true}
-                      disabled={!branch}
-                    />
-                  </div>
-                  
+                                     <div className="grid gap-2">
+        <Label htmlFor="schoolId">School</Label>
+        <SearchableSelect
+          value={school}
+          onChange={setSchool}
+          options={schoolOptions}
+          placeholder="Select school"
+          allowClear={true}
+        />
+      </div>
+      
+      <div className="grid gap-2">
+        <Label htmlFor="branchId">Branch</Label>
+        <SearchableSelect
+          value={branch}
+          onChange={setbranch}
+          options={filteredBranchOptions}
+          // placeholder={filteredBranchOptions.length ? "Select branch" : "No branches available"}
+          placeholder={
+            !school?"select school first":filteredBranchOptions.length?"select branch":"No branches available"
+          }
+          allowClear={true}
+          disabled={!school}
+        />
+      </div>
+      
+      <div className="grid gap-2">
+        <Label htmlFor="deviceObjId">Device</Label>
+        <SearchableSelect
+          value={device}
+          onChange={setdevice}
+          options={filteredDeviceOptions}
+          // placeholder={filteredDeviceOptions.length ? "Select device" : "No devices available"}
+         placeholder={!school?"select school first":!branch?"Select branch first":filteredDeviceOptions.length?"select device":"No device available"} 
+          allowClear={true}
+          disabled={!branch}
+        />
+      </div>
+      
                   <div className="grid gap-2">
                     <Label htmlFor="email">Email</Label>
                     <Input
@@ -786,8 +782,8 @@ export default function SupervisorApprove() {
                       Cancel
                     </Button>
                   </DialogClose>
-                  <Button type="submit" disabled={addSupervisorMutation.isPending}>
-                    {addSupervisorMutation.isPending ? "Saving..." : "Save Supervisor"}
+                  <Button type="submit" disabled={addsupervisorMutation.isPending}>
+                    {addsupervisorMutation.isPending ? "Saving..." : "Save supervisor"}
                   </Button>
                 </DialogFooter>
               </form>
@@ -886,3 +882,4 @@ export default function SupervisorApprove() {
     </main>
   );
 }
+

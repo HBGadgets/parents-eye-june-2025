@@ -36,7 +36,7 @@ interface TripsSidebarProps {
 
 const TripsSidebar: React.FC<TripsSidebarProps> = ({
   data,
-  currentIndex,
+  // currentIndex,
   isOpen,
   onClose,
 }) => {
