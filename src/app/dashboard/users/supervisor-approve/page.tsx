@@ -34,7 +34,6 @@ import ResponseLoader from "@/components/ResponseLoader";
 import { CustomFilter } from "@/components/ui/CustomFilter";
 import { ColumnVisibilitySelector } from "@/components/column-visibility-selector";
 import { useSchoolData } from "@/hooks/useSchoolData";
-import { SearchableSelect } from "@/components/custom-select";
 import { useBranchData } from "@/hooks/useBranchData";
 import { useDeviceData } from "@/hooks/useDeviceData";
 
@@ -61,23 +60,26 @@ interface SelectOption {
 export default function SupervisorApprove() {
   const queryClient = useQueryClient();
   const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const { exportToPDF, exportToExcel } = useExport();
   const [filteredData, setFilteredData] = useState<Supervisor[]>([]);
   const [filterResults, setFilterResults] = useState<Supervisor[]>([]);
   const [deleteTarget, setDeleteTarget] = useState<Supervisor | null>(null);
   const [editTarget, setEditTarget] = useState<Supervisor | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
-  const [accessApprove, setAccessApprove] = useState<Supervisor | null>(null);
-  const [school, setSchool] = useState<string | undefined>(undefined);
-  const [branch, setBranch] = useState<string | undefined>(undefined);
-  const [device, setDevice] = useState<string | undefined>(undefined);
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [school, setSchool] = useState<string>("");
+  const [branch, setBranch] = useState<string>("");
+  const [device, setDevice] = useState<string>("");
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
 
-  const { data: schoolData } = useSchoolData();
-  const { data: branchData } = useBranchData();
-  const { data: deviceData } = useDeviceData();
+  // Edit form state for cascading dropdowns
+  const [editSelectedSchool, setEditSelectedSchool] = useState("");
+  const [editSelectedBranch, setEditSelectedBranch] = useState("");
 
-  // Fetch supervisor data - FIXED: Extract supervisors array from response
+  const { data: schoolData, isLoading: schoolsLoading } = useSchoolData();
+  const { data: branchData, isLoading: branchesLoading } = useBranchData();
+  const { data: deviceData, isLoading: devicesLoading } = useDeviceData();
+
+  // Fetch supervisor data
   const {
     data: supervisors,
     isLoading,
@@ -87,81 +89,145 @@ export default function SupervisorApprove() {
     queryKey: ["supervisors"],
     queryFn: async () => {
       const res = await api.get<SupervisorResponse>("/supervisor");
-      return res.supervisors; // Extract the supervisors array
+      return res.supervisors;
     },
   });
 
-  // School data
-  const schoolOptions: SelectOption[] = schoolData
-    ? Array.from(
-        new Map(
-          schoolData
-            .filter((s) => s._id && s.schoolName)
-            .map((s) => [s._id, { label: s.schoolName, value: s._id }])
-        ).values()
-      )
-    : [];
+  // School options
+  const schoolOptions: SelectOption[] = useMemo(() => {
+    if (!schoolData) return [];
+    return Array.from(
+      new Map(
+        schoolData
+          .filter((s) => s._id && s.schoolName)
+          .map((s) => [s._id, { label: s.schoolName, value: s._id }])
+      ).values()
+    );
+  }, [schoolData]);
 
   useEffect(() => {
     if (supervisors && supervisors.length > 0) {
       setFilteredData(supervisors);
-      setFilterResults(supervisors); // For search base
+      setFilterResults(supervisors);
     }
   }, [supervisors]);
 
-  // Branch data
-  const branchOptions: SelectOption[] = branchData
-    ? Array.from(
-        new Map(
-          branchData
-            .filter((s) => s._id && s.branchName)
-            .map((s) => [s._id, { label: s.branchName, value: s._id }])
-        ).values()
-      )
-    : [];
+  // Branch options - all branches
+  const allBranchOptions: SelectOption[] = useMemo(() => {
+    if (!branchData) return [];
+    return Array.from(
+      new Map(
+        branchData
+          .filter((b) => b._id && b.branchName)
+          .map((b) => [b._id, { label: b.branchName, value: b._id }])
+      ).values()
+    );
+  }, [branchData]);
 
-  // Device data
-  const deviceOptions: SelectOption[] = deviceData?.devices
-    ? Array.from(
-        new Map(
-          deviceData.devices
-            .filter((s) => s._id && s.name)
-            .map((s) => [s._id, { label: s.name, value: s._id }])
-        ).values()
-      )
-    : [];
+  // Device options - all devices
+  const allDeviceOptions: SelectOption[] = useMemo(() => {
+    if (!deviceData?.devices) return [];
+    return Array.from(
+      new Map(
+        deviceData.devices
+          .filter((d) => d._id && d.name)
+          .map((d) => [d._id, { label: d.name, value: d._id }])
+      ).values()
+    );
+  }, [deviceData]);
 
+  // Filter branches based on selected school (Add form)
   const filteredBranchOptions = useMemo(() => {
     if (!school || !branchData) return [];
     return branchData
-      .filter(branch => branch.schoolId?._id === school)
+      .filter(branch => {
+        const branchSchoolId = branch.schoolId 
+          ? (typeof branch.schoolId === 'object' ? branch.schoolId?._id : branch.schoolId)
+          : null;
+        return branchSchoolId === school;
+      })
       .map(branch => ({
         label: branch.branchName,
         value: branch._id
       }));
   }, [school, branchData]);
 
-  // Filter devices based on selected branch
+  // Filter devices based on selected branch (Add form)
   const filteredDeviceOptions = useMemo(() => {
     if (!branch || !deviceData?.devices) return [];
     return deviceData.devices
-      .filter(device => device.branchId?._id === branch)
+      .filter(device => {
+        const deviceBranchId = device.branchId 
+          ? (typeof device.branchId === 'object' ? device.branchId?._id : device.branchId)
+          : null;
+        return deviceBranchId === branch;
+      })
       .map(device => ({
         label: device.name,
         value: device._id
       }));
   }, [branch, deviceData]);
 
+  // Filter branches for edit dialog
+  const editFilteredBranchOptions = useMemo(() => {
+    if (!editSelectedSchool || !branchData) return allBranchOptions;
+    return branchData
+      .filter(branch => {
+        const branchSchoolId = branch.schoolId 
+          ? (typeof branch.schoolId === 'object' ? branch.schoolId?._id : branch.schoolId)
+          : null;
+        return branchSchoolId === editSelectedSchool;
+      })
+      .map(branch => ({
+        label: branch.branchName,
+        value: branch._id
+      }));
+  }, [editSelectedSchool, branchData, allBranchOptions]);
+
+  // Filter devices for edit dialog
+  const editFilteredDeviceOptions = useMemo(() => {
+    if (!editSelectedBranch || !deviceData?.devices) return allDeviceOptions;
+    return deviceData.devices
+      .filter(device => {
+        const deviceBranchId = device.branchId 
+          ? (typeof device.branchId === 'object' ? device.branchId?._id : device.branchId)
+          : null;
+        return deviceBranchId === editSelectedBranch;
+      })
+      .map(device => ({
+        label: device.name,
+        value: device._id
+      }));
+  }, [editSelectedBranch, deviceData, allDeviceOptions]);
+
   // Reset branch and device when school changes
   useEffect(() => {
-    setBranch(undefined);
-    setDevice(undefined);
+    setBranch("");
+    setDevice("");
   }, [school]);
 
   // Reset device when branch changes
   useEffect(() => {
-    setDevice(undefined);
+    setDevice("");
   }, [branch]);
+
+  // Set edit form initial values when edit target changes
+  useEffect(() => {
+    if (editTarget) {
+      const schoolId = typeof editTarget.schoolId === 'object' 
+        ? editTarget.schoolId?._id || "" 
+        : editTarget.schoolId || "";
+      const branchId = typeof editTarget.branchId === 'object' 
+        ? editTarget.branchId?._id || "" 
+        : editTarget.branchId || "";
+      
+      setEditSelectedSchool(schoolId);
+      setEditSelectedBranch(branchId);
+    } else {
+      setEditSelectedSchool("");
+      setEditSelectedBranch("");
+    }
+  }, [editTarget]);
 
   const columns: ColumnDef<Supervisor, CellContent>[] = [
     {
@@ -177,7 +243,7 @@ export default function SupervisorApprove() {
       header: "School Name",
       accessorFn: (row) => ({
         type: "text",
-        value: row.schoolId?.schoolName ?? "--",
+        value: typeof row.schoolId === 'object' ? row.schoolId?.schoolName ?? "--" : "--",
       }),
       meta: { flex: 1, minWidth: 200, maxWidth: 300 },
       enableHiding: true,
@@ -186,7 +252,7 @@ export default function SupervisorApprove() {
       header: "Branch Name",
       accessorFn: (row) => ({
         type: "text",
-        value: row.branchId?.branchName ?? "--",
+        value: typeof row.branchId === 'object' ? row.branchId?.branchName ?? "--" : "--",
       }),
       meta: { flex: 1, minWidth: 200, maxWidth: 300 },
       enableHiding: true,
@@ -195,7 +261,7 @@ export default function SupervisorApprove() {
       header: "Device Name",
       accessorFn: (row) => ({
         type: "text",
-        value: row.deviceObjId?.name ?? "--",
+        value: typeof row.deviceObjId === 'object' ? row.deviceObjId?.name ?? "--" : "--",
       }),
       meta: { flex: 1, minWidth: 200, maxWidth: 300 },
       enableHiding: true,
@@ -363,14 +429,14 @@ export default function SupervisorApprove() {
       key: "branchId",
       type: "select",
       required: true,
-      options: branchOptions,
+      options: editFilteredBranchOptions.length > 0 ? editFilteredBranchOptions : allBranchOptions,
     },
     {
       label: "Device Name",
       key: "deviceObjId",
       type: "select",
       required: true,
-      options: deviceOptions,
+      options: editFilteredDeviceOptions.length > 0 ? editFilteredDeviceOptions : allDeviceOptions,
     },
     {
       label: "Mobile Number",
@@ -399,22 +465,22 @@ export default function SupervisorApprove() {
       return response.data;
     },
     onSuccess: (createdSupervisor, variables) => {
-      const school = schoolData?.find(s => s._id === variables.schoolId);
-      const branch = branchData?.find(b => b._id === variables.branchId);
-      const device = deviceData?.devices?.find(d => d._id === variables.deviceObjId);
+      const schoolObj = schoolData?.find(s => s._id === variables.schoolId);
+      const branchObj = branchData?.find(b => b._id === variables.branchId);
+      const deviceObj = deviceData?.devices?.find(d => d._id === variables.deviceObjId);
 
       const newSupervisorWithResolvedReferences = {
         ...createdSupervisor,
         password: variables.password,
-        schoolId: school
-          ? { _id: school._id, schoolName: school.schoolName }
+        schoolId: schoolObj
+          ? { _id: schoolObj._id, schoolName: schoolObj.schoolName }
           : { _id: variables.schoolId, schoolName: "Unknown School" },
-        branchId: branch
-          ? { _id: branch._id, branchName: branch.branchName }
+        branchId: branchObj
+          ? { _id: branchObj._id, branchName: branchObj.branchName }
           : { _id: variables.branchId, branchName: "Unknown Branch" },
-        deviceObjId: device
-          ? { _id: device._id, device: device.name }
-          : { _id: variables.deviceObjId, device: "Unknown Device" },
+        deviceObjId: deviceObj
+          ? { _id: deviceObj._id, name: deviceObj.name }
+          : { _id: variables.deviceObjId, name: "Unknown Device" },
       };
 
       queryClient.setQueryData<Supervisor[]>(["supervisors"], (oldSupervisors = []) => {
@@ -430,7 +496,7 @@ export default function SupervisorApprove() {
     },
   });
 
-  // Fixed: ApproveMutation with correct status values
+  // ApproveMutation with correct status values
   const ApproveMutation = useMutation({
     mutationFn: async (supervisor: { _id: string; status: "Approve" | "Rejected" }) => {
       return await api.post(`/supervisor/approve/${supervisor._id}`, {
@@ -470,6 +536,8 @@ export default function SupervisorApprove() {
       queryClient.invalidateQueries({ queryKey: ['supervisors'] });
       setEditDialogOpen(false);
       setEditTarget(null);
+      setEditSelectedSchool("");
+      setEditSelectedBranch("");
       alert("Supervisor updated successfully.");
     },
     onError: (err) => {
@@ -503,16 +571,18 @@ export default function SupervisorApprove() {
     if (!editTarget) return;
 
     const changedFields: Partial<Record<keyof Supervisor, unknown>> = {};
-    const flatEditTarget = {
+    
+    // Extract IDs for comparison
+    const editTargetFlat = {
       ...editTarget,
-      schoolId: editTarget.schoolId._id,
-      branchId: editTarget.branchId._id,
-      deviceObjId: editTarget.deviceObjId._id,
+      schoolId: typeof editTarget.schoolId === 'object' ? editTarget.schoolId?._id : editTarget.schoolId,
+      branchId: typeof editTarget.branchId === 'object' ? editTarget.branchId?._id : editTarget.branchId,
+      deviceObjId: typeof editTarget.deviceObjId === 'object' ? editTarget.deviceObjId?._id : editTarget.deviceObjId,
     };
 
     for (const key in updatedData) {
       const newValue = updatedData[key as keyof Supervisor];
-      const oldValue = editTarget[key as keyof Supervisor];
+      const oldValue = editTargetFlat[key as keyof typeof editTargetFlat];
 
       if (newValue !== undefined && newValue !== oldValue) {
         changedFields[key as keyof Supervisor] = newValue;
@@ -528,6 +598,16 @@ export default function SupervisorApprove() {
       supervisorId: editTarget._id,
       data: changedFields,
     });
+  };
+
+  // Custom field change handler for edit dialog
+  const handleEditFieldChange = (key: string, value: any) => {
+    if (key === "schoolId") {
+      setEditSelectedSchool(value);
+      setEditSelectedBranch("");
+    } else if (key === "branchId") {
+      setEditSelectedBranch(value);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -562,9 +642,9 @@ export default function SupervisorApprove() {
     if (!addSupervisorMutation.isError) {
       closeButtonRef.current?.click();
       form.reset();
-      setSchool(undefined);
-      setBranch(undefined);
-      setDevice(undefined);
+      setSchool("");
+      setBranch("");
+      setDevice("");
       alert("Supervisor added successfully.");
     }
   };
@@ -600,6 +680,20 @@ export default function SupervisorApprove() {
     getCoreRowModel: getCoreRowModel(),
   });
 
+  // Prepare data for edit modal
+  const editData = editTarget
+    ? {
+        _id: editTarget._id,
+        supervisorName: editTarget.supervisorName || "",
+        supervisorMobile: editTarget.supervisorMobile || "",
+        username: editTarget.username || "",
+        password: editTarget.password || "",
+        schoolId: typeof editTarget.schoolId === 'object' ? editTarget.schoolId?._id || "" : editTarget.schoolId || "",
+        branchId: typeof editTarget.branchId === 'object' ? editTarget.branchId?._id || "" : editTarget.branchId || "",
+        deviceObjId: typeof editTarget.deviceObjId === 'object' ? editTarget.deviceObjId?._id || "" : editTarget.deviceObjId || "",
+      }
+    : null;
+
   return (
     <main>
       {/* Progress loader at the top */}
@@ -620,17 +714,15 @@ export default function SupervisorApprove() {
             title="Search by Registration Date"
           />
 
-          {/* Custom Filter - Using the exact same design as driver page */}
+          {/* Custom Filter  */}
           <CustomFilter
             data={filteredData}
             originalData={supervisors}
             filterFields={["status"]}
             onFilter={handleCustomFilter}
-            placeholder={"Filter by Approval"}
+            placeholder={"Filter by Status"}
             valueFormatter={(value) => {
               if (!value) return "";
-
-              console.log("myval", value);
 
               const formatted = value.toString().toLowerCase();
 
@@ -656,14 +748,14 @@ export default function SupervisorApprove() {
             <DialogTrigger asChild>
               <Button variant="default">Add Supervisor</Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[600px]">
+            <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
               <form onSubmit={handleSubmit} className="space-y-4">
                 <DialogHeader>
                   <DialogTitle>Add Supervisor</DialogTitle>
                 </DialogHeader>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="grid gap-2">
-                    <Label htmlFor="supervisorName">Supervisor Name</Label>
+                    <Label htmlFor="supervisorName">Supervisor Name *</Label>
                     <Input
                       id="supervisorName"
                       name="supervisorName"
@@ -671,45 +763,80 @@ export default function SupervisorApprove() {
                       required
                     />
                   </div>
+                  
                   <div className="grid gap-2">
-                    <Label htmlFor="schoolId">School</Label>
-                    <SearchableSelect
+                    <Label htmlFor="schoolId">School *</Label>
+                    <select
+                      id="schoolId"
+                      name="schoolId"
+                      required
+                      disabled={schoolsLoading}
                       value={school}
-                      onChange={setSchool}
-                      options={schoolOptions}
-                      placeholder="Select school"
-                      allowClear={true}
-                    />
+                      onChange={(e) => {
+                        setSchool(e.target.value);
+                        setBranch("");
+                        setDevice("");
+                      }}
+                      className="flex h-10 w-full rounded-md border px-3 py-2 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <option value="">Select School</option>
+                      {schoolOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                   
                   <div className="grid gap-2">
-                    <Label htmlFor="branchId">Branch</Label>
-                    <SearchableSelect
+                    <Label htmlFor="branchId">Branch *</Label>
+                    <select
+                      id="branchId"
+                      name="branchId"
+                      required
+                      disabled={branchesLoading || !school}
                       value={branch}
-                      onChange={setBranch}
-                      options={filteredBranchOptions}
-                      placeholder={
-                        !school ? "Select school first" : filteredBranchOptions.length ? "Select branch" : "No branches available"
-                      }
-                      allowClear={true}
-                      disabled={!school}
-                    />
+                      onChange={(e) => {
+                        setBranch(e.target.value);
+                        setDevice("");
+                      }}
+                      className="flex h-10 w-full rounded-md border px-3 py-2 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <option value="">
+                        {!school ? "Select school first" : filteredBranchOptions.length ? "Select branch" : "No branches available"}
+                      </option>
+                      {filteredBranchOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                   
                   <div className="grid gap-2">
-                    <Label htmlFor="deviceObjId">Device</Label>
-                    <SearchableSelect
+                    <Label htmlFor="deviceObjId">Device *</Label>
+                    <select
+                      id="deviceObjId"
+                      name="deviceObjId"
+                      required
+                      disabled={devicesLoading || !branch}
                       value={device}
-                      onChange={setDevice}
-                      options={filteredDeviceOptions}
-                      placeholder={!school ? "Select school first" : !branch ? "Select branch first" : filteredDeviceOptions.length ? "Select device" : "No device available"} 
-                      allowClear={true}
-                      disabled={!branch}
-                    />
+                      onChange={(e) => setDevice(e.target.value)}
+                      className="flex h-10 w-full rounded-md border px-3 py-2 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <option value="">
+                        {!school ? "Select school first" : !branch ? "Select branch first" : filteredDeviceOptions.length ? "Select device" : "No devices available"}
+                      </option>
+                      {filteredDeviceOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                   
                   <div className="grid gap-2">
-                    <Label htmlFor="email">Email</Label>
+                    <Label htmlFor="email">Email *</Label>
                     <Input
                       id="email"
                       name="email"
@@ -809,20 +936,18 @@ export default function SupervisorApprove() {
       
       {/* Edit Dialog */}
       <section>
-        {editTarget && (
+        {editTarget && editData && (
           <DynamicEditDialog
-            data={{
-              ...editTarget,
-              schoolId: editTarget.schoolId._id,
-              branchId: editTarget.branchId._id,
-              deviceObjId: editTarget.deviceObjId._id,
-            }}
+            data={editData}
             isOpen={editDialogOpen}
             onClose={() => {
               setEditDialogOpen(false);
               setEditTarget(null);
+              setEditSelectedSchool("");
+              setEditSelectedBranch("");
             }}
             onSave={handleSave}
+            onFieldChange={handleEditFieldChange}
             fields={supervisorFieldConfigs}
             title="Edit Supervisor"
             description="Update the supervisor information below. Fields marked with * are required."
