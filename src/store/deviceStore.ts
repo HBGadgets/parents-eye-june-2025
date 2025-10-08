@@ -135,10 +135,10 @@ export const useDeviceStore = create<DeviceState>()(
             },
 
             onSingleDeviceDataReceived: (data: SingleDeviceData) => {
-              console.log(
-                "[DeviceStore] Received single device data:",
-                data.uniqueId || data.imei
-              );
+              // console.log(
+              //   "[DeviceStore] Received single device data:",
+              //   data.uniqueId || data.imei
+              // );
 
               set((state) => {
                 const newSingleDeviceData = new Map(state.singleDeviceData);
@@ -164,10 +164,10 @@ export const useDeviceStore = create<DeviceState>()(
             },
 
             onAuthSuccess: (authData?: AuthData) => {
-              console.log(
-                "[DeviceStore] Authentication successful:",
-                authData?.role || "Unknown role"
-              );
+              // console.log(
+              //   "[DeviceStore] Authentication successful:",
+              //   authData?.role || "Unknown role"
+              // );
 
               set({
                 isAuthenticated: true,
@@ -214,10 +214,10 @@ export const useDeviceStore = create<DeviceState>()(
             },
 
             onConnectionChange: (connected: boolean) => {
-              console.log(
-                "[DeviceStore] Connection status changed:",
-                connected
-              );
+              // console.log(
+              //   "[DeviceStore] Connection status changed:",
+              //   connected
+              // );
 
               set({ isConnected: connected });
 
@@ -249,7 +249,7 @@ export const useDeviceStore = create<DeviceState>()(
       },
 
       disconnect: () => {
-        console.log("[DeviceStore] Disconnecting");
+        // console.log("[DeviceStore] Disconnecting");
 
         const deviceService = DeviceService.getInstance();
         deviceService.disconnect();
@@ -332,7 +332,7 @@ export const useDeviceStore = create<DeviceState>()(
           return;
         }
 
-        console.log("[DeviceStore] Starting single device stream:", uniqueId);
+        // console.log("[DeviceStore] Starting single device stream:", uniqueId);
 
         set((state) => {
           const newActiveSingleDevices = new Set(state.activeSingleDevices);
@@ -354,7 +354,7 @@ export const useDeviceStore = create<DeviceState>()(
       },
 
       stopSingleDeviceStream: (uniqueId: string) => {
-        console.log("[DeviceStore] Stopping single device stream:", uniqueId);
+        // console.log("[DeviceStore] Stopping single device stream:", uniqueId);
 
         const deviceService = DeviceService.getInstance();
         deviceService.stopSingleDeviceStream(uniqueId);
@@ -382,15 +382,15 @@ export const useDeviceStore = create<DeviceState>()(
         // If no more single device streams, switch back to all devices
         const updatedState = get();
         if (updatedState.activeSingleDevices.size === 0) {
-          console.log(
-            "[DeviceStore] No more single device streams, switching to all devices"
-          );
+          // console.log(
+          //   "[DeviceStore] No more single device streams, switching to all devices"
+          // );
           updatedState.switchToAllDevices();
         }
       },
 
       stopAllSingleDeviceStreams: () => {
-        console.log("[DeviceStore] Stopping all single device streams");
+        // console.log("[DeviceStore] Stopping all single device streams");
 
         const deviceService = DeviceService.getInstance();
         deviceService.stopAllSingleDeviceStreams();
@@ -410,16 +410,16 @@ export const useDeviceStore = create<DeviceState>()(
 
       // NEW: Switch to all devices method
       switchToAllDevices: () => {
-        console.log("[DeviceStore] Switching to all devices mode");
+        // console.log("[DeviceStore] Switching to all devices mode");
 
         const state = get();
         const deviceService = DeviceService.getInstance();
 
         // Only proceed if authenticated and connected
         if (!deviceService.authenticated || !deviceService.connected) {
-          console.warn(
-            "[DeviceStore] Cannot switch to all devices: Not connected or authenticated"
-          );
+          // console.warn(
+          //   "[DeviceStore] Cannot switch to all devices: Not connected or authenticated"
+          // );
           return;
         }
 
@@ -437,10 +437,10 @@ export const useDeviceStore = create<DeviceState>()(
         });
 
         // Request all device data
-        console.log(
-          "[DeviceStore] Requesting all device data with filters:",
-          state.filters
-        );
+        // console.log(
+        //   "[DeviceStore] Requesting all device data with filters:",
+        //   state.filters
+        // );
         deviceService.requestDeviceData(state.filters);
       },
 
@@ -450,7 +450,7 @@ export const useDeviceStore = create<DeviceState>()(
       },
 
       clearSingleDeviceData: (uniqueId: string) => {
-        console.log("[DeviceStore] Clearing single device data:", uniqueId);
+        // console.log("[DeviceStore] Clearing single device data:", uniqueId);
 
         const deviceService = DeviceService.getInstance();
         deviceService.stopSingleDeviceStream(uniqueId);
@@ -478,15 +478,15 @@ export const useDeviceStore = create<DeviceState>()(
         // If no more single device streams, switch back to all devices
         const updatedState = get();
         if (updatedState.activeSingleDevices.size === 0) {
-          console.log(
-            "[DeviceStore] No more single device streams, switching to all devices"
-          );
+          // console.log(
+          //   "[DeviceStore] No more single device streams, switching to all devices"
+          // );
           updatedState.switchToAllDevices();
         }
       },
 
       clearAllSingleDeviceData: () => {
-        console.log("[DeviceStore] Clearing all single device data");
+        // console.log("[DeviceStore] Clearing all single device data");
 
         const deviceService = DeviceService.getInstance();
         deviceService.stopAllSingleDeviceStreams();

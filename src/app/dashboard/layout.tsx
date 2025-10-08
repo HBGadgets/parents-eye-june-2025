@@ -12,6 +12,7 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
+import { TooltipProvider } from "@/components/ui/tooltip";
 
 export default function DashboardLayout({
   children,
@@ -34,30 +35,32 @@ export default function DashboardLayout({
     };
   }, []);
   return (
-    <SidebarProvider>
-      <AppSidebar />
-      <SidebarInset className="overflow-hidden flex flex-col h-screen">
-        <header className="sticky top-0 z-20 flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12 overflow-hidden bg-background border-b">
-          <div className="flex items-center gap-2 px-4 min-w-0 relative z-20">
-            <SidebarTrigger className="-ml-1 flex-shrink-0" />
-            <Separator
-              orientation="vertical"
-              className="mr-2 data-[orientation=vertical]:h-4 flex-shrink-0"
-            />
-            <div className="min-w-0 flex-1">
-              <Breadcrumb />
+    <TooltipProvider delayDuration={0}>
+      <SidebarProvider>
+        <AppSidebar />
+        <SidebarInset className="overflow-hidden flex flex-col h-screen">
+          <header className="sticky top-0 z-20 flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear overflow-hidden bg-background border-b">
+            <div className="flex items-center gap-2 px-4 min-w-0 relative z-20">
+              <SidebarTrigger className="-ml-1 flex-shrink-0" />
+              <Separator
+                orientation="vertical"
+                className="mr-2 data-[orientation=vertical]:h-4 flex-shrink-0"
+              />
+              <div className="min-w-0 flex-1">
+                <Breadcrumb />
+              </div>
             </div>
-          </div>
-          <div className="absolute inset-0 z-10">
-            <Navbar />
-          </div>
-        </header>
+            <div className="absolute inset-0 z-10">
+              <Navbar />
+            </div>
+          </header>
 
-        <main className="pt-4 px-4 overflow-auto flex-1 min-h-0">
-          <FCMHandler />
-          {children}
-        </main>
-      </SidebarInset>
-    </SidebarProvider>
+          <main className="pt-4 px-4 overflow-auto flex-1 min-h-0">
+            <FCMHandler />
+            {children}
+          </main>
+        </SidebarInset>
+      </SidebarProvider>
+    </TooltipProvider>
   );
 }

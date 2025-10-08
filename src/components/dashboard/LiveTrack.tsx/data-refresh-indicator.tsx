@@ -12,35 +12,27 @@ export const DataRefreshIndicator: React.FC<DataRefreshIndicatorProps> = ({
   className = "",
 }) => {
   const [countdown, setCountdown] = useState(intervalSeconds);
-  const [isActive, setIsActive] = useState(false);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  const startCountdown = () => {
-    setCountdown(intervalSeconds);
-    setIsActive(true);
-    onDataReceived?.();
-  };
-
   useEffect(() => {
-    if (isActive && countdown > 0) {
-      intervalRef.current = setInterval(() => {
-        setCountdown((prev) => {
-          if (prev <= 1) {
-            setIsActive(false);
-            return intervalSeconds;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    }
+    // Start countdown immediately
+    intervalRef.current = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev <= 1) {
+          // Auto-restart countdown
+          onDataReceived?.();
+          return intervalSeconds;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
     return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
     };
-  }, [isActive, countdown, intervalSeconds]);
-
-  useEffect(() => {
-    startCountdown();
-  }, []);
+  }, [intervalSeconds, onDataReceived]);
 
   return (
     <div className="p-2 shadow rounded-l-full rounded-r-full">
@@ -48,7 +40,6 @@ export const DataRefreshIndicator: React.FC<DataRefreshIndicatorProps> = ({
         <div
           className={[
             "relative flex items-center gap-1.5 px-3 py-1.5",
-
             "bg-white rounded-xl border-[4px] border-white",
           ].join(" ")}
         >
@@ -66,8 +57,8 @@ export const DataRefreshIndicator: React.FC<DataRefreshIndicatorProps> = ({
             <svg
               className={[
                 "size-full",
+                "motion-safe:animate-spin",
                 "motion-safe:[animation-duration:2s]",
-                isActive ? "motion-safe:animate-spin" : "",
                 "drop-shadow-[0_1px_1px_rgba(30,58,138,0.15)]",
               ].join(" ")}
               viewBox="0 0 24 24"

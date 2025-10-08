@@ -45,24 +45,37 @@ module.exports = {
       },
       keyframes: {
         stepProgress: {
-          '0%': { width: '10%' },
-          '10%': { width: '20%' },
-          '20%': { width: '30%' },
-          '30%': { width: '40%' },
-          '40%': { width: '50%' },
-          '50%': { width: '60%' },
-          '60%': { width: '70%' },
-          '70%': { width: '80%' },
-          '80%': { width: '90%' },
-          '100%': { width: '100%' },
+          "0%": { width: "10%" },
+          "10%": { width: "20%" },
+          "20%": { width: "30%" },
+          "30%": { width: "40%" },
+          "40%": { width: "50%" },
+          "50%": { width: "60%" },
+          "60%": { width: "70%" },
+          "70%": { width: "80%" },
+          "80%": { width: "90%" },
+          "100%": { width: "100%" },
+        },
+        in: {
+          "0%": { opacity: "0", transform: "scale(0.95)" },
+          "100%": { opacity: "1", transform: "scale(1)" },
+        },
+        "slide-in": {
+          "0%": { transform: "translateX(-10px)", opacity: "0" },
+          "100%": { transform: "translateX(0)", opacity: "1" },
+        },
+        "fade-in": {
+          "0%": { opacity: "0" },
+          "100%": { opacity: "1" },
         },
       },
-     animation: {
-        stepProgress: 'stepProgress 2.5s ease-in-out forwards',
-},
-
+      animation: {
+        stepProgress: "stepProgress 2.5s ease-in-out forwards",
+        in: "in 0.3s ease-out",
+        "slide-in": "slide-in 0.3s ease-out",
+        "fade-in": "fade-in 0.3s ease-out",
+      },
     },
   },
   plugins: [require("tailwindcss-animate")],
-
 };
