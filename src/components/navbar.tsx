@@ -19,6 +19,11 @@ export function Navbar() {
   );
   const { setOpen, setOpenMobile, isMobile } = useSidebar();
 
+  const navigationMap = {
+    Dashboard: "/dashboard",
+    Maintenance: "https://maintenance.credencetracker.com/#/login",
+  };
+
   const handleNavClick = React.useCallback(
     (section: string) => {
       if (section !== "Dashboard") {
@@ -53,14 +58,22 @@ export function Navbar() {
         <div className="max-w-[calc(100%-80px)] sm:max-w-none">
           <NavigationMenu>
             <NavigationMenuList className="flex-wrap justify-center gap-1 sm:gap-2">
-              {["Dashboard", "School", "Users", "Reports"].map((section) => (
+              {[
+                "Dashboard",
+                "School",
+                "Users",
+                "Reports",
+                "Support",
+                "Maintenance",
+              ].map((section) => (
                 <NavigationMenuItem key={section}>
                   <NavigationMenuLink
                     asChild
                     className="text-xs sm:text-sm px-1.5 sm:px-3 py-1 sm:py-2 whitespace-nowrap font-semibold hover:font-bold transition-colors duration-200 focus:font-bold hover:bg-yellow-500/20 rounded-md"
                   >
                     <Link
-                      href={section === "Dashboard" ? "/dashboard" : "#"}
+                      // href={section === "Dashboard" ? "/dashboard" : "#"}
+                      href={navigationMap[section] || "#"}
                       onClick={() => handleNavClick(section)}
                     >
                       {section}
