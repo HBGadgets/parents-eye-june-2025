@@ -65,10 +65,10 @@ export default function FCMHandler(): null {
           navigator.serviceWorker
             .register("/firebase-messaging-sw.js")
             .then((registration) => {
-              console.log("Service Worker registered:", registration.scope);
+              // console.log("Service Worker registered:", registration.scope);
             })
             .catch((err) => {
-              console.error("Service Worker registration failed:", err);
+              // console.error("Service Worker registration failed:", err);
             });
         }
 
@@ -103,7 +103,7 @@ export default function FCMHandler(): null {
           });
         });
       } catch (err) {
-        console.error("FCM Init Error:", err);
+        // console.error("FCM Init Error:", err);
       }
     };
 
