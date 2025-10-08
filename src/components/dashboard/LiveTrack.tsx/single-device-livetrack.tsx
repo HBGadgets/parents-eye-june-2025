@@ -662,7 +662,10 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
   }, []);
 
   return (
-    <div style={{ height: "84vh", width: "100%", position: "relative" }}>
+    <div
+      style={{ height: "84vh", width: "100%", position: "relative" }}
+      className="rounded-lg overflow-hidden"
+    >
       <MapContainer
         ref={mapRef}
         center={mapCenter}
@@ -698,7 +701,9 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
         )} */}
         {showTraffic && (
           <TileLayer
-            url={`https://{s}.google.com/vt/lyrs=m@221097413,traffic&x={x}&y={y}&z={z}`}
+            url={`https://{s}.google.com/vt/lyrs=${
+              isSatelliteView ? "s" : "m"
+            }@221097413,traffic&x={x}&y={y}&z={z}`}
             subdomains={["mt0", "mt1", "mt2", "mt3"]}
           />
         )}
