@@ -348,7 +348,7 @@ export default function DashboardClient() {
                 {[...Array(segments)].map((_, index) => (
                   <div
                     key={index}
-                    className={`w-1 h-2 rounded-sm transition-colors duration-200 ${getSegmentColor(
+                    className={`w-[4px] h-2 rounded-sm transition-colors duration-200 ${getSegmentColor(
                       index,
                       filledSegments
                     )}`}
@@ -378,12 +378,12 @@ export default function DashboardClient() {
 
           for (let i = 1; i <= maxBars; i++) {
             const isActive = i <= count;
-            const height = `${i * 3 + 6}px`;
+            const height = `${i * 3 + 3}px`;
 
             bars.push(
               <div
                 key={i}
-                className={`w-1.5 rounded-sm transition-colors duration-200 ${
+                className={`w-1 rounded-sm transition-colors duration-200 ${
                   isActive
                     ? count <= 1
                       ? "bg-red-500"
@@ -424,7 +424,7 @@ export default function DashboardClient() {
 
             <div className="flex flex-col">
               <span className={`text-xs font-medium ${signalInfo.color}`}>
-                {signalInfo.label}
+                {/* {signalInfo.label} */}
               </span>
             </div>
           </div>

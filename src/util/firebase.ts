@@ -1,25 +1,61 @@
-// Import the functions you need from the SDKs you need
-import { initializeApp } from "firebase/app";
-// import { getAnalytics } from "firebase/analytics";
-import { getMessaging, onMessage, getToken } from "firebase/messaging";
-// TODO: Add SDKs for Firebase products that you want to use
-// https://firebase.google.com/docs/web/setup#available-libraries
+// @/util/firebase.ts
 
-// Your web app's Firebase configuration
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
+import { initializeApp, getApps } from "firebase/app";
+import {
+  getMessaging,
+  getToken as firebaseGetToken,
+  onMessage as firebaseOnMessage,
+  isSupported,
+  Messaging,
+} from "firebase/messaging";
+
 const firebaseConfig = {
-  apiKey: `${process.env.NEXT_PUBLIC_FIREBASE_API_KEY}`,
-  authDomain: `${process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN}`,
-  projectId: `${process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID}`,
-  storageBucket: `${process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET}`,
-  messagingSenderId: `${process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID}`,
-  appId: `${process.env.NEXT_PUBLIC_FIREBASE_APP_ID}`,
-  measurementId: `${process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID}`,
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
 };
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-// const analytics = getAnalytics(app);
-const messaging = typeof window !== "undefined" ? getMessaging(app) : null;
+// Initialize Firebase App
+const app = !getApps().length ? initializeApp(firebaseConfig) : getApps()[0];
 
-export { app, messaging, getToken, onMessage };
+// Create a lazy getter for messaging
+let messagingInstance: Messaging | null = null;
+let messagingPromise: Promise<Messaging | null> | null = null;
+
+const getMessagingInstance = async (): Promise<Messaging | null> => {
+  if (messagingInstance) return messagingInstance;
+
+  if (messagingPromise) return messagingPromise;
+
+  messagingPromise = (async () => {
+    if (typeof window === "undefined") return null;
+
+    try {
+      const supported = await isSupported();
+      if (!supported) {
+        console.warn("Firebase Messaging not supported");
+        return null;
+      }
+
+      messagingInstance = getMessaging(app);
+      return messagingInstance;
+    } catch (error) {
+      console.error("Error initializing Firebase Messaging:", error);
+      return null;
+    }
+  })();
+
+  return messagingPromise;
+};
+
+// Export the async getter instead of messaging directly
+export {
+  app,
+  getMessagingInstance,
+  firebaseGetToken as getToken,
+  firebaseOnMessage as onMessage,
+};

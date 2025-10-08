@@ -84,7 +84,7 @@ export const useSingleDeviceData = (uniqueId?: string) => {
         return;
       }
 
-      console.log("[useSingleDeviceData] Starting stream for:", deviceId);
+      // console.log("[useSingleDeviceData] Starting stream for:", deviceId);
       store.startSingleDeviceStream(deviceId);
       activeStreamRef.current = deviceId;
     },
@@ -99,7 +99,7 @@ export const useSingleDeviceData = (uniqueId?: string) => {
         return;
       }
 
-      console.log("[useSingleDeviceData] Stopping stream for:", deviceId);
+      // console.log("[useSingleDeviceData] Stopping stream for:", deviceId);
       store.stopSingleDeviceStream(deviceId);
 
       if (activeStreamRef.current === deviceId) {
@@ -113,11 +113,11 @@ export const useSingleDeviceData = (uniqueId?: string) => {
   const clearDeviceData = useCallback(
     (deviceId: string) => {
       if (!deviceId) {
-        console.warn("[useSingleDeviceData] No device ID provided");
+        // console.warn("[useSingleDeviceData] No device ID provided");
         return;
       }
 
-      console.log("[useSingleDeviceData] Clearing data for:", deviceId);
+      // console.log("[useSingleDeviceData] Clearing data for:", deviceId);
       store.clearSingleDeviceData(deviceId);
 
       if (activeStreamRef.current === deviceId) {
@@ -129,14 +129,14 @@ export const useSingleDeviceData = (uniqueId?: string) => {
 
   // Switch back to all devices
   const switchToAllDevices = useCallback(() => {
-    console.log("[useSingleDeviceData] Switching to all devices");
+    // console.log("[useSingleDeviceData] Switching to all devices");
     store.switchToAllDevices();
     activeStreamRef.current = null;
   }, [store]);
 
   // Stop all single device streams
   const stopAllStreams = useCallback(() => {
-    console.log("[useSingleDeviceData] Stopping all streams");
+    // console.log("[useSingleDeviceData] Stopping all streams");
     store.stopAllSingleDeviceStreams();
     activeStreamRef.current = null;
   }, [store]);
@@ -150,10 +150,10 @@ export const useSingleDeviceData = (uniqueId?: string) => {
     }
     return () => {
       if (activeStreamRef.current) {
-        console.log(
-          "[useSingleDeviceData] Cleaning up stream:",
-          activeStreamRef.current
-        );
+        // console.log(
+        //   "[useSingleDeviceData] Cleaning up stream:",
+        //   activeStreamRef.current
+        // );
 
         activeStreamRef.current = null;
       }

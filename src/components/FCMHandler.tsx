@@ -1,108 +1,87 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { messaging, getToken, onMessage } from "@/util/firebase";
+import { useEffect, useRef } from "react";
+import { getMessagingInstance, getToken, onMessage } from "@/util/firebase";
 import { Messaging } from "firebase/messaging";
 import { toast } from "sonner";
 import authAxios from "@/lib/authAxios";
 import Cookies from "js-cookie";
 
-// Get VAPID key from environment
 const vapidKey = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY!;
 
 export default function FCMHandler(): null {
   const hasInitialized = useRef(false);
 
   useEffect(() => {
-    // Preload audio
-    const notificationSound = new Audio("/notification.mp3");
-    notificationSound.preload = "auto";
     if (hasInitialized.current) return;
     hasInitialized.current = true;
 
+    const notificationSound = new Audio("/notification.mp3");
+    notificationSound.preload = "auto";
+
     const initFCM = async () => {
       try {
+        // Get messaging instance asynchronously
+        const messaging = await getMessagingInstance();
+
+        if (!messaging) {
+          console.warn("Firebase messaging not available");
+          return;
+        }
+
         const permission = await Notification.requestPermission();
         if (permission !== "granted") {
           console.warn("❌ Notification permission denied");
           return;
         }
 
-        if (!messaging) {
-          console.warn("Firebase messaging not initialized");
-          return;
-        }
-
         const storedToken = localStorage.getItem("fcm_token");
 
-        if (storedToken) {
-          // console.log("📦 Reusing stored FCM Token:", storedToken);
-        } else {
+        if (!storedToken) {
           try {
             const newToken = await getToken(messaging as Messaging, {
               vapidKey,
             });
 
-            if (!newToken) {
-              // console.warn("❌ Failed to retrieve new FCM token.");
-              return;
+            if (newToken) {
+              localStorage.setItem("fcm_token", newToken);
+
+              const token = Cookies.get("token");
+              if (token) {
+                await authAxios.post(
+                  "/fcmtoken/store",
+                  { fcmToken: newToken },
+                  { headers: { Authorization: `Bearer ${token}` } }
+                );
+              }
             }
-
-            // console.log("✅ New FCM Token:", newToken);
-            localStorage.setItem("fcm_token", newToken);
-
-            const payload = { fcmToken: newToken };
-            const token = Cookies.get("token");
-
-            if (!token) {
-              // console.warn(
-              //   "⚠️ Auth token not found. Cannot send FCM token to server."
-              // );
-              return;
-            }
-
-            await authAxios.post("/fcmtoken/store", payload, {
-              headers: {
-                Authorization: `Bearer ${token}`,
-              },
-            });
-
-            // console.log("📤 FCM token successfully sent to backend.");
           } catch (err) {
-            // console.error("🚨 Error during FCM token generation/storage:", err);
+            console.error("FCM token error:", err);
           }
         }
 
-        // Set up listener once
-        onMessage(messaging as Messaging, (payload) => {
-          // console.log("🔔 Foreground notification:", payload);
+        // Register service worker
+        if ("serviceWorker" in navigator) {
+          navigator.serviceWorker
+            .register("/firebase-messaging-sw.js")
+            .then((registration) => {
+              // console.log("Service Worker registered:", registration.scope);
+            })
+            .catch((err) => {
+              // console.error("Service Worker registration failed:", err);
+            });
+        }
 
+        // Set up foreground message listener
+        onMessage(messaging as Messaging, (payload) => {
           const title = payload.notification?.title ?? "New Notification";
           const body = payload.notification?.body ?? "";
           const type = title.toLowerCase();
 
-          // Play sound
           notificationSound.play().catch((err) => {
-            // console.warn("🔇 Sound blocked:", err);
+            console.warn("Sound blocked:", err);
           });
 
-          if ("serviceWorker" in navigator) {
-            window.addEventListener("load", () => {
-              navigator.serviceWorker
-                .register("/firebase-messaging-sw.js")
-                .then((registration) => {
-                  console.log(
-                    "Service Worker registered with scope:",
-                    registration.scope
-                  );
-                })
-                .catch((err) => {
-                  // console.error("Service Worker registration failed:", err);
-                });
-            });
-          }
-
-          // Toast styles
           const styles: Record<string, string> = {
             overspeed: "bg-red-50 text-red-800 border-l-4 border-red-600",
             running: "bg-green-50 text-green-800 border-l-4 border-green-600",
@@ -124,7 +103,7 @@ export default function FCMHandler(): null {
           });
         });
       } catch (err) {
-        // console.error("🔥 FCM Init Error:", err);
+        // console.error("FCM Init Error:", err);
       }
     };
 

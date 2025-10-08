@@ -58,7 +58,7 @@ class DeviceService {
     this.callbacks = callbacks;
 
     if (this.socket) {
-      console.log("[DeviceService] Socket instance already exists");
+      // console.log("[DeviceService] Socket instance already exists");
       return;
     }
 
@@ -86,7 +86,7 @@ class DeviceService {
 
     // Connection events
     this.socket.on("connect", () => {
-      console.log("[DeviceService] Socket connected");
+      // console.log("[DeviceService] Socket connected");
       this.isConnected = true;
       this.reconnectAttempts = 0;
       callbacks.onConnectionChange(true);
@@ -94,7 +94,7 @@ class DeviceService {
     });
 
     this.socket.on("disconnect", (reason) => {
-      console.log("[DeviceService] Socket disconnected:", reason);
+      // console.log("[DeviceService] Socket disconnected:", reason);
       this.isConnected = false;
       this.isAuthenticated = false;
       this.streamingMode = null;
@@ -114,20 +114,20 @@ class DeviceService {
     });
 
     this.socket.on("reconnect", (attemptNumber) => {
-      console.log(
-        "[DeviceService] Socket reconnected after",
-        attemptNumber,
-        "attempts"
-      );
+      // console.log(
+      //   "[DeviceService] Socket reconnected after",
+      //   attemptNumber,
+      //   "attempts"
+      // );
       this.restoreActiveStreams();
     });
 
     // Authentication events
     this.socket.on("auth-success", (authData) => {
-      console.log(
-        "[DeviceService] Authentication successful:",
-        authData?.role || "Unknown role"
-      );
+      // console.log(
+      //   "[DeviceService] Authentication successful:",
+      //   authData?.role || "Unknown role"
+      // );
       this.isAuthenticated = true;
       callbacks.onAuthSuccess(authData);
     });
@@ -136,21 +136,21 @@ class DeviceService {
     this.socket.on("all-device-data", (data: AllDeviceResponse) => {
       if (this.streamingMode !== "all") {
         this.streamingMode = "all";
-        console.log("[DeviceService] Switched to all device streaming mode");
+        // console.log("[DeviceService] Switched to all device streaming mode");
       }
       callbacks.onDataReceived(data);
     });
 
     // Single device data events
     this.socket.on("single-device-data", (data: SingleDeviceData) => {
-      console.log(
-        "[DeviceService] Received single device data:",
-        data.uniqueId || data.imei
-      );
+      // console.log(
+      //   "[DeviceService] Received single device data:",
+      //   data.uniqueId || data.imei
+      // );
       if (this.streamingMode !== "single") {
         this.streamingMode = "single";
         this.activeDeviceId = data.uniqueId || data.imei;
-        console.log("[DeviceService] Switched to single device streaming mode");
+        // console.log("[DeviceService] Switched to single device streaming mode");
       }
       callbacks.onSingleDeviceDataReceived(data);
     });
@@ -198,10 +198,10 @@ class DeviceService {
   private performStreamRestore(): void {
     // Restore single device streams after reconnection
     if (this.activeSingleDeviceStreams.size > 0) {
-      console.log(
-        "[DeviceService] Restoring single device streams:",
-        Array.from(this.activeSingleDeviceStreams)
-      );
+      // console.log(
+      //   "[DeviceService] Restoring single device streams:",
+      //   Array.from(this.activeSingleDeviceStreams)
+      // );
       for (const uniqueId of this.activeSingleDeviceStreams) {
         this.requestSingleDeviceData(uniqueId, false); // Don't add to set again
       }
@@ -220,7 +220,7 @@ class DeviceService {
       return;
     }
 
-    console.log("[DeviceService] Sending authentication credentials");
+    // console.log("[DeviceService] Sending authentication credentials");
     this.socket.emit("credentials", token);
   }
 
@@ -237,10 +237,10 @@ class DeviceService {
       this.stopAllSingleDeviceStreams();
     }
 
-    console.log(
-      "[DeviceService] Requesting all device data with filters:",
-      filters
-    );
+    // console.log(
+    //   "[DeviceService] Requesting all device data with filters:",
+    //   filters
+    // );
     this.socket.emit("request-all-device-data", filters);
   }
 
@@ -266,7 +266,7 @@ class DeviceService {
       this.stopAllDeviceData();
     }
 
-    console.log("[DeviceService] Requesting single device data for:", uniqueId);
+    // console.log("[DeviceService] Requesting single device data for:", uniqueId);
     this.socket.emit("request-single-device-data", uniqueId);
 
     if (addToActiveSet) {
@@ -282,7 +282,7 @@ class DeviceService {
       return;
     }
 
-    console.log("[DeviceService] Stopping all device data streaming");
+    // console.log("[DeviceService] Stopping all device data streaming");
     this.socket.emit("stop-all-device-data");
     this.streamingMode = null;
   }
@@ -290,7 +290,7 @@ class DeviceService {
   public stopSingleDeviceStream(uniqueId: string): void {
     if (this.activeSingleDeviceStreams.has(uniqueId)) {
       this.activeSingleDeviceStreams.delete(uniqueId);
-      console.log("[DeviceService] Removed single device stream:", uniqueId);
+      // console.log("[DeviceService] Removed single device stream:", uniqueId);
 
       // If no more active streams, reset mode
       if (this.activeSingleDeviceStreams.size === 0) {
@@ -301,14 +301,14 @@ class DeviceService {
   }
 
   public stopAllSingleDeviceStreams(): void {
-    console.log("[DeviceService] Stopping all single device streams");
+    // console.log("[DeviceService] Stopping all single device streams");
     this.activeSingleDeviceStreams.clear();
     this.streamingMode = null;
     this.activeDeviceId = null;
   }
 
   public disconnect(): void {
-    console.log("[DeviceService] Disconnecting socket");
+    // console.log("[DeviceService] Disconnecting socket");
 
     if (this.socket) {
       this.socket.disconnect();
