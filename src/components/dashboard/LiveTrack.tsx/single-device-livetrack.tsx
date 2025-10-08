@@ -13,6 +13,7 @@ import {
   Popup,
   useMap,
   Circle,
+  useMapEvents,
 } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -25,6 +26,11 @@ import DataRefreshIndicator, {
 } from "./data-refresh-indicator";
 import { SingleDeviceLiveTrackControls } from "./single-device-livetrack-controls";
 import { VehicleMarker } from "./VehicleMarker";
+import { Slider } from "@/components/ui/slider";
+import { getDecodedToken } from "@/lib/jwt";
+import Cookies from "js-cookie";
+import { GeofenceForm } from "./form/GeofenceForm";
+type UserRole = "superAdmin" | "school" | "branchGroup" | "branch" | null;
 
 // Types based on your socket response
 export interface VehicleData {
@@ -69,129 +75,6 @@ interface SingleDeviceLiveTrackProps {
   routeObjId?: string;
 }
 
-// Geofence Form Component
-const GeofenceForm = ({
-  center,
-  radius,
-  onSubmit,
-  onCancel,
-  schoolId,
-  branchId,
-  routeObjId,
-}: {
-  center: [number, number];
-  radius: number;
-  onSubmit: (data: any) => void;
-  onCancel: () => void;
-  schoolId?: string;
-  branchId?: string;
-  routeObjId?: string;
-}) => {
-  const [formData, setFormData] = useState({
-    geofenceName: "",
-    pickupTime: "",
-    dropTime: "",
-  });
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-
-    const payload = {
-      geofenceName: formData.geofenceName,
-      area: {
-        center: center,
-        radius: radius,
-      },
-      pickupTime: formData.pickupTime,
-      dropTime: formData.dropTime,
-      schoolId: schoolId || "",
-      branchId: branchId || "",
-      routeObjId: routeObjId || "",
-    };
-
-    onSubmit(payload);
-  };
-
-  return (
-    <div className="absolute top-4 left-4 z-[1000] bg-white p-4 rounded-lg shadow-lg max-w-sm">
-      <h3 className="text-lg font-semibold mb-3">Create Geofence</h3>
-      <form onSubmit={handleSubmit} className="space-y-3">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Geofence Name
-          </label>
-          <input
-            type="text"
-            required
-            value={formData.geofenceName}
-            onChange={(e) =>
-              setFormData({ ...formData, geofenceName: e.target.value })
-            }
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="e.g., Zone A"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Pickup Time
-          </label>
-          <input
-            type="time"
-            required
-            value={formData.pickupTime}
-            onChange={(e) =>
-              setFormData({ ...formData, pickupTime: e.target.value })
-            }
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Drop Time
-          </label>
-          <input
-            type="time"
-            required
-            value={formData.dropTime}
-            onChange={(e) =>
-              setFormData({ ...formData, dropTime: e.target.value })
-            }
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
-
-        <div className="text-sm text-gray-600 space-y-1">
-          <p>
-            <span className="font-medium">Center:</span> {center[0].toFixed(6)},{" "}
-            {center[1].toFixed(6)}
-          </p>
-          <p>
-            <span className="font-medium">Radius:</span> {radius}m
-          </p>
-        </div>
-
-        <div className="flex gap-2 pt-2">
-          <button
-            type="submit"
-            className="flex-1 bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 transition-colors font-medium"
-          >
-            Create
-          </button>
-          <button
-            type="button"
-            onClick={onCancel}
-            className="flex-1 bg-gray-300 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-400 transition-colors font-medium"
-          >
-            Cancel
-          </button>
-        </div>
-      </form>
-    </div>
-  );
-};
-
 // Radius adjustment component for interactive drawing
 const GeofenceDrawing = ({
   center,
@@ -202,25 +85,6 @@ const GeofenceDrawing = ({
   radius: number;
   onRadiusChange: (radius: number) => void;
 }) => {
-  const map = useMap();
-
-  useEffect(() => {
-    const handleScroll = (e: WheelEvent) => {
-      if (e.ctrlKey || e.metaKey) {
-        e.preventDefault();
-        const delta = e.deltaY > 0 ? -20 : 20;
-        const newRadius = Math.max(50, Math.min(1000, radius + delta));
-        onRadiusChange(newRadius);
-      }
-    };
-
-    const container = map.getContainer();
-    container.addEventListener("wheel", handleScroll, { passive: false });
-    return () => {
-      container.removeEventListener("wheel", handleScroll);
-    };
-  }, [map, radius, onRadiusChange]);
-
   return (
     <>
       <Circle
@@ -233,22 +97,32 @@ const GeofenceDrawing = ({
           weight: 2,
         }}
       />
-      <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-[1000] bg-white px-4 py-3 rounded-lg shadow-lg">
-        <p className="text-sm font-medium text-gray-700 mb-2 text-center">
-          Radius: {radius}m
-        </p>
-        <p className="text-xs text-gray-500 mb-2 text-center">
-          Use Ctrl+Scroll or slider to adjust
-        </p>
-        <input
-          type="range"
-          min="50"
-          max="1000"
-          step="10"
-          value={radius}
-          onChange={(e) => onRadiusChange(Number(e.target.value))}
-          className="w-64"
-        />
+      <div
+        className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-white px-6 py-4 rounded-xl shadow-2xl border border-gray-200 w-80"
+        style={{ zIndex: 1000 }}
+      >
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-semibold text-gray-700">
+              Geofence Radius
+            </span>
+            <span className="text-lg font-bold text-blue-600">{radius}m</span>
+          </div>
+
+          <Slider
+            value={[radius]}
+            onValueChange={(value) => onRadiusChange(value[0])}
+            min={50}
+            max={1000}
+            step={10}
+            className="w-full cursor-pointer"
+          />
+
+          <div className="flex justify-between text-xs text-gray-500">
+            <span>50m</span>
+            <span>1000m</span>
+          </div>
+        </div>
       </div>
     </>
   );
@@ -393,6 +267,26 @@ const interpolatePoint = (
   return [lat, lng];
 };
 
+// Map click handler component for geofence creation
+const MapClickHandler = ({
+  isCreatingGeofence,
+  onMapClick,
+}: {
+  isCreatingGeofence: boolean;
+  onMapClick: (latlng: [number, number]) => void;
+}) => {
+  useMapEvents({
+    click(e) {
+      if (isCreatingGeofence) {
+        // Use the actual click coordinates from the map
+        onMapClick([e.latlng.lat, e.latlng.lng]);
+      }
+    },
+  });
+
+  return null;
+};
+
 const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
   vehicle,
   center = [21.99099777777778, 78.92973111111111],
@@ -423,9 +317,25 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
   const [isDrawingGeofence, setIsDrawingGeofence] = useState(false);
   const [showGeofenceForm, setShowGeofenceForm] = useState(false);
   const [geofenceRadius, setGeofenceRadius] = useState(200);
-  const [geofenceCenter, setGeofenceCenter] = useState<[number, number]>([
-    0, 0,
-  ]);
+  const [geofenceCenter, setGeofenceCenter] = useState<[number, number] | null>(
+    null
+  );
+  const [userRole, setUserRole] = useState<UserRole | null>(null);
+
+  React.useEffect(() => {
+    const token = Cookies.get("token");
+
+    const decoded = token ? getDecodedToken(token) : null;
+
+    const role = decoded?.role;
+
+    if (
+      typeof role === "string" &&
+      ["superAdmin", "school", "branchGroup", "branch"].includes(role)
+    ) {
+      setUserRole(role as UserRole);
+    }
+  }, []);
 
   // Get vehicle status
   const vehicleStatus = useMemo(() => {
@@ -642,16 +552,14 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
         console.log("Geofence created successfully");
         setIsDrawingGeofence(false);
         setShowGeofenceForm(false);
-        // Optional: Show success notification
+        setGeofenceCenter(null); // Reset the center to null
         alert("Geofence created successfully!");
       } else {
         console.error("Failed to create geofence");
-        // Optional: Show error notification
         alert("Failed to create geofence");
       }
     } catch (error) {
       console.error("Error creating geofence:", error);
-      // Optional: Show error notification
       alert("Error creating geofence");
     }
   };
@@ -659,6 +567,12 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
   const handleGeofenceCancel = useCallback(() => {
     setIsDrawingGeofence(false);
     setShowGeofenceForm(false);
+    setGeofenceCenter(null);
+  }, []);
+
+  const handleMapClick = useCallback((latlng: [number, number]) => {
+    setGeofenceCenter(latlng);
+    setIsDrawingGeofence(true);
   }, []);
 
   return (
@@ -675,6 +589,12 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
         <ZoomTransitionController />
         <MapResizeHandler />
         <AutoCenterHandler vehicle={vehicle} autoCenter={autoCenter} />
+
+        {/* Add this new component */}
+        <MapClickHandler
+          isCreatingGeofence={isDrawingGeofence && !showGeofenceForm}
+          onMapClick={handleMapClick}
+        />
 
         {/* Tile Layers */}
 
@@ -709,7 +629,7 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
         )}
 
         {/* Geofence Drawing */}
-        {isDrawingGeofence && !showGeofenceForm && (
+        {geofenceCenter && (isDrawingGeofence || showGeofenceForm) && (
           <GeofenceDrawing
             center={geofenceCenter}
             radius={geofenceRadius}
@@ -759,17 +679,36 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
       />
 
       {/* Next Button during drawing */}
-      {isDrawingGeofence && !showGeofenceForm && (
-        <button
-          onClick={handleNextStep}
-          className="absolute bottom-24 left-1/2 transform -translate-x-1/2 z-[1000] bg-blue-500 text-white px-6 py-3 rounded-lg shadow-lg hover:bg-blue-600 transition-colors font-medium"
+
+      {isDrawingGeofence && !showGeofenceForm && geofenceCenter && (
+        <div
+          className="absolute bottom-28 left-1/2 transform -translate-x-1/2 flex flex-col items-center gap-3"
+          style={{ zIndex: 1000 }}
         >
-          Next: Enter Details
-        </button>
+          <button
+            onClick={handleNextStep}
+            className="group relative bg-gradient-to-r from-blue-500 to-blue-600 text-white px-8 py-4 rounded-xl shadow-lg hover:shadow-xl hover:from-blue-600 hover:to-blue-700 transition-all duration-200 font-semibold text-base flex items-center gap-3"
+          >
+            <span>Next: Enter Details</span>
+            <svg
+              className="w-5 h-5 group-hover:translate-x-1 transition-transform"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M13 7l5 5m0 0l-5 5m5-5H6"
+              />
+            </svg>
+          </button>
+        </div>
       )}
 
       {/* Geofence Form */}
-      {showGeofenceForm && (
+      {showGeofenceForm && geofenceCenter && (
         <GeofenceForm
           center={geofenceCenter}
           radius={geofenceRadius}
@@ -778,6 +717,7 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
           schoolId={schoolId}
           branchId={branchId}
           routeObjId={routeObjId}
+          role={userRole as UserRole}
         />
       )}
     </div>
