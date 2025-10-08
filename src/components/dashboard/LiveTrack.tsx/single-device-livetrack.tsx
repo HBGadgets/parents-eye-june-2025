@@ -663,7 +663,7 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
 
   return (
     <div
-      style={{ height: "84vh", width: "100%", position: "relative" }}
+      style={{ height: "80vh", width: "100%", position: "relative" }}
       className="rounded-lg overflow-hidden"
     >
       <MapContainer
