@@ -4,6 +4,7 @@ import {
   FaMap,
   FaCrosshairs,
   FaTrafficLight,
+  FaDrawPolygon,
 } from "react-icons/fa";
 import { VehicleData } from "./single-device-livetrack";
 
@@ -14,6 +15,8 @@ export const SingleDeviceLiveTrackControls = ({
   onSatelliteToggle,
   showTraffic,
   setShowTraffic,
+  isDrawingGeofence,
+  onGeofenceToggle,
 }: {
   vehicle: VehicleData | null;
   onCenterToVehicle: () => void;
@@ -21,6 +24,8 @@ export const SingleDeviceLiveTrackControls = ({
   onSatelliteToggle: () => void;
   showTraffic: boolean;
   setShowTraffic: (show: boolean) => void;
+  isDrawingGeofence: boolean;
+  onGeofenceToggle: () => void;
 }) => {
   if (!vehicle) return null;
 
@@ -28,55 +33,58 @@ export const SingleDeviceLiveTrackControls = ({
     "w-11 h-11 flex items-center justify-center rounded-lg shadow-lg hover:shadow-xl active:scale-95 transition-all duration-200";
 
   return (
-    <div className="absolute top-4 right-4 z-[1000] flex flex-col gap-2.5 p-2 bg-white rounded-xl shadow-2xl">
+    <div className="absolute top-4 right-4 flex flex-col gap-3 z-[1000]">
+      {/* Center to Vehicle */}
       <button
         onClick={onCenterToVehicle}
-        title={`Center on ${vehicle.name}`}
-        className={`${buttonBaseClass} bg-blue-500 text-white hover:bg-blue-600 cursor-pointer`}
+        className={`${buttonBaseClass} bg-white text-gray-700 hover:bg-gray-50`}
+        title="Center to Vehicle"
       >
-        <FaCrosshairs
-          size={18}
-          className="hover:rotate-90 transition-transform duration-300"
-        />
+        <FaCrosshairs className="text-lg" />
       </button>
 
+      {/* Satellite/Map Toggle */}
       <button
         onClick={onSatelliteToggle}
-        title={
-          isSatelliteView ? "Switch to Street View" : "Switch to Satellite View"
-        }
         className={`${buttonBaseClass} ${
           isSatelliteView
-            ? "bg-emerald-500 text-white hover:bg-emerald-600"
-            : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-        } cursor-pointer`}
+            ? "bg-blue-500 text-white"
+            : "bg-white text-gray-700 hover:bg-gray-50"
+        }`}
+        title={isSatelliteView ? "Map View" : "Satellite View"}
       >
-        {isSatelliteView ? <FaMap size={18} /> : <FaSatellite size={18} />}
+        {isSatelliteView ? (
+          <FaMap className="text-lg" />
+        ) : (
+          <FaSatellite className="text-lg" />
+        )}
       </button>
 
+      {/* Traffic Toggle */}
       <button
         onClick={() => setShowTraffic(!showTraffic)}
-        title="Toggle Traffic View"
         className={`${buttonBaseClass} ${
           showTraffic
-            ? "bg-amber-400 text-gray-900 hover:bg-amber-500"
-            : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-        } cursor-pointer`}
+            ? "bg-orange-500 text-white"
+            : "bg-white text-gray-700 hover:bg-gray-50"
+        }`}
+        title={showTraffic ? "Hide Traffic" : "Show Traffic"}
       >
-        <FaTrafficLight size={18} />
+        <FaTrafficLight className="text-lg" />
       </button>
 
-      <div className="h-px bg-gray-200 my-0.5" />
-
-      <a
-        href={`http://maps.google.com/maps?q=&layer=c&cbll=${vehicle.latitude},${vehicle.longitude}&cbp=11,0,0,0,0`}
-        target="_blank"
-        rel="noopener noreferrer"
-        title="Open Street View"
-        className={`${buttonBaseClass} bg-gray-100 text-gray-700 hover:bg-gray-200 cursor-pointer`}
+      {/* Create Geofence Button */}
+      <button
+        onClick={onGeofenceToggle}
+        className={`${buttonBaseClass} ${
+          isDrawingGeofence
+            ? "bg-red-500 text-white"
+            : "bg-white text-gray-700 hover:bg-gray-50"
+        }`}
+        title={isDrawingGeofence ? "Cancel Geofence" : "Create Geofence"}
       >
-        <FaStreetView size={18} />
-      </a>
+        <FaDrawPolygon className="text-lg" />
+      </button>
     </div>
   );
 };

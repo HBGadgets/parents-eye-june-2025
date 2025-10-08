@@ -6,7 +6,14 @@ import React, {
   useState,
   useLayoutEffect,
 } from "react";
-import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
+import {
+  MapContainer,
+  TileLayer,
+  Marker,
+  Popup,
+  useMap,
+  Circle,
+} from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import "../VehicleMap.css";
@@ -19,7 +26,7 @@ import DataRefreshIndicator, {
 import { SingleDeviceLiveTrackControls } from "./single-device-livetrack-controls";
 import { VehicleMarker } from "./VehicleMarker";
 
-// Types based on your socket response - kept the same
+// Types based on your socket response
 export interface VehicleData {
   speed: number;
   longitude: number;
@@ -57,7 +64,195 @@ interface SingleDeviceLiveTrackProps {
   onVehicleClick?: (vehicle: VehicleData) => void;
   autoCenter?: boolean;
   showTrail?: boolean;
+  schoolId?: string;
+  branchId?: string;
+  routeObjId?: string;
 }
+
+// Geofence Form Component
+const GeofenceForm = ({
+  center,
+  radius,
+  onSubmit,
+  onCancel,
+  schoolId,
+  branchId,
+  routeObjId,
+}: {
+  center: [number, number];
+  radius: number;
+  onSubmit: (data: any) => void;
+  onCancel: () => void;
+  schoolId?: string;
+  branchId?: string;
+  routeObjId?: string;
+}) => {
+  const [formData, setFormData] = useState({
+    geofenceName: "",
+    pickupTime: "",
+    dropTime: "",
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+
+    const payload = {
+      geofenceName: formData.geofenceName,
+      area: {
+        center: center,
+        radius: radius,
+      },
+      pickupTime: formData.pickupTime,
+      dropTime: formData.dropTime,
+      schoolId: schoolId || "",
+      branchId: branchId || "",
+      routeObjId: routeObjId || "",
+    };
+
+    onSubmit(payload);
+  };
+
+  return (
+    <div className="absolute top-4 left-4 z-[1000] bg-white p-4 rounded-lg shadow-lg max-w-sm">
+      <h3 className="text-lg font-semibold mb-3">Create Geofence</h3>
+      <form onSubmit={handleSubmit} className="space-y-3">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Geofence Name
+          </label>
+          <input
+            type="text"
+            required
+            value={formData.geofenceName}
+            onChange={(e) =>
+              setFormData({ ...formData, geofenceName: e.target.value })
+            }
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder="e.g., Zone A"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Pickup Time
+          </label>
+          <input
+            type="time"
+            required
+            value={formData.pickupTime}
+            onChange={(e) =>
+              setFormData({ ...formData, pickupTime: e.target.value })
+            }
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Drop Time
+          </label>
+          <input
+            type="time"
+            required
+            value={formData.dropTime}
+            onChange={(e) =>
+              setFormData({ ...formData, dropTime: e.target.value })
+            }
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+
+        <div className="text-sm text-gray-600 space-y-1">
+          <p>
+            <span className="font-medium">Center:</span> {center[0].toFixed(6)},{" "}
+            {center[1].toFixed(6)}
+          </p>
+          <p>
+            <span className="font-medium">Radius:</span> {radius}m
+          </p>
+        </div>
+
+        <div className="flex gap-2 pt-2">
+          <button
+            type="submit"
+            className="flex-1 bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 transition-colors font-medium"
+          >
+            Create
+          </button>
+          <button
+            type="button"
+            onClick={onCancel}
+            className="flex-1 bg-gray-300 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-400 transition-colors font-medium"
+          >
+            Cancel
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+};
+
+// Radius adjustment component for interactive drawing
+const GeofenceDrawing = ({
+  center,
+  radius,
+  onRadiusChange,
+}: {
+  center: [number, number];
+  radius: number;
+  onRadiusChange: (radius: number) => void;
+}) => {
+  const map = useMap();
+
+  useEffect(() => {
+    const handleScroll = (e: WheelEvent) => {
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+        const delta = e.deltaY > 0 ? -20 : 20;
+        const newRadius = Math.max(50, Math.min(1000, radius + delta));
+        onRadiusChange(newRadius);
+      }
+    };
+
+    const container = map.getContainer();
+    container.addEventListener("wheel", handleScroll, { passive: false });
+    return () => {
+      container.removeEventListener("wheel", handleScroll);
+    };
+  }, [map, radius, onRadiusChange]);
+
+  return (
+    <>
+      <Circle
+        center={center}
+        radius={radius}
+        pathOptions={{
+          color: "#3b82f6",
+          fillColor: "#3b82f6",
+          fillOpacity: 0.2,
+          weight: 2,
+        }}
+      />
+      <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-[1000] bg-white px-4 py-3 rounded-lg shadow-lg">
+        <p className="text-sm font-medium text-gray-700 mb-2 text-center">
+          Radius: {radius}m
+        </p>
+        <p className="text-xs text-gray-500 mb-2 text-center">
+          Use Ctrl+Scroll or slider to adjust
+        </p>
+        <input
+          type="range"
+          min="50"
+          max="1000"
+          step="10"
+          value={radius}
+          onChange={(e) => onRadiusChange(Number(e.target.value))}
+          className="w-64"
+        />
+      </div>
+    </>
+  );
+};
 
 // Component to disable transitions during zoom
 const ZoomTransitionController = () => {
@@ -80,8 +275,6 @@ const ZoomTransitionController = () => {
       images.forEach((img) => {
         (img as HTMLElement).classList.remove("smooth-rotation");
       });
-
-      console.log("[ZoomController] Transitions disabled");
     };
 
     const handleZoomEnd = () => {
@@ -99,8 +292,6 @@ const ZoomTransitionController = () => {
         images.forEach((img) => {
           (img as HTMLElement).classList.add("smooth-rotation");
         });
-
-        // console.log("[ZoomController] Transitions enabled");
       }, 100);
     };
 
@@ -166,7 +357,7 @@ const AutoCenterHandler = ({
   return null;
 };
 
-// Container resize handler component - kept from original
+// Container resize handler component
 const MapResizeHandler = () => {
   const map = useMap();
 
@@ -209,19 +400,32 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
   onVehicleClick,
   autoCenter = false,
   showTrail = false,
+  schoolId,
+  branchId,
+  routeObjId,
 }) => {
   const mapRef = useRef<L.Map | null>(null);
   const [vehiclePath, setVehiclePath] = useState<[number, number][]>([]);
   const animationRef = useRef<number | null>(null);
-  const startTimeRef = useRef<number>(0);
+  const startTimeRef = useRef(0);
   const startPointRef = useRef<[number, number] | null>(null);
   const targetPointRef = useRef<[number, number] | null>(null);
   const currentPathRef = useRef<[number, number][]>([]);
+
   const maxPathPoints = 500;
   const animationDuration = 10000;
   const samplingInterval = 500;
+
   const [isSatelliteView, setIsSatelliteView] = useState(false);
   const [showTraffic, setShowTraffic] = useState(false);
+
+  // Geofence state
+  const [isDrawingGeofence, setIsDrawingGeofence] = useState(false);
+  const [showGeofenceForm, setShowGeofenceForm] = useState(false);
+  const [geofenceRadius, setGeofenceRadius] = useState(200);
+  const [geofenceCenter, setGeofenceCenter] = useState<[number, number]>([
+    0, 0,
+  ]);
 
   // Get vehicle status
   const vehicleStatus = useMemo(() => {
@@ -242,11 +446,13 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
       vehicle.attributes.motion === true,
       vehicle.attributes.ignition === true,
     ];
+
     const idleConditions = [
       vehicle.speed < 5,
       vehicle.attributes.motion === false,
       vehicle.attributes.ignition === true,
     ];
+
     const stoppedConditions = [
       vehicle.speed < 5,
       vehicle.attributes.motion === false,
@@ -260,10 +466,11 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
     if (trueStoppedConditionsCount >= 2) return "stopped";
     if (trueConditionsCount >= 2) return "running";
     if (trueIdleConditionsCount >= 2) return "idle";
+
     return "noData";
   }, [vehicle]);
 
-  // FIXED: Smooth polyline growth with throttled sampling
+  // Smooth polyline growth with throttled sampling
   useEffect(() => {
     if (!vehicle || !showTrail) return;
 
@@ -324,19 +531,14 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
 
           setVehiclePath([...currentPathRef.current]);
           lastSampleTime = currentTime;
-
-          // console.log(
-          //   `[Trail] Added point at ${(progress * 100).toFixed(1)}% progress`
-          // );
         }
-      }
 
-      if (progress < 1) {
-        animationRef.current = requestAnimationFrame(animate);
-      } else {
-        // Animation complete
-        // console.log("[Trail] Animation complete");
-        animationRef.current = null;
+        if (progress < 1) {
+          animationRef.current = requestAnimationFrame(animate);
+        } else {
+          // Animation complete
+          animationRef.current = null;
+        }
       }
     };
 
@@ -390,7 +592,6 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
 
   const handleCenterToVehicle = useCallback(() => {
     if (!isValidVehicle || !vehicle) return;
-
     const map = mapRef.current;
     if (map) {
       map.flyTo([vehicle.latitude, vehicle.longitude], 15, {
@@ -405,43 +606,115 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
     setIsSatelliteView(!isSatelliteView);
   }, [isSatelliteView]);
 
-  return (
-    <div className="single-device-map-container relative w-full h-[600px]">
-      {vehicle && <OfflineIndicator isOffline={!vehicle.gsmSignal} />}
+  const handleGeofenceToggle = useCallback(() => {
+    if (isDrawingGeofence) {
+      // Cancel drawing
+      setIsDrawingGeofence(false);
+      setShowGeofenceForm(false);
+    } else {
+      // Start drawing
+      if (isValidVehicle && vehicle) {
+        setGeofenceCenter([vehicle.latitude, vehicle.longitude]);
+        setGeofenceRadius(200);
+        setIsDrawingGeofence(true);
+        setShowGeofenceForm(false);
+      }
+    }
+  }, [isDrawingGeofence, isValidVehicle, vehicle]);
 
+  const handleNextStep = useCallback(() => {
+    setShowGeofenceForm(true);
+  }, []);
+
+  const handleGeofenceSubmit = async (payload: any) => {
+    try {
+      console.log("Geofence Payload:", payload);
+
+      const response = await fetch("/api/geofence/create", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (response.ok) {
+        console.log("Geofence created successfully");
+        setIsDrawingGeofence(false);
+        setShowGeofenceForm(false);
+        // Optional: Show success notification
+        alert("Geofence created successfully!");
+      } else {
+        console.error("Failed to create geofence");
+        // Optional: Show error notification
+        alert("Failed to create geofence");
+      }
+    } catch (error) {
+      console.error("Error creating geofence:", error);
+      // Optional: Show error notification
+      alert("Error creating geofence");
+    }
+  };
+
+  const handleGeofenceCancel = useCallback(() => {
+    setIsDrawingGeofence(false);
+    setShowGeofenceForm(false);
+  }, []);
+
+  return (
+    <div style={{ height: "84vh", width: "100%", position: "relative" }}>
       <MapContainer
         ref={mapRef}
         center={mapCenter}
         zoom={zoom}
-        className="h-full w-full"
-        preferCanvas={true}
-        zoomControl={true}
-        attributionControl={true}
+        style={{ height: "100%", width: "100%" }}
       >
-        <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        <ZoomTransitionController />
+        <MapResizeHandler />
+        <AutoCenterHandler vehicle={vehicle} autoCenter={autoCenter} />
+
+        {/* Tile Layers */}
+
+        {/* <TileLayer
           url={
             isSatelliteView
-              ? "https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}"
+              ? "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
               : "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           }
-          maxZoom={19}
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        /> */}
+        {/* OG GOOGLE MAP!!!!!!!!!!!!! */}
+        <TileLayer
+          url={`https://{s}.google.com/vt/lyrs=${
+            isSatelliteView ? "s" : "m"
+          }&x={x}&y={y}&z={z}`}
+          subdomains={["mt0", "mt1", "mt2", "mt3"]}
         />
 
+        {vehicle && <DataRefreshIndicator vehicle={vehicle} />}
+
+        {/* {showTraffic && (
+          <TileLayer url="https://api.tomtom.com/traffic/map/4/tile/flow/relative0/{z}/{x}/{y}.png?key=WI92B5fNrRuw3y9wnNVFbF10gosmx1h2" />
+        )} */}
         {showTraffic && (
           <TileLayer
-            url="https://api.tomtom.com/traffic/map/4/tile/flow/relative0/{z}/{x}/{y}.png?key=WI92B5fNrRuw3y9wnNVFbF10gosmx1h2"
-            attribution="Traffic data © 2024 TomTom"
+            url={`https://{s}.google.com/vt/lyrs=m@221097413,traffic&x={x}&y={y}&z={z}`}
+            subdomains={["mt0", "mt1", "mt2", "mt3"]}
           />
         )}
 
-        <MapResizeHandler />
-        <ZoomTransitionController vehicle={vehicle} />
-        <AutoCenterHandler vehicle={vehicle} autoCenter={autoCenter} />
+        {/* Geofence Drawing */}
+        {isDrawingGeofence && !showGeofenceForm && (
+          <GeofenceDrawing
+            center={geofenceCenter}
+            radius={geofenceRadius}
+            onRadiusChange={setGeofenceRadius}
+          />
+        )}
 
         {/* Render vehicle path trail */}
         {showTrail && vehiclePath.length > 1 && (
-          <VehiclePathTrail path={vehiclePath} vehicleStatus={vehicleStatus} />
+          <VehiclePathTrail path={vehiclePath} />
         )}
 
         {/* Render vehicle marker */}
@@ -449,12 +722,26 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
           <VehicleMarker
             vehicle={vehicle}
             onClick={handleVehicleClick}
-            markerSize={100}
-            popupMaxWidth={300}
+            status={vehicleStatus}
           />
+        )}
+
+        {!vehicle && (
+          <Popup position={center}>
+            <div className="text-center">No vehicle data available</div>
+          </Popup>
+        )}
+
+        {vehicle && !isValidVehicle && (
+          <Popup position={center}>
+            <div className="text-center text-red-600">
+              Invalid vehicle coordinates: {vehicle.name}
+            </div>
+          </Popup>
         )}
       </MapContainer>
 
+      {/* Controls */}
       <SingleDeviceLiveTrackControls
         vehicle={vehicle}
         onCenterToVehicle={handleCenterToVehicle}
@@ -462,18 +749,31 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
         onSatelliteToggle={handleSatelliteToggle}
         showTraffic={showTraffic}
         setShowTraffic={setShowTraffic}
+        isDrawingGeofence={isDrawingGeofence}
+        onGeofenceToggle={handleGeofenceToggle}
       />
 
-      {!vehicle && (
-        <div className="no-vehicle-message">
-          <p>No vehicle data available</p>
-        </div>
+      {/* Next Button during drawing */}
+      {isDrawingGeofence && !showGeofenceForm && (
+        <button
+          onClick={handleNextStep}
+          className="absolute bottom-24 left-1/2 transform -translate-x-1/2 z-[1000] bg-blue-500 text-white px-6 py-3 rounded-lg shadow-lg hover:bg-blue-600 transition-colors font-medium"
+        >
+          Next: Enter Details
+        </button>
       )}
 
-      {vehicle && !isValidVehicle && (
-        <div className="invalid-vehicle-message">
-          <p>Invalid vehicle coordinates: {vehicle.name}</p>
-        </div>
+      {/* Geofence Form */}
+      {showGeofenceForm && (
+        <GeofenceForm
+          center={geofenceCenter}
+          radius={geofenceRadius}
+          onSubmit={handleGeofenceSubmit}
+          onCancel={handleGeofenceCancel}
+          schoolId={schoolId}
+          branchId={branchId}
+          routeObjId={routeObjId}
+        />
       )}
     </div>
   );
