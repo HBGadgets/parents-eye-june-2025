@@ -37,7 +37,7 @@ export const SingleDeviceLiveTrackControls = ({
       {/* Center to Vehicle */}
       <button
         onClick={onCenterToVehicle}
-        className={`${buttonBaseClass} bg-white text-gray-700 hover:bg-gray-50`}
+        className={`${buttonBaseClass} bg-white text-gray-700 hover:bg-gray-50 cursor-pointer`}
         title="Center to Vehicle"
       >
         <FaCrosshairs className="text-lg" />
@@ -50,7 +50,7 @@ export const SingleDeviceLiveTrackControls = ({
           isSatelliteView
             ? "bg-blue-500 text-white"
             : "bg-white text-gray-700 hover:bg-gray-50"
-        }`}
+        } cursor-pointer`}
         title={isSatelliteView ? "Map View" : "Satellite View"}
       >
         {isSatelliteView ? (
@@ -67,10 +67,21 @@ export const SingleDeviceLiveTrackControls = ({
           showTraffic
             ? "bg-orange-500 text-white"
             : "bg-white text-gray-700 hover:bg-gray-50"
-        }`}
+        } cursor-pointer`}
         title={showTraffic ? "Hide Traffic" : "Show Traffic"}
       >
         <FaTrafficLight className="text-lg" />
+      </button>
+
+      <button
+        onClick={() =>
+          window.open(
+            `http://maps.google.com/maps?q=&layer=c&cbll=${vehicle?.latitude},${vehicle?.longitude}&cbp=11,0,0,0,0`
+          )
+        }
+        className={`${buttonBaseClass} bg-white text-gray-700 hover:bg-gray-50 cursor-pointer`}
+      >
+        <FaStreetView className="text-lg" />
       </button>
 
       {/* Create Geofence Button */}
@@ -80,7 +91,7 @@ export const SingleDeviceLiveTrackControls = ({
           isDrawingGeofence
             ? "bg-red-500 text-white"
             : "bg-white text-gray-700 hover:bg-gray-50"
-        }`}
+        } cursor-pointer`}
         title={isDrawingGeofence ? "Cancel Geofence" : "Create Geofence"}
       >
         <FaDrawPolygon className="text-lg" />

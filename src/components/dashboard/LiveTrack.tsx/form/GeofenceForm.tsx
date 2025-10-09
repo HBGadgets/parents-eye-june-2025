@@ -1,10 +1,12 @@
 import { Combobox } from "@/components/ui/combobox";
+import { useBranchData } from "@/hooks/useBranchData";
+import { useRouteData } from "@/hooks/useRouteData";
 import { useSchoolData } from "@/hooks/useSchoolData";
 import { School } from "@/interface/modal";
-import React, { useState, useCallback, useMemo, memo } from "react";
+import React, { useState, useCallback, useMemo, memo, useEffect } from "react";
 
 // Type definitions
-export type UserRole = "admin" | "user" | "superadmin" | "school" | "branch";
+export type UserRole = "admin" | "user" | "superAdmin" | "school" | "branch";
 
 export interface GeofenceFormData {
   geofenceName: string;
@@ -54,7 +56,11 @@ const GeofenceFormComponent: React.FC<GeofenceFormProps> = memo(
       dropTime: "",
     });
     const { data: allSchoolData } = useSchoolData();
+    const { data: allBranchData } = useBranchData();
+    const { data: allRouteData } = useRouteData();
     const [selectedSchool, setSelectedSchool] = useState("");
+    const [selectedBranch, setSelectedBranch] = useState("");
+    const [selectedRoute, setSelectedRoute] = useState("");
 
     // Memoize the submit handler to prevent re-creation on every render
     const handleSubmit = useCallback(
@@ -111,9 +117,35 @@ const GeofenceFormComponent: React.FC<GeofenceFormProps> = memo(
       }));
     }, [allSchoolData]);
 
+    const branchMetaData = useMemo(() => {
+      if (!Array.isArray(allBranchData)) return [];
+      return allBranchData.map((branch) => ({
+        value: branch._id.toString(),
+        label: branch.branchName,
+      }));
+    }, [allBranchData]);
+
+    const routeMetaData = useMemo(() => {
+      if (!Array.isArray(allRouteData)) return [];
+      return allRouteData.map((route) => ({
+        value: route._id.toString(),
+        label: route.routeNumber,
+      }));
+    }, [allRouteData]);
+
     const handleSchoolChange = (value: string) => {
       setSelectedSchool(value);
     };
+
+    const handleBranchChange = (value: string) => {
+      setSelectedBranch(value);
+    };
+
+    const handleRouteChange = (value: string) => {
+      setSelectedRoute(value);
+    };
+
+    console.log("[User Role]: ", role);
 
     return (
       <div
@@ -133,40 +165,47 @@ const GeofenceFormComponent: React.FC<GeofenceFormProps> = memo(
             disabled={isLoading}
           />
 
-          <Combobox
-            items={schoolMetaData}
-            value={selectedSchool}
-            onValueChange={handleSchoolChange}
-            placeholder="Select School"
-            searchPlaceholder="Search school..."
-            emptyMessage="No schools found"
-            width="w-full"
-            infiniteScroll={false}
-            //   searchValue={searchTerm}
-          />
+          <div className="space-y-1">
+            {/* Show School combobox only for superAdmin */}
+            {role === "superAdmin" && (
+              <Combobox
+                items={schoolMetaData}
+                value={selectedSchool}
+                onValueChange={handleSchoolChange}
+                placeholder="Select School"
+                searchPlaceholder="Search school..."
+                emptyMessage="No schools found"
+                width="w-full"
+                infiniteScroll={false}
+              />
+            )}
 
-          <Combobox
-            items={schoolMetaData}
-            value={selectedSchool}
-            onValueChange={handleSchoolChange}
-            placeholder="Select Branch"
-            searchPlaceholder="Search Branch..."
-            emptyMessage="No branch found"
-            width="w-full"
-            infiniteScroll={false}
-            //   searchValue={searchTerm}
-          />
-          <Combobox
-            items={schoolMetaData}
-            value={selectedSchool}
-            onValueChange={handleSchoolChange}
-            placeholder="Select Route"
-            searchPlaceholder="Search route..."
-            emptyMessage="No Routes found"
-            width="w-full"
-            infiniteScroll={false}
-            //   searchValue={searchTerm}
-          />
+            {/* Show Branch combobox for superAdmin, school, and branchGroup */}
+            {(role === "superAdmin" || role === "school") && (
+              <Combobox
+                items={branchMetaData}
+                value={selectedBranch}
+                onValueChange={handleBranchChange}
+                placeholder="Select Branch"
+                searchPlaceholder="Search Branch..."
+                emptyMessage="No branch found"
+                width="w-full"
+                infiniteScroll={false}
+              />
+            )}
+
+            {/* Show Route combobox for all roles */}
+            <Combobox
+              items={routeMetaData} // Fixed: was using schoolMetaData
+              value={selectedRoute}
+              onValueChange={handleRouteChange}
+              placeholder="Select Route"
+              searchPlaceholder="Search route..."
+              emptyMessage="No Routes found"
+              width="w-full"
+              infiniteScroll={false}
+            />
+          </div>
 
           {/* Pickup Time Input */}
           <FormInput
