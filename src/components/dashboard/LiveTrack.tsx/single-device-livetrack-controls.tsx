@@ -1,7 +1,7 @@
 import React from "react";
 import { VehicleData } from "./SingleDeviceLiveTrack";
 import Image from "next/image";
-import { Satellite } from "lucide-react";
+import { MapPinned, Radius, Satellite } from "lucide-react";
 import { FaStreetView } from "react-icons/fa";
 
 interface SingleDeviceLiveTrackControlsProps {
@@ -116,19 +116,7 @@ export const SingleDeviceLiveTrackControls: React.FC<
         }`}
         title={showGeofences ? "Hide Geofences" : "Show Geofences"}
       >
-        <svg
-          className="w-6 h-6"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"
-          />
-        </svg>
+        <Radius />
         {geofenceCount > 0 && (
           <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] rounded-full w-5 h-5 flex items-center justify-center font-bold shadow-md">
             {geofenceCount}
@@ -138,11 +126,7 @@ export const SingleDeviceLiveTrackControls: React.FC<
 
       <button
         onClick={onToggleGeofences}
-        className={`p-3 rounded-lg shadow-lg transition-all duration-200 relative ${
-          showGeofences
-            ? "bg-green-500 text-white hover:bg-green-600"
-            : "bg-white text-gray-700 hover:bg-gray-100"
-        }`}
+        className={`p-3 rounded-lg shadow-lg transition-all duration-200 relative bg-white text-gray-700 hover:bg-gray-100 cursor-pointer`}
         title={showGeofences ? "Hide Geofences" : "Show Geofences"}
       >
         <a
@@ -166,28 +150,7 @@ export const SingleDeviceLiveTrackControls: React.FC<
         }`}
         title={isDrawingGeofence ? "Cancel Geofence" : "Add Geofence"}
       >
-        <svg
-          className="w-6 h-6"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          {isDrawingGeofence ? (
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M6 18L18 6M6 6l12 12"
-            />
-          ) : (
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M12 4v16m8-8H4"
-            />
-          )}
-        </svg>
+        <MapPinned />
       </button>
     </div>
   );

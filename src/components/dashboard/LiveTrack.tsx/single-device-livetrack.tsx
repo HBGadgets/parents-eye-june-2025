@@ -32,6 +32,8 @@ import {
   type Geofence,
   isValidGeofence,
 } from "@/hooks/useGeofence";
+import { formatToIST } from "@/util/dateFormatters";
+import { calculateTimeSince } from "@/util/calculateTimeSince";
 
 type UserRole = "superAdmin" | "school" | "branchGroup" | "branch" | null;
 
@@ -823,15 +825,14 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
         </div>
       )}
 
-      {/* Debug info panel */}
-      <div className="absolute top-4 left-4 z-[1000] bg-white/90 px-3 py-2 rounded-lg shadow-lg text-xs">
-        <div className="font-bold mb-1">Debug Info:</div>
+      {/* Info panel */}
+      <div className="absolute top-20 left-4 z-[1000] bg-white/90 px-3 py-2 rounded-lg shadow-lg text-xs">
+        <div>Route No.: response me nhi ara</div>
         <div>Geofences: {geofences.length}</div>
-        <div>Visible: {showGeofences ? "Yes" : "No"}</div>
-        <div>Loading: {isLoadingGeofences ? "Yes" : "No"}</div>
-        <div>
-          Mutation: {createGeofenceMutation.isPending ? "Pending" : "Idle"}
-        </div>
+        <div>Last Update: {formatToIST(vehicle?.lastUpdate)}</div>
+        <div>Since: {calculateTimeSince(vehicle?.lastUpdate)}</div>
+        <div>Speed: {vehicle?.speed.toFixed(2)} km/h</div>
+        <div>Speed Limit: {vehicle?.speedLimit}</div>
       </div>
 
       {/* Controls */}
@@ -857,7 +858,7 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
         >
           <button
             onClick={handleNextStep}
-            className="group relative bg-gradient-to-r from-blue-500 to-blue-600 text-white px-8 py-4 rounded-xl shadow-lg hover:shadow-xl hover:from-blue-600 hover:to-blue-700 transition-all duration-200 font-semibold text-base flex items-center gap-3"
+            className="group relative bg-gradient-to-r from-blue-500 to-blue-600 text-white px-8 py-4 rounded-xl shadow-lg hover:shadow-xl hover:from-blue-600 hover:to-blue-700 cursor-pointer transition-all duration-200 font-semibold text-base flex items-center gap-3"
           >
             <span>Next: Enter Details</span>
             <svg
