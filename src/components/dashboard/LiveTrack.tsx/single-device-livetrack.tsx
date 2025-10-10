@@ -18,18 +18,15 @@ import {
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import "../VehicleMap.css";
-import { calculateTimeSince } from "@/util/calculateTimeSince";
-import { OfflineIndicator } from "./offline-indicator";
 import { VehiclePathTrail } from "./vehicle-path-trail";
-import DataRefreshIndicator, {
-  useDataRefreshIndicator,
-} from "./data-refresh-indicator";
+import DataRefreshIndicator from "./data-refresh-indicator";
 import { SingleDeviceLiveTrackControls } from "./single-device-livetrack-controls";
 import { VehicleMarker } from "./VehicleMarker";
 import { Slider } from "@/components/ui/slider";
 import { getDecodedToken } from "@/lib/jwt";
 import Cookies from "js-cookie";
 import { GeofenceForm } from "./form/GeofenceForm";
+import { api } from "@/services/apiService";
 type UserRole = "superAdmin" | "school" | "branchGroup" | "branch" | null;
 
 // Types based on your socket response
@@ -538,28 +535,11 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
 
   const handleGeofenceSubmit = async (payload: any) => {
     try {
-      console.log("Geofence Payload:", payload);
-
-      const response = await fetch("/api/geofence/create", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      });
-
-      if (response.ok) {
-        console.log("Geofence created successfully");
-        setIsDrawingGeofence(false);
-        setShowGeofenceForm(false);
-        setGeofenceCenter(null); // Reset the center to null
-        alert("Geofence created successfully!");
-      } else {
-        console.error("Failed to create geofence");
-        alert("Failed to create geofence");
-      }
+      const response = await api.post("/geofence", payload);
+      // console.log("Geofence Response:", response);
+      alert("Geofence created successfully");
     } catch (error) {
-      console.error("Error creating geofence:", error);
+      // console.error("Error creating geofence:", error);
       alert("Error creating geofence");
     }
   };
@@ -653,7 +633,7 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
 
         {!vehicle && (
           <Popup position={center}>
-            <div className="text-center">No vehicle data available</div>
+            <div className="text-center">Loading....</div>
           </Popup>
         )}
 

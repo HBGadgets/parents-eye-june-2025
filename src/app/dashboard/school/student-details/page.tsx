@@ -13,7 +13,7 @@ import { api } from "@/services/apiService";
 import { Student, School, Branch, Route, Geofence } from "@/interface/modal";
 import { useExport } from "@/hooks/useExport";
 import { useStudents } from "@/hooks/useStudent";
-import { useRouteData } from "@/hooks/useRouteData";
+import { useRouteData } from "@/hooks/useInfiniteRouteData";
 import { useGeofences } from "@/hooks/useGeofence";
 import { SearchBar } from "@/components/search-bar/SearchBarPagination";
 import { Alert } from "@/components/Alert";
@@ -36,7 +36,12 @@ const EDIT_FIELDS: FieldConfig[] = [
   { key: "schoolId", label: "School", type: "select", required: true },
   { key: "branchId", label: "Branch", type: "select", required: true },
   { key: "routeObjId", label: "Route", type: "select", required: true },
-  { key: "pickupGeoId", label: "Pickup Location", type: "select", required: true },
+  {
+    key: "pickupGeoId",
+    label: "Pickup Location",
+    type: "select",
+    required: true,
+  },
   { key: "dropGeoId", label: "Drop Location", type: "select", required: true },
 ];
 
@@ -58,27 +63,35 @@ const EXPORT_COLUMNS = [
 // Safe accessor functions
 const getSchoolId = (student: Student): string => {
   if (!student.schoolId) return "";
-  return typeof student.schoolId === 'object' ? student.schoolId?._id || "" : student.schoolId || "";
+  return typeof student.schoolId === "object"
+    ? student.schoolId?._id || ""
+    : student.schoolId || "";
 };
 
 const getBranchId = (student: Student): string => {
   if (!student.branchId) return "";
-  return typeof student.branchId === 'object' ? student.branchId?._id || "" : student.branchId || "";
+  return typeof student.branchId === "object"
+    ? student.branchId?._id || ""
+    : student.branchId || "";
 };
 
 const getRouteId = (student: Student): string => {
   if (student.routeObjId) {
-    return typeof student.routeObjId === 'object' ? student.routeObjId?._id || "" : student.routeObjId || "";
+    return typeof student.routeObjId === "object"
+      ? student.routeObjId?._id || ""
+      : student.routeObjId || "";
   }
   if (student.routeId) {
-    return typeof student.routeId === 'object' ? student.routeId?._id || "" : student.routeId || "";
+    return typeof student.routeId === "object"
+      ? student.routeId?._id || ""
+      : student.routeId || "";
   }
   return "";
 };
 
 const getGeofenceId = (geoField: any): string => {
   if (!geoField) return "";
-  return typeof geoField === 'object' ? geoField?._id || "" : geoField || "";
+  return typeof geoField === "object" ? geoField?._id || "" : geoField || "";
 };
 
 export default function StudentDetails() {
@@ -92,15 +105,15 @@ export default function StudentDetails() {
   const [studentName, setStudentName] = useState("");
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
   const [debouncedStudentName, setDebouncedStudentName] = useState(studentName);
-  
+
   // Add form state for cascading dropdowns
   const [selectedSchool, setSelectedSchool] = useState("");
   const [selectedBranch, setSelectedBranch] = useState("");
-  
+
   // Edit form state for cascading dropdowns
   const [editSelectedSchool, setEditSelectedSchool] = useState("");
   const [editSelectedBranch, setEditSelectedBranch] = useState("");
-  
+
   const { exportToPDF, exportToExcel } = useExport();
 
   // Fetch schools, branches, routes
@@ -109,19 +122,23 @@ export default function StudentDetails() {
     queryFn: () => api.get<School[]>("/school"),
   });
 
-  const { data: branches = [], isLoading: branchesLoading } = useQuery<Branch[]>({
+  const { data: branches = [], isLoading: branchesLoading } = useQuery<
+    Branch[]
+  >({
     queryKey: ["branches"],
     queryFn: () => api.get<Branch[]>("/branch"),
   });
 
   const { data: routesData, isLoading: routesLoading } = useRouteData();
-  const routes: Route[] = Array.isArray(routesData) ? routesData : routesData?.data || [];
+  const routes: Route[] = Array.isArray(routesData)
+    ? routesData
+    : routesData?.data || [];
 
   // Fetch geofences
-  const {
-    data: geofencesData,
-    isLoading: geofencesLoading,
-  } = useGeofences({ pagination, sorting });
+  const { data: geofencesData, isLoading: geofencesLoading } = useGeofences({
+    pagination,
+    sorting,
+  });
 
   const geofences: Geofence[] = Array.isArray(geofencesData)
     ? geofencesData
@@ -132,10 +149,12 @@ export default function StudentDetails() {
   // Filter branches based on selected school (Add form)
   const filteredBranches = useMemo(() => {
     if (!selectedSchool) return [];
-    return branches.filter(branch => {
+    return branches.filter((branch) => {
       // Safe branch schoolId access
-      const branchSchoolId = branch.schoolId 
-        ? (typeof branch.schoolId === 'object' ? branch.schoolId?._id : branch.schoolId)
+      const branchSchoolId = branch.schoolId
+        ? typeof branch.schoolId === "object"
+          ? branch.schoolId?._id
+          : branch.schoolId
         : null;
       return branchSchoolId === selectedSchool;
     });
@@ -144,9 +163,11 @@ export default function StudentDetails() {
   // Filter routes based on selected branch (Add form)
   const filteredRoutes = useMemo(() => {
     if (!selectedBranch) return [];
-    return routes.filter(route => {
-      const routeBranchId = route.branchId 
-        ? (typeof route.branchId === 'object' ? route.branchId?._id : route.branchId)
+    return routes.filter((route) => {
+      const routeBranchId = route.branchId
+        ? typeof route.branchId === "object"
+          ? route.branchId?._id
+          : route.branchId
         : null;
       return routeBranchId === selectedBranch;
     });
@@ -155,9 +176,11 @@ export default function StudentDetails() {
   // Filter branches for edit dialog
   const editFilteredBranches = useMemo(() => {
     if (!editSelectedSchool) return branches;
-    return branches.filter(branch => {
-      const branchSchoolId = branch.schoolId 
-        ? (typeof branch.schoolId === 'object' ? branch.schoolId?._id : branch.schoolId)
+    return branches.filter((branch) => {
+      const branchSchoolId = branch.schoolId
+        ? typeof branch.schoolId === "object"
+          ? branch.schoolId?._id
+          : branch.schoolId
         : null;
       return branchSchoolId === editSelectedSchool;
     });
@@ -166,9 +189,11 @@ export default function StudentDetails() {
   // Filter routes for edit dialog
   const editFilteredRoutes = useMemo(() => {
     if (!editSelectedBranch) return routes;
-    return routes.filter(route => {
-      const routeBranchId = route.branchId 
-        ? (typeof route.branchId === 'object' ? route.branchId?._id : route.branchId)
+    return routes.filter((route) => {
+      const routeBranchId = route.branchId
+        ? typeof route.branchId === "object"
+          ? route.branchId?._id
+          : route.branchId
         : null;
       return routeBranchId === editSelectedBranch;
     });
@@ -180,7 +205,11 @@ export default function StudentDetails() {
     return () => clearTimeout(handler);
   }, [studentName]);
 
-  const { data: studentsData, isLoading, isFetching } = useStudents({
+  const {
+    data: studentsData,
+    isLoading,
+    isFetching,
+  } = useStudents({
     pagination,
     sorting,
     childName: debouncedStudentName,
@@ -205,12 +234,18 @@ export default function StudentDetails() {
       setSelectedBranch("");
       alert("Student added successfully.");
     },
-    onError: (err: any) => alert(`Failed to add student.\nError: ${err.message}`),
+    onError: (err: any) =>
+      alert(`Failed to add student.\nError: ${err.message}`),
   });
 
   const updateStudentMutation = useMutation({
-    mutationFn: ({ studentId, data }: { studentId: string; data: Partial<Student> }) =>
-      api.put(`/child/${studentId}`, data),
+    mutationFn: ({
+      studentId,
+      data,
+    }: {
+      studentId: string;
+      data: Partial<Student>;
+    }) => api.put(`/child/${studentId}`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["students"] });
       setEditDialogOpen(false);
@@ -219,7 +254,8 @@ export default function StudentDetails() {
       setEditSelectedBranch("");
       alert("Student updated successfully.");
     },
-    onError: (err: Error) => alert(`Failed to update student.\nError: ${err.message}`),
+    onError: (err: Error) =>
+      alert(`Failed to update student.\nError: ${err.message}`),
   });
 
   const deleteStudentMutation = useMutation({
@@ -229,20 +265,21 @@ export default function StudentDetails() {
       setDeleteTarget(null);
       alert("Student deleted successfully.");
     },
-    onError: (err: any) => alert(`Failed to delete student.\nError: ${err.message}`),
+    onError: (err: any) =>
+      alert(`Failed to delete student.\nError: ${err.message}`),
   });
 
   const handleSave = (updatedData: Partial<Student>) => {
     if (!editTarget) return;
     const changedFields: Partial<Record<keyof Student, unknown>> = {};
-    
+
     // Map routeObjId to routeId for the API
     const dataToCompare = { ...updatedData };
     if (dataToCompare.routeObjId) {
       (dataToCompare as any).routeId = dataToCompare.routeObjId;
       delete dataToCompare.routeObjId;
     }
-    
+
     for (const key in dataToCompare) {
       const newValue = dataToCompare[key as keyof Student];
       const oldValue = editTarget[key as keyof Student];
@@ -250,9 +287,12 @@ export default function StudentDetails() {
         changedFields[key as keyof Student] = newValue;
       }
     }
-    
+
     if (Object.keys(changedFields).length === 0) return;
-    updateStudentMutation.mutate({ studentId: editTarget._id, data: changedFields });
+    updateStudentMutation.mutate({
+      studentId: editTarget._id,
+      data: changedFields,
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -313,94 +353,102 @@ export default function StudentDetails() {
 
   // Table columns with safe accessors
   const columns: ColumnDef<Student>[] = [
-    { 
-      id: "childName", 
-      header: "Student Name", 
-      accessorFn: (row) => row.childName ?? "N/A" 
+    {
+      id: "childName",
+      header: "Student Name",
+      accessorFn: (row) => row.childName ?? "N/A",
     },
-    { 
-      id: "age", 
-      header: "Age", 
-      accessorFn: (row) => row.age ?? "N/A" 
+    {
+      id: "age",
+      header: "Age",
+      accessorFn: (row) => row.age ?? "N/A",
     },
-    { 
-      id: "className", 
-      header: "Class", 
-      accessorFn: (row) => row.className ?? "N/A" 
+    {
+      id: "className",
+      header: "Class",
+      accessorFn: (row) => row.className ?? "N/A",
     },
-    { 
-      id: "section", 
-      header: "Section", 
-      accessorFn: (row) => row.section ?? "N/A" 
+    {
+      id: "section",
+      header: "Section",
+      accessorFn: (row) => row.section ?? "N/A",
     },
-    { 
-      id: "schoolName", 
-      header: "School", 
-      accessorFn: (row) => row.schoolId && typeof row.schoolId === 'object' 
-        ? row.schoolId.schoolName ?? "N/A" 
-        : "N/A" 
+    {
+      id: "schoolName",
+      header: "School",
+      accessorFn: (row) =>
+        row.schoolId && typeof row.schoolId === "object"
+          ? row.schoolId.schoolName ?? "N/A"
+          : "N/A",
     },
-    { 
-      id: "branchName", 
-      header: "Branch", 
-      accessorFn: (row) => row.branchId && typeof row.branchId === 'object' 
-        ? row.branchId.branchName ?? "N/A" 
-        : "N/A" 
+    {
+      id: "branchName",
+      header: "Branch",
+      accessorFn: (row) =>
+        row.branchId && typeof row.branchId === "object"
+          ? row.branchId.branchName ?? "N/A"
+          : "N/A",
     },
-    { 
-      id: "routeNumber", 
-      header: "Route Number", 
+    {
+      id: "routeNumber",
+      header: "Route Number",
       accessorFn: (row) => {
-        if (row.routeObjId && typeof row.routeObjId === 'object') {
+        if (row.routeObjId && typeof row.routeObjId === "object") {
           return row.routeObjId.routeNumber || "N/A";
         }
-        if (row.routeId && typeof row.routeId === 'object') {
+        if (row.routeId && typeof row.routeId === "object") {
           return row.routeId.routeNumber || "N/A";
         }
         return "N/A";
-      }
+      },
     },
-    { 
-      id: "parentName", 
-      header: "Parent Name", 
-      accessorFn: (row) => row.parentId && typeof row.parentId === 'object' 
-        ? row.parentId.parentName ?? "N/A" 
-        : "N/A" 
+    {
+      id: "parentName",
+      header: "Parent Name",
+      accessorFn: (row) =>
+        row.parentId && typeof row.parentId === "object"
+          ? row.parentId.parentName ?? "N/A"
+          : "N/A",
     },
-    { 
-      id: "mobileNo", 
-      header: "Contact no", 
-      accessorFn: (row) => row.parentId && typeof row.parentId === 'object' 
-        ? row.parentId.mobileNo ?? "N/A" 
-        : "N/A" 
+    {
+      id: "mobileNo",
+      header: "Contact no",
+      accessorFn: (row) =>
+        row.parentId && typeof row.parentId === "object"
+          ? row.parentId.mobileNo ?? "N/A"
+          : "N/A",
     },
-    { 
-      id: "pickupLocation", 
-      header: "Pickup Location", 
-      accessorFn: (row) => row.pickupGeoId && typeof row.pickupGeoId === 'object' 
-        ? row.pickupGeoId.geofenceName ?? "N/A" 
-        : "N/A" 
+    {
+      id: "pickupLocation",
+      header: "Pickup Location",
+      accessorFn: (row) =>
+        row.pickupGeoId && typeof row.pickupGeoId === "object"
+          ? row.pickupGeoId.geofenceName ?? "N/A"
+          : "N/A",
     },
-    { 
-      id: "dropLocation", 
-      header: "Drop Location", 
-      accessorFn: (row) => row.dropGeoId && typeof row.dropGeoId === 'object' 
-        ? row.dropGeoId.geofenceName ?? "N/A" 
-        : "N/A" 
+    {
+      id: "dropLocation",
+      header: "Drop Location",
+      accessorFn: (row) =>
+        row.dropGeoId && typeof row.dropGeoId === "object"
+          ? row.dropGeoId.geofenceName ?? "N/A"
+          : "N/A",
     },
-    { 
-      id: "username", 
-      header: "Username", 
-      accessorFn: (row) => row.parentId && typeof row.parentId === 'object' 
-        ? row.parentId.username ?? "N/A" 
-        : "N/A" 
+    {
+      id: "username",
+      header: "Username",
+      accessorFn: (row) =>
+        row.parentId && typeof row.parentId === "object"
+          ? row.parentId.username ?? "N/A"
+          : "N/A",
     },
-    { 
-      id: "password", 
-      header: "Password", 
-      accessorFn: (row) => row.parentId && typeof row.parentId === 'object' 
-        ? row.parentId.password ?? "N/A" 
-        : "N/A" 
+    {
+      id: "password",
+      header: "Password",
+      accessorFn: (row) =>
+        row.parentId && typeof row.parentId === "object"
+          ? row.parentId.password ?? "N/A"
+          : "N/A",
     },
     {
       id: "action",
@@ -482,7 +530,10 @@ export default function StudentDetails() {
               width="w-[300px]"
             />
           </div>
-          <ColumnVisibilitySelector columns={table?.getAllColumns() || []} buttonVariant="outline" />
+          <ColumnVisibilitySelector
+            columns={table?.getAllColumns() || []}
+            buttonVariant="outline"
+          />
         </section>
 
         {/* Add Student Dialog */}
@@ -498,9 +549,15 @@ export default function StudentDetails() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* Parent Fields */}
-                {[ 
+                {[
                   { id: "parentName", label: "Parent Name *", type: "text" },
-                  { id: "mobileNo", label: "Mobile No *", type: "tel", pattern: "[0-9]{10}", maxLength: 10 },
+                  {
+                    id: "mobileNo",
+                    label: "Mobile No *",
+                    type: "tel",
+                    pattern: "[0-9]{10}",
+                    maxLength: 10,
+                  },
                   { id: "username", label: "Username *", type: "text" },
                   { id: "email", label: "Email *", type: "email" },
                   { id: "password", label: "Password *", type: "text" },
@@ -528,7 +585,9 @@ export default function StudentDetails() {
                   >
                     <option value="">Select School</option>
                     {schools.map((school) => (
-                      <option key={school._id} value={school._id}>{school.schoolName}</option>
+                      <option key={school._id} value={school._id}>
+                        {school.schoolName}
+                      </option>
                     ))}
                   </select>
                 </div>
@@ -546,10 +605,14 @@ export default function StudentDetails() {
                     className="flex h-10 w-full rounded-md border px-3 py-2 text-sm"
                   >
                     <option value="">
-                      {!selectedSchool ? "Select School First" : "Select Branch"}
+                      {!selectedSchool
+                        ? "Select School First"
+                        : "Select Branch"}
                     </option>
                     {filteredBranches.map((branch) => (
-                      <option key={branch._id} value={branch._id}>{branch.branchName}</option>
+                      <option key={branch._id} value={branch._id}>
+                        {branch.branchName}
+                      </option>
                     ))}
                   </select>
                 </div>
@@ -569,7 +632,8 @@ export default function StudentDetails() {
                     </option>
                     {filteredRoutes.map((route) => (
                       <option key={route._id} value={route._id}>
-                        {route.routeNumber || `Route ${route.routeName || route._id}`}
+                        {route.routeNumber ||
+                          `Route ${route.routeName || route._id}`}
                       </option>
                     ))}
                   </select>
@@ -587,7 +651,9 @@ export default function StudentDetails() {
                   >
                     <option value="">Select Pickup Location</option>
                     {geofences.map((geo) => (
-                      <option key={geo._id} value={geo._id}>{geo.geofenceName}</option>
+                      <option key={geo._id} value={geo._id}>
+                        {geo.geofenceName}
+                      </option>
                     ))}
                   </select>
                 </div>
@@ -604,27 +670,35 @@ export default function StudentDetails() {
                   >
                     <option value="">Select Drop Location</option>
                     {geofences.map((geo) => (
-                      <option key={geo._id} value={geo._id}>{geo.geofenceName}</option>
+                      <option key={geo._id} value={geo._id}>
+                        {geo.geofenceName}
+                      </option>
                     ))}
                   </select>
                 </div>
 
                 {/* Child Fields */}
-                {[ 
+                {[
                   { id: "childName", label: "Student Name *", type: "text" },
-                  { id: "age", label: "Age *", type: "number", min: "3", max: "18" },
+                  {
+                    id: "age",
+                    label: "Age *",
+                    type: "number",
+                    min: "3",
+                    max: "18",
+                  },
                   { id: "className", label: "Class *", type: "text" },
                   { id: "section", label: "Section *", type: "text" },
                   { id: "DOB", label: "Date of Birth *", type: "date" },
-                  { 
-                    id: "gender", 
-                    label: "Gender *", 
+                  {
+                    id: "gender",
+                    label: "Gender *",
                     type: "select",
                     options: [
                       { value: "male", label: "Male" },
                       { value: "female", label: "Female" },
-                      { value: "other", label: "Other" }
-                    ]
+                      { value: "other", label: "Other" },
+                    ],
                   },
                 ].map(({ id, label, type, options, ...props }) => (
                   <div key={id} className="grid gap-2">
@@ -636,7 +710,9 @@ export default function StudentDetails() {
                         required
                         className="flex h-10 w-full rounded-md border px-3 py-2 text-sm"
                       >
-                        <option value="">Select {label.replace(' *', '')}</option>
+                        <option value="">
+                          Select {label.replace(" *", "")}
+                        </option>
                         {options?.map((option) => (
                           <option key={option.value} value={option.value}>
                             {option.label}
@@ -644,7 +720,13 @@ export default function StudentDetails() {
                         ))}
                       </select>
                     ) : (
-                      <Input id={id} name={id} type={type} required {...props} />
+                      <Input
+                        id={id}
+                        name={id}
+                        type={type}
+                        required
+                        {...props}
+                      />
                     )}
                   </div>
                 ))}
@@ -652,11 +734,19 @@ export default function StudentDetails() {
 
               <DialogFooter>
                 <DialogClose asChild>
-                  <Button ref={closeButtonRef} variant="outline">Cancel</Button>
+                  <Button ref={closeButtonRef} variant="outline">
+                    Cancel
+                  </Button>
                 </DialogClose>
                 <Button
                   type="submit"
-                  disabled={addStudentMutation.isPending || schoolsLoading || branchesLoading || routesLoading || geofencesLoading}
+                  disabled={
+                    addStudentMutation.isPending ||
+                    schoolsLoading ||
+                    branchesLoading ||
+                    routesLoading ||
+                    geofencesLoading
+                  }
                 >
                   {addStudentMutation.isPending ? "Saving..." : "Save Student"}
                 </Button>
@@ -673,8 +763,12 @@ export default function StudentDetails() {
           {deleteTarget && (
             <Alert<Student>
               title="Are you absolutely sure?"
-              description={`This will permanently delete ${deleteTarget?.childName || 'this student'} and all associated data.`}
-              actionButton={(target) => deleteStudentMutation.mutate(target._id)}
+              description={`This will permanently delete ${
+                deleteTarget?.childName || "this student"
+              } and all associated data.`}
+              actionButton={(target) =>
+                deleteStudentMutation.mutate(target._id)
+              }
               target={deleteTarget}
               setTarget={setDeleteTarget}
               butttonText="Delete"
@@ -686,8 +780,8 @@ export default function StudentDetails() {
             <DynamicEditDialog
               data={editData}
               isOpen={editDialogOpen}
-              onClose={() => { 
-                setEditDialogOpen(false); 
+              onClose={() => {
+                setEditDialogOpen(false);
                 setEditTarget(null);
                 setEditSelectedSchool("");
                 setEditSelectedBranch("");
@@ -696,32 +790,41 @@ export default function StudentDetails() {
               onFieldChange={handleEditFieldChange}
               fields={EDIT_FIELDS.map((f) => {
                 if (f.key === "schoolId") {
-                  return { 
-                    ...f, 
-                    options: schools.map(s => ({ label: s.schoolName, value: s._id })) 
+                  return {
+                    ...f,
+                    options: schools.map((s) => ({
+                      label: s.schoolName,
+                      value: s._id,
+                    })),
                   };
                 }
                 if (f.key === "branchId") {
-                  return { 
-                    ...f, 
-                    options: editFilteredBranches.map(b => ({ label: b.branchName, value: b._id })),
-                    disabled: !editSelectedSchool
+                  return {
+                    ...f,
+                    options: editFilteredBranches.map((b) => ({
+                      label: b.branchName,
+                      value: b._id,
+                    })),
+                    disabled: !editSelectedSchool,
                   };
                 }
                 if (f.key === "routeObjId") {
-                  return { 
-                    ...f, 
-                    options: editFilteredRoutes.map(r => ({ 
-                      label: r.routeNumber || `Route ${r.routeName || r._id}`, 
-                      value: r._id 
+                  return {
+                    ...f,
+                    options: editFilteredRoutes.map((r) => ({
+                      label: r.routeNumber || `Route ${r.routeName || r._id}`,
+                      value: r._id,
                     })),
-                    disabled: !editSelectedBranch
+                    disabled: !editSelectedBranch,
                   };
                 }
                 if (f.key === "pickupGeoId" || f.key === "dropGeoId") {
-                  return { 
-                    ...f, 
-                    options: geofences.map(g => ({ label: g.geofenceName, value: g._id })) 
+                  return {
+                    ...f,
+                    options: geofences.map((g) => ({
+                      label: g.geofenceName,
+                      value: g._id,
+                    })),
                   };
                 }
                 return f;
@@ -734,16 +837,24 @@ export default function StudentDetails() {
         </section>
 
         <FloatingMenu
-          onExportPdf={() => exportToPDF(studentsData?.children || [], EXPORT_COLUMNS, {
-            title: "All Students Data",
-            companyName: "Parents Eye",
-            metadata: { Total: `${studentsData?.children?.length || 0} students` },
-          })}
-          onExportExcel={() => exportToExcel(studentsData?.children || [], EXPORT_COLUMNS, {
-            title: "All Students Data",
-            companyName: "Parents Eye",
-            metadata: { Total: `${studentsData?.children?.length || 0} students` },
-          })}
+          onExportPdf={() =>
+            exportToPDF(studentsData?.children || [], EXPORT_COLUMNS, {
+              title: "All Students Data",
+              companyName: "Parents Eye",
+              metadata: {
+                Total: `${studentsData?.children?.length || 0} students`,
+              },
+            })
+          }
+          onExportExcel={() =>
+            exportToExcel(studentsData?.children || [], EXPORT_COLUMNS, {
+              title: "All Students Data",
+              companyName: "Parents Eye",
+              metadata: {
+                Total: `${studentsData?.children?.length || 0} students`,
+              },
+            })
+          }
         />
       </main>
     </>

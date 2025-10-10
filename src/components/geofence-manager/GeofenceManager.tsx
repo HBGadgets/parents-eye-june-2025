@@ -33,7 +33,7 @@ import {
 import GeofenceConfigurationPanel from "./configuration-panel";
 import { Branch, BranchGroup, Route, School } from "@/interface/modal";
 import { useBranchData } from "@/hooks/useBranchData";
-import { useRouteData } from "@/hooks/useRouteData";
+import { useRouteData } from "@/hooks/useInfiniteRouteData";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import "./style.css";
 import { api } from "@/services/apiService";

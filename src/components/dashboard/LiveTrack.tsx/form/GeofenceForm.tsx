@@ -1,8 +1,7 @@
 import { Combobox } from "@/components/ui/combobox";
 import { useBranchData } from "@/hooks/useBranchData";
-import { useRouteData } from "@/hooks/useRouteData";
+import { useInfiniteRouteData } from "@/hooks/useInfiniteRouteData";
 import { useSchoolData } from "@/hooks/useSchoolData";
-import { School } from "@/interface/modal";
 import React, { useState, useCallback, useMemo, memo, useEffect } from "react";
 
 // Type definitions
@@ -19,8 +18,8 @@ export interface GeofencePayload extends GeofenceFormData {
     center: [number, number];
     radius: number;
   };
-  schoolId: string;
-  branchId: string;
+  schoolId?: string;
+  branchId?: string;
   routeObjId: string;
 }
 
@@ -36,6 +35,19 @@ interface GeofenceFormProps {
   className?: string;
   isLoading?: boolean;
 }
+
+// Utility function to convert 24-hour format to 12-hour AM/PM format
+const convertTo12Hour = (time24: string): string => {
+  const [hours, minutes] = time24.split(":").map(Number);
+
+  const period = hours >= 12 ? "PM" : "AM";
+  const hours12 = hours % 12 || 12; // Convert 0 to 12 for midnight
+  const hoursFormatted = hours12 < 10 ? `0${hours12}` : hours12;
+
+  const minutesFormatted = minutes < 10 ? `0${minutes}` : minutes;
+
+  return `${hoursFormatted}:${minutesFormatted} ${period}`;
+};
 
 const GeofenceFormComponent: React.FC<GeofenceFormProps> = memo(
   ({
@@ -55,36 +67,84 @@ const GeofenceFormComponent: React.FC<GeofenceFormProps> = memo(
       pickupTime: "",
       dropTime: "",
     });
-    const { data: allSchoolData } = useSchoolData();
-    const { data: allBranchData } = useBranchData();
-    const { data: allRouteData } = useRouteData();
-    const [selectedSchool, setSelectedSchool] = useState("");
-    const [selectedBranch, setSelectedBranch] = useState("");
-    const [selectedRoute, setSelectedRoute] = useState("");
+    const [selectedSchool, setSelectedSchool] = useState(schoolId);
+    const [selectedBranch, setSelectedBranch] = useState(branchId);
+    const [selectedRoute, setSelectedRoute] = useState(routeObjId);
+    const [routeSearchTerm, setRouteSearchTerm] = useState("");
 
-    // Memoize the submit handler to prevent re-creation on every render
+    const { data: allSchoolData } = useSchoolData({
+      enabled: role === "superAdmin",
+    });
+    const { data: allBranchData } = useBranchData();
+
+    const {
+      data: routeInfiniteData,
+      fetchNextPage,
+      hasNextPage,
+      isFetchingNextPage,
+      isLoading: isLoadingRoutes,
+    } = useInfiniteRouteData({
+      schoolId: selectedSchool,
+      branchId: selectedBranch,
+      search: routeSearchTerm,
+      limit: 20,
+      role,
+    });
+
+    // Memoize the submit handler with role-based payload and time conversion
     const handleSubmit = useCallback(
       (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
 
-        const payload: GeofencePayload = {
-          ...formData,
+        // Convert times from 24-hour to 12-hour AM/PM format
+        const pickupTime12Hour = convertTo12Hour(formData.pickupTime);
+        const dropTime12Hour = convertTo12Hour(formData.dropTime);
+
+        // Base payload with converted times
+        const basePayload = {
+          geofenceName: formData.geofenceName,
+          pickupTime: pickupTime12Hour,
+          dropTime: dropTime12Hour,
           area: {
             center,
             radius,
           },
-          schoolId,
-          branchId,
-          routeObjId,
+          routeObjId: selectedRoute,
         };
+
+        // Conditionally add fields based on role
+        let payload: GeofencePayload;
+
+        if (role === "superAdmin") {
+          payload = {
+            ...basePayload,
+            schoolId: selectedSchool,
+            branchId: selectedBranch,
+          };
+        } else if (role === "school") {
+          payload = {
+            ...basePayload,
+            branchId: selectedBranch,
+          };
+        } else {
+          payload = basePayload;
+        }
 
         console.log("Geofence Data:", payload);
         onSubmit(payload);
       },
-      [formData, center, radius, schoolId, branchId, routeObjId, onSubmit]
+      [
+        formData,
+        center,
+        radius,
+        selectedSchool,
+        selectedBranch,
+        selectedRoute,
+        role,
+        onSubmit,
+      ]
     );
 
-    // Optimized input change handler with useCallback
     const handleInputChange = useCallback(
       (field: keyof GeofenceFormData) => (value: string) => {
         setFormData((prev) => ({
@@ -95,7 +155,6 @@ const GeofenceFormComponent: React.FC<GeofenceFormProps> = memo(
       []
     );
 
-    // Memoize field handlers to prevent re-creation
     const handleGeofenceNameChange = useMemo(
       () => handleInputChange("geofenceName"),
       [handleInputChange]
@@ -119,33 +178,88 @@ const GeofenceFormComponent: React.FC<GeofenceFormProps> = memo(
 
     const branchMetaData = useMemo(() => {
       if (!Array.isArray(allBranchData)) return [];
+
+      if (role === "superAdmin" && selectedSchool) {
+        return allBranchData
+          .filter((branch) => branch.schoolId._id === selectedSchool)
+          .map((branch) => ({
+            value: branch._id.toString(),
+            label: branch.branchName,
+          }));
+      }
+
       return allBranchData.map((branch) => ({
         value: branch._id.toString(),
         label: branch.branchName,
       }));
-    }, [allBranchData]);
+    }, [allBranchData, selectedSchool, role]);
 
     const routeMetaData = useMemo(() => {
-      if (!Array.isArray(allRouteData)) return [];
-      return allRouteData.map((route) => ({
-        value: route._id.toString(),
-        label: route.routeNumber,
-      }));
-    }, [allRouteData]);
+      if (!routeInfiniteData?.pages) return [];
 
-    const handleSchoolChange = (value: string) => {
+      return routeInfiniteData.pages.flatMap((page) =>
+        page.data.map((route) => ({
+          value: route._id.toString(),
+          label: route.routeNumber,
+        }))
+      );
+    }, [routeInfiniteData]);
+
+    const handleSchoolChange = useCallback((value: string) => {
       setSelectedSchool(value);
-    };
+      setSelectedBranch("");
+      setSelectedRoute("");
+    }, []);
 
-    const handleBranchChange = (value: string) => {
+    const handleBranchChange = useCallback((value: string) => {
       setSelectedBranch(value);
-    };
+      setSelectedRoute("");
+    }, []);
 
-    const handleRouteChange = (value: string) => {
+    const handleRouteChange = useCallback((value: string) => {
       setSelectedRoute(value);
-    };
+    }, []);
 
-    console.log("[User Role]: ", role);
+    const handleRouteReachEnd = useCallback(() => {
+      if (hasNextPage && !isFetchingNextPage) {
+        fetchNextPage();
+      }
+    }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+
+    const handleRouteSearchChange = useCallback((search: string) => {
+      setRouteSearchTerm(search);
+    }, []);
+
+    const { isRouteDisabled, routeEmptyMessage } = useMemo(() => {
+      if (role === "superAdmin") {
+        if (!selectedSchool || !selectedBranch) {
+          return {
+            isRouteDisabled: true,
+            routeEmptyMessage: "Please select school and branch first",
+          };
+        }
+      } else if (role === "school") {
+        if (!selectedBranch) {
+          return {
+            isRouteDisabled: true,
+            routeEmptyMessage: "Please select branch first",
+          };
+        }
+      }
+      return {
+        isRouteDisabled: isLoadingRoutes,
+        routeEmptyMessage: "No routes found",
+      };
+    }, [role, selectedSchool, selectedBranch, isLoadingRoutes]);
+
+    useEffect(() => {
+      console.log("[Selected School]: ", selectedSchool);
+    }, [selectedSchool]);
+
+    useEffect(() => {
+      console.log("[Selected Branch]: ", selectedBranch);
+      console.log("[Routes Count]: ", routeMetaData.length);
+    }, [selectedBranch, routeMetaData.length]);
 
     return (
       <div
@@ -154,7 +268,6 @@ const GeofenceFormComponent: React.FC<GeofenceFormProps> = memo(
       >
         <h3 className="text-lg font-semibold mb-3">Create Geofence</h3>
         <form onSubmit={handleSubmit} className="space-y-3">
-          {/* Geofence Name Input */}
           <FormInput
             label="Geofence Name"
             type="text"
@@ -166,7 +279,6 @@ const GeofenceFormComponent: React.FC<GeofenceFormProps> = memo(
           />
 
           <div className="space-y-1">
-            {/* Show School combobox only for superAdmin */}
             {role === "superAdmin" && (
               <Combobox
                 items={schoolMetaData}
@@ -180,34 +292,47 @@ const GeofenceFormComponent: React.FC<GeofenceFormProps> = memo(
               />
             )}
 
-            {/* Show Branch combobox for superAdmin, school, and branchGroup */}
             {(role === "superAdmin" || role === "school") && (
               <Combobox
-                items={branchMetaData}
+                items={
+                  role === "superAdmin"
+                    ? selectedSchool
+                      ? branchMetaData
+                      : []
+                    : branchMetaData
+                }
                 value={selectedBranch}
                 onValueChange={handleBranchChange}
                 placeholder="Select Branch"
                 searchPlaceholder="Search Branch..."
-                emptyMessage="No branch found"
+                emptyMessage={
+                  role === "superAdmin" && !selectedSchool
+                    ? "Please select a school first"
+                    : "No branch found"
+                }
                 width="w-full"
                 infiniteScroll={false}
+                disabled={role === "superAdmin" && !selectedSchool}
               />
             )}
 
-            {/* Show Route combobox for all roles */}
             <Combobox
-              items={routeMetaData} // Fixed: was using schoolMetaData
+              items={routeMetaData}
               value={selectedRoute}
               onValueChange={handleRouteChange}
               placeholder="Select Route"
               searchPlaceholder="Search route..."
-              emptyMessage="No Routes found"
+              emptyMessage={routeEmptyMessage}
               width="w-full"
-              infiniteScroll={false}
+              infiniteScroll={true}
+              onReachEnd={handleRouteReachEnd}
+              isLoadingMore={isFetchingNextPage}
+              searchValue={routeSearchTerm}
+              onSearchChange={handleRouteSearchChange}
+              disabled={isRouteDisabled}
             />
           </div>
 
-          {/* Pickup Time Input */}
           <FormInput
             label="Pickup Time"
             type="time"
@@ -217,7 +342,6 @@ const GeofenceFormComponent: React.FC<GeofenceFormProps> = memo(
             disabled={isLoading}
           />
 
-          {/* Drop Time Input */}
           <FormInput
             label="Drop Time"
             type="time"
@@ -227,10 +351,7 @@ const GeofenceFormComponent: React.FC<GeofenceFormProps> = memo(
             disabled={isLoading}
           />
 
-          {/* Geofence Details */}
           <GeofenceDetails center={center} radius={radius} />
-
-          {/* Action Buttons */}
           <FormActions isLoading={isLoading} onCancel={onCancel} />
         </form>
       </div>
@@ -241,7 +362,7 @@ const GeofenceFormComponent: React.FC<GeofenceFormProps> = memo(
 export const GeofenceForm = memo(GeofenceFormComponent);
 GeofenceForm.displayName = "GeofenceForm";
 
-// Optimized Form Input Component with memo
+// FormInput Component (unchanged)
 interface FormInputProps {
   label: string;
   type: string;
@@ -262,7 +383,6 @@ const FormInput: React.FC<FormInputProps> = memo(
     required = false,
     disabled = false,
   }) => {
-    // Optimize event handler to prevent re-creation
     const handleChange = useCallback(
       (e: React.ChangeEvent<HTMLInputElement>) => {
         onChange(e.target.value);
@@ -292,7 +412,7 @@ const FormInput: React.FC<FormInputProps> = memo(
 
 FormInput.displayName = "FormInput";
 
-// Optimized Geofence Details Component with memo
+// GeofenceDetails Component (unchanged)
 interface GeofenceDetailsProps {
   center: [number, number];
   radius: number;
@@ -300,7 +420,6 @@ interface GeofenceDetailsProps {
 
 const GeofenceDetails: React.FC<GeofenceDetailsProps> = memo(
   ({ center, radius }) => {
-    // Memoize formatted coordinates to prevent recalculation
     const formattedCoordinates = useMemo(
       () => `${center[0].toFixed(6)}, ${center[1].toFixed(6)}`,
       [center]
@@ -321,7 +440,7 @@ const GeofenceDetails: React.FC<GeofenceDetailsProps> = memo(
 
 GeofenceDetails.displayName = "GeofenceDetails";
 
-// Extracted Form Actions Component for better separation
+// FormActions Component (unchanged)
 interface FormActionsProps {
   isLoading: boolean;
   onCancel: () => void;

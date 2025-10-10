@@ -12,7 +12,7 @@ import { getDecodedToken } from "@/lib/jwt";
 import Cookies from "js-cookie";
 import { useSchoolData } from "@/hooks/useSchoolData";
 import { useBranchData } from "@/hooks/useBranchData";
-import { useRouteData } from "@/hooks/useRouteData";
+import { useRouteData } from "@/hooks/useInfiniteRouteData";
 import { SearchableDropdown } from "../SearcheableDropdownFilter";
 import { TimePicker12 } from "../time-picker-12h";
 
