@@ -419,7 +419,7 @@ export default function RaiseTicketMaster() {
           {/* Manage Ticket Types Button */}
           <Dialog open={isTicketTypesDialogOpen} onOpenChange={setIsTicketTypesDialogOpen}>
             <DialogTrigger asChild>
-              <Button variant="outline" className="bg-purple-500 text-white hover:bg-purple-600 border-purple-500">
+              <Button variant="outline" className="bg-purple-500 text-white hover:bg-purple-600 hover:text-white border-purple-500">
                 Manage Ticket Types
               </Button>
             </DialogTrigger>
@@ -429,7 +429,7 @@ export default function RaiseTicketMaster() {
               </DialogHeader>
               
               {/* Add New Ticket Type Form */}
-              <form onSubmit={handleAddTicketType} className="space-y-4 mt-4">
+              <form onSubmit={handleAddTicketType} className="space-y-4 mt-2">
                 <div className="space-y-2">
                   <Label htmlFor="ticketTypeName">Add New Ticket Type</Label>
                   <div className="flex space-x-2">
@@ -452,14 +452,14 @@ export default function RaiseTicketMaster() {
               </form>
 
               {/* Ticket Types Table */}
-              <div className="mt-6">
+              <div className="mt-1">
                 <Label className="text-sm font-medium mb-2 block">Existing Ticket Types</Label>
                 <div className="border rounded-md">
                   {ticketTypesTableConfig.tableElement}
                 </div>
               </div>
 
-              <div className="flex justify-end pt-4">
+              <div className="flex justify-end pt-1">
                 <Button 
                   variant="outline" 
                   onClick={() => setIsTicketTypesDialogOpen(false)}
