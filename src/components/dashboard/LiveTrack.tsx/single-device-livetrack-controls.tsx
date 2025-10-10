@@ -2,6 +2,7 @@ import React from "react";
 import { VehicleData } from "./SingleDeviceLiveTrack";
 import Image from "next/image";
 import { Satellite } from "lucide-react";
+import { FaStreetView } from "react-icons/fa";
 
 interface SingleDeviceLiveTrackControlsProps {
   vehicle: VehicleData | null;
@@ -133,6 +134,26 @@ export const SingleDeviceLiveTrackControls: React.FC<
             {geofenceCount}
           </span>
         )}
+      </button>
+
+      <button
+        onClick={onToggleGeofences}
+        className={`p-3 rounded-lg shadow-lg transition-all duration-200 relative ${
+          showGeofences
+            ? "bg-green-500 text-white hover:bg-green-600"
+            : "bg-white text-gray-700 hover:bg-gray-100"
+        }`}
+        title={showGeofences ? "Hide Geofences" : "Show Geofences"}
+      >
+        <a
+          href={`http://maps.google.com/maps?q=&layer=c&cbll=${vehicle?.latitude},${vehicle?.longitude}&cbp=11,0,0,0,0`}
+          target="_blank"
+          rel="noopener noreferrer"
+          title="Open Street View"
+          className={` bg-gray-100 text-gray-700 hover:bg-gray-200 cursor-pointer`}
+        >
+          <FaStreetView size={18} />
+        </a>
       </button>
 
       {/* Add Geofence Button */}
