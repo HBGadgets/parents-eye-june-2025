@@ -1,261 +1,318 @@
 "use client";
 
-import React, {
-  useCallback,
-  useEffect,
-  useState,
-  useRef,
-  useMemo,
-} from "react";
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import { DynamicEditDialog, FieldConfig } from "@/components/ui/EditModal";
-import SearchComponent from "@/components/ui/SearchOnlydata";
-import { Button } from "@/components/ui/button";
+import React, { useEffect, useState, useMemo } from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import SearchComponent from "@/components/ui/SearchOnlydata";
 import DateRangeFilter from "@/components/ui/DateRangeFilter";
 import { FloatingMenu } from "@/components/floatingMenu";
-import { useSchoolData } from "@/hooks/useSchoolData";
-import { useBranchData } from "@/hooks/useBranchData";
-import { SearchableSelect } from "@/components/custom-select";
-import {
-  VisibilityState,
-  type ColumnDef,
-  SortingState,
-} from "@tanstack/react-table";
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { api } from "@/services/apiService";
-import { useExport } from "@/hooks/useExport";
-import { Alert } from "@/components/Alert";
 import ResponseLoader from "@/components/ResponseLoader";
 import { ColumnVisibilitySelector } from "@/components/column-visibility-selector";
 import { CustomTableServerSidePagination } from "@/components/ui/customTable(serverSidePagination)";
+import type { ColumnDef, SortingState, VisibilityState } from "@tanstack/react-table";
 
-// --------------------------- INTERFACES ---------------------------
 interface Ticket {
   _id: string;
-  ticketId: string;
-  raisedBy: string;
+  ticket_id: string;
+  raised_by: { userId: string; userModel: string };
   email: string;
-  type: string;
-  company: string;
-  branch: string;
+  type: { _id: string; name: string };
+  schoolId: { _id: string; schoolName: string };
+  branchId: { _id: string; branchName: string };
   role: string;
   description: string;
   feedback?: string;
   status: "Open" | "In Progress" | "Resolved" | "Closed";
-  schoolId?: {
-    _id: string;
-    schoolName: string;
-  };
-  branchId?: {
-    _id: string;
-    branchName: string;
-  };
+  added_date: string;
   createdAt: string;
-  updatedAt?: string;
+  updatedAt: string;
 }
 
-interface selectOption {
-  label: string;
-  value: string;
+interface TicketType {
+  _id: string;
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+  __v: number;
 }
 
-// --------------------------- COMPONENT ---------------------------
 export default function RaiseTicketMaster() {
   const queryClient = useQueryClient();
-  const closeButtonRef = useRef<HTMLButtonElement>(null);
-
-  // Table states
-  const [pagination, setPagination] = useState({
-    pageIndex: 0,
-    pageSize: 10,
-  });
+  const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 10 });
   const [sorting, setSorting] = useState<SortingState>([]);
-  const [globalFilter, setGlobalFilter] = useState<string>("");
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
-  const [dateRange, setDateRange] = useState<{ start: Date | null; end: Date | null }>({
-    start: null,
-    end: null,
-  });
-
   const [filteredData, setFilteredData] = useState<Ticket[]>([]);
   const [filterResults, setFilterResults] = useState<Ticket[]>([]);
-  const [deleteTarget, setDeleteTarget] = useState<Ticket | null>(null);
-  const [editTarget, setEditTarget] = useState<Ticket | null>(null);
-  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<"All" | "Open" | "In Progress" | "Resolved">("All");
+  const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [statusValue, setStatusValue] = useState("");
+  
+  // Ticket Types Management States
+  const [isTicketTypesDialogOpen, setIsTicketTypesDialogOpen] = useState(false);
+  const [newTicketType, setNewTicketType] = useState("");
 
-  const [school, setSchool] = useState<string | undefined>(undefined);
-  const [branch, setBranch] = useState<string | undefined>(undefined);
+  // --------------------------- TICKET TYPES API ---------------------------
 
-  const { data: schoolData } = useSchoolData();
-  const { data: branchData } = useBranchData();
+  // Fetch Ticket Types
+  const { data: ticketTypesData, isLoading: isLoadingTicketTypes, refetch: refetchTicketTypes } = useQuery({
+    queryKey: ["ticketTypes"],
+    queryFn: async () => {
+      try {
+        const response = await api.get("/get-ticket-types");
+        console.log("Ticket Types API Response:", response);
+        // Based on your response, it returns a direct array
+        return Array.isArray(response) ? response : response.data || response.types || [];
+      } catch (error) {
+        console.error("Error fetching ticket types:", error);
+        return [];
+      }
+    },
+  });
 
-  const { exportToPDF, exportToExcel } = useExport();
+  // Add Ticket Type Mutation
+  const addTicketTypeMutation = useMutation({
+    mutationFn: async (ticketTypeName: string) => {
+      const response = await api.post("/add-ticket-type", { name: ticketTypeName });
+      return response;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["ticketTypes"] });
+      setNewTicketType("");
+      alert("✅ Ticket type added successfully");
+    },
+    onError: (error: any) => {
+      console.error("Error adding ticket type:", error);
+      alert(error.response?.data?.message || "❌ Failed to add ticket type");
+    },
+  });
 
-  // --------------------------- DATA FETCH ---------------------------
+  // Delete Ticket Type Mutation
+  const deleteTicketTypeMutation = useMutation({
+    mutationFn: async (ticketTypeId: string) => {
+      const response = await api.delete(`/delete-ticket-type/${ticketTypeId}`);
+      return response;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["ticketTypes"] });
+      alert("✅ Ticket type deleted successfully");
+    },
+    onError: (error: any) => {
+      console.error("Error deleting ticket type:", error);
+      alert(error.response?.data?.message || "❌ Failed to delete ticket type");
+    },
+  });
+
+  // Update Ticket Type Mutation
+  const updateTicketTypeMutation = useMutation({
+    mutationFn: async ({ id, name }: { id: string; name: string }) => {
+      const response = await api.put(`/update-ticket-type/${id}`, { name });
+      return response;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["ticketTypes"] });
+      alert("✅ Ticket type updated successfully");
+    },
+    onError: (error: any) => {
+      console.error("Error updating ticket type:", error);
+      alert(error.response?.data?.message || "❌ Failed to update ticket type");
+    },
+  });
+
+  // --------------------------- TICKETS API ---------------------------
+
+  // Fetch tickets
   const { data: ticketsData, isLoading, isFetching } = useQuery({
-    queryKey: ["tickets", pagination, sorting, globalFilter],
+    queryKey: ["tickets", pagination, sorting],
     queryFn: async () => {
       const params = new URLSearchParams({
         page: String(pagination.pageIndex + 1),
         limit: String(pagination.pageSize),
       });
-      const response = await api.get(`/tickets?${params}`);
+      const response = await api.get(`/get-tickets?${params}`);
       return response;
     },
   });
 
   useEffect(() => {
-    if (ticketsData?.data) {
-      setFilteredData(ticketsData.data);
-      setFilterResults(ticketsData.data);
+    if (ticketsData?.tickets) {
+      setFilteredData(ticketsData.tickets);
+      setFilterResults(ticketsData.tickets);
     }
-  }, [ticketsData?.data]);
+  }, [ticketsData]);
 
-  // --------------------------- DROPDOWNS ---------------------------
-  const schoolOptions: selectOption[] = schoolData
-    ? schoolData.map((s) => ({ label: s.schoolName, value: s._id }))
-    : [];
-
-  const filteredBranchOptions = useMemo(() => {
-    if (!school || !branchData) return [];
-    return branchData
-      .filter((b) => b.schoolId?._id === school)
-      .map((b) => ({ label: b.branchName, value: b._id }));
-  }, [school, branchData]);
-
-  const ticketTypeOptions: selectOption[] = [
-    { label: "Technical Issue", value: "Technical Issue" },
-    { label: "Feature Request", value: "Feature Request" },
-    { label: "Bug Report", value: "Bug Report" },
-    { label: "General Inquiry", value: "General Inquiry" },
-    { label: "Account Issue", value: "Account Issue" },
-    { label: "Other", value: "Other" },
-  ];
-
-  const roleOptions: selectOption[] = [
-    { label: "Admin", value: "Admin" },
-    { label: "Teacher", value: "Teacher" },
-    { label: "Parent", value: "Parent" },
-    { label: "Student", value: "Student" },
-    { label: "Staff", value: "Staff" },
-  ];
-
-  const statusOptions: selectOption[] = [
-    { label: "Open", value: "Open" },
-    { label: "In Progress", value: "In Progress" },
-    { label: "Resolved", value: "Resolved" },
-    { label: "Closed", value: "Closed" },
-  ];
-
-  // --------------------------- MUTATION ---------------------------
-  const addTicketMutation = useMutation({
-    mutationFn: async (newTicket: any) => {
-      const res = await api.post("/ticket", newTicket);
-      return res.ticket;
+  // Update Ticket Status Mutation
+  const updateTicketStatusMutation = useMutation({
+    mutationFn: async ({ _id, status }: { _id: string; status: string }) => {
+      const response = await api.put(`update-ticket/${_id}`, { status });
+      return response;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["tickets"] });
-      alert("Ticket raised successfully.");
+      alert("✅ Ticket status updated successfully");
+      setIsDialogOpen(false);
     },
-    onError: (err) => {
-      alert("Failed to raise ticket.\nerror: " + err);
+    onError: (error) => {
+      console.error("Error updating ticket:", error);
+      alert("❌ Failed to update ticket status");
     },
   });
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+  // --------------------------- HANDLERS ---------------------------
+
+  // Handle Add Ticket Type
+  const handleAddTicketType = (e: React.FormEvent) => {
     e.preventDefault();
-    const form = e.currentTarget;
-    const formData = new FormData(form);
-
-    if (!school) return alert("Please select a school");
-    if (!branch) return alert("Please select a branch");
-
-    const data = {
-      ticketId: `TKT-${Date.now()}`,
-      raisedBy: formData.get("raisedBy") as string,
-      email: formData.get("email") as string,
-      type: formData.get("type") as string,
-      company: schoolOptions.find((s) => s.value === school)?.label || "",
-      branch: filteredBranchOptions.find((b) => b.value === branch)?.label || "",
-      role: formData.get("role") as string,
-      description: formData.get("description") as string,
-      schoolId: school,
-      branchId: branch,
-      status: "Open" as const,
-    };
-
-    try {
-      await addTicketMutation.mutateAsync(data);
-      closeButtonRef.current?.click();
-      form.reset();
-      setSchool(undefined);
-      setBranch(undefined);
-    } catch {}
+    if (!newTicketType.trim()) {
+      alert("Please enter a ticket type name");
+      return;
+    }
+    addTicketTypeMutation.mutate(newTicketType.trim());
   };
 
-  // --------------------------- TABLE COLUMNS ---------------------------
-  const columns = useMemo<ColumnDef<Ticket>[]>(
-    () => [
-      { accessorKey: "ticketId", header: "Ticket ID" },
-      { accessorKey: "raisedBy", header: "Raised By" },
-      { accessorKey: "email", header: "Email" },
-      { accessorKey: "type", header: "Type" },
-      { accessorKey: "company", header: "Company" },
-      { accessorKey: "branch", header: "Branch" },
-      { accessorKey: "role", header: "Role" },
-      { accessorKey: "status", header: "Status" },
-      { accessorKey: "createdAt", header: "Created At" },
-      {
-        id: "actions",
-        header: "Actions",
-        cell: ({ row }) => (
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                setEditTarget(row.original);
-                setEditDialogOpen(true);
-              }}
-            >
-              Edit
-            </Button>
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={() => setDeleteTarget(row.original)}
-            >
-              Delete
-            </Button>
-          </div>
-        ),
-      },
-    ],
-    []
-  );
+  // Handle Edit Ticket Type
+  const handleEditTicketType = (ticketType: TicketType) => {
+    const newName = prompt("Enter new name for ticket type:", ticketType.name);
+    if (newName && newName.trim() && newName !== ticketType.name) {
+      updateTicketTypeMutation.mutate({
+        id: ticketType._id,
+        name: newName.trim()
+      });
+    }
+  };
 
-  // --------------------------- EDIT MODAL ---------------------------
-  const editFields: FieldConfig[] = [
-    { name: "status", label: "Status", type: "select", options: statusOptions },
-    { name: "feedback", label: "Feedback", type: "text" },
-  ];
+  // Handle Delete Ticket Type
+  const handleDeleteTicketType = (ticketType: TicketType) => {
+    if (confirm(`Are you sure you want to delete "${ticketType.name}"?`)) {
+      deleteTicketTypeMutation.mutate(ticketType._id);
+    }
+  };
 
-  // --------------------------- TABLE SETUP ---------------------------
+  // Status badge colors
+  const renderStatusButton = (status: string) => {
+    let colorClass = "bg-gray-300 text-gray-800";
+    if (status === "Open") colorClass = "bg-blue-500 text-white";
+    else if (status === "In Progress") colorClass = "bg-yellow-500 text-black";
+    else if (status === "Resolved") colorClass = "bg-green-500 text-white";
+    else if (status === "Closed") colorClass = "bg-gray-500 text-white";
+    return <span className={`px-3 py-1 rounded-full text-sm font-medium ${colorClass}`}>{status}</span>;
+  };
+
+  // Table columns for Tickets
+  const columns = useMemo<ColumnDef<Ticket>[]>(() => [
+    {
+      header: "Added Date",
+      cell: ({ row }) => new Date(row.original.createdAt).toLocaleString(),
+    },
+    { accessorKey: "ticket_id", header: "Ticket ID" },
+    { 
+      header: "Raised By", 
+      cell: ({ row }) => row.original.raised_by?.userModel || "N/A"
+    },
+    { 
+      accessorKey: "email", 
+      header: "Email",
+      cell: ({ row }) => row.original.email || "N/A"
+    },
+    { 
+      header: "Type", 
+      cell: ({ row }) => row.original.type?.name || "N/A"
+    },
+    { 
+      header: "School", 
+      cell: ({ row }) => row.original.schoolId?.schoolName || "N/A"
+    },
+    { 
+      header: "Branch", 
+      cell: ({ row }) => row.original.branchId?.branchName || "N/A"
+    },
+    { 
+      accessorKey: "role", 
+      header: "Role",
+      cell: ({ row }) => row.original.role || "N/A"
+    },
+    { 
+      accessorKey: "description", 
+      header: "Description",
+      cell: ({ row }) => row.original.description || "N/A"
+    },
+    { 
+      accessorKey: "feedback", 
+      header: "Feedback",
+      cell: ({ row }) => row.original.feedback || "N/A"
+    },
+    { header: "Status", cell: ({ row }) => renderStatusButton(row.original.status) },
+    {
+      header: "Action",
+      cell: ({ row }) => (
+        <Button
+          size="sm"
+          variant="outline"
+          className="bg-yellow-400 text-black hover:bg-yellow-500 border-yellow-500"
+          onClick={() => {
+            setSelectedTicket(row.original);
+            setStatusValue(row.original.status);
+            setIsDialogOpen(true);
+          }}
+        >
+          Edit
+        </Button>
+      ),
+    },
+  ], []);
+
+  // Table columns for Ticket Types
+  const ticketTypeColumns = useMemo<ColumnDef<TicketType>[]>(() => [
+    {
+      header: "SN",
+      cell: ({ row }) => row.index + 1,
+    },
+    {
+      accessorKey: "name",
+      header: "Ticket Type Name",
+    },
+    {
+      header: "Created Date",
+      cell: ({ row }) => new Date(row.original.createdAt).toLocaleDateString(),
+    },
+    {
+      header: "Actions",
+      cell: ({ row }) => (
+        <div className="space-x-2">
+          <Button
+            size="sm"
+            variant="outline"
+            className="bg-yellow-400 text-black hover:bg-yellow-500 border-yellow-500"
+            onClick={() => handleEditTicketType(row.original)}
+            disabled={updateTicketTypeMutation.isPending}
+          >
+            Edit
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="bg-red-500 text-white hover:bg-red-600 border-red-500"
+            onClick={() => handleDeleteTicketType(row.original)}
+            disabled={deleteTicketTypeMutation.isPending}
+          >
+            Delete
+          </Button>
+        </div>
+      ),
+    },
+  ], [updateTicketTypeMutation.isPending, deleteTicketTypeMutation.isPending]);
+
+  // Table setup for Tickets
   const { table, tableElement } = CustomTableServerSidePagination({
     data: filteredData || [],
     columns,
     pagination,
-    totalCount: ticketsData?.total || 0,
+    totalCount: ticketsData?.totalRecords || 0,
     loading: isLoading || isFetching,
     onPaginationChange: setPagination,
     onSortingChange: setSorting,
@@ -263,135 +320,203 @@ export default function RaiseTicketMaster() {
     columnVisibility,
     onColumnVisibilityChange: setColumnVisibility,
     emptyMessage: "No tickets found",
-    pageSizeOptions: [5, 10, 20, 30, 50],
     enableSorting: true,
     showSerialNumber: true,
   });
 
-  // --------------------------- RENDER ---------------------------
+  // Table setup for Ticket Types - FIXED VERSION
+  const ticketTypesTableConfig = CustomTableServerSidePagination({
+    data: ticketTypesData || [],
+    columns: ticketTypeColumns,
+    pagination: { pageIndex: 0, pageSize: 10 },
+    totalCount: Array.isArray(ticketTypesData) ? ticketTypesData.length : 0,
+    loading: isLoadingTicketTypes,
+    onPaginationChange: () => {},
+    onSortingChange: () => {},
+    sorting: [],
+    columnVisibility: {},
+    onColumnVisibilityChange: () => {},
+    emptyMessage: "No ticket types found",
+    enableSorting: false,
+    showSerialNumber: false,
+  });
+
+  // Filter by status
+  const handleStatusFilter = (status: "All" | "Open" | "In Progress" | "Resolved") => {
+    setStatusFilter(status);
+    if (status === "All") setFilteredData(filterResults);
+    else setFilteredData(filterResults.filter((t) => t.status === status));
+  };
+
+  // Button color logic
+  const getStatusButtonColor = (status: string) => {
+    switch (status) {
+      case "Open":
+        return statusFilter === "Open"
+          ? "bg-blue-600 text-white hover:bg-blue-700 border-blue-600"
+          : "bg-blue-100 text-blue-800 hover:bg-blue-200 border-blue-200";
+      case "In Progress":
+        return statusFilter === "In Progress"
+          ? "bg-yellow-500 text-black hover:bg-yellow-600 border-yellow-500"
+          : "bg-yellow-100 text-yellow-800 hover:bg-yellow-200 border-yellow-200";
+      case "Resolved":
+        return statusFilter === "Resolved"
+          ? "bg-green-600 text-white hover:bg-green-700 border-green-600"
+          : "bg-green-100 text-green-800 hover:bg-green-200 border-green-200";
+      case "All":
+      default:
+        return statusFilter === "All"
+          ? "bg-gray-800 text-white hover:bg-gray-900"
+          : "bg-gray-200 text-gray-800 hover:bg-gray-300 border-gray-300";
+    }
+  };
+
+  // Debug: Log ticket types data
+  useEffect(() => {
+    console.log("Ticket Types Data:", ticketTypesData);
+  }, [ticketTypesData]);
+
   return (
     <main>
       <ResponseLoader isLoading={isLoading || isFetching} />
 
-      <header className="flex items-center justify-between mb-4">
-        <section className="flex space-x-4">
+      {/* ---------- FILTER HEADER ---------- */}
+      <header className="flex flex-col md:flex-row md:items-center justify-between mb-4 space-y-2 md:space-y-0">
+        <section className="flex flex-wrap gap-4 items-center">
           <SearchComponent
             data={filterResults}
             displayKey={[
-              "ticketId",
-              "raisedBy",
+              "ticket_id",
               "email",
-              "type",
-              "company",
-              "branch",
+              "type.name",
+              "schoolId.schoolName",
+              "branchId.branchName",
               "role",
               "status",
             ]}
             onResults={setFilteredData}
-            className="w-[300px] mb-4"
+            className="w-[300px]"
           />
-          <DateRangeFilter
-            onDateRangeChange={(s, e) => setDateRange({ start: s, end: e })}
-            title="Search by Added Date"
-          />
-          <ColumnVisibilitySelector
-            columns={table.getAllColumns()}
-            buttonVariant="outline"
-            buttonSize="default"
-          />
+          <DateRangeFilter onDateRangeChange={() => {}} title="Search by Added Date" />
+          <ColumnVisibilitySelector columns={table.getAllColumns()} buttonVariant="outline" buttonSize="default" />
+
+          <div className="flex space-x-2">
+            {["All", "Open", "In Progress", "Resolved"].map((status) => (
+              <Button
+                key={status}
+                size="sm"
+                variant="outline"
+                className={`border ${getStatusButtonColor(status)}`}
+                onClick={() => handleStatusFilter(status as any)}
+              >
+                {status}
+              </Button>
+            ))}
+          </div>
         </section>
 
-        <section>
-          <Dialog>
+        <section className="flex space-x-2">
+          {/* Manage Ticket Types Button */}
+          <Dialog open={isTicketTypesDialogOpen} onOpenChange={setIsTicketTypesDialogOpen}>
             <DialogTrigger asChild>
-              <Button variant="default">Raise Ticket</Button>
+              <Button variant="outline" className="bg-purple-500 text-white hover:bg-purple-600 border-purple-500">
+                Manage Ticket Types
+              </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[600px]">
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <DialogHeader>
-                  <DialogTitle>Raise New Ticket</DialogTitle>
-                </DialogHeader>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="grid gap-2">
-                    <Label htmlFor="raisedBy">Raised By</Label>
-                    <Input id="raisedBy" name="raisedBy" placeholder="Your name" required />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="email">Email</Label>
-                    <Input id="email" name="email" type="email" placeholder="Email" required />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label>School</Label>
-                    <SearchableSelect
-                      options={schoolOptions}
-                      value={school}
-                      onValueChange={setSchool}
-                      placeholder="Select school"
+            <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Manage Ticket Types</DialogTitle>
+              </DialogHeader>
+              
+              {/* Add New Ticket Type Form */}
+              <form onSubmit={handleAddTicketType} className="space-y-4 mt-4">
+                <div className="space-y-2">
+                  <Label htmlFor="ticketTypeName">Add New Ticket Type</Label>
+                  <div className="flex space-x-2">
+                    <Input
+                      id="ticketTypeName"
+                      placeholder="Enter ticket type name"
+                      value={newTicketType}
+                      onChange={(e) => setNewTicketType(e.target.value)}
+                      className="flex-1"
                     />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label>Branch</Label>
-                    <SearchableSelect
-                      options={filteredBranchOptions}
-                      value={branch}
-                      onValueChange={setBranch}
-                      placeholder="Select branch"
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label>Type</Label>
-                    <SearchableSelect
-                      options={ticketTypeOptions}
-                      placeholder="Select ticket type"
-                      name="type"
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label>Role</Label>
-                    <SearchableSelect
-                      options={roleOptions}
-                      placeholder="Select your role"
-                      name="role"
-                    />
-                  </div>
-                  <div className="grid gap-2 md:col-span-2">
-                    <Label>Description</Label>
-                    <textarea
-                      name="description"
-                      placeholder="Describe your issue"
-                      rows={4}
-                      required
-                      className="border border-gray-300 rounded-md p-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
+                    <Button 
+                      type="submit" 
+                      disabled={addTicketTypeMutation.isPending}
+                      className="bg-yellow-400 text-black hover:bg-yellow-500 border-yellow-500"
+                    >
+                      {addTicketTypeMutation.isPending ? "Adding..." : "Add"}
+                    </Button>
                   </div>
                 </div>
-
-                <DialogFooter>
-                  <DialogClose asChild>
-                    <Button ref={closeButtonRef} variant="outline">
-                      Cancel
-                    </Button>
-                  </DialogClose>
-                  <Button type="submit" disabled={addTicketMutation.isPending}>
-                    {addTicketMutation.isPending ? "Submitting..." : "Submit Ticket"}
-                  </Button>
-                </DialogFooter>
               </form>
+
+              {/* Ticket Types Table */}
+              <div className="mt-6">
+                <Label className="text-sm font-medium mb-2 block">Existing Ticket Types</Label>
+                <div className="border rounded-md">
+                  {ticketTypesTableConfig.tableElement}
+                </div>
+              </div>
+
+              <div className="flex justify-end pt-4">
+                <Button 
+                  variant="outline" 
+                  onClick={() => setIsTicketTypesDialogOpen(false)}
+                >
+                  Close
+                </Button>
+              </div>
             </DialogContent>
           </Dialog>
         </section>
       </header>
 
+      {/* ---------- TICKETS TABLE ---------- */}
       <section className="mb-4">{tableElement}</section>
 
-      <DynamicEditDialog
-        open={editDialogOpen}
-        setOpen={setEditDialogOpen}
-        initialData={editTarget}
-        endpoint="/ticket"
-        idField="_id"
-        fields={editFields}
-      />
+      {/* ---------- EDIT STATUS DIALOG ---------- */}
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Ticket Status</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 mt-4">
+            <div>
+              <Label>Status</Label>
+              <Select value={statusValue} onValueChange={setStatusValue}>
+                <SelectTrigger className="w-full mt-1">
+                  <SelectValue placeholder="Select Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Open">Open</SelectItem>
+                  <SelectItem value="In Progress">In Progress</SelectItem>
+                  <SelectItem value="Resolved">Resolved</SelectItem>
+                  <SelectItem value="Closed">Closed</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex justify-end space-x-2 pt-3">
+              <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                className="bg-yellow-400 text-black hover:bg-yellow-500 border-yellow-500"
+                onClick={() => {
+                  if (selectedTicket && statusValue) {
+                    updateTicketStatusMutation.mutate({
+                      _id: selectedTicket._id,
+                      status: statusValue,
+                    });
+                  }
+                }}
+              >
+                Save
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <FloatingMenu />
     </main>

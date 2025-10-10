@@ -27,6 +27,9 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { ChevronRight, User, Users, Plus, X } from "lucide-react";
 
 const EDIT_FIELDS: FieldConfig[] = [
   { key: "childName", label: "Student Name", type: "text", required: true },
@@ -55,6 +58,19 @@ const EXPORT_COLUMNS = [
   { key: "parentId.password", header: "Password" },
 ];
 
+// Child form data interface
+interface ChildFormData {
+  childName: string;
+  className: string;
+  section: string;
+  DOB: string;
+  age: number;
+  gender: string;
+  routeId: string;
+  pickupGeoId: string;
+  dropGeoId: string;
+}
+
 // Safe accessor functions
 const getSchoolId = (student: Student): string => {
   if (!student.schoolId) return "";
@@ -81,6 +97,36 @@ const getGeofenceId = (geoField: any): string => {
   return typeof geoField === 'object' ? geoField?._id || "" : geoField || "";
 };
 
+// Step Indicator Component
+const StepIndicator = ({ currentStep, totalSteps }: { currentStep: number; totalSteps: number }) => {
+  return (
+    <div className="flex items-center justify-center mb-6">
+      {Array.from({ length: totalSteps }).map((_, index) => (
+        <React.Fragment key={index}>
+          <div
+            className={`flex items-center justify-center w-8 h-8 rounded-full border-2 ${
+              index + 1 === currentStep
+                ? "bg-primary border-primary text-primary-foreground"
+                : index + 1 < currentStep
+                ? "bg-green-500 border-green-500 text-white"
+                : "border-muted-foreground/30 text-muted-foreground/50"
+            }`}
+          >
+            {index + 1 < currentStep ? "✓" : index + 1}
+          </div>
+          {index < totalSteps - 1 && (
+            <div
+              className={`w-12 h-1 ${
+                index + 1 < currentStep ? "bg-green-500" : "bg-muted-foreground/30"
+              }`}
+            />
+          )}
+        </React.Fragment>
+      ))}
+    </div>
+  );
+};
+
 export default function StudentDetails() {
   const queryClient = useQueryClient();
   const closeButtonRef = useRef<HTMLButtonElement>(null);
@@ -92,6 +138,20 @@ export default function StudentDetails() {
   const [studentName, setStudentName] = useState("");
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
   const [debouncedStudentName, setDebouncedStudentName] = useState(studentName);
+  
+  // Two-step form state
+  const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [currentStep, setCurrentStep] = useState(1);
+  const [parentData, setParentData] = useState({
+    parentName: "",
+    mobileNo: "",
+    username: "",
+    email: "",
+    password: "",
+    schoolId: "",
+    branchId: "",
+  });
+  const [children, setChildren] = useState<ChildFormData[]>([]);
   
   // Add form state for cascading dropdowns
   const [selectedSchool, setSelectedSchool] = useState("");
@@ -133,7 +193,6 @@ export default function StudentDetails() {
   const filteredBranches = useMemo(() => {
     if (!selectedSchool) return [];
     return branches.filter(branch => {
-      // Safe branch schoolId access
       const branchSchoolId = branch.schoolId 
         ? (typeof branch.schoolId === 'object' ? branch.schoolId?._id : branch.schoolId)
         : null;
@@ -154,10 +213,7 @@ export default function StudentDetails() {
 
   // Filter branches for edit dialog 
   const editFilteredBranches = useMemo(() => {
-    console.log("Filtering branches for edit:", { editSelectedSchool, branchesCount: branches.length });
-    
     if (!editSelectedSchool) {
-      // If no school selected, return all branches
       return branches;
     }
     
@@ -171,7 +227,6 @@ export default function StudentDetails() {
       return branchSchoolId === editSelectedSchool;
     });
     
-    console.log("Filtered branches:", filtered);
     return filtered;
   }, [editSelectedSchool, branches]);
 
@@ -198,18 +253,15 @@ export default function StudentDetails() {
     childName: debouncedStudentName,
   });
 
-  // Set edit form initial values when edit target changes - IMPROVED VERSION
+  // Set edit form initial values when edit target changes
   useEffect(() => {
     if (editTarget) {
       const schoolId = getSchoolId(editTarget);
       const branchId = getBranchId(editTarget);
       
-      console.log("Setting edit form state:", { schoolId, branchId, editTarget });
-      
       setEditSelectedSchool(schoolId);
       setEditSelectedBranch(branchId);
       
-      // Force a small delay to ensure state is set before render
       setTimeout(() => {
         console.log("Edit form state after set:", { 
           editSelectedSchool: schoolId, 
@@ -222,16 +274,32 @@ export default function StudentDetails() {
     }
   }, [editTarget]);
 
+  // Reset form when dialog closes
+  useEffect(() => {
+    if (!addDialogOpen) {
+      setCurrentStep(1);
+      setParentData({
+        parentName: "",
+        mobileNo: "",
+        username: "",
+        email: "",
+        password: "",
+        schoolId: "",
+        branchId: "",
+      });
+      setChildren([]);
+      setSelectedSchool("");
+      setSelectedBranch("");
+    }
+  }, [addDialogOpen]);
+
   // Mutations
   const addStudentMutation = useMutation({
     mutationFn: async (newStudent: any) => api.post("/child", newStudent),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["students"] });
-      closeButtonRef.current?.click();
-      // Reset form state
-      setSelectedSchool("");
-      setSelectedBranch("");
-      alert("Student added successfully.");
+      setAddDialogOpen(false);
+      alert("Student(s) added successfully.");
     },
     onError: (err: any) => alert(`Failed to add student.\nError: ${err.message}`),
   });
@@ -264,7 +332,6 @@ export default function StudentDetails() {
     if (!editTarget) return;
     const changedFields: Partial<Record<keyof Student, unknown>> = {};
     
-    // Map routeObjId to routeId for the API
     const dataToCompare = { ...updatedData };
     if (dataToCompare.routeObjId) {
       (dataToCompare as any).routeId = dataToCompare.routeObjId;
@@ -283,57 +350,65 @@ export default function StudentDetails() {
     updateStudentMutation.mutate({ studentId: editTarget._id, data: changedFields });
   };
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+  // Handle Step 1: Parent Details
+  const handleParentSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const form = e.currentTarget as typeof e.currentTarget & {
-      parentName: { value: string };
-      mobileNo: { value: string };
-      username: { value: string };
-      email: { value: string };
-      password: { value: string };
-      schoolId: { value: string };
-      branchId: { value: string };
-      routeId: { value: string };
-      pickupGeoId: { value: string };
-      dropGeoId: { value: string };
-      childName: { value: string };
-      className: { value: string };
-      section: { value: string };
-      DOB: { value: string };
-      age: { value: string };
-      gender: { value: string };
+    const form = e.currentTarget as any;
+
+    setParentData({
+      parentName: form.parentName.value.trim(),
+      mobileNo: form.mobileNo.value.trim(),
+      username: form.username.value.trim(),
+      email: form.email.value.trim(),
+      password: form.password.value,
+      schoolId: form.schoolId.value,
+      branchId: form.branchId.value,
+    });
+    
+    setCurrentStep(2);
+  };
+
+  // Handle adding a child
+  const handleAddChild = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const form = e.currentTarget as any;
+
+    const newChild: ChildFormData = {
+      childName: form.childName.value.trim(),
+      className: form.className.value.trim(),
+      section: form.section.value.trim(),
+      DOB: form.DOB.value,
+      age: parseInt(form.age.value),
+      gender: form.gender.value,
+      routeId: form.routeId.value,
+      pickupGeoId: form.pickupGeoId.value,
+      dropGeoId: form.dropGeoId.value,
     };
 
+    setChildren([...children, newChild]);
+    form.reset();
+    alert(`Child "${newChild.childName}" added! You can add more siblings or submit.`);
+  };
+
+  // Handle removing a child
+  const handleRemoveChild = (index: number) => {
+    setChildren(children.filter((_, i) => i !== index));
+  };
+
+  // Final submission
+  const handleFinalSubmit = async () => {
+    if (children.length === 0) {
+      alert("Please add at least one child before submitting.");
+      return;
+    }
+
     const data = {
-      parent: {
-        parentName: form.parentName.value.trim(),
-        username: form.username.value.trim(),
-        email: form.email.value.trim(),
-        password: form.password.value,
-        mobileNo: form.mobileNo.value.trim(),
-        schoolId: form.schoolId.value,
-        branchId: form.branchId.value,
-      },
-      children: [
-        {
-          childName: form.childName.value.trim(),
-          className: form.className.value.trim(),
-          section: form.section.value.trim(),
-          DOB: form.DOB.value,
-          age: parseInt(form.age.value),
-          gender: form.gender.value,
-          routeId: form.routeId.value,
-          pickupGeoId: form.pickupGeoId.value,
-          dropGeoId: form.dropGeoId.value,
-        },
-      ],
+      parent: parentData,
+      children: children,
     };
 
     try {
       await addStudentMutation.mutateAsync(data);
-      form.reset();
-      setSelectedSchool("");
-      setSelectedBranch("");
     } catch (err) {
       console.error("SUBMISSION FAILED:", err);
     }
@@ -492,7 +567,7 @@ export default function StudentDetails() {
   const handleEditFieldChange = (key: string, value: any) => {
     if (key === "schoolId") {
       setEditSelectedSchool(value);
-      setEditSelectedBranch(""); // Reset branch when school changes
+      setEditSelectedBranch("");
     } else if (key === "branchId") {
       setEditSelectedBranch(value);
     }
@@ -513,182 +588,330 @@ export default function StudentDetails() {
           <ColumnVisibilitySelector columns={table?.getAllColumns() || []} buttonVariant="outline" />
         </section>
 
-        {/* Add Student Dialog */}
-        <Dialog>
+        {/* Add Student Dialog - Two Step Process */}
+        <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
           <DialogTrigger asChild>
-            <Button variant="default">Add Student</Button>
+            <Button variant="default" className="flex items-center gap-2">
+              <Plus className="w-4 h-4" />
+              Add Student
+            </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-[700px] max-h-[80vh] overflow-y-auto">
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <DialogHeader>
-                <DialogTitle>Add Student</DialogTitle>
-              </DialogHeader>
+          <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Users className="w-5 h-5" />
+                Add New Student
+              </DialogTitle>
+            </DialogHeader>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Parent Fields */}
-                {[ 
-                  { id: "parentName", label: "Parent Name *", type: "text" },
-                  { id: "mobileNo", label: "Mobile No *", type: "tel", pattern: "[0-9]{10}", maxLength: 10 },
-                  { id: "username", label: "Username *", type: "text" },
-                  { id: "email", label: "Email *", type: "email" },
-                  { id: "password", label: "Password *", type: "text" },
-                ].map(({ id, label, type, ...props }) => (
-                  <div key={id} className="grid gap-2">
-                    <Label htmlFor={id}>{label}</Label>
-                    <Input id={id} name={id} type={type} required {...props} />
-                  </div>
-                ))}
+            {/* Step Indicator */}
+            <StepIndicator currentStep={currentStep} totalSteps={2} />
 
-                {/* School - with onChange handler */}
-                <div className="grid gap-2">
-                  <Label htmlFor="schoolId">School *</Label>
-                  <select
-                    id="schoolId"
-                    name="schoolId"
-                    required
-                    disabled={schoolsLoading}
-                    value={selectedSchool}
-                    onChange={(e) => {
-                      setSelectedSchool(e.target.value);
-                      setSelectedBranch(""); // Reset branch when school changes
-                    }}
-                    className="flex h-10 w-full rounded-md border px-3 py-2 text-sm"
-                  >
-                    <option value="">Select School</option>
-                    {schools.map((school) => (
-                      <option key={school._id} value={school._id}>{school.schoolName}</option>
-                    ))}
-                  </select>
-                </div>
-                {/* Branch - filtered by school */}
-                <div className="grid gap-2">
-                  <Label htmlFor="branchId">Branch *</Label>
-                  <select
-                    id="branchId"
-                    name="branchId"
-                    required
-                    disabled={branchesLoading || !selectedSchool}
-                    value={selectedBranch}
-                    onChange={(e) => setSelectedBranch(e.target.value)}
-                    className="flex h-10 w-full rounded-md border px-3 py-2 text-sm"
-                  >
-                    <option value="">
-                      {!selectedSchool ? "Select School First" : "Select Branch"}
-                    </option>
-                    {filteredBranches.map((branch) => (
-                      <option key={branch._id} value={branch._id}>{branch.branchName}</option>
-                    ))}
-                  </select>
-                </div>
+            {/* Step 1: Parent Details */}
+            {currentStep === 1 && (
+              <Card>
+                <CardHeader className="pb-4">
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <User className="w-5 h-5" />
+                    Parent Information
+                  </CardTitle>
+                  <CardDescription>
+                    Enter the parent's details to create a new account
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <form onSubmit={handleParentSubmit} className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      {[ 
+                        { id: "parentName", label: "Parent Name", type: "text" },
+                        { id: "mobileNo", label: "Mobile No", type: "tel", pattern: "[0-9]{10}", maxLength: 10 },
+                        { id: "username", label: "Username", type: "text" },
+                        { id: "email", label: "Email", type: "email" },
+                        { id: "password", label: "Password", type: "text" },
+                      ].map(({ id, label, type, ...props }) => (
+                        <div key={id} className="grid gap-2">
+                          <Label htmlFor={id}>{label} *</Label>
+                          <Input id={id} name={id} type={type} required {...props} />
+                        </div>
+                      ))}
 
-                {/* Route - filtered by branch */}
-                <div className="grid gap-2">
-                  <Label htmlFor="routeId">Route *</Label>
-                  <select
-                    id="routeId"
-                    name="routeId"
-                    required
-                    disabled={routesLoading || !selectedBranch}
-                    className="flex h-10 w-full rounded-md border px-3 py-2 text-sm"
-                  >
-                    <option value="">
-                      {!selectedBranch ? "Select Branch First" : "Select Route"}
-                    </option>
-                    {filteredRoutes.map((route) => (
-                      <option key={route._id} value={route._id}>
-                        {route.routeNumber || `Route ${route.routeName || route._id}`}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                      {/* School */}
+                      <div className="grid gap-2">
+                        <Label htmlFor="schoolId">School *</Label>
+                        <select
+                          id="schoolId"
+                          name="schoolId"
+                          required
+                          disabled={schoolsLoading}
+                          value={selectedSchool}
+                          onChange={(e) => {
+                            setSelectedSchool(e.target.value);
+                            setSelectedBranch("");
+                          }}
+                          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                        >
+                          <option value="">Select School</option>
+                          {schools.map((school) => (
+                            <option key={school._id} value={school._id}>{school.schoolName}</option>
+                          ))}
+                        </select>
+                      </div>
 
-                {/* Pickup Location */}
-                <div className="grid gap-2">
-                  <Label htmlFor="pickupGeoId">Pickup Location *</Label>
-                  <select
-                    id="pickupGeoId"
-                    name="pickupGeoId"
-                    required
-                    disabled={geofencesLoading}
-                    className="flex h-10 w-full rounded-md border px-3 py-2 text-sm"
-                  >
-                    <option value="">Select Pickup Location</option>
-                    {geofences.map((geo) => (
-                      <option key={geo._id} value={geo._id}>{geo.geofenceName}</option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Drop Location */}
-                <div className="grid gap-2">
-                  <Label htmlFor="dropGeoId">Drop Location *</Label>
-                  <select
-                    id="dropGeoId"
-                    name="dropGeoId"
-                    required
-                    disabled={geofencesLoading}
-                    className="flex h-10 w-full rounded-md border px-3 py-2 text-sm"
-                  >
-                    <option value="">Select Drop Location</option>
-                    {geofences.map((geo) => (
-                      <option key={geo._id} value={geo._id}>{geo.geofenceName}</option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Child Fields */}
-                {[ 
-                  { id: "childName", label: "Student Name *", type: "text" },
-                  { id: "age", label: "Age *", type: "number", min: "3", max: "18" },
-                  { id: "className", label: "Class *", type: "text" },
-                  { id: "section", label: "Section *", type: "text" },
-                  { id: "DOB", label: "Date of Birth *", type: "date" },
-                  { 
-                    id: "gender", 
-                    label: "Gender *", 
-                    type: "select",
-                    options: [
-                      { value: "male", label: "Male" },
-                      { value: "female", label: "Female" },
-                      { value: "other", label: "Other" }
-                    ]
-                  },
-                ].map(({ id, label, type, options, ...props }) => (
-                  <div key={id} className="grid gap-2">
-                    <Label htmlFor={id}>{label}</Label>
-                    {type === "select" ? (
-                      <select
-                        id={id}
-                        name={id}
-                        required
-                        className="flex h-10 w-full rounded-md border px-3 py-2 text-sm"
-                      >
-                        <option value="">Select {label.replace(' *', '')}</option>
-                        {options?.map((option) => (
-                          <option key={option.value} value={option.value}>
-                            {option.label}
+                      {/* Branch */}
+                      <div className="grid gap-2">
+                        <Label htmlFor="branchId">Branch *</Label>
+                        <select
+                          id="branchId"
+                          name="branchId"
+                          required
+                          disabled={branchesLoading || !selectedSchool}
+                          value={selectedBranch}
+                          onChange={(e) => setSelectedBranch(e.target.value)}
+                          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                        >
+                          <option value="">
+                            {!selectedSchool ? "Select School First" : "Select Branch"}
                           </option>
-                        ))}
-                      </select>
-                    ) : (
-                      <Input id={id} name={id} type={type} required {...props} />
-                    )}
-                  </div>
-                ))}
-              </div>
+                          {filteredBranches.map((branch) => (
+                            <option key={branch._id} value={branch._id}>{branch.branchName}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
 
-              <DialogFooter>
-                <DialogClose asChild>
-                  <Button ref={closeButtonRef} variant="outline">Cancel</Button>
-                </DialogClose>
-                <Button
-                  type="submit"
-                  disabled={addStudentMutation.isPending || schoolsLoading || branchesLoading || routesLoading || geofencesLoading}
-                >
-                  {addStudentMutation.isPending ? "Saving..." : "Save Student"}
-                </Button>
-              </DialogFooter>
-            </form>
+                    <DialogFooter className="pt-4">
+                      <DialogClose asChild>
+                        <Button variant="outline">Cancel</Button>
+                      </DialogClose>
+                      <Button type="submit" className="flex items-center gap-2">
+                        Continue to Children
+                        <ChevronRight className="w-4 h-4" />
+                      </Button>
+                    </DialogFooter>
+                  </form>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Step 2: Add Children */}
+            {currentStep === 2 && (
+              <div className="space-y-6">
+                {/* Parent Summary Card */}
+                <Card className="bg-muted/50">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-medium flex items-center justify-between">
+                      <span>Parent Summary</span>
+                      <Badge variant="secondary" className="ml-2">
+                        {parentData.parentName}
+                      </Badge>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="pb-3">
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-sm">
+                      <div>
+                        <span className="text-muted-foreground">Mobile:</span>
+                        <div className="font-medium">{parentData.mobileNo}</div>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Email:</span>
+                        <div className="font-medium">{parentData.email}</div>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Username:</span>
+                        <div className="font-medium">{parentData.username}</div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* List of added children */}
+                {children.length > 0 && (
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        <Users className="w-5 h-5" />
+                        Added Children ({children.length})
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-3">
+                        {children.map((child, index) => (
+                          <div key={index} className="flex justify-between items-center p-3 bg-card border rounded-lg">
+                            <div className="flex items-center gap-3">
+                              <div className="flex items-center justify-center w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs font-medium">
+                                {index + 1}
+                              </div>
+                              <div>
+                                <div className="font-medium">{child.childName}</div>
+                                <div className="text-sm text-muted-foreground">
+                                  Class {child.className} ({child.section}) • Age {child.age}
+                                </div>
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveChild(index)}
+                              className="text-destructive hover:text-destructive/80 p-1 rounded-sm"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Add child form */}
+                <Card>
+                  <CardHeader className="pb-4">
+                    <CardTitle className="flex items-center gap-2 text-lg">
+                      <Plus className="w-5 h-5" />
+                      Add Child/Sibling
+                    </CardTitle>
+                    <CardDescription>
+                      Fill in the child's details and click "Add This Child"
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <form onSubmit={handleAddChild} className="space-y-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {[ 
+                          { id: "childName", label: "Student Name", type: "text" },
+                          { id: "age", label: "Age", type: "number", min: "3", max: "18" },
+                          { id: "className", label: "Class", type: "text" },
+                          { id: "section", label: "Section", type: "text" },
+                          { id: "DOB", label: "Date of Birth", type: "date" },
+                          { 
+                            id: "gender", 
+                            label: "Gender", 
+                            type: "select",
+                            options: [
+                              { value: "male", label: "Male" },
+                              { value: "female", label: "Female" },
+                              { value: "other", label: "Other" }
+                            ]
+                          },
+                        ].map(({ id, label, type, options, ...props }) => (
+                          <div key={id} className="grid gap-2">
+                            <Label htmlFor={id}>{label} *</Label>
+                            {type === "select" ? (
+                              <select
+                                id={id}
+                                name={id}
+                                required
+                                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                              >
+                                <option value="">Select {label.replace(' *', '')}</option>
+                                {options?.map((option) => (
+                                  <option key={option.value} value={option.value}>
+                                    {option.label}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : (
+                              <Input id={id} name={id} type={type} required {...props} />
+                            )}
+                          </div>
+                        ))}
+
+                        {/* Route */}
+                        <div className="grid gap-2">
+                          <Label htmlFor="routeId">Route *</Label>
+                          <select
+                            id="routeId"
+                            name="routeId"
+                            required
+                            disabled={routesLoading}
+                            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                          >
+                            <option value="">Select Route</option>
+                            {filteredRoutes.map((route) => (
+                              <option key={route._id} value={route._id}>
+                                {route.routeNumber || `Route ${route.routeName || route._id}`}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {/* Pickup Location */}
+                        <div className="grid gap-2">
+                          <Label htmlFor="pickupGeoId">Pickup Location *</Label>
+                          <select
+                            id="pickupGeoId"
+                            name="pickupGeoId"
+                            required
+                            disabled={geofencesLoading}
+                            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                          >
+                            <option value="">Select Pickup Location</option>
+                            {geofences.map((geo) => (
+                              <option key={geo._id} value={geo._id}>{geo.geofenceName}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {/* Drop Location */}
+                        <div className="grid gap-2">
+                          <Label htmlFor="dropGeoId">Drop Location *</Label>
+                          <select
+                            id="dropGeoId"
+                            name="dropGeoId"
+                            required
+                            disabled={geofencesLoading}
+                            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                          >
+                            <option value="">Select Drop Location</option>
+                            {geofences.map((geo) => (
+                              <option key={geo._id} value={geo._id}>{geo.geofenceName}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+
+                      <div className="flex justify-end pt-2">
+                        <Button type="submit" variant="outline" className="flex items-center gap-2">
+                          <Plus className="w-4 h-4" />
+                          Add This Child
+                        </Button>
+                      </div>
+                    </form>
+                  </CardContent>
+                </Card>
+
+                {/* Footer buttons */}
+                <DialogFooter className="flex justify-between pt-4">
+                  <Button 
+                    variant="outline" 
+                    onClick={() => setCurrentStep(1)}
+                    type="button"
+                    className="flex items-center gap-2"
+                  >
+                    <ChevronRight className="w-4 h-4 rotate-180" />
+                    Back to Parent Details
+                  </Button>
+                  <div className="flex gap-2">
+                    <DialogClose asChild>
+                      <Button variant="outline">Cancel</Button>
+                    </DialogClose>
+                    <Button
+                      onClick={handleFinalSubmit}
+                      disabled={children.length === 0 || addStudentMutation.isPending}
+                      type="button"
+                      className="flex items-center gap-2"
+                    >
+                      {addStudentMutation.isPending ? (
+                        "Submitting..."
+                      ) : (
+                        <>
+                          Submit {children.length > 0 && `(${children.length} ${children.length === 1 ? 'Child' : 'Children'})`}
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </DialogFooter>
+              </div>
+            )}
           </DialogContent>
         </Dialog>
       </header>
@@ -728,12 +951,10 @@ export default function StudentDetails() {
                     options: schools.map(s => ({ label: s.schoolName, value: s._id })) 
                   };
                 }
-                // In the DynamicEditDialog fields mapping, update the branch field configuration:
-                // TEMPORARY WORKAROUND - In the DynamicEditDialog fields mapping:
                 if (f.key === "branchId") {
                   const branchOptions = editFilteredBranches.length > 0 
                     ? editFilteredBranches 
-                    : branches; // Fallback to all branches if filtered is empty
+                    : branches;
                   
                   return { 
                     ...f, 
@@ -741,7 +962,7 @@ export default function StudentDetails() {
                       label: b.branchName || `Branch ${b._id}`, 
                       value: b._id 
                     })),
-                    disabled: false // Always enable the dropdown
+                    disabled: false
                   };
                 }
                 if (f.key === "routeObjId") {

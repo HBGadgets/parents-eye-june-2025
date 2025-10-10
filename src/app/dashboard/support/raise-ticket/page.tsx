@@ -16,16 +16,13 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { DynamicEditDialog, FieldConfig } from "@/components/ui/EditModal";
 import SearchComponent from "@/components/ui/SearchOnlydata";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
 import DateRangeFilter from "@/components/ui/DateRangeFilter";
 import { FloatingMenu } from "@/components/floatingMenu";
 import { useSchoolData } from "@/hooks/useSchoolData";
 import { useBranchData } from "@/hooks/useBranchData";
-import { SearchableSelect } from "@/components/custom-select";
 import {
   VisibilityState,
   type ColumnDef,
@@ -34,7 +31,6 @@ import {
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { api } from "@/services/apiService";
 import { useExport } from "@/hooks/useExport";
-import { Alert } from "@/components/Alert";
 import ResponseLoader from "@/components/ResponseLoader";
 import { ColumnVisibilitySelector } from "@/components/column-visibility-selector";
 import { CustomTableServerSidePagination } from "@/components/ui/customTable(serverSidePagination)";
@@ -42,31 +38,30 @@ import { CustomTableServerSidePagination } from "@/components/ui/customTable(ser
 // --------------------------- INTERFACES ---------------------------
 interface Ticket {
   _id: string;
-  ticketId: string;
-  raisedBy: string;
+  ticket_id: string;
+  raised_by: {
+    userId: string;
+    userModel: string;
+  };
   email: string;
-  type: string;
-  company: string;
-  branch: string;
+  type: { _id: string; name: string };
+  schoolId: { _id: string; schoolName: string };
+  branchId: { _id: string; branchName: string };
   role: string;
   description: string;
   feedback?: string;
   status: "Open" | "In Progress" | "Resolved" | "Closed";
-  schoolId?: {
-    _id: string;
-    schoolName: string;
-  };
-  branchId?: {
-    _id: string;
-    branchName: string;
-  };
+  added_date: string;
   createdAt: string;
-  updatedAt?: string;
+  updatedAt: string;
 }
 
-interface selectOption {
-  label: string;
-  value: string;
+interface TicketType {
+  _id: string;
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+  __v: number;
 }
 
 // --------------------------- COMPONENT ---------------------------
@@ -75,10 +70,7 @@ export default function RaiseTicketMaster() {
   const closeButtonRef = useRef<HTMLButtonElement>(null);
 
   // Table states
-  const [pagination, setPagination] = useState({
-    pageIndex: 0,
-    pageSize: 10,
-  });
+  const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 10 });
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState<string>("");
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
@@ -86,20 +78,36 @@ export default function RaiseTicketMaster() {
     start: null,
     end: null,
   });
-
   const [filteredData, setFilteredData] = useState<Ticket[]>([]);
   const [filterResults, setFilterResults] = useState<Ticket[]>([]);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<"All" | "Open" | "In Progress" | "Resolved">("All");
 
-  const [school, setSchool] = useState<string | undefined>(undefined);
-  const [branch, setBranch] = useState<string | undefined>(undefined);
+  // Form states
+  const [selectedType, setSelectedType] = useState("");
+  const [description, setDescription] = useState("");
 
+  const { exportToPDF, exportToExcel } = useExport();
   const { data: schoolData } = useSchoolData();
   const { data: branchData } = useBranchData();
 
-  const { exportToPDF, exportToExcel } = useExport();
+  // --------------------------- TICKET TYPES API ---------------------------
+  const { data: ticketTypesData, isLoading: isLoadingTicketTypes, refetch: refetchTicketTypes } = useQuery({
+    queryKey: ["ticketTypes"],
+    queryFn: async () => {
+      try {
+        const response = await api.get("/get-ticket-types");
+        console.log("Ticket Types API Response:", response);
+        // Based on your API response, it returns a direct array
+        return Array.isArray(response) ? response : response.data || response.types || [];
+      } catch (error) {
+        console.error("Error fetching ticket types:", error);
+        return [];
+      }
+    },
+  });
 
-  // --------------------------- DATA FETCH ---------------------------
+  // --------------------------- FETCH TICKETS DATA ---------------------------
   const { data: ticketsData, isLoading, isFetching } = useQuery({
     queryKey: ["tickets", pagination, sorting, globalFilter],
     queryFn: async () => {
@@ -107,128 +115,195 @@ export default function RaiseTicketMaster() {
         page: String(pagination.pageIndex + 1),
         limit: String(pagination.pageSize),
       });
-      const response = await api.get(`/tickets?${params}`);
+      const response = await api.get(`/get-tickets?${params}`);
       return response;
     },
   });
 
-  useEffect(() => {
-    if (ticketsData?.data) {
-      setFilteredData(ticketsData.data);
-      setFilterResults(ticketsData.data);
+  // --------------------------- LOAD USER INFO ---------------------------
+  const getUserInfo = () => {
+    if (typeof window === "undefined") return null;
+    try {
+      const userData = localStorage.getItem("user");
+      if (userData) {
+        const user = JSON.parse(userData);
+        return {
+          email: user.email || "user@example.com",
+          schoolId: user.schoolId || "68788bcf7fe7ec5e0429bbe9",
+          branchId: user.branchId || "6878ced3cf6cab94db74b243",
+          role: user.role || "user",
+        };
+      }
+      return {
+        email: "user@example.com",
+        schoolId: "68788bcf7fe7ec5e0429bbe9",
+        branchId: "6878ced3cf6cab94db74b243",
+        role: "user",
+      };
+    } catch (error) {
+      console.error("Error reading user info:", error);
+      return {
+        email: "user@example.com",
+        schoolId: "68788bcf7fe7ec5e0429bbe9",
+        branchId: "6878ced3cf6cab94db74b243",
+        role: "user",
+      };
     }
-  }, [ticketsData?.data]);
+  };
 
-  // --------------------------- DROPDOWNS ---------------------------
-  const schoolOptions: selectOption[] = schoolData
-    ? schoolData.map((s) => ({ label: s.schoolName, value: s._id }))
-    : [];
+  // --------------------------- UPDATE DATA AFTER FETCH ---------------------------
+  useEffect(() => {
+    if (ticketsData?.tickets) {
+      // Only reset data when not adding a new ticket (fresh fetch)
+      setFilteredData((prev) => {
+        // Avoid duplicates if tickets already appended
+        const newTickets = ticketsData.tickets.filter(
+          (t: any) => !prev.some((p) => p._id === t._id)
+        );
+        return [...prev, ...newTickets];
+      });
+      setFilterResults(ticketsData.tickets);
+    }
+  }, [ticketsData]);
 
-  const filteredBranchOptions = useMemo(() => {
-    if (!school || !branchData) return [];
-    return branchData
-      .filter((b) => b.schoolId?._id === school)
-      .map((b) => ({ label: b.branchName, value: b._id }));
-  }, [school, branchData]);
-
-  const ticketTypeOptions: selectOption[] = [
-    { label: "Technical Issue", value: "Technical Issue" },
-    { label: "Feature Request", value: "Feature Request" },
-    { label: "Bug Report", value: "Bug Report" },
-    { label: "General Inquiry", value: "General Inquiry" },
-    { label: "Account Issue", value: "Account Issue" },
-    { label: "Other", value: "Other" },
-  ];
-
-  const roleOptions: selectOption[] = [
-    { label: "Admin", value: "Admin" },
-    { label: "Teacher", value: "Teacher" },
-    { label: "Parent", value: "Parent" },
-    { label: "Student", value: "Student" },
-    { label: "Staff", value: "Staff" },
-  ];
-
-  const statusOptions: selectOption[] = [
-    { label: "Open", value: "Open" },
-    { label: "In Progress", value: "In Progress" },
-    { label: "Resolved", value: "Resolved" },
-    { label: "Closed", value: "Closed" },
-  ];
-
-  // --------------------------- MUTATION ---------------------------
+  // --------------------------- ADD TICKET MUTATION ---------------------------
   const addTicketMutation = useMutation({
     mutationFn: async (newTicket: any) => {
-      const res = await api.post("/ticket", newTicket);
+      const res = await api.post("/raise-ticket", newTicket);
       return res.ticket;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["tickets"] });
+
+      // Find the selected ticket type name
+      const selectedTicketType = Array.isArray(ticketTypesData) 
+        ? ticketTypesData.find((type: TicketType) => type._id === selectedType)
+        : null;
+
+      // Create the complete ticket object with proper type structure
+      const completeTicket: Ticket = {
+        ...data,
+        type: selectedTicketType ? {
+          _id: selectedTicketType._id,
+          name: selectedTicketType.name
+        } : { _id: selectedType, name: "Unknown Type" }
+      };
+
+      // Add new ticket to the END of list immediately with proper type structure
+      setFilteredData((prev) => [...prev, completeTicket]);
+      setFilterResults((prev) => [...prev, completeTicket]);
+
       alert("Ticket raised successfully.");
     },
-    onError: (err) => {
-      alert("Failed to raise ticket.\nerror: " + err);
+    onError: (err: any) => {
+      console.error("Error:", err);
+      alert("Failed to raise ticket. Please try again.");
     },
   });
 
+  // --------------------------- FORM SUBMIT ---------------------------
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const form = e.currentTarget;
-    const formData = new FormData(form);
 
-    if (!school) return alert("Please select a school");
-    if (!branch) return alert("Please select a branch");
+    if (!selectedType) return alert("Please select a ticket type");
+    if (!description.trim()) return alert("Please enter a description");
+
+    const userInfo = getUserInfo();
+    if (!userInfo) return alert("User information not found. Please login again.");
 
     const data = {
-      ticketId: `TKT-${Date.now()}`,
-      raisedBy: formData.get("raisedBy") as string,
-      email: formData.get("email") as string,
-      type: formData.get("type") as string,
-      company: schoolOptions.find((s) => s.value === school)?.label || "",
-      branch: filteredBranchOptions.find((b) => b.value === branch)?.label || "",
-      role: formData.get("role") as string,
-      description: formData.get("description") as string,
-      schoolId: school,
-      branchId: branch,
-      status: "Open" as const,
+      type: selectedType,
+      description: description.trim(),
+      schoolId: userInfo.schoolId,
+      branchId: userInfo.branchId,
+      email: userInfo.email,
+      status: "Open",
     };
 
-    try {
-      await addTicketMutation.mutateAsync(data);
-      closeButtonRef.current?.click();
-      form.reset();
-      setSchool(undefined);
-      setBranch(undefined);
-    } catch {}
+    await addTicketMutation.mutateAsync(data);
+    closeButtonRef.current?.click();
+    resetForm();
+  };
+
+  const resetForm = () => {
+    setSelectedType("");
+    setDescription("");
+  };
+
+  const handleDialogClose = () => resetForm();
+
+  // --------------------------- STATUS BUTTONS ---------------------------
+  const renderStatusButton = (status: string) => {
+    let colorClass = "bg-gray-300 text-gray-800";
+    if (status === "Open") colorClass = "bg-blue-500 text-white";
+    else if (status === "In Progress") colorClass = "bg-yellow-500 text-black";
+    else if (status === "Resolved") colorClass = "bg-green-500 text-white";
+    else if (status === "Closed") colorClass = "bg-gray-500 text-white";
+    return (
+      <span className={`px-3 py-1 rounded-full text-sm font-medium ${colorClass}`}>
+        {status}
+      </span>
+    );
   };
 
   // --------------------------- TABLE COLUMNS ---------------------------
-  const columns = useMemo<ColumnDef<Ticket>[]>(
-    () => [
-      { accessorKey: "ticketId", header: "Ticket ID" },
-      { accessorKey: "raisedBy", header: "Raised By" },
-      { accessorKey: "email", header: "Email" },
-      { accessorKey: "type", header: "Type" },
-      { accessorKey: "company", header: "Company" },
-      { accessorKey: "branch", header: "Branch" },
-      { accessorKey: "role", header: "Role" },
-      { accessorKey: "status", header: "Status" },
-      { accessorKey: "createdAt", header: "Created At" },
-    ],
-    []
-  );
-
-  // --------------------------- EDIT MODAL ---------------------------
-  const editFields: FieldConfig[] = [
-    { name: "status", label: "Status", type: "select", options: statusOptions },
-    { name: "feedback", label: "Feedback", type: "text" },
-  ];
+  const columns = useMemo<ColumnDef<Ticket>[]>(() => [
+    { 
+      header: "Added Date", 
+      cell: ({ row }) => new Date(row.original.createdAt).toLocaleString() 
+    },
+    { 
+      accessorKey: "ticket_id", 
+      header: "Ticket ID" 
+    },
+{ 
+      header: "Raised By", 
+      cell: ({ row }) => row.original.raised_by?.userModel || "N/A"
+    },
+    { 
+      accessorKey: "email", 
+      header: "Email",
+      cell: ({ row }) => row.original.email || "N/A"
+    },
+    { 
+      header: "Type", 
+      cell: ({ row }) => row.original.type?.name || "N/A"
+    },
+    { 
+      header: "School", 
+      cell: ({ row }) => row.original.schoolId?.schoolName || "N/A"
+    },
+    { 
+      header: "Branch", 
+      cell: ({ row }) => row.original.branchId?.branchName || "N/A"
+    },
+    { 
+      accessorKey: "role", 
+      header: "Role",
+      cell: ({ row }) => row.original.role || "N/A"
+    },
+    { 
+      accessorKey: "description", 
+      header: "Description",
+      cell: ({ row }) => row.original.description || "N/A"
+    },
+    { 
+      accessorKey: "feedback", 
+      header: "Feedback",
+      cell: ({ row }) => row.original.feedback || "N/A"
+    },
+    { 
+      header: "Status", 
+      cell: ({ row }) => renderStatusButton(row.original.status) 
+    },
+  ], []);
 
   // --------------------------- TABLE SETUP ---------------------------
   const { table, tableElement } = CustomTableServerSidePagination({
     data: filteredData || [],
     columns,
     pagination,
-    totalCount: ticketsData?.total || 0,
+    totalCount: ticketsData?.totalRecords || 0,
     loading: isLoading || isFetching,
     onPaginationChange: setPagination,
     onSortingChange: setSorting,
@@ -241,27 +316,51 @@ export default function RaiseTicketMaster() {
     showSerialNumber: true,
   });
 
+  // --------------------------- STATUS FILTER ---------------------------
+  const handleStatusFilter = (status: "All" | "Open" | "In Progress" | "Resolved") => {
+    setStatusFilter(status);
+    if (status === "All") setFilteredData(filterResults);
+    else setFilteredData(filterResults.filter((t) => t.status === status));
+  };
+
+  const getStatusFilterButtonStyle = (status: string) => {
+    const isActive = statusFilter === status;
+    const colors: Record<string, string> = {
+      All: isActive ? "bg-gray-800 text-white" : "bg-gray-200 text-gray-800",
+      Open: isActive ? "bg-blue-600 text-white" : "bg-blue-100 text-blue-800",
+      "In Progress": isActive ? "bg-yellow-500 text-black" : "bg-yellow-100 text-yellow-800",
+      Resolved: isActive ? "bg-green-600 text-white" : "bg-green-100 text-green-800",
+    };
+    return colors[status] || "bg-gray-200 text-gray-800";
+  };
+
+  // Get selected ticket type name for display
+  const getSelectedTypeName = () => {
+    if (!selectedType || !Array.isArray(ticketTypesData)) return "";
+    const selected = ticketTypesData.find((type: TicketType) => type._id === selectedType);
+    return selected ? selected.name : "";
+  };
+
   // --------------------------- RENDER ---------------------------
   return (
     <main>
-      <ResponseLoader isLoading={isLoading || isFetching} />
+      <ResponseLoader isLoading={isLoading || isFetching || isLoadingTicketTypes} />
 
-      <header className="flex items-center justify-between mb-4">
-        <section className="flex space-x-4">
+      <header className="flex flex-col md:flex-row md:items-center justify-between mb-4 space-y-2 md:space-y-0">
+        <section className="flex flex-wrap gap-4 items-center">
           <SearchComponent
             data={filterResults}
             displayKey={[
-              "ticketId",
-              "raisedBy",
+              "ticket_id",
               "email",
-              "type",
-              "company",
-              "branch",
+              "type.name",
+              "schoolId.schoolName",
+              "branchId.branchName",
               "role",
               "status",
             ]}
             onResults={setFilteredData}
-            className="w-[300px] mb-4"
+            className="w-[300px]"
           />
           <DateRangeFilter
             onDateRangeChange={(s, e) => setDateRange({ start: s, end: e })}
@@ -270,82 +369,89 @@ export default function RaiseTicketMaster() {
           <ColumnVisibilitySelector
             columns={table.getAllColumns()}
             buttonVariant="outline"
-            buttonSize="default"
           />
+          <div className="flex space-x-2">
+            {["All", "Open", "In Progress", "Resolved"].map((status) => (
+              <Button
+                key={status}
+                size="sm"
+                variant="outline"
+                className={getStatusFilterButtonStyle(status)}
+                onClick={() => handleStatusFilter(status as any)}
+              >
+                {status}
+              </Button>
+            ))}
+          </div>
         </section>
 
         <section>
-          <Dialog>
+          <Dialog onOpenChange={(open) => !open && handleDialogClose()}>
             <DialogTrigger asChild>
               <Button variant="default">Raise Ticket</Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[600px]">
+            <DialogContent className="sm:max-w-[500px]">
               <form onSubmit={handleSubmit} className="space-y-4">
                 <DialogHeader>
                   <DialogTitle>Raise New Ticket</DialogTitle>
                 </DialogHeader>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="grid gap-6">
                   <div className="grid gap-2">
-                    <Label htmlFor="raisedBy">Raised By</Label>
-                    <Input id="raisedBy" name="raisedBy" placeholder="Your name" required />
+                    <Label htmlFor="ticketType">Type *</Label>
+                    <select
+                      id="ticketType"
+                      value={selectedType}
+                      onChange={(e) => setSelectedType(e.target.value)}
+                      className="border border-gray-300 rounded-md p-2 w-full"
+                      required
+                      disabled={isLoadingTicketTypes}
+                    >
+                      <option value="">Select ticket type</option>
+                      {isLoadingTicketTypes ? (
+                        <option value="" disabled>Loading ticket types...</option>
+                      ) : (
+                        Array.isArray(ticketTypesData) && ticketTypesData.map((type: TicketType) => (
+                          <option key={type._id} value={type._id}>
+                            {type.name}
+                          </option>
+                        ))
+                      )}
+                    </select>
+                    {isLoadingTicketTypes && (
+                      <p className="text-sm text-gray-500">Loading ticket types...</p>
+                    )}
+                    {!isLoadingTicketTypes && (!Array.isArray(ticketTypesData) || ticketTypesData.length === 0) && (
+                      <p className="text-sm text-red-500">No ticket types available. Please contact administrator.</p>
+                    )}
+                    {selectedType && (
+                      <p className="text-sm text-green-600">
+                        Selected: {getSelectedTypeName()}
+                      </p>
+                    )}
                   </div>
                   <div className="grid gap-2">
-                    <Label htmlFor="email">Email</Label>
-                    <Input id="email" name="email" type="email" placeholder="Email" required />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label>School</Label>
-                    <SearchableSelect
-                      options={schoolOptions}
-                      value={school}
-                      onValueChange={setSchool}
-                      placeholder="Select school"
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label>Branch</Label>
-                    <SearchableSelect
-                      options={filteredBranchOptions}
-                      value={branch}
-                      onValueChange={setBranch}
-                      placeholder="Select branch"
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label>Type</Label>
-                    <SearchableSelect
-                      options={ticketTypeOptions}
-                      placeholder="Select ticket type"
-                      name="type"
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label>Role</Label>
-                    <SearchableSelect
-                      options={roleOptions}
-                      placeholder="Select your role"
-                      name="role"
-                    />
-                  </div>
-                  <div className="grid gap-2 md:col-span-2">
-                    <Label>Description</Label>
+                    <Label htmlFor="description">Description *</Label>
                     <textarea
-                      name="description"
-                      placeholder="Describe your issue"
+                      id="description"
+                      value={description}
+                      onChange={(e) => setDescription(e.target.value)}
+                      placeholder="Describe your issue in detail"
                       rows={4}
                       required
-                      className="border border-gray-300 rounded-md p-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="border border-gray-300 rounded-md p-2 w-full"
                     />
                   </div>
                 </div>
-
                 <DialogFooter>
                   <DialogClose asChild>
-                    <Button ref={closeButtonRef} variant="outline">
+                    <Button ref={closeButtonRef} variant="outline" type="button">
                       Cancel
                     </Button>
                   </DialogClose>
-                  <Button type="submit" disabled={addTicketMutation.isPending}>
+                  <Button 
+                    type="submit" 
+                    disabled={addTicketMutation.isPending || isLoadingTicketTypes || !Array.isArray(ticketTypesData) || ticketTypesData.length === 0}
+                  >
                     {addTicketMutation.isPending ? "Submitting..." : "Submit Ticket"}
                   </Button>
                 </DialogFooter>
@@ -356,16 +462,6 @@ export default function RaiseTicketMaster() {
       </header>
 
       <section className="mb-4">{tableElement}</section>
-
-      <DynamicEditDialog
-        open={editDialogOpen}
-        setOpen={setEditDialogOpen}
-        initialData={null}
-        endpoint="/ticket"
-        idField="_id"
-        fields={editFields}
-      />
-
       <FloatingMenu />
     </main>
   );
