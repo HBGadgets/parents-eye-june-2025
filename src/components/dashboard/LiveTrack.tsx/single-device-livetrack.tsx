@@ -26,7 +26,13 @@ import { Slider } from "@/components/ui/slider";
 import { getDecodedToken } from "@/lib/jwt";
 import Cookies from "js-cookie";
 import { GeofenceForm } from "./form/GeofenceForm";
-import { api } from "@/services/apiService";
+import {
+  useGeofences,
+  useCreateGeofence,
+  type Geofence,
+  isValidGeofence,
+} from "@/hooks/useGeofence";
+
 type UserRole = "superAdmin" | "school" | "branchGroup" | "branch" | null;
 
 // Types based on your socket response
@@ -71,6 +77,96 @@ interface SingleDeviceLiveTrackProps {
   branchId?: string;
   routeObjId?: string;
 }
+
+// Geofence Display Layer Component with proper API structure
+const GeofenceLayer = ({
+  geofences,
+  visible,
+}: {
+  geofences: Geofence[];
+  visible: boolean;
+}) => {
+  // Debug logs
+  useEffect(() => {
+    console.log("🔵 GeofenceLayer - Rendered with:", {
+      visible,
+      geofencesCount: geofences?.length || 0,
+      geofences: geofences,
+    });
+  }, [geofences, visible]);
+
+  if (!visible) {
+    console.log("⚪ GeofenceLayer - Not visible");
+    return null;
+  }
+
+  if (!geofences || geofences.length === 0) {
+    console.log("⚪ GeofenceLayer - No geofences to display");
+    return null;
+  }
+
+  // Filter out invalid geofences before rendering
+  const validGeofences = geofences.filter((g) => {
+    const isValid = isValidGeofence(g);
+    if (!isValid) {
+      console.warn("❌ Invalid geofence filtered out:", g);
+    }
+    return isValid;
+  });
+
+  console.log("✅ GeofenceLayer - Rendering valid geofences:", validGeofences);
+
+  if (validGeofences.length === 0) {
+    console.log("⚠️ GeofenceLayer - No valid geofences after filtering");
+    return null;
+  }
+
+  return (
+    <>
+      {validGeofences.map((geofence) => {
+        const [latitude, longitude] = geofence.area.center;
+        const radius = geofence.area.radius;
+
+        console.log("🟢 Rendering geofence:", {
+          id: geofence._id,
+          name: geofence.geofenceName,
+          center: [latitude, longitude],
+          radius: radius,
+        });
+
+        return (
+          <React.Fragment key={geofence._id}>
+            <Circle
+              center={[latitude, longitude]}
+              radius={radius}
+              pathOptions={{
+                color: "#10b981",
+                fillColor: "#10b981",
+                fillOpacity: 0.15,
+                weight: 2,
+                dashArray: "5, 5",
+              }}
+            />
+            {/* <Marker
+              position={[latitude, longitude]}
+              // icon={L.divIcon({
+              //   className: "geofence-label-marker",
+              //   html: `
+              //     <div class="bg-white px-3 py-1.5 rounded-lg shadow-md border-2 border-green-500 text-xs font-semibold text-gray-700 whitespace-nowrap">
+              //       📍 ${geofence.geofenceName || "Unnamed Geofence"}
+              //       ${geofence.route ? ` (${geofence.route.routeNumber})` : ""}
+              //     </div>
+              //   `,
+              //   iconSize: [0, 0],
+              //   iconAnchor: [0, 0],
+              // })}
+            /> */}
+          </React.Fragment>
+        );
+      })}
+    </>
+  );
+};
 
 // Radius adjustment component for interactive drawing
 const GeofenceDrawing = ({
@@ -133,7 +229,6 @@ const ZoomTransitionController = () => {
     if (!map) return;
 
     const handleZoomStart = () => {
-      // Remove smooth transitions during zoom
       const markers = document.querySelectorAll(
         ".custom-single-vehicle-marker"
       );
@@ -149,7 +244,6 @@ const ZoomTransitionController = () => {
     };
 
     const handleZoomEnd = () => {
-      // Re-enable smooth transitions after zoom
       setTimeout(() => {
         const markers = document.querySelectorAll(
           ".custom-single-vehicle-marker"
@@ -191,7 +285,6 @@ const AutoCenterHandler = ({
   useEffect(() => {
     if (!vehicle || !autoCenter) return;
 
-    // Auto-center on first load or when vehicle position changes significantly
     if (!hasInitialized) {
       map.setView([vehicle.latitude, vehicle.longitude], 15, {
         animate: true,
@@ -201,14 +294,12 @@ const AutoCenterHandler = ({
       return;
     }
 
-    // Follow vehicle movements with smooth animation
     const currentCenter = map.getCenter();
     const distance = map.distance(
       [currentCenter.lat, currentCenter.lng],
       [vehicle.latitude, vehicle.longitude]
     );
 
-    // Only pan if vehicle has moved significantly (more than 50 meters)
     if (distance > 50) {
       map.panTo([vehicle.latitude, vehicle.longitude], {
         animate: true,
@@ -275,7 +366,6 @@ const MapClickHandler = ({
   useMapEvents({
     click(e) {
       if (isCreatingGeofence) {
-        // Use the actual click coordinates from the map
         onMapClick([e.latlng.lat, e.latlng.lng]);
       }
     },
@@ -318,12 +408,59 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
     null
   );
   const [userRole, setUserRole] = useState<UserRole | null>(null);
+  const [showGeofences, setShowGeofences] = useState(true);
+
+  // TanStack Query hooks for geofence management
+  const queryParams = useMemo(
+    () => ({ schoolId, branchId }),
+    [schoolId, branchId]
+  );
+
+  const {
+    data: geofences = [],
+    isLoading: isLoadingGeofences,
+    error: geofencesError,
+    refetch: refetchGeofences,
+  } = useGeofences(queryParams);
+
+  const createGeofenceMutation = useCreateGeofence(queryParams);
+
+  // Debug logs for geofences
+  useEffect(() => {
+    console.log("📊 Geofences State Update:", {
+      count: geofences.length,
+      isLoading: isLoadingGeofences,
+      error: geofencesError,
+      showGeofences,
+      geofences: geofences,
+      queryParams,
+    });
+  }, [
+    geofences,
+    isLoadingGeofences,
+    geofencesError,
+    showGeofences,
+    queryParams,
+  ]);
+
+  // Debug mutation state
+  useEffect(() => {
+    console.log("🔄 Mutation State:", {
+      isPending: createGeofenceMutation.isPending,
+      isSuccess: createGeofenceMutation.isSuccess,
+      isError: createGeofenceMutation.isError,
+      error: createGeofenceMutation.error,
+    });
+  }, [
+    createGeofenceMutation.isPending,
+    createGeofenceMutation.isSuccess,
+    createGeofenceMutation.isError,
+    createGeofenceMutation.error,
+  ]);
 
   React.useEffect(() => {
     const token = Cookies.get("token");
-
     const decoded = token ? getDecodedToken(token) : null;
-
     const role = decoded?.role;
 
     if (
@@ -385,34 +522,29 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
     const currentPath = currentPathRef.current;
     const lastPoint = currentPath[currentPath.length - 1];
 
-    // Check if this is a new position
     if (
       lastPoint &&
       lastPoint[0] === newPoint[0] &&
       lastPoint[1] === newPoint[1]
     ) {
-      return; // Same position, no animation needed
+      return;
     }
 
-    // Set up animation
     startPointRef.current = lastPoint || newPoint;
     targetPointRef.current = newPoint;
     startTimeRef.current = Date.now();
     let lastSampleTime = Date.now();
 
-    // Cancel any existing animation
     if (animationRef.current) {
       cancelAnimationFrame(animationRef.current);
     }
 
-    // Animation loop with throttled sampling
     const animate = () => {
       const elapsed = Date.now() - startTimeRef.current;
       const progress = Math.min(elapsed / animationDuration, 1);
       const currentTime = Date.now();
 
       if (startPointRef.current && targetPointRef.current) {
-        // Only add point at intervals, not every frame
         if (
           currentTime - lastSampleTime >= samplingInterval ||
           progress === 1
@@ -423,13 +555,11 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
             progress
           );
 
-          // Update ref and state
           currentPathRef.current = [
             ...currentPathRef.current,
             interpolatedPoint,
           ];
 
-          // Trim if needed
           if (currentPathRef.current.length > maxPathPoints) {
             currentPathRef.current = currentPathRef.current.slice(
               -maxPathPoints
@@ -443,13 +573,11 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
         if (progress < 1) {
           animationRef.current = requestAnimationFrame(animate);
         } else {
-          // Animation complete
           animationRef.current = null;
         }
       }
     };
 
-    // Start animation
     animationRef.current = requestAnimationFrame(animate);
 
     return () => {
@@ -515,11 +643,9 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
 
   const handleGeofenceToggle = useCallback(() => {
     if (isDrawingGeofence) {
-      // Cancel drawing
       setIsDrawingGeofence(false);
       setShowGeofenceForm(false);
     } else {
-      // Start drawing
       if (isValidVehicle && vehicle) {
         setGeofenceCenter([vehicle.latitude, vehicle.longitude]);
         setGeofenceRadius(200);
@@ -529,17 +655,52 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
     }
   }, [isDrawingGeofence, isValidVehicle, vehicle]);
 
+  const handleToggleGeofences = useCallback(() => {
+    setShowGeofences((prev) => {
+      console.log("🔄 Toggling geofences visibility:", !prev);
+      return !prev;
+    });
+  }, []);
+
   const handleNextStep = useCallback(() => {
     setShowGeofenceForm(true);
   }, []);
 
   const handleGeofenceSubmit = async (payload: any) => {
     try {
-      const response = await api.post("/geofence", payload);
-      // console.log("Geofence Response:", response);
+      console.log("📤 Submitting geofence with payload:", payload);
+
+      // Transform payload to match your API structure
+      const geofencePayload = {
+        geofenceName: payload.name || payload.geofenceName || "New Geofence",
+        area: {
+          center: [geofenceCenter![0], geofenceCenter![1]], // [latitude, longitude]
+          radius: geofenceRadius,
+        },
+        pickupTime: payload.pickupTime,
+        dropTime: payload.dropTime,
+        schoolId: schoolId || payload.schoolId,
+        branchId: branchId || payload.branchId,
+        routeObjId: routeObjId || payload.routeObjId,
+      };
+
+      console.log("📤 Final geofence payload:", geofencePayload);
+
+      const result = await createGeofenceMutation.mutateAsync(geofencePayload);
+      console.log("✅ Geofence created successfully:", result);
+
       alert("Geofence created successfully");
+
+      // Reset drawing state
+      setIsDrawingGeofence(false);
+      setShowGeofenceForm(false);
+      setGeofenceCenter(null);
+
+      // The mutation will automatically refetch, but we can force it too
+      console.log("🔄 Refetching geofences...");
+      await refetchGeofences();
     } catch (error) {
-      // console.error("Error creating geofence:", error);
+      console.error("❌ Error creating geofence:", error);
       alert("Error creating geofence");
     }
   };
@@ -570,23 +731,11 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
         <MapResizeHandler />
         <AutoCenterHandler vehicle={vehicle} autoCenter={autoCenter} />
 
-        {/* Add this new component */}
         <MapClickHandler
           isCreatingGeofence={isDrawingGeofence && !showGeofenceForm}
           onMapClick={handleMapClick}
         />
 
-        {/* Tile Layers */}
-
-        {/* <TileLayer
-          url={
-            isSatelliteView
-              ? "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-              : "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          }
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-        /> */}
-        {/* OG GOOGLE MAP!!!!!!!!!!!!! */}
         <TileLayer
           url={`https://{s}.google.com/vt/lyrs=${
             isSatelliteView ? "s" : "m"
@@ -596,9 +745,6 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
 
         {vehicle && <DataRefreshIndicator vehicle={vehicle} />}
 
-        {/* {showTraffic && (
-          <TileLayer url="https://api.tomtom.com/traffic/map/4/tile/flow/relative0/{z}/{x}/{y}.png?key=WI92B5fNrRuw3y9wnNVFbF10gosmx1h2" />
-        )} */}
         {showTraffic && (
           <TileLayer
             url={`https://{s}.google.com/vt/lyrs=${
@@ -608,7 +754,12 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
           />
         )}
 
-        {/* Geofence Drawing */}
+        {/* Display existing geofences */}
+        {!isLoadingGeofences && (
+          <GeofenceLayer geofences={geofences} visible={showGeofences} />
+        )}
+
+        {/* Current drawing geofence */}
         {geofenceCenter && (isDrawingGeofence || showGeofenceForm) && (
           <GeofenceDrawing
             center={geofenceCenter}
@@ -617,12 +768,10 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
           />
         )}
 
-        {/* Render vehicle path trail */}
         {showTrail && vehiclePath.length > 1 && (
           <VehiclePathTrail path={vehiclePath} />
         )}
 
-        {/* Render vehicle marker */}
         {isValidVehicle && vehicle && (
           <VehicleMarker
             vehicle={vehicle}
@@ -646,6 +795,45 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
         )}
       </MapContainer>
 
+      {/* Loading indicator for geofences */}
+      {isLoadingGeofences && (
+        <div className="absolute top-20 right-4 z-[1000] bg-white px-4 py-2 rounded-lg shadow-lg">
+          <div className="flex items-center gap-2 text-sm text-gray-600">
+            <svg
+              className="animate-spin h-4 w-4"
+              viewBox="0 0 24 24"
+              fill="none"
+            >
+              <circle
+                className="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                strokeWidth="4"
+              />
+              <path
+                className="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+              />
+            </svg>
+            Loading geofences...
+          </div>
+        </div>
+      )}
+
+      {/* Debug info panel */}
+      <div className="absolute top-4 left-4 z-[1000] bg-white/90 px-3 py-2 rounded-lg shadow-lg text-xs">
+        <div className="font-bold mb-1">Debug Info:</div>
+        <div>Geofences: {geofences.length}</div>
+        <div>Visible: {showGeofences ? "Yes" : "No"}</div>
+        <div>Loading: {isLoadingGeofences ? "Yes" : "No"}</div>
+        <div>
+          Mutation: {createGeofenceMutation.isPending ? "Pending" : "Idle"}
+        </div>
+      </div>
+
       {/* Controls */}
       <SingleDeviceLiveTrackControls
         vehicle={vehicle}
@@ -656,10 +844,12 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
         setShowTraffic={setShowTraffic}
         isDrawingGeofence={isDrawingGeofence}
         onGeofenceToggle={handleGeofenceToggle}
+        showGeofences={showGeofences}
+        onToggleGeofences={handleToggleGeofences}
+        geofenceCount={geofences.length}
       />
 
       {/* Next Button during drawing */}
-
       {isDrawingGeofence && !showGeofenceForm && geofenceCenter && (
         <div
           className="absolute bottom-28 left-1/2 transform -translate-x-1/2 flex flex-col items-center gap-3"

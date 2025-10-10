@@ -91,59 +91,21 @@ const GeofenceFormComponent: React.FC<GeofenceFormProps> = memo(
       role,
     });
 
-    // Memoize the submit handler with role-based payload and time conversion
-    const handleSubmit = useCallback(
-      (e: React.FormEvent<HTMLFormElement>) => {
-        e.preventDefault();
+    // In GeofenceForm.tsx, when calling onSubmit:
+    const handleSubmit = (e: React.FormEvent) => {
+      e.preventDefault();
 
-        // Convert times from 24-hour to 12-hour AM/PM format
-        const pickupTime12Hour = convertTo12Hour(formData.pickupTime);
-        const dropTime12Hour = convertTo12Hour(formData.dropTime);
+      const payload = {
+        geofenceName: formData.geofenceName, // Map 'name' to 'geofenceName'
+        pickupTime: formData.pickupTime,
+        dropTime: formData.dropTime,
+        schoolId: schoolId,
+        branchId: branchId,
+        routeObjId: routeObjId,
+      };
 
-        // Base payload with converted times
-        const basePayload = {
-          geofenceName: formData.geofenceName,
-          pickupTime: pickupTime12Hour,
-          dropTime: dropTime12Hour,
-          area: {
-            center,
-            radius,
-          },
-          routeObjId: selectedRoute,
-        };
-
-        // Conditionally add fields based on role
-        let payload: GeofencePayload;
-
-        if (role === "superAdmin") {
-          payload = {
-            ...basePayload,
-            schoolId: selectedSchool,
-            branchId: selectedBranch,
-          };
-        } else if (role === "school") {
-          payload = {
-            ...basePayload,
-            branchId: selectedBranch,
-          };
-        } else {
-          payload = basePayload;
-        }
-
-        console.log("Geofence Data:", payload);
-        onSubmit(payload);
-      },
-      [
-        formData,
-        center,
-        radius,
-        selectedSchool,
-        selectedBranch,
-        selectedRoute,
-        role,
-        onSubmit,
-      ]
-    );
+      onSubmit(payload);
+    };
 
     const handleInputChange = useCallback(
       (field: keyof GeofenceFormData) => (value: string) => {
