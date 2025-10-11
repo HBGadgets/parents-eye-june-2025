@@ -827,12 +827,33 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
 
       {/* Info panel */}
       <div className="absolute top-20 left-4 z-[1000] bg-white/90 px-3 py-2 rounded-lg shadow-lg text-xs">
-        <div>Route No.: response me nhi ara</div>
-        <div>Geofences: {geofences.length}</div>
-        <div>Last Update: {formatToIST(vehicle?.lastUpdate)}</div>
-        <div>Since: {calculateTimeSince(vehicle?.lastUpdate)}</div>
-        <div>Speed: {vehicle?.speed.toFixed(2)} km/h</div>
-        <div>Speed Limit: {vehicle?.speedLimit}</div>
+        <div>
+          Network Status:{" "}
+          <span
+            className={`${
+              vehicle?.gsmSignal ? "text-green-600" : "text-red-600"
+            } px-1 py-0.5 rounded font-semibold`}
+          >
+            {vehicle?.gsmSignal ? "Online" : "Offline"}
+          </span>
+        </div>
+        <div>Route No: response me nhi ara</div>
+        <div>Geofences: {geofences ? geofences.length : "loading..."}</div>
+        <div>
+          Last Update:{" "}
+          {vehicle?.lastUpdate ? formatToIST(vehicle.lastUpdate) : "loading..."}
+        </div>
+        <div>
+          Since:{" "}
+          {vehicle?.lastUpdate
+            ? calculateTimeSince(vehicle?.lastUpdate)
+            : "loading..."}
+        </div>
+        <div>
+          Speed:{" "}
+          {vehicle?.speed ? `${vehicle?.speed.toFixed(2)} km/h` : "loading..."}
+        </div>
+        <div>Speed Limit: {vehicle?.speedLimit || "loading..."}</div>
       </div>
 
       {/* Controls */}

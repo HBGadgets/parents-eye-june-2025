@@ -1,8 +1,9 @@
 import React from "react";
-import { VehicleData } from "./SingleDeviceLiveTrack";
 import Image from "next/image";
 import { MapPinned, Radius, Satellite } from "lucide-react";
 import { FaStreetView } from "react-icons/fa";
+import { MdDirections } from "react-icons/md";
+import { VehicleData } from "./single-device-livetrack";
 
 interface SingleDeviceLiveTrackControlsProps {
   vehicle: VehicleData | null;
@@ -39,7 +40,7 @@ export const SingleDeviceLiveTrackControls: React.FC<
       <button
         onClick={onCenterToVehicle}
         disabled={!vehicle}
-        className="p-3 bg-white rounded-lg shadow-lg hover:bg-gray-100 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+        className="p-3 bg-white rounded-lg shadow-lg hover:bg-gray-100 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
         title="Center on Vehicle"
       >
         <svg
@@ -66,7 +67,7 @@ export const SingleDeviceLiveTrackControls: React.FC<
       {/* Satellite Toggle Button */}
       <button
         onClick={onSatelliteToggle}
-        className={`p-3 rounded-lg shadow-lg transition-all duration-200 ${
+        className={`p-3 rounded-lg shadow-lg transition-all duration-200 cursor-pointer ${
           isSatelliteView
             ? "bg-blue-500 text-white hover:bg-blue-600"
             : "bg-white text-gray-700 hover:bg-gray-100"
@@ -79,7 +80,7 @@ export const SingleDeviceLiveTrackControls: React.FC<
       {/* Traffic Toggle Button */}
       <button
         onClick={() => setShowTraffic(!showTraffic)}
-        className={`p-3 rounded-lg shadow-lg transition-all duration-200 ${
+        className={`p-3 rounded-lg shadow-lg transition-all duration-200 cursor-pointer ${
           showTraffic
             ? "bg-orange-500 text-white hover:bg-orange-600"
             : "bg-gray-700  hover:bg-gray-900"
@@ -109,7 +110,7 @@ export const SingleDeviceLiveTrackControls: React.FC<
       {/* Show/Hide Geofences Button */}
       <button
         onClick={onToggleGeofences}
-        className={`p-3 rounded-lg shadow-lg transition-all duration-200 relative ${
+        className={`p-3 rounded-lg shadow-lg transition-all duration-200 relative cursor-pointer ${
           showGeofences
             ? "bg-green-500 text-white hover:bg-green-600"
             : "bg-white text-gray-700 hover:bg-gray-100"
@@ -125,9 +126,8 @@ export const SingleDeviceLiveTrackControls: React.FC<
       </button>
 
       <button
-        onClick={onToggleGeofences}
         className={`p-3 rounded-lg shadow-lg transition-all duration-200 relative bg-white text-gray-700 hover:bg-gray-100 cursor-pointer`}
-        title={showGeofences ? "Hide Geofences" : "Show Geofences"}
+        title="Open Street View"
       >
         <a
           href={`http://maps.google.com/maps?q=&layer=c&cbll=${vehicle?.latitude},${vehicle?.longitude}&cbp=11,0,0,0,0`}
@@ -143,7 +143,7 @@ export const SingleDeviceLiveTrackControls: React.FC<
       {/* Add Geofence Button */}
       <button
         onClick={onGeofenceToggle}
-        className={`p-3 rounded-lg shadow-lg transition-all duration-200 ${
+        className={`p-3 rounded-lg shadow-lg transition-all duration-200 cursor-pointer ${
           isDrawingGeofence
             ? "bg-red-500 text-white hover:bg-red-600"
             : "bg-white text-gray-700 hover:bg-gray-100"
@@ -151,6 +151,20 @@ export const SingleDeviceLiveTrackControls: React.FC<
         title={isDrawingGeofence ? "Cancel Geofence" : "Add Geofence"}
       >
         <MapPinned />
+      </button>
+      <button
+        className={`p-3 rounded-lg shadow-lg transition-all duration-200 relative bg-white text-gray-700 hover:bg-gray-100 cursor-pointer`}
+        title="Directions"
+      >
+        <a
+          href={`https://www.google.com/maps/dir/?api=1&destination=${vehicle?.latitude},${vehicle?.longitude}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          title="Directions"
+          className={` bg-gray-100 text-gray-700 hover:bg-gray-200`}
+        >
+          <MdDirections size={20} />
+        </a>
       </button>
     </div>
   );
