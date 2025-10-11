@@ -13,7 +13,7 @@ import { api } from "@/services/apiService";
 import { Student, School, Branch, Route, Geofence } from "@/interface/modal";
 import { useExport } from "@/hooks/useExport";
 import { useStudents } from "@/hooks/useStudent";
-import { useRouteData } from "@/hooks/useInfiniteRouteData";
+import { useInfiniteRouteData } from "@/hooks/useInfiniteRouteData";
 import { useGeofences } from "@/hooks/useGeofence";
 import { SearchBar } from "@/components/search-bar/SearchBarPagination";
 import { Alert } from "@/components/Alert";
@@ -129,7 +129,7 @@ export default function StudentDetails() {
     queryFn: () => api.get<Branch[]>("/branch"),
   });
 
-  const { data: routesData, isLoading: routesLoading } = useRouteData();
+  const { data: routesData, isLoading: routesLoading } = useInfiniteRouteData();
   const routes: Route[] = Array.isArray(routesData)
     ? routesData
     : routesData?.data || [];
