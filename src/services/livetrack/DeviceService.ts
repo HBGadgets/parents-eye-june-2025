@@ -44,7 +44,7 @@ class DeviceService {
   private callbacks: DeviceServiceEvents | null = null;
 
   private constructor() {
-    this.baseUrl = process.env.NEXT_PUBLIC_SOCKET_BASE_URL || "";
+    this.baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "";
   }
 
   public static getInstance(): DeviceService {
