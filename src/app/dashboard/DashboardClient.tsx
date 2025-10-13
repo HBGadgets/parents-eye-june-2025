@@ -730,7 +730,7 @@ export default function DashboardClient() {
 
         {/* Main Layout */}
         <div className="dashboard">
-          <div className="flex gap-0 h-[600px]">
+          <div className="flex gap-0 h-[80vh]">
             <section className={`overflow-auto ${getTableClass}`}>
               {viewState === "mapExpanded" && (
                 <div className="absolute top-1/2 left-0 z-50">

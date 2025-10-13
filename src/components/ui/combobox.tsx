@@ -70,10 +70,12 @@ export function Combobox({
       : setInternalValue;
 
   // Use controlled search value if provided, otherwise use internal state
-  const currentSearchValue = searchValue !== undefined ? searchValue : internalSearchValue;
-  const setSearchValue = searchValue !== undefined 
-    ? (onSearchChange || (() => {}))
-    : setInternalSearchValue;
+  const currentSearchValue =
+    searchValue !== undefined ? searchValue : internalSearchValue;
+  const setSearchValue =
+    searchValue !== undefined
+      ? onSearchChange || (() => {})
+      : setInternalSearchValue;
 
   const handleSelect = (currentValue: string) => {
     const newValue = currentValue === value ? "" : currentValue;
@@ -113,7 +115,11 @@ export function Combobox({
           role="combobox"
           aria-expanded={open}
           disabled={disabled}
-          className={cn(width, "justify-between", className)}
+          className={cn(
+            width,
+            "justify-between overflow-hidden text-ellipsis whitespace-nowrap",
+            className
+          )}
         >
           {selectedItem ? selectedItem.label : placeholder}
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -133,7 +139,7 @@ export function Combobox({
           filter={(value, search) => {
             // If we're using server-side search, don't filter here
             if (onSearchChange) return 1;
-            
+
             const item = items.find((item) => item.value === value);
             if (!item) return 0;
 
@@ -144,8 +150,8 @@ export function Combobox({
             return labelMatch || valueMatch ? 1 : 0;
           }}
         >
-          <CommandInput 
-            placeholder={searchPlaceholder} 
+          <CommandInput
+            placeholder={searchPlaceholder}
             className="h-9"
             value={currentSearchValue}
             onValueChange={handleSearchValueChange}

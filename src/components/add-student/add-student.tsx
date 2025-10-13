@@ -28,7 +28,7 @@ import { Combobox } from "../ui/combobox";
 import { useSchoolData } from "@/hooks/useSchoolData";
 import { useBranchData } from "@/hooks/useBranchData";
 import { School } from "@/interface/modal";
-import { useRouteData } from "@/hooks/useRouteData";
+import { useRouteData } from "@/hooks/useInfiniteRouteData";
 
 type UserRole = "superAdmin" | "school" | "branchGroup" | "branch" | null;
 
