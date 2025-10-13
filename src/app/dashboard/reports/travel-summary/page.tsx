@@ -674,12 +674,18 @@ const TravelReportPage: React.FC = () => {
   return (
     <div>
       <ResponseLoader isLoading={isLoading} />
-      <h1 className="text-xl font-bold mb-4">Travel Reports</h1>
       <ReportFilter
         onFilterSubmit={handleFilterSubmit}
         columns={table.getAllColumns()}
         showColumnVisibility
         className="mb-6"
+        // Remove infinite scrolling props to disable it
+        vehicleMetaData={[]} // Pass empty array or your vehicle data
+        selectedVehicle=""
+        onVehicleChange={() => {}} // Empty function
+        searchTerm=""
+        onSearchChange={() => {}} // Empty function
+        // Remove onVehicleReachEnd, isFetchingNextPage, hasNextPage props
       />
       {showTable && (
         <section className="mb-4">

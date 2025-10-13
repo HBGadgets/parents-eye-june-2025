@@ -6,12 +6,11 @@ import Cookies from "js-cookie";
 import { getDecodedToken } from "@/lib/jwt";
 import { useSchoolData } from "@/hooks/useSchoolData";
 import { useBranchData } from "@/hooks/useBranchData";
-// import { useDeviceData } from "@/hooks/useDeviceData";
+import { useDeviceData } from "@/hooks/useDeviceData";
 import { Button } from "@/components/ui/button";
 import DateRangeFilter from "../ui/DateRangeFilter";
 import { ColumnVisibilitySelector } from "@/components/column-visibility-selector";
 import { Column } from "@tanstack/react-table";
-// import { useExport } from "@/hooks/useExport";
 import { Combobox } from "@/components/ui/combobox";
 
 interface SchoolBranchSelectorProps {
@@ -26,7 +25,6 @@ interface SchoolBranchSelectorProps {
   }) => void;
   className?: string;
   columns?: Column<unknown, unknown>[];
-  onColumnVisibilityChange?: (visibility: unknown) => void;
   showColumnVisibility?: boolean;
   vehicleMetaData?: Array<{ value: string; label: string }>;
   selectedVehicle?: string;
@@ -43,228 +41,235 @@ const SchoolBranchSelector: React.FC<SchoolBranchSelectorProps> = ({
   onFilterSubmit,
   className = "",
   columns = [],
-  // onColumnVisibilityChange,
   showColumnVisibility = false,
-  vehicleMetaData = [],
+  vehicleMetaData,
   selectedVehicle = "",
   onVehicleChange,
   searchTerm = "",
   onSearchChange,
   onVehicleReachEnd,
   isFetchingNextPage = false,
-  // hasNextPage = false,
+  hasNextPage = false,
 }) => {
   const [role, setRole] = useState<string | null>(null);
+
   const [selectedSchool, setSelectedSchool] = useState<string | null>(null);
   const [selectedBranch, setSelectedBranch] = useState<string | null>(null);
-  const [selectedDeviceName, setSelectedDeviceName] = useState<string | null>(
-    null
+  const [selectedDeviceName, setSelectedDeviceName] = useState<string | null>(null);
+  const [internalSelectedVehicle, setInternalSelectedVehicle] = useState<string>(
+    selectedVehicle || ""
   );
-  const [dateRange, setDateRange] = useState<{
-    start: Date | null;
-    end: Date | null;
-  }>({ start: null, end: null });
-  // const [loading, setLoading] = useState(false);
+  const [dateRange, setDateRange] = useState<{ start: Date | null; end: Date | null }>({
+    start: null,
+    end: null,
+  });
+  const [internalSearchTerm, setInternalSearchTerm] = useState("");
 
+  // Data hooks
   const { data: schoolData } = useSchoolData();
-  const { data: branchData } = useBranchData();
-  // const { data: deviceData } = useDeviceData();
-  // const { exportToPDF, exportToExcel } = useExport();
+  const { data: branchData, refetch: refetchBranches, setSchoolFilter } = useBranchData();
+  const {
+    data: deviceData,
+    fetchNextPage,
+    hasNextPage: deviceHasNextPage,
+    isFetchingNextPage: deviceIsFetchingNextPage,
+    refetch: refetchDevices,
+  } = useDeviceData({
+    searchTerm: internalSearchTerm,
+    branchId: selectedBranch,
+  });
 
   useEffect(() => {
-    const token = Cookies.get("token");
-    if (token) {
-      const decoded = getDecodedToken(token);
-      const userRole = decoded?.role?.toLowerCase() || null;
-      setRole(userRole);
+    setInternalSelectedVehicle(selectedVehicle || "");
+  }, [selectedVehicle]);
 
-      if (userRole === "branch" && decoded?.branchId) {
-        setSelectedBranch(decoded.branchId);
-      } else if (
-        (userRole === "school" || userRole === "schooladmin") &&
-        decoded?.schoolId
-      ) {
-        setSelectedSchool(decoded.schoolId);
-      } else if (
-        userRole === "branchadmin" &&
-        decoded?.schoolId &&
-        decoded?.branchId
-      ) {
-        setSelectedSchool(decoded.schoolId);
-        setSelectedBranch(decoded.branchId);
-      }
+  // Decode token and apply filters based on role
+  useEffect(() => {
+    const token = Cookies.get("token");
+    if (!token) return;
+
+    const decoded = getDecodedToken(token);
+    const rawRole = (decoded?.role || "").toLowerCase();
+    setRole(rawRole);
+
+    const isSuperAdmin = ["admin", "superadmin", "super_admin", "root"].includes(rawRole);
+    const isSchoolRole = ["school", "schooladmin"].includes(rawRole);
+    const isBranchRole = ["branch", "branchadmin"].includes(rawRole);
+
+    if (isBranchRole && decoded?.branchId) {
+      setSelectedBranch(decoded.branchId);
+      setTimeout(() => refetchDevices?.(), 300);
+    } else if (isSchoolRole && decoded?.schoolId) {
+      setSelectedSchool(decoded.schoolId);
+      setSchoolFilter?.(decoded.schoolId);
+      setTimeout(() => refetchBranches?.(), 300);
+    } else if (isSuperAdmin) {
+      refetchBranches?.();
     }
-  }, []);
+  }, [refetchBranches, refetchDevices, setSchoolFilter]);
+
+  // Fetch branch data when school changes
+  useEffect(() => {
+    if (selectedSchool) {
+      setSelectedBranch(null);
+      setInternalSelectedVehicle("");
+      setSelectedDeviceName(null);
+      setSchoolFilter?.(selectedSchool);
+      refetchBranches?.();
+    }
+  }, [selectedSchool, refetchBranches, setSchoolFilter]);
+
+  // Fetch device data when branch changes
+  useEffect(() => {
+    if (selectedBranch) {
+      refetchDevices?.();
+    }
+  }, [selectedBranch, refetchDevices]);
 
   const schools = useMemo(() => {
     if (!schoolData) return [];
-    return schoolData.map((school) => ({
-      label: school.schoolName,
-      value: school._id,
-    }));
+    return schoolData.map((s: any) => ({ label: s.schoolName, value: s._id }));
   }, [schoolData]);
 
   const branches = useMemo(() => {
     if (!branchData) return [];
-    if (selectedSchool) {
-      return branchData
-        .filter((branch: unknown) => branch.schoolId?._id === selectedSchool)
-        .map((branch: unknown) => ({
-          label: branch.branchName,
-          value: branch._id,
-        }));
-    }
-    return [];
-  }, [branchData, selectedSchool]);
+    return branchData.map((b: any) => ({ label: b.branchName, value: b._id }));
+  }, [branchData]);
 
-  const filteredVehicleMetaData = useMemo(() => {
-    if (!selectedBranch) {
-      return [];
-    }
-    return vehicleMetaData.filter(() => true);
-  }, [vehicleMetaData, selectedBranch]);
+  const internalVehicleMetaData = useMemo(() => {
+    if (!deviceData?.pages) return [];
+    return deviceData.pages.flat().map((d: any) => ({
+      value: String(d.deviceId),
+      label: d.name,
+    }));
+  }, [deviceData]);
+
+  const finalVehicleMetaData = vehicleMetaData || internalVehicleMetaData;
+
+  const handleInternalSearchChange = (search: string) => {
+    setInternalSearchTerm(search);
+    onSearchChange?.(search);
+  };
+
+  const handleInternalVehicleReachEnd = () => {
+    if (deviceHasNextPage && !deviceIsFetchingNextPage) fetchNextPage();
+    onVehicleReachEnd?.();
+  };
 
   const handleVehicleChange = (value: string) => {
-    if (onVehicleChange) {
-      onVehicleChange(value);
-    }
-    const selected = vehicleMetaData.find((vehicle) => vehicle.value === value);
-    setSelectedDeviceName(selected?.label || null);
+    setInternalSelectedVehicle(value);
+    const found = finalVehicleMetaData.find((v) => v.value === value);
+    setSelectedDeviceName(found?.label ?? null);
+    onVehicleChange?.(value);
   };
 
   const handleSubmit = () => {
-    const filterData = {
+    onFilterSubmit?.({
       schoolId: selectedSchool,
       branchId: selectedBranch,
+      deviceId: internalSelectedVehicle || null,
       deviceName: selectedDeviceName,
-      deviceId: selectedVehicle,
       startDate: dateRange.start,
       endDate: dateRange.end,
-    };
-    onFilterSubmit?.(filterData);
+    });
   };
+
+  const isSuperAdmin = ["admin", "superadmin", "super_admin", "root"].includes(
+    (role || "").toLowerCase()
+  );
+  const isSchoolRole = ["school", "schooladmin"].includes((role || "").toLowerCase());
+  const isBranchRole = ["branch", "branchadmin"].includes((role || "").toLowerCase());
 
   if (role === null) return null;
 
   return (
     <div className="w-full border border-gray-200 bg-white rounded-lg p-4 shadow-sm">
-      {/* Filters row */}
       <div className={`flex flex-wrap gap-3 items-center ${className}`}>
-        {/* User Column */}
-        <div className="flex-1 min-w-[160px] max-w-[200px]">
-          {role !== "branch" && (
-            <>
-              {role !== "school" ? (
-                <SearchableDropdown
-                  items={schools}
-                  placeholder="Choose a school..."
-                  searchPlaceholder="Search school..."
-                  emptyMessage="No school found."
-                  value={selectedSchool}
-                  onSelect={(item) => {
-                    setSelectedSchool(item.value);
-                    setSelectedBranch(null);
-                    if (onVehicleChange) {
-                      onVehicleChange("");
-                    }
-                  }}
-                  disabled={
-                    enforceRoleBasedSelection &&
-                    (role === "schooladmin" || role === "branchadmin")
-                  }
-                />
-              ) : (
-                <div className="px-3 py-2 border border-gray-200 rounded-md bg-gray-50 text-sm">
-                  School User
-                </div>
-              )}
-            </>
-          )}
-          {role === "branch" && (
-            <div className="px-3 py-2 border border-gray-200 rounded-md bg-gray-50 text-sm">
-              Branch User
-            </div>
-          )}
-        </div>
+        {/* SCHOOL DROPDOWN — Super Admin only */}
+        {isSuperAdmin && (
+          <div className="flex-1 min-w-[160px] max-w-[200px]">
+            <SearchableDropdown
+              items={schools}
+              placeholder="Choose a school..."
+              searchPlaceholder="Search school..."
+              emptyMessage="No school found."
+              value={selectedSchool}
+              onSelect={(item: any) => {
+                setSelectedSchool(item.value);
+                onVehicleChange?.("");
+              }}
+            />
+          </div>
+        )}
 
-        {/* Groups Column */}
-        <div className="flex-1 min-w-[160px] max-w-[200px]">
-          {role !== "branch" ? (
+        {/* BRANCH DROPDOWN — Show for super admin + school login */}
+        {isSuperAdmin || isSchoolRole ? (
+          <div className="flex-1 min-w-[160px] max-w-[200px]">
             <SearchableDropdown
               items={branches}
               placeholder="Choose a branch..."
               searchPlaceholder="Search branch..."
               emptyMessage={
-                !selectedSchool
+                isSchoolRole
+                  ? "No branch found for this school."
+                  : !selectedSchool
                   ? "Select a school first."
-                  : "No branch found for this school."
+                  : "No branch found."
               }
               value={selectedBranch}
-              onSelect={(item) => {
+              onSelect={(item: any) => {
                 setSelectedBranch(item.value);
-                if (onVehicleChange) {
-                  onVehicleChange("");
-                }
+                onVehicleChange?.("");
               }}
-              disabled={
-                !selectedSchool ||
-                (enforceRoleBasedSelection && role === "branchadmin")
-              }
             />
-          ) : (
-            <div className="px-3 py-2 border border-gray-200 rounded-md bg-gray-50 text-sm">
-              Branch Group
-            </div>
-          )}
-        </div>
+          </div>
+        ) : null}
 
-        {/* Vehicles Column */}
+        {/* DEVICE DROPDOWN — always visible */}
         <div className="flex-1 min-w-[160px] max-w-[200px]">
           <Combobox
-            items={filteredVehicleMetaData}
-            value={selectedVehicle}
+            items={finalVehicleMetaData}
+            value={internalSelectedVehicle}
             onValueChange={handleVehicleChange}
             placeholder="Search vehicle..."
             searchPlaceholder="Search vehicles..."
             emptyMessage={
-              !selectedBranch
-                ? "Select a branch first."
-                : "No vehicles found for this branch."
+              !selectedBranch ? "Select a branch first." : "No vehicles found."
             }
             width="w-full"
-            infiniteScroll={true}
+            infiniteScroll
             limit={20}
-            onReachEnd={onVehicleReachEnd}
-            isLoadingMore={isFetchingNextPage}
-            onSearchChange={onSearchChange}
-            searchValue={searchTerm}
+            onReachEnd={handleInternalVehicleReachEnd}
+            isLoadingMore={isFetchingNextPage || deviceIsFetchingNextPage}
+            onSearchChange={handleInternalSearchChange}
+            searchValue={searchTerm || internalSearchTerm}
           />
         </div>
 
-        {/* Date + Columns in same row */}
+        {/* DATE + COLUMN FILTERS */}
         <div className="flex min-w-[340px] max-w-[380px] gap-2">
           <DateRangeFilter
             onDateRangeChange={(start, end) => setDateRange({ start, end })}
-            placeholderClassName="font-bold" // 👈 makes placeholder bold
+            placeholderClassName="font-bold"
           />
-
           {showColumnVisibility && columns.length > 0 ? (
-            <ColumnVisibilitySelector
-              columns={columns}
-              buttonVariant="outline"
-              buttonSize="default"
-            />
+            <ColumnVisibilitySelector columns={columns} buttonVariant="outline" />
           ) : (
             <div className="px-3 py-2 border border-gray-200 rounded-md bg-gray-50 text-sm flex items-center">
-              Select...
+              Columns
             </div>
           )}
         </div>
       </div>
 
-      {/* Show Now Button (below, right aligned) */}
+      {/* SUBMIT BUTTON */}
       <div className="flex justify-end mt-4">
-        <Button onClick={handleSubmit}>Show Report</Button>
+        <Button
+          className="bg-yellow-400 hover:bg-yellow-500 text-black font-semibold"
+          onClick={handleSubmit}
+        >
+          Show Report
+        </Button>
       </div>
     </div>
   );
