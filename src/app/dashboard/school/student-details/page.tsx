@@ -13,7 +13,6 @@ import { api } from "@/services/apiService";
 import { Student, School, Branch, Route, Geofence } from "@/interface/modal";
 import { useExport } from "@/hooks/useExport";
 import { useStudents } from "@/hooks/useStudent";
-import { useInfiniteRouteData } from "@/hooks/useInfiniteRouteData";
 import { useGeofences } from "@/hooks/useGeofence";
 import { SearchBar } from "@/components/search-bar/SearchBarPagination";
 import { Alert } from "@/components/Alert";
@@ -139,17 +138,29 @@ export default function StudentDetails() {
 
   // Data fetching
   const { data: schools = [], isLoading: schoolsLoading } = useQuery<School[]>({
-    queryKey: ["schools"], queryFn: () => api.get<School[]>("/school")
+    queryKey: ["schools"], 
+    queryFn: () => api.get<School[]>("/school")
   });
 
   const { data: branches = [], isLoading: branchesLoading } = useQuery<Branch[]>({
-    queryKey: ["branches"], queryFn: () => api.get<Branch[]>("/branch")
+    queryKey: ["branches"], 
+    queryFn: () => api.get<Branch[]>("/branch")
   });
 
-  const { data: routesData, isLoading: routesLoading } = useInfiniteRouteData();
+  // Route data fetching - FIXED: Using standard useQuery without custom hook
+  const { data: routesData, isLoading: routesLoading } = useQuery({
+    queryKey: ["routes"],
+    queryFn: () => api.get<Route[]>("/route"),
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+
   const { data: geofencesData, isLoading: geofencesLoading } = useGeofences({ pagination, sorting });
   
-  const routes: Route[] = Array.isArray(routesData) ? routesData : routesData?.data || [];
+  // FIXED: Proper route data handling
+  const routes: Route[] = Array.isArray(routesData) ? routesData : 
+                         Array.isArray(routesData?.data) ? routesData.data : 
+                         Array.isArray(routesData?.routes) ? routesData.routes : [];
+
   const geofences: Geofence[] = Array.isArray(geofencesData) ? geofencesData : 
     Array.isArray(geofencesData?.data) ? geofencesData.data : [];
 
@@ -168,24 +179,44 @@ export default function StudentDetails() {
       .map(branch => ({ label: branch.branchName, value: branch._id }));
   }, [branches, selectedSchool]);
 
+  // FIXED: Route options filtering
   const routeOptions = useMemo(() => {
+    console.log("Route Options Debug:", {
+      selectedBranch,
+      routesCount: routes.length,
+      routes: routes.map(r => ({ 
+        id: r._id, 
+        branchId: r.branchId, 
+        routeNumber: r.routeNumber,
+        branchIdType: typeof r.branchId,
+        branchIdValue: typeof r.branchId === "object" ? r.branchId?._id : r.branchId
+      }))
+    });
+
     if (!selectedBranch) return [];
-    return routes
-      .filter(route => {
-        const routeBranchId = route.branchId ? 
-          (typeof route.branchId === "object" ? route.branchId?._id : route.branchId) : null;
-        return routeBranchId === selectedBranch;
-      })
-      .map(route => ({ 
-        label: route.routeNumber || `Route ${route.routeName || route._id}`, 
-        value: route._id 
-      }));
+    
+    const filteredRoutes = routes.filter(route => {
+      if (!route.branchId) return false;
+      
+      const routeBranchId = typeof route.branchId === "object" ? 
+        route.branchId?._id : 
+        route.branchId;
+      
+      return routeBranchId === selectedBranch;
+    });
+
+    console.log("Filtered Routes:", filteredRoutes);
+
+    return filteredRoutes.map(route => ({ 
+      label: route.routeNumber || `Route ${route.routeName || route._id}`, 
+      value: route._id 
+    }));
   }, [routes, selectedBranch]);
 
   const geofenceOptions = useMemo(() => 
     geofences.map(geo => ({ label: geo.geofenceName, value: geo._id })), [geofences]);
 
-  // Fixed: Properly structured memo for edit filtered branches
+  // Edit filtered data
   const editFilteredBranches = useMemo(() => {
     if (!editSelectedSchool) return branches;
     return branches.filter(branch => {
@@ -236,7 +267,7 @@ export default function StudentDetails() {
     }
   }, [addDialogOpen]);
 
-  // Data fetching
+  // Student data fetching
   const { data: studentsData, isLoading, isFetching } = useStudents({
     pagination, sorting, childName: debouncedStudentName
   });
@@ -246,6 +277,7 @@ export default function StudentDetails() {
     mutationFn: async (newStudent: any) => api.post("/child", newStudent),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["students"] });
+      queryClient.invalidateQueries({ queryKey: ["routes"] });
       setAddDialogOpen(false);
       alert("Student(s) added successfully.");
     },
@@ -257,6 +289,7 @@ export default function StudentDetails() {
       api.put(`/child/${studentId}`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["students"] });
+      queryClient.invalidateQueries({ queryKey: ["routes"] });
       setEditDialogOpen(false);
       setEditTarget(null);
       setEditSelectedSchool("");
@@ -270,6 +303,7 @@ export default function StudentDetails() {
     mutationFn: async (id: string) => api.mulDelete("/child", { ids: [id] }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["students"] });
+      queryClient.invalidateQueries({ queryKey: ["routes"] });
       setDeleteTarget(null);
       alert("Student deleted successfully.");
     },
@@ -322,7 +356,10 @@ export default function StudentDetails() {
     e.preventDefault();
     const form = e.currentTarget as any;
 
-    if (!selectedRoute) { alert("Please select a route."); return; }
+    if (!selectedRoute) { 
+      alert("Please select a route."); 
+      return; 
+    }
 
     const newChild: ChildFormData = {
       childName: form.childName.value.trim(),
@@ -337,6 +374,8 @@ export default function StudentDetails() {
     };
 
     setChildren([...children, newChild]);
+    
+    // Reset form but keep the route selection
     form.childName.value = "";
     form.className.value = "";
     form.section.value = "";
@@ -358,14 +397,34 @@ export default function StudentDetails() {
       alert("Please add at least one child before submitting.");
       return;
     }
-    const data = { parent: parentData, children: children };
-    try { await addStudentMutation.mutateAsync(data); } 
-    catch (err) { console.error("SUBMISSION FAILED:", err); }
+    
+    // Validate all children have required fields
+    for (const child of children) {
+      if (!child.childName || !child.routeId || !child.pickupGeoId || !child.dropGeoId) {
+        alert("Please ensure all children have Student Name, Route, Pickup Location, and Drop Location filled.");
+        return;
+      }
+    }
+
+    const data = { 
+      parent: parentData, 
+      children: children 
+    };
+
+    try { 
+      await addStudentMutation.mutateAsync(data); 
+    } catch (err) { 
+      console.error("SUBMISSION FAILED:", err); 
+    }
   };
 
   const handleEditFieldChange = (key: string, value: any) => {
-    if (key === "schoolId") { setEditSelectedSchool(value); setEditSelectedBranch(""); } 
-    else if (key === "branchId") { setEditSelectedBranch(value); }
+    if (key === "schoolId") { 
+      setEditSelectedSchool(value); 
+      setEditSelectedBranch(""); 
+    } else if (key === "branchId") { 
+      setEditSelectedBranch(value); 
+    }
   };
 
   // Table configuration
@@ -418,12 +477,16 @@ export default function StudentDetails() {
       id: "action", header: "Action",
       cell: ({ row }) => (
         <div className="flex items-center justify-center gap-2">
-          <button className="bg-yellow-400 hover:bg-yellow-500 text-[#733e0a] font-semibold py-1 px-3 rounded-md"
-            onClick={() => { setEditTarget(row.original); setEditDialogOpen(true); }}>
+          <button 
+            className="bg-yellow-400 hover:bg-yellow-500 text-[#733e0a] font-semibold py-1 px-3 rounded-md"
+            onClick={() => { setEditTarget(row.original); setEditDialogOpen(true); }}
+          >
             Edit
           </button>
-          <button className="bg-red-500 hover:bg-red-600 text-white font-semibold py-1 px-3 rounded-md"
-            onClick={() => setDeleteTarget(row.original)}>
+          <button 
+            className="bg-red-500 hover:bg-red-600 text-white font-semibold py-1 px-3 rounded-md"
+            onClick={() => setDeleteTarget(row.original)}
+          >
             Delete
           </button>
         </div>
@@ -432,17 +495,33 @@ export default function StudentDetails() {
   ];
 
   const { table, tableElement } = CustomTableServerSidePagination({
-    data: studentsData?.children || [], columns, pagination, totalCount: studentsData?.total || 0,
-    loading: isLoading || isFetching, onPaginationChange: setPagination, onSortingChange: setSorting,
-    sorting, columnVisibility, onColumnVisibilityChange: setColumnVisibility, emptyMessage: "No students found",
-    pageSizeOptions: [5, 10, 20, 30, 50], enableSorting: true, showSerialNumber: true,
+    data: studentsData?.children || [], 
+    columns, 
+    pagination, 
+    totalCount: studentsData?.total || 0,
+    loading: isLoading || isFetching, 
+    onPaginationChange: setPagination, 
+    onSortingChange: setSorting,
+    sorting, 
+    columnVisibility, 
+    onColumnVisibilityChange: setColumnVisibility, 
+    emptyMessage: "No students found",
+    pageSizeOptions: [5, 10, 20, 30, 50], 
+    enableSorting: true, 
+    showSerialNumber: true,
   });
 
   const editData = editTarget ? {
-    _id: editTarget._id, childName: editTarget.childName || "", age: editTarget.age || "",
-    className: editTarget.className || "", section: editTarget.section || "", schoolId: getSchoolId(editTarget),
-    branchId: getBranchId(editTarget), routeObjId: getRouteId(editTarget), 
-    pickupGeoId: getGeofenceId(editTarget.pickupGeoId), dropGeoId: getGeofenceId(editTarget.dropGeoId),
+    _id: editTarget._id, 
+    childName: editTarget.childName || "", 
+    age: editTarget.age || "",
+    className: editTarget.className || "", 
+    section: editTarget.section || "", 
+    schoolId: getSchoolId(editTarget),
+    branchId: getBranchId(editTarget), 
+    routeObjId: getRouteId(editTarget), 
+    pickupGeoId: getGeofenceId(editTarget.pickupGeoId), 
+    dropGeoId: getGeofenceId(editTarget.dropGeoId),
   } : null;
 
   // Form field configurations
@@ -467,9 +546,17 @@ export default function StudentDetails() {
       <header className="flex items-center gap-4 mb-4 justify-between">
         <section className="flex space-x-4">
           <div className="h-9">
-            <SearchBar value={studentName} onChange={setStudentName} placeholder="Search by student name..." width="w-[300px]" />
+            <SearchBar 
+              value={studentName} 
+              onChange={setStudentName} 
+              placeholder="Search by student name..." 
+              width="w-[300px]" 
+            />
           </div>
-          <ColumnVisibilitySelector columns={table?.getAllColumns() || []} buttonVariant="outline" />
+          <ColumnVisibilitySelector 
+            columns={table?.getAllColumns() || []} 
+            buttonVariant="outline" 
+          />
         </section>
 
         <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
@@ -490,7 +577,9 @@ export default function StudentDetails() {
             {currentStep === 1 && (
               <Card>
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-1 text-lg"><User className="w-5 h-5" />Parent Information</CardTitle>
+                  <CardTitle className="flex items-center gap-1 text-lg">
+                    <User className="w-5 h-5" />Parent Information
+                  </CardTitle>
                   <CardDescription>Enter the parent's details to create a new account</CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -504,22 +593,50 @@ export default function StudentDetails() {
                       ))}
                       <div className="grid gap-2">
                         <Label htmlFor="schoolId">School *</Label>
-                        <Combobox items={schoolOptions} value={selectedSchool} onValueChange={(value) => {
-                          setSelectedSchool(value); setSelectedBranch(""); setBranchSearch("");
-                        }} placeholder="Search school..." searchPlaceholder="Search schools..." emptyMessage="No school found."
-                        width="w-full" onSearchChange={setSchoolSearch} searchValue={schoolSearch} />
+                        <Combobox 
+                          items={schoolOptions} 
+                          value={selectedSchool} 
+                          onValueChange={(value) => {
+                            setSelectedSchool(value); 
+                            setSelectedBranch(""); 
+                            setSelectedRoute("");
+                            setBranchSearch("");
+                          }} 
+                          placeholder="Search school..." 
+                          searchPlaceholder="Search schools..." 
+                          emptyMessage="No school found."
+                          width="w-full" 
+                          onSearchChange={setSchoolSearch} 
+                          searchValue={schoolSearch} 
+                        />
                       </div>
                       <div className="grid gap-2">
                         <Label htmlFor="branchId">Branch *</Label>
-                        <Combobox items={branchOptions} value={selectedBranch} onValueChange={setSelectedBranch}
-                          placeholder="Search branch..." searchPlaceholder="Search branches..." 
+                        <Combobox 
+                          items={branchOptions} 
+                          value={selectedBranch} 
+                          onValueChange={(value) => {
+                            setSelectedBranch(value);
+                            setSelectedRoute("");
+                          }}
+                          placeholder="Search branch..." 
+                          searchPlaceholder="Search branches..." 
                           emptyMessage={!selectedSchool ? "Select a school first." : "No branch found for this school."}
-                          width="w-full" disabled={!selectedSchool} onSearchChange={setBranchSearch} searchValue={branchSearch} />
+                          width="w-full" 
+                          disabled={!selectedSchool} 
+                          onSearchChange={setBranchSearch} 
+                          searchValue={branchSearch} 
+                        />
                       </div>
                     </div>
                     <DialogFooter className="pt-4">
-                      <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
-                      <Button type="submit" className="flex items-center gap-2">Continue to Children<ChevronRight className="w-4 h-4" /></Button>
+                      <DialogClose asChild>
+                        <Button variant="outline">Cancel</Button>
+                      </DialogClose>
+                      <Button type="submit" className="flex items-center gap-2">
+                        Continue to Children
+                        <ChevronRight className="w-4 h-4" />
+                      </Button>
                     </DialogFooter>
                   </form>
                 </CardContent>
@@ -527,18 +644,28 @@ export default function StudentDetails() {
             )}
 
             {currentStep === 2 && (
-              <div className="space-y-6">
+              <div className="space-y-2">
                 <Card className="bg-muted/50">
-                  <CardHeader className="pb-3">
+                  <CardHeader className="pb-2">
                     <CardTitle className="text-sm font-medium flex items-center justify-between">
-                      <span>Parent Summary</span><Badge variant="secondary" className="ml-2">{parentData.parentName}</Badge>
+                      <span>Parent Details</span>
+                      <Badge variant="secondary" className="ml-2">{parentData.parentName}</Badge>
                     </CardTitle>
                   </CardHeader>
-                  <CardContent className="pb-3">
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-sm">
-                      <div><span className="text-muted-foreground">Mobile:</span><div className="font-medium">{parentData.mobileNo}</div></div>
-                      <div><span className="text-muted-foreground">Email:</span><div className="font-medium">{parentData.email}</div></div>
-                      <div><span className="text-muted-foreground">Username:</span><div className="font-medium">{parentData.username}</div></div>
+                  <CardContent className="pb-2">
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-1 text-sm">
+                      <div>
+                        <span className="text-muted-foreground">Mobile:</span>
+                        <div className="font-medium">{parentData.mobileNo}</div>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Email:</span>
+                        <div className="font-medium">{parentData.email}</div>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Username:</span>
+                        <div className="font-medium">{parentData.username}</div>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
@@ -546,7 +673,9 @@ export default function StudentDetails() {
                 {children.length > 0 && (
                   <Card>
                     <CardHeader className="pb-3">
-                      <CardTitle className="text-lg flex items-center gap-2"><Users className="w-5 h-5" />Added Children ({children.length})</CardTitle>
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        <Users className="w-5 h-5" />Added Children ({children.length})
+                      </CardTitle>
                     </CardHeader>
                     <CardContent>
                       <div className="space-y-3">
@@ -560,11 +689,16 @@ export default function StudentDetails() {
                                 <div className="font-medium">{child.childName}</div>
                                 <div className="text-sm text-muted-foreground">
                                   {child.className ? `Class ${child.className}` : "Class not specified"}
-                                  {child.section ? ` (${child.section})` : ""}{child.age ? ` • Age ${child.age}` : ""}
+                                  {child.section ? ` (${child.section})` : ""}
+                                  {child.age ? ` • Age ${child.age}` : ""}
                                 </div>
                               </div>
                             </div>
-                            <button type="button" onClick={() => handleRemoveChild(index)} className="text-destructive hover:text-destructive/80 p-1 rounded-sm">
+                            <button 
+                              type="button" 
+                              onClick={() => handleRemoveChild(index)} 
+                              className="text-destructive hover:text-destructive/80 p-1 rounded-sm"
+                            >
                               <X className="w-4 h-4" />
                             </button>
                           </div>
@@ -576,8 +710,9 @@ export default function StudentDetails() {
 
                 <Card>
                   <CardHeader className="pb-4">
-                    <CardTitle className="flex items-center gap-2 text-lg"><Plus className="w-5 h-5" />Add Child/Sibling</CardTitle>
-                    <CardDescription>Fill in the child's details. Only Student Name, Route, and Locations are required.</CardDescription>
+                    <CardTitle className="flex items-center gap-2 text-lg">
+                      <Plus className="w-5 h-5" />Add Child/Sibling
+                    </CardTitle>
                   </CardHeader>
                   <CardContent>
                     <form onSubmit={handleAddChild} className="space-y-4">
@@ -590,48 +725,101 @@ export default function StudentDetails() {
                         ))}
                         <div className="grid gap-2">
                           <Label htmlFor="gender">Gender</Label>
-                          <select id="gender" name="gender" className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2">
-                            <option value="">Select Gender</option><option value="male">Male</option><option value="female">Female</option><option value="other">Other</option>
+                          <select 
+                            id="gender" 
+                            name="gender" 
+                            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                          >
+                            <option value="">Select Gender</option>
+                            <option value="male">Male</option>
+                            <option value="female">Female</option>
+                            <option value="other">Other</option>
                           </select>
                         </div>
                         <div className="grid gap-2">
                           <Label htmlFor="routeId">Route *</Label>
-                          <Combobox items={routeOptions} value={selectedRoute} onValueChange={setSelectedRoute}
-                            placeholder="Search route..." searchPlaceholder="Search routes..."
-                            emptyMessage={!selectedBranch ? "Select a branch first." : "No routes found for this branch."}
-                            width="w-full" disabled={!selectedBranch} onSearchChange={setRouteSearch} searchValue={routeSearch} />
+                          <Combobox 
+                            items={routeOptions} 
+                            value={selectedRoute} 
+                            onValueChange={setSelectedRoute}
+                            placeholder="Search route..." 
+                            searchPlaceholder="Search routes..."
+                            emptyMessage={
+                              !selectedBranch 
+                                ? "Select a branch first." 
+                                : routeOptions.length === 0 
+                                ? "No routes found for this branch." 
+                                : "No routes match your search."
+                            }
+                            width="w-full" 
+                            disabled={!selectedBranch || routesLoading}
+                            onSearchChange={setRouteSearch} 
+                            searchValue={routeSearch} 
+                          />
+                          {routesLoading && (
+                            <p className="text-sm text-muted-foreground">Loading routes...</p>
+                          )}
                         </div>
                         <div className="grid gap-2">
                           <Label htmlFor="pickupGeoId">Pickup Location *</Label>
-                          <select id="pickupGeoId" name="pickupGeoId" required disabled={geofencesLoading}
-                            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2">
+                          <select 
+                            id="pickupGeoId" 
+                            name="pickupGeoId" 
+                            required 
+                            disabled={geofencesLoading}
+                            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                          >
                             <option value="">Select Pickup Location</option>
-                            {geofences.map(geo => <option key={geo._id} value={geo._id}>{geo.geofenceName}</option>)}
+                            {geofences.map(geo => (
+                              <option key={geo._id} value={geo._id}>{geo.geofenceName}</option>
+                            ))}
                           </select>
                         </div>
                         <div className="grid gap-2">
                           <Label htmlFor="dropGeoId">Drop Location *</Label>
-                          <select id="dropGeoId" name="dropGeoId" required disabled={geofencesLoading}
-                            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2">
+                          <select 
+                            id="dropGeoId" 
+                            name="dropGeoId" 
+                            required 
+                            disabled={geofencesLoading}
+                            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                          >
                             <option value="">Select Drop Location</option>
-                            {geofences.map(geo => <option key={geo._id} value={geo._id}>{geo.geofenceName}</option>)}
+                            {geofences.map(geo => (
+                              <option key={geo._id} value={geo._id}>{geo.geofenceName}</option>
+                            ))}
                           </select>
                         </div>
                       </div>
                       <div className="flex justify-end pt-2">
-                        <Button type="submit" variant="outline" className="flex items-center gap-2"><Plus className="w-4 h-4" />Add This Child</Button>
+                        <Button type="submit" variant="outline" className="flex items-center gap-2">
+                          <Plus className="w-4 h-4" />Add This Child
+                        </Button>
                       </div>
                     </form>
                   </CardContent>
                 </Card>
 
                 <DialogFooter className="flex justify-between pt-4">
-                  <Button variant="outline" onClick={() => setCurrentStep(1)} type="button" className="flex items-center gap-2">
-                    <ChevronRight className="w-4 h-4 rotate-180" />Back to Parent Details
+                  <Button 
+                    variant="outline" 
+                    onClick={() => setCurrentStep(1)} 
+                    type="button" 
+                    className="flex items-center gap-2"
+                  >
+                    <ChevronRight className="w-4 h-4 rotate-180" />
+                    Back to Parent Details
                   </Button>
                   <div className="flex gap-2">
-                    <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
-                    <Button onClick={handleFinalSubmit} disabled={children.length === 0 || addStudentMutation.isPending} type="button" className="flex items-center gap-2">
+                    <DialogClose asChild>
+                      <Button variant="outline">Cancel</Button>
+                    </DialogClose>
+                    <Button 
+                      onClick={handleFinalSubmit} 
+                      disabled={children.length === 0 || addStudentMutation.isPending} 
+                      type="button" 
+                      className="flex items-center gap-2"
+                    >
                       {addStudentMutation.isPending ? "Submitting..." : `Submit ${children.length > 0 ? `(${children.length} ${children.length === 1 ? "Child" : "Children"})` : ""}`}
                     </Button>
                   </div>
@@ -646,30 +834,69 @@ export default function StudentDetails() {
         <section>{tableElement}</section>
         <section>
           {deleteTarget && (
-            <Alert<Student> title="Are you absolutely sure?" 
+            <Alert<Student> 
+              title="Are you absolutely sure?" 
               description={`This will permanently delete ${deleteTarget?.childName || "this student"} and all associated data.`}
-              actionButton={(target) => deleteStudentMutation.mutate(target._id)} target={deleteTarget} setTarget={setDeleteTarget} butttonText="Delete" />
+              actionButton={(target) => deleteStudentMutation.mutate(target._id)} 
+              target={deleteTarget} 
+              setTarget={setDeleteTarget} 
+              butttonText="Delete" 
+            />
           )}
 
           {editTarget && editData && (
-            <DynamicEditDialog data={editData} isOpen={editDialogOpen} 
-              onClose={() => { setEditDialogOpen(false); setEditTarget(null); setEditSelectedSchool(""); setEditSelectedBranch(""); }}
-              onSave={handleSave} onFieldChange={handleEditFieldChange} fields={EDIT_FIELDS.map(f => {
+            <DynamicEditDialog 
+              data={editData} 
+              isOpen={editDialogOpen} 
+              onClose={() => { 
+                setEditDialogOpen(false); 
+                setEditTarget(null); 
+                setEditSelectedSchool(""); 
+                setEditSelectedBranch(""); 
+              }}
+              onSave={handleSave} 
+              onFieldChange={handleEditFieldChange} 
+              fields={EDIT_FIELDS.map(f => {
                 if (f.key === "schoolId") return { ...f, options: schoolOptions };
-                if (f.key === "branchId") return { ...f, options: editFilteredBranches.map(b => ({ label: b.branchName || `Branch ${b._id}`, value: b._id })), disabled: false };
-                if (f.key === "routeObjId") return { ...f, options: editFilteredRoutes.map(r => ({ label: r.routeNumber || `Route ${r.routeName || r._id}`, value: r._id })), disabled: !editSelectedBranch };
-                if (f.key === "pickupGeoId" || f.key === "dropGeoId") return { ...f, options: geofenceOptions };
+                if (f.key === "branchId") return { 
+                  ...f, 
+                  options: editFilteredBranches.map(b => ({ 
+                    label: b.branchName || `Branch ${b._id}`, 
+                    value: b._id 
+                  })), 
+                  disabled: false 
+                };
+                if (f.key === "routeObjId") return { 
+                  ...f, 
+                  options: editFilteredRoutes.map(r => ({ 
+                    label: r.routeNumber || `Route ${r.routeName || r._id}`, 
+                    value: r._id 
+                  })), 
+                  disabled: !editSelectedBranch 
+                };
+                if (f.key === "pickupGeoId" || f.key === "dropGeoId") return { 
+                  ...f, 
+                  options: geofenceOptions 
+                };
                 return f;
-              })} title="Edit Student" description="Update the student information below." loading={updateStudentMutation.isPending} />
+              })} 
+              title="Edit Student" 
+              description="Update the student information below." 
+              loading={updateStudentMutation.isPending} 
+            />
           )}
         </section>
 
         <FloatingMenu
           onExportPdf={() => exportToPDF(studentsData?.children || [], EXPORT_COLUMNS, {
-            title: "All Students Data", companyName: "Parents Eye", metadata: { Total: `${studentsData?.children?.length || 0} students` },
+            title: "All Students Data", 
+            companyName: "Parents Eye", 
+            metadata: { Total: `${studentsData?.children?.length || 0} students` },
           })}
           onExportExcel={() => exportToExcel(studentsData?.children || [], EXPORT_COLUMNS, {
-            title: "All Students Data", companyName: "Parents Eye", metadata: { Total: `${studentsData?.children?.length || 0} students` },
+            title: "All Students Data", 
+            companyName: "Parents Eye", 
+            metadata: { Total: `${studentsData?.children?.length || 0} students` },
           })}
         />
       </main>
