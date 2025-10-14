@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo, useCallback } from "react";
-import ReportFilter from "@/components/report-filters/Report-Filter";
+import { ReportFilter } from "@/components/report-filters/Report-Filter";
 import { type ColumnDef, VisibilityState } from "@tanstack/react-table";
 import { CustomTableServerSidePagination } from "@/components/ui/customTable(serverSidePagination)";
 import { api } from "@/services/apiService";
@@ -98,10 +98,7 @@ const EventReportPage: React.FC = () => {
       header: "Message",
       size: 300,
       cell: ({ row }) => (
-        <div
-          className="text-sm max-w-xs truncate"
-          title={row.original.message}
-        >
+        <div className="text-sm max-w-xs truncate" title={row.original.message}>
           {row.original.message || "-"}
         </div>
       ),
@@ -142,9 +139,7 @@ const EventReportPage: React.FC = () => {
         queryParams.append("sortOrder", sort.desc ? "desc" : "asc");
       }
 
-      const response = await api.get(
-        `report/event?${queryParams.toString()}`
-      );
+      const response = await api.get(`report/event?${queryParams.toString()}`);
       const json = response.data;
 
       if (!json || (Array.isArray(json) && json.length === 0)) {
@@ -156,14 +151,12 @@ const EventReportPage: React.FC = () => {
       const dataArray = Array.isArray(json) ? json : [json];
       const initialTransformed = dataArray.map((item: any, index: number) => ({
         id: item.id || item.eventId || `row-${index}`,
-        sn:
-          paginationState.pageIndex * paginationState.pageSize + index + 1,
+        sn: paginationState.pageIndex * paginationState.pageSize + index + 1,
         vehicleName: filters.deviceName,
         notification:
           item.notification || item.eventType || item.alertType || "Event",
         location: "Loading...",
-        message:
-          item.message || item.description || item.details || "",
+        message: item.message || item.description || item.details || "",
         dateTime: item.dateTime || item.timestamp || item.createdAt,
         coordinates:
           item.coordinates ||
@@ -225,7 +218,11 @@ const EventReportPage: React.FC = () => {
     setSorting([]);
     setCurrentFilters(updatedFilters);
     setShowTable(true);
-    await fetchEventReportData(updatedFilters, { pageIndex: 0, pageSize: 10 }, []);
+    await fetchEventReportData(
+      updatedFilters,
+      { pageIndex: 0, pageSize: 10 },
+      []
+    );
   };
 
   const { table, tableElement } = CustomTableServerSidePagination({
