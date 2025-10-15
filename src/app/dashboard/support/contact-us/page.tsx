@@ -122,7 +122,7 @@ const EyeCareBot = () => {
     : messages;
 
   return (
-    <div className="flex w-full bg-white font-sans overflow-hidden" style={{ height: 'calc(100vh - 64px)' }}>
+    <div className="flex w-full bg-white font-sans overflow-hidden absolute top-16 bottom-0 left-0 right-0">        
       <div className="flex w-full h-full">
         <LeftSidebar
           showSidebar={showSidebar}
