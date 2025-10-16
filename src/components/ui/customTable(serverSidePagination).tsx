@@ -252,13 +252,13 @@ DataTableProps<T>) {
         <div className="border rounded-lg overflow-hidden">
           <div className="overflow-y-auto" style={{ maxHeight }}>
             <Table>
-              <TableHeader className="sticky top-0 bg-[#f3c623] z-10">
+              <TableHeader className="sticky top-0 bg-[#fffa4f] z-10">
                 {table.getHeaderGroups().map((headerGroup) => (
                   <TableRow key={headerGroup.id} className="border-b">
                     {headerGroup.headers.map((header) => (
                       <TableHead
                         key={header.id}
-                        className="bg-[#f3c623] text-foreground px-2 py-2 sm:px-4 sm:py-3 text-xs sm:text-sm font-medium uppercase tracking-wider border-r last:border-r-0"
+                        className="bg-[#fffa4f] text-foreground px-2 py-2 sm:px-4 sm:py-3 text-xs sm:text-sm font-medium uppercase tracking-wider border-r last:border-r-0"
                         style={{
                           width: header.id === "serialNumber" ? "60px" : "auto",
                           minWidth:
