@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useRef, useMemo } from "react";
+import React, { useEffect, useState, useRef, useMemo, useCallback } from "react";
 import { CustomTableServerSidePagination } from "@/components/ui/customTable(serverSidePagination)";
 import { DynamicEditDialog, FieldConfig } from "@/components/ui/EditModal";
 import { Button } from "@/components/ui/button";
@@ -22,6 +22,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { ChevronRight, User, Users, Plus, X } from "lucide-react";
 import { Combobox } from "@/components/ui/combobox";
+import SearchComponent from "@/components/ui/SearchOnlydata";
 
 // Constants
 const EDIT_FIELDS: FieldConfig[] = [
@@ -134,6 +135,10 @@ export default function StudentDetails() {
   const [branchSearch, setBranchSearch] = useState("");
   const [routeSearch, setRouteSearch] = useState("");
 
+  // Search states - NEW: For client-side search fallback
+  const [filteredData, setFilteredData] = useState<Student[]>([]);
+  const [searchResults, setSearchResults] = useState<Student[]>([]);
+
   const { exportToPDF, exportToExcel } = useExport();
 
   // Data fetching
@@ -147,16 +152,16 @@ export default function StudentDetails() {
     queryFn: () => api.get<Branch[]>("/branch")
   });
 
-  // Route data fetching - FIXED: Using standard useQuery without custom hook
+  // Route data fetching
   const { data: routesData, isLoading: routesLoading } = useQuery({
     queryKey: ["routes"],
     queryFn: () => api.get<Route[]>("/route"),
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 5 * 60 * 1000,
   });
 
   const { data: geofencesData, isLoading: geofencesLoading } = useGeofences({ pagination, sorting });
   
-  // FIXED: Proper route data handling
+  // Proper route data handling
   const routes: Route[] = Array.isArray(routesData) ? routesData : 
                          Array.isArray(routesData?.data) ? routesData.data : 
                          Array.isArray(routesData?.routes) ? routesData.routes : [];
@@ -164,35 +169,53 @@ export default function StudentDetails() {
   const geofences: Geofence[] = Array.isArray(geofencesData) ? geofencesData : 
     Array.isArray(geofencesData?.data) ? geofencesData.data : [];
 
+  // Student data fetching - FIXED: Server-side search
+  const { data: studentsData, isLoading, isFetching } = useStudents({
+    pagination, 
+    sorting, 
+    childName: debouncedStudentName.trim()
+  });
+
+  // NEW: Handle search results for client-side fallback
+  const handleSearchResults = useCallback((results: Student[]) => {
+    setSearchResults(results);
+    setFilteredData(results);
+  }, []);
+
+  // NEW: Effect to update filtered data when students data changes
+  useEffect(() => {
+    if (studentsData?.children) {
+      setFilteredData(studentsData.children);
+      setSearchResults(studentsData.children);
+    }
+  }, [studentsData?.children]);
+
   // Memoized options
   const schoolOptions = useMemo(() => 
     schools.map(school => ({ label: school.schoolName, value: school._id })), [schools]);
 
+  // Improved branch filtering - only show branches for selected school
   const branchOptions = useMemo(() => {
     if (!selectedSchool) return [];
-    return branches
-      .filter(branch => {
-        const branchSchoolId = branch.schoolId ? 
-          (typeof branch.schoolId === "object" ? branch.schoolId?._id : branch.schoolId) : null;
-        return branchSchoolId === selectedSchool;
-      })
-      .map(branch => ({ label: branch.branchName, value: branch._id }));
-  }, [branches, selectedSchool]);
-
-  // FIXED: Route options filtering
-  const routeOptions = useMemo(() => {
-    console.log("Route Options Debug:", {
-      selectedBranch,
-      routesCount: routes.length,
-      routes: routes.map(r => ({ 
-        id: r._id, 
-        branchId: r.branchId, 
-        routeNumber: r.routeNumber,
-        branchIdType: typeof r.branchId,
-        branchIdValue: typeof r.branchId === "object" ? r.branchId?._id : r.branchId
-      }))
+    
+    const filteredBranches = branches.filter(branch => {
+      if (!branch.schoolId) return false;
+      
+      const branchSchoolId = typeof branch.schoolId === "object" ? 
+        branch.schoolId?._id : 
+        branch.schoolId;
+      
+      return branchSchoolId === selectedSchool;
     });
 
+    return filteredBranches.map(branch => ({ 
+      label: branch.branchName, 
+      value: branch._id 
+    }));
+  }, [branches, selectedSchool]);
+
+  // Route options filtering
+  const routeOptions = useMemo(() => {
     if (!selectedBranch) return [];
     
     const filteredRoutes = routes.filter(route => {
@@ -205,8 +228,6 @@ export default function StudentDetails() {
       return routeBranchId === selectedBranch;
     });
 
-    console.log("Filtered Routes:", filteredRoutes);
-
     return filteredRoutes.map(route => ({ 
       label: route.routeNumber || `Route ${route.routeName || route._id}`, 
       value: route._id 
@@ -218,7 +239,7 @@ export default function StudentDetails() {
 
   // Edit filtered data
   const editFilteredBranches = useMemo(() => {
-    if (!editSelectedSchool) return branches;
+    if (!editSelectedSchool) return [];
     return branches.filter(branch => {
       const branchSchoolId = branch.schoolId ? 
         (typeof branch.schoolId === "object" ? branch.schoolId?._id : branch.schoolId) : null;
@@ -227,7 +248,7 @@ export default function StudentDetails() {
   }, [editSelectedSchool, branches]);
 
   const editFilteredRoutes = useMemo(() => {
-    if (!editSelectedBranch) return routes;
+    if (!editSelectedBranch) return [];
     return routes.filter(route => {
       const routeBranchId = route.branchId ? 
         (typeof route.branchId === "object" ? route.branchId?._id : route.branchId) : null;
@@ -235,9 +256,13 @@ export default function StudentDetails() {
     });
   }, [editSelectedBranch, routes]);
 
-  // Effects
+  // Effects - Improved debouncing for search
   useEffect(() => {
-    const handler = setTimeout(() => setDebouncedStudentName(studentName), 500);
+    const handler = setTimeout(() => {
+      setDebouncedStudentName(studentName);
+      // Reset to first page when searching
+      setPagination(prev => ({ ...prev, pageIndex: 0 }));
+    }, 500);
     return () => clearTimeout(handler);
   }, [studentName]);
 
@@ -266,11 +291,6 @@ export default function StudentDetails() {
       setRouteSearch("");
     }
   }, [addDialogOpen]);
-
-  // Student data fetching
-  const { data: studentsData, isLoading, isFetching } = useStudents({
-    pagination, sorting, childName: debouncedStudentName
-  });
 
   // Mutations
   const addStudentMutation = useMutation({
@@ -406,9 +426,14 @@ export default function StudentDetails() {
       }
     }
 
+    // Ensure routeId is properly mapped to routeObjId in the API request
     const data = { 
       parent: parentData, 
-      children: children 
+      children: children.map(child => ({
+        ...child,
+        routeObjId: child.routeId, // Map routeId to routeObjId for API
+        routeId: child.routeId // Keep both for backward compatibility
+      }))
     };
 
     try { 
@@ -425,6 +450,13 @@ export default function StudentDetails() {
     } else if (key === "branchId") { 
       setEditSelectedBranch(value); 
     }
+  };
+
+  // Handle search clear
+  const handleSearchClear = () => {
+    setStudentName("");
+    setDebouncedStudentName("");
+    setPagination(prev => ({ ...prev, pageIndex: 0 }));
   };
 
   // Table configuration
@@ -444,8 +476,16 @@ export default function StudentDetails() {
     {
       id: "routeNumber", header: "Route Number",
       accessorFn: (row) => {
-        if (row.routeObjId && typeof row.routeObjId === "object") return row.routeObjId.routeNumber || "N/A";
-        if (row.routeId && typeof row.routeId === "object") return row.routeId.routeNumber || "N/A";
+        // Simplified route number access to handle both new and existing students
+        if (row.routeObjId) {
+          if (typeof row.routeObjId === "object") {
+            return row.routeObjId.routeNumber || "N/A";
+          }
+        }
+        // Fallback for legacy data structure
+        if (row.routeId && typeof row.routeId === "object") {
+          return row.routeId.routeNumber || "N/A";
+        }
         return "N/A";
       }
     },
@@ -495,7 +535,7 @@ export default function StudentDetails() {
   ];
 
   const { table, tableElement } = CustomTableServerSidePagination({
-    data: studentsData?.children || [], 
+    data: filteredData, // Use filteredData instead of studentsData?.children
     columns, 
     pagination, 
     totalCount: studentsData?.total || 0,
@@ -505,7 +545,7 @@ export default function StudentDetails() {
     sorting, 
     columnVisibility, 
     onColumnVisibilityChange: setColumnVisibility, 
-    emptyMessage: "No students found",
+    emptyMessage: debouncedStudentName ? "No students found matching your search" : "No students found",
     pageSizeOptions: [5, 10, 20, 30, 50], 
     enableSorting: true, 
     showSerialNumber: true,
@@ -545,14 +585,15 @@ export default function StudentDetails() {
     <>
       <header className="flex items-center gap-4 mb-4 justify-between">
         <section className="flex space-x-4">
-          <div className="h-9">
-            <SearchBar 
-              value={studentName} 
-              onChange={setStudentName} 
-              placeholder="Search by student name..." 
-              width="w-[300px]" 
-            />
-          </div>
+          {/* NEW: SearchComponent for client-side search fallback */}
+          <SearchComponent
+            data={searchResults}
+            displayKey={["childName", "className", "section"]}
+            onResults={handleSearchResults}
+            className="w-[300px]"
+            placeholder="Search students..."
+          />
+          
           <ColumnVisibilitySelector 
             columns={table?.getAllColumns() || []} 
             buttonVariant="outline" 
@@ -615,25 +656,35 @@ export default function StudentDetails() {
                         <Combobox 
                           items={branchOptions} 
                           value={selectedBranch} 
-                          onValueChange={(value) => {
-                            setSelectedBranch(value);
-                            setSelectedRoute("");
-                          }}
-                          placeholder="Search branch..." 
+                          onValueChange={setSelectedBranch}
+                          placeholder={!selectedSchool ? "Select school first" : "Search branch..."} 
                           searchPlaceholder="Search branches..." 
-                          emptyMessage={!selectedSchool ? "Select a school first." : "No branch found for this school."}
+                          emptyMessage={
+                            !selectedSchool 
+                              ? "Please select a school first" 
+                              : branchOptions.length === 0 
+                                ? "No branches found for this school" 
+                                : "No branches match your search"
+                          }
                           width="w-full" 
-                          disabled={!selectedSchool} 
+                          disabled={!selectedSchool || branchesLoading}
                           onSearchChange={setBranchSearch} 
                           searchValue={branchSearch} 
                         />
+                        {branchesLoading && (
+                          <p className="text-sm text-muted-foreground">Loading branches...</p>
+                        )}
                       </div>
                     </div>
                     <DialogFooter className="pt-4">
                       <DialogClose asChild>
                         <Button variant="outline">Cancel</Button>
                       </DialogClose>
-                      <Button type="submit" className="flex items-center gap-2">
+                      <Button 
+                        type="submit" 
+                        className="flex items-center gap-2"
+                        disabled={!selectedSchool || !selectedBranch}
+                      >
                         Continue to Children
                         <ChevronRight className="w-4 h-4" />
                       </Button>
@@ -864,7 +915,7 @@ export default function StudentDetails() {
                     label: b.branchName || `Branch ${b._id}`, 
                     value: b._id 
                   })), 
-                  disabled: false 
+                  disabled: !editSelectedSchool 
                 };
                 if (f.key === "routeObjId") return { 
                   ...f, 
@@ -888,15 +939,15 @@ export default function StudentDetails() {
         </section>
 
         <FloatingMenu
-          onExportPdf={() => exportToPDF(studentsData?.children || [], EXPORT_COLUMNS, {
+          onExportPdf={() => exportToPDF(filteredData, EXPORT_COLUMNS, {
             title: "All Students Data", 
             companyName: "Parents Eye", 
-            metadata: { Total: `${studentsData?.children?.length || 0} students` },
+            metadata: { Total: `${filteredData.length} students` },
           })}
-          onExportExcel={() => exportToExcel(studentsData?.children || [], EXPORT_COLUMNS, {
+          onExportExcel={() => exportToExcel(filteredData, EXPORT_COLUMNS, {
             title: "All Students Data", 
             companyName: "Parents Eye", 
-            metadata: { Total: `${studentsData?.children?.length || 0} students` },
+            metadata: { Total: `${filteredData.length} students` },
           })}
         />
       </main>

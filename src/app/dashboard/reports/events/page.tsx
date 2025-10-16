@@ -1,7 +1,11 @@
 "use client";
 
 import React, { useState, useEffect, useMemo, useCallback } from "react";
-import { ReportFilter } from "@/components/report-filters/Report-Filter";
+import {
+  ReportFilter,
+  DateRange,
+  FilterValues,
+} from "@/components/report-filters/Report-Filter";
 import { type ColumnDef, VisibilityState } from "@tanstack/react-table";
 import { CustomTableServerSidePagination } from "@/components/ui/customTable(serverSidePagination)";
 import { api } from "@/services/apiService";
@@ -21,6 +25,7 @@ interface EventReportData {
 }
 
 const EventReportPage: React.FC = () => {
+  // Table states
   const [data, setData] = useState<EventReportData[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
@@ -30,12 +35,18 @@ const EventReportPage: React.FC = () => {
   const [sorting, setSorting] = useState<any[]>([]);
   const [currentFilters, setCurrentFilters] = useState<any>(null);
 
-  // Vehicle dropdown states
-  const [searchTerm, setSearchTerm] = useState("");
-  const [selectedVehicle, setSelectedVehicle] = useState("");
-  const [selectedVehicleName, setSelectedVehicleName] = useState("");
+  // Filter states (consistent with StatusReport)
+  const [selectedSchool, setSelectedSchool] = useState<string | null>(null);
+  const [selectedBranch, setSelectedBranch] = useState<string | null>(null);
+  const [selectedDevice, setSelectedDevice] = useState<string | null>(null);
+  const [deviceName, setDeviceName] = useState<string | null>(null);
+  const [dateRange, setDateRange] = useState<DateRange>({
+    startDate: null,
+    endDate: null,
+  });
 
-  // Hook for infinite scroll + search
+  // Vehicle data with infinite scroll
+  const [searchTerm, setSearchTerm] = useState("");
   const {
     data: vehicleData,
     fetchNextPage,
@@ -43,13 +54,11 @@ const EventReportPage: React.FC = () => {
     isFetchingNextPage,
   } = useDeviceData({ searchTerm });
 
-  // Flatten vehicles
   const allVehicles = useMemo(() => {
     if (!vehicleData?.pages) return [];
     return vehicleData.pages.flat();
   }, [vehicleData]);
 
-  // Format for dropdown
   const vehicleMetaData = useMemo(() => {
     if (!Array.isArray(allVehicles)) return [];
     return allVehicles.map((vehicle) => ({
@@ -66,15 +75,7 @@ const EventReportPage: React.FC = () => {
     setSearchTerm(search);
   }, []);
 
-  const handleVehicleChange = useCallback(
-    (value: string) => {
-      setSelectedVehicle(value);
-      const selected = vehicleMetaData.find((v) => v.value === value);
-      setSelectedVehicleName(selected?.label || "");
-    },
-    [vehicleMetaData]
-  );
-
+  // Columns
   const columns: ColumnDef<EventReportData>[] = [
     { accessorKey: "sn", header: "SN" },
     { accessorKey: "vehicleName", header: "Vehicle Name", size: 250 },
@@ -114,6 +115,7 @@ const EventReportPage: React.FC = () => {
     },
   ];
 
+  // API Fetch
   const fetchEventReportData = async (
     filters: any,
     paginationState: any,
@@ -168,7 +170,6 @@ const EventReportPage: React.FC = () => {
       setData(initialTransformed);
       setTotalCount(response.total || initialTransformed.length);
 
-      // ✅ Reverse geocoding (same pattern as StatusReportPage)
       const transformedWithAddresses = await Promise.all(
         initialTransformed.map(async (item) => {
           if (item.coordinates && item.coordinates !== "Loading...") {
@@ -196,34 +197,45 @@ const EventReportPage: React.FC = () => {
     }
   };
 
+  // Refetch when table state changes
   useEffect(() => {
     if (currentFilters && showTable) {
       fetchEventReportData(currentFilters, pagination, sorting);
     }
   }, [pagination, sorting, currentFilters, showTable]);
 
-  const handleFilterSubmit = async (filters: any) => {
-    if (!selectedVehicle || !filters.startDate || !filters.endDate) {
-      alert("Please select a vehicle and both dates");
-      return;
-    }
+  // Filter submission (same pattern as StatusReport)
+  const handleFilterSubmit = useCallback(
+    async (filters: FilterValues) => {
+      console.log("✅ Event filter submitted:", filters);
+      console.log("📊 Current selections:", {
+        school: selectedSchool,
+        branch: selectedBranch,
+        device: selectedDevice,
+        deviceName,
+        dateRange,
+      });
 
-    const updatedFilters = {
-      ...filters,
-      deviceId: selectedVehicle,
-      deviceName: selectedVehicleName,
-    };
+      if (!selectedDevice || !dateRange.startDate || !dateRange.endDate) {
+        alert("Please select a vehicle and both dates");
+        return;
+      }
 
-    setPagination({ pageIndex: 0, pageSize: 10 });
-    setSorting([]);
-    setCurrentFilters(updatedFilters);
-    setShowTable(true);
-    await fetchEventReportData(
-      updatedFilters,
-      { pageIndex: 0, pageSize: 10 },
-      []
-    );
-  };
+      const updatedFilters = {
+        ...filters,
+        deviceId: selectedDevice,
+        deviceName,
+      };
+
+      setPagination({ pageIndex: 0, pageSize: 10 });
+      setSorting([]);
+      setCurrentFilters(updatedFilters);
+      setShowTable(true);
+
+      await fetchEventReportData(updatedFilters, { pageIndex: 0, pageSize: 10 }, []);
+    },
+    [selectedSchool, selectedBranch, selectedDevice, deviceName, dateRange]
+  );
 
   const { table, tableElement } = CustomTableServerSidePagination({
     data,
@@ -243,17 +255,28 @@ const EventReportPage: React.FC = () => {
   });
 
   return (
-    <div>
+    <div className="p-6">
       <ResponseLoader isLoading={isLoading} />
+      <header>
+        <h1 className="text-2xl font-bold mb-4">Event Report</h1>
+      </header>
 
+      {/* ✅ Unified Report Filter (same structure as StatusReportPage) */}
       <ReportFilter
-        onFilterSubmit={handleFilterSubmit}
-        columns={table.getAllColumns()}
-        showColumnVisibility
+        onSubmit={handleFilterSubmit}
         className="mb-6"
+        selectedSchool={selectedSchool}
+        onSchoolChange={setSelectedSchool}
+        selectedBranch={selectedBranch}
+        onBranchChange={setSelectedBranch}
+        selectedDevice={selectedDevice}
+        onDeviceChange={(deviceId, name) => {
+          setSelectedDevice(deviceId);
+          setDeviceName(name);
+        }}
+        dateRange={dateRange}
+        onDateRangeChange={setDateRange}
         vehicleMetaData={vehicleMetaData}
-        selectedVehicle={selectedVehicle}
-        onVehicleChange={handleVehicleChange}
         searchTerm={searchTerm}
         onSearchChange={handleSearchChange}
         onVehicleReachEnd={handleVehicleReachEnd}

@@ -34,12 +34,6 @@ import ResponseLoader from "@/components/ResponseLoader";
 // import { CustomFilter } from "@/components/ui/CustomFilter";
 import { ColumnVisibilitySelector } from "@/components/column-visibility-selector";
 
-// type SchoolAccess = {
-//   _id: string;
-//   schoolName: string;
-//   fullAccess: boolean;
-// };
-
 declare module "@tanstack/react-table" {
   interface ColumnMeta<TData, TValue> {
     flex?: number;
@@ -53,7 +47,6 @@ export default function SchoolMaster() {
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const [filteredData, setFilteredData] = useState<School[]>([]);
   const [filterResults, setFilterResults] = useState<School[]>([]);
-  // const [accessTarget, setAccessTarget] = useState<School | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<School | null>(null);
   const [editTarget, setEditTarget] = useState<School | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -79,6 +72,9 @@ export default function SchoolMaster() {
     if (schools && schools.length > 0) {
       setFilteredData(schools);
       setFilterResults(schools); // For search base
+    } else {
+      setFilteredData([]);
+      setFilterResults([]);
     }
   }, [schools]);
 
@@ -90,7 +86,6 @@ export default function SchoolMaster() {
         type: "text",
         value: row.schoolName ?? "",
       }),
-      // cell: (info) => info.getValue(),
       meta: { flex: 1, minWidth: 200, maxWidth: 300 },
       enableHiding: true,
     },
@@ -100,7 +95,6 @@ export default function SchoolMaster() {
         type: "text",
         value: row.schoolMobile ?? "",
       }),
-      // cell: (info) => info.getValue(),
       meta: { flex: 1, minWidth: 150, maxWidth: 300 },
       enableHiding: true,
     },
@@ -110,7 +104,6 @@ export default function SchoolMaster() {
         type: "text",
         value: row.username ?? "",
       }),
-      // cell: (info) => info.getValue(),
       meta: { flex: 1, minWidth: 150, maxWidth: 300 },
       enableHiding: true,
     },
@@ -120,7 +113,6 @@ export default function SchoolMaster() {
         type: "text",
         value: row.password ?? "",
       }),
-      // cell: (info) => info.getValue(),
       meta: { flex: 1, minWidth: 150, maxWidth: 300 },
       enableHiding: true,
     },
@@ -130,7 +122,6 @@ export default function SchoolMaster() {
         type: "text",
         value: formatDate(row.createdAt) ?? "",
       }),
-      // cell: (info) => info.getValue(),
       meta: { flex: 1, minWidth: 200 },
       enableHiding: true,
     },
@@ -148,18 +139,18 @@ export default function SchoolMaster() {
               setEditDialogOpen(true);
             },
             className: "cursor-pointer",
-            disabled: updateSchoolMutation.isPending,
+            // note: original used updateSchoolMutation.isPending; keep as-is if desired
+            disabled: false,
           },
           {
             type: "button",
             label: "Delete",
             onClick: () => setDeleteTarget(row),
             className: "text-red-600 cursor-pointer",
-            disabled: deleteSchoolMutation.isPending,
+            disabled: false,
           },
         ],
       }),
-      // cell: (info) => info.getValue(),
       meta: { flex: 1.5, minWidth: 150, maxWidth: 200 },
       enableSorting: false,
       enableHiding: true,
@@ -298,16 +289,26 @@ export default function SchoolMaster() {
     });
   };
 
+  // --- FIXED handleSubmit: safely read checkbox if present ---
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const form = e.currentTarget;
+    // Use namedItem to safely get the checkbox if it exists
+    const fullAccessEl = form.elements.namedItem(
+      "fullAccess"
+    ) as HTMLInputElement | null;
+
     const data = {
-      schoolName: form.schoolName.value,
-      username: form.username.value,
-      password: form.password.value,
-      email: form.email.value,
-      schoolMobile: form.schoolMobile.value,
-      fullAccess: form.fullAccess.checked,
+      schoolName: (form.elements.namedItem("schoolName") as HTMLInputElement)
+        ?.value,
+      username: (form.elements.namedItem("username") as HTMLInputElement)
+        ?.value,
+      password: (form.elements.namedItem("password") as HTMLInputElement)
+        ?.value,
+      email: (form.elements.namedItem("email") as HTMLInputElement)?.value,
+      schoolMobile: (form.elements.namedItem("schoolMobile") as HTMLInputElement)
+        ?.value,
+      fullAccess: fullAccessEl ? !!fullAccessEl.checked : false,
     };
 
     try {
@@ -339,10 +340,6 @@ export default function SchoolMaster() {
     [schools]
   );
 
-  // const handleCustomFilter = useCallback((filtered: School[]) => {
-  //   setFilteredData(filtered);
-  // }, []);
-
   const table = useReactTable({
     data: filteredData,
     columns,
@@ -353,39 +350,22 @@ export default function SchoolMaster() {
 
   return (
     <main>
-      {/* Progress loader at the top */}
       <ResponseLoader isLoading={isLoading} />
 
       <header className="flex items-center justify-between mb-4">
         <section className="flex space-x-4">
-          {/* Search component */}
           <SearchComponent
             data={filterResults}
             displayKey={["schoolName", "username", "email", "schoolMobile"]}
             onResults={handleSearchResults}
             className="w-[300px] mb-4"
           />
-          {/* Date range picker */}
+
           <DateRangeFilter
             onDateRangeChange={handleDateFilter}
             title="Search by Registration Date"
           />
-          {/* Access Filter*/}
-          {/* <CustomFilter
-            data={filterResults}
-            originalData={filterResults}
-            filterFields={["fullAccess"]}
-            onFilter={handleCustomFilter}
-            placeholder={"Filter by Access"}
-            className="w-[180px]"
-            valueFormatter={(value) =>
-              value ? "Full Access" : "Limited Access"
-            }
-            booleanToLable={"fullAccess"}
-            trueValue={"Full Access"}
-            falseValue={"Limited Access"}
-          /> */}
-          {/* Column visibility selector */}
+
           <ColumnVisibilitySelector
             columns={table.getAllColumns()}
             buttonVariant="outline"
@@ -393,7 +373,6 @@ export default function SchoolMaster() {
           />
         </section>
 
-        {/* Add School */}
         <section>
           <Dialog>
             <DialogTrigger asChild>
@@ -462,7 +441,11 @@ export default function SchoolMaster() {
                     />
                   </div>
 
-                  {/* <div className="flex items-center gap-3 mt-6">
+                  {/* If you want the fullAccess checkbox back in the form,
+                      uncomment the block below. The handleSubmit safely reads it either way.
+                  */}
+                  {/*
+                  <div className="flex items-center gap-3 mt-6">
                     <input
                       type="checkbox"
                       id="fullAccess"
@@ -470,7 +453,8 @@ export default function SchoolMaster() {
                       className="h-5 w-5"
                     />
                     <Label htmlFor="fullAccess">Full Access</Label>
-                  </div> */}
+                  </div>
+                  */}
                 </div>
 
                 <DialogFooter>
@@ -489,7 +473,6 @@ export default function SchoolMaster() {
         </section>
       </header>
 
-      {/* Table component */}
       <section className="mb-4">
         <CustomTable
           data={filteredData || []}
@@ -505,27 +488,7 @@ export default function SchoolMaster() {
         />
       </section>
 
-      {/* Alert Boxes */}
       <section>
-        {/* Access Alert */}
-        {/* <div>
-          <Alert<SchoolAccess>
-            title="Are you absolutely sure?"
-            description={`You are about to give ${accessTarget?.schoolName} ${
-              accessTarget?.fullAccess ? "limited" : "full"
-            } access.`}
-            actionButton={(target) => {
-              accessMutation.mutate({
-                _id: target._id,
-                fullAccess: !target.fullAccess,
-              });
-            }}
-            target={accessTarget}
-            setTarget={setAccessTarget}
-            butttonText="Confirm"
-          />
-        </div> */}
-
         <div>
           {deleteTarget && (
             <Alert<School>
@@ -542,7 +505,7 @@ export default function SchoolMaster() {
           )}
         </div>
       </section>
-      {/* Edit Dialog */}
+
       <section>
         {editTarget && (
           <DynamicEditDialog
@@ -563,11 +526,11 @@ export default function SchoolMaster() {
           />
         )}
       </section>
-      {/* Floating Menu */}
+
       <section>
         <FloatingMenu
           onExportPdf={() => {
-            console.log("Export PDF triggered"); // ✅ Add this for debugging
+            console.log("Export PDF triggered");
             exportToPDF(filteredData, columnsForExport, {
               title: "School Master Report",
               companyName: "Parents Eye",
@@ -577,7 +540,7 @@ export default function SchoolMaster() {
             });
           }}
           onExportExcel={() => {
-            console.log("Export Excel triggered"); // ✅ Add this too
+            console.log("Export Excel triggered");
             exportToExcel(filteredData, columnsForExport, {
               title: "School Master Report",
               companyName: "Parents Eye",
