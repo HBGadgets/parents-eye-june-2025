@@ -33,12 +33,10 @@ interface ComboboxProps {
   className?: string;
   width?: string;
   disabled?: boolean;
-  infiniteScroll?: boolean;
-  limit?: number;
   onReachEnd?: () => void;
   isLoadingMore?: boolean;
-  onSearchChange?: (search: string) => void; // New prop for search handling
-  searchValue?: string; // New prop to control search value
+  onSearchChange?: (search: string) => void;
+  searchValue?: string;
 }
 
 export function Combobox({
@@ -51,17 +49,16 @@ export function Combobox({
   className,
   width = "w-[200px]",
   disabled = false,
-  infiniteScroll = false,
-  limit = 20,
   onReachEnd,
   isLoadingMore = false,
-  onSearchChange, // New prop
-  searchValue, // New prop
+  onSearchChange,
+  searchValue,
 }: ComboboxProps) {
   const [open, setOpen] = React.useState(false);
   const [internalValue, setInternalValue] = React.useState("");
-  const [visibleCount, setVisibleCount] = React.useState(limit);
   const [internalSearchValue, setInternalSearchValue] = React.useState("");
+  const scrollRef = React.useRef<HTMLDivElement>(null);
+  const sentinelRef = React.useRef<HTMLDivElement>(null);
 
   const value = controlledValue !== undefined ? controlledValue : internalValue;
   const setValue =
@@ -69,7 +66,6 @@ export function Combobox({
       ? onValueChange || (() => {})
       : setInternalValue;
 
-  // Use controlled search value if provided, otherwise use internal state
   const currentSearchValue =
     searchValue !== undefined ? searchValue : internalSearchValue;
   const setSearchValue =
@@ -85,30 +81,63 @@ export function Combobox({
 
   const selectedItem = items.find((item) => item.value === value);
 
-  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
-    if (!infiniteScroll) return;
+  // Improved scroll handler
+  const handleScroll = React.useCallback(
+    (e: React.UIEvent<HTMLDivElement>) => {
+      if (!onReachEnd) return;
 
-    const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
-    if (scrollTop + clientHeight >= scrollHeight - 10) {
-      if (visibleCount < items.length) {
-        setVisibleCount((prev) => prev + limit);
+      const target = e.currentTarget;
+      const { scrollTop, scrollHeight, clientHeight } = target;
+
+      // Calculate scroll percentage
+      const scrollPercentage = (scrollTop + clientHeight) / scrollHeight;
+
+      // Trigger at 80% scroll
+      if (scrollPercentage >= 0.8 && !isLoadingMore) {
+        console.log("🔄 Scroll triggered at", scrollPercentage.toFixed(2));
+        onReachEnd();
       }
-      if (onReachEnd) onReachEnd();
-    }
-  };
+    },
+    [onReachEnd, isLoadingMore]
+  );
+
+  // IntersectionObserver as backup for scroll detection
+  React.useEffect(() => {
+    if (!sentinelRef.current || !onReachEnd || !open) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const [entry] = entries;
+        if (entry.isIntersecting && !isLoadingMore) {
+          console.log("👁️ Intersection triggered");
+          onReachEnd();
+        }
+      },
+      {
+        root: scrollRef.current,
+        threshold: 1.0,
+        rootMargin: "50px",
+      }
+    );
+
+    observer.observe(sentinelRef.current);
+
+    return () => observer.disconnect();
+  }, [onReachEnd, isLoadingMore, open, items.length]);
 
   const handleSearchValueChange = (search: string) => {
     setSearchValue(search);
-    // Reset visible count when search changes
-    if (infiniteScroll) {
-      setVisibleCount(limit);
-    }
   };
 
-  const renderItems = infiniteScroll ? items.slice(0, visibleCount) : items;
+  // Reset search when dropdown closes
+  React.useEffect(() => {
+    if (!open && !onSearchChange) {
+      setInternalSearchValue("");
+    }
+  }, [open, onSearchChange]);
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={setOpen} modal={true}>
       <PopoverTrigger asChild>
         <Button
           variant="outline"
@@ -137,7 +166,7 @@ export function Combobox({
       >
         <Command
           filter={(value, search) => {
-            // If we're using server-side search, don't filter here
+            // Server-side filtering when onSearchChange is provided
             if (onSearchChange) return 1;
 
             const item = items.find((item) => item.value === value);
@@ -157,12 +186,13 @@ export function Combobox({
             onValueChange={handleSearchValueChange}
           />
           <CommandList
-            className="max-h-[200px] overflow-y-auto"
+            ref={scrollRef}
+            className="max-h-[300px] overflow-y-auto"
             onScroll={handleScroll}
           >
             <CommandEmpty>{emptyMessage}</CommandEmpty>
             <CommandGroup>
-              {renderItems.map((item, idx) => (
+              {items.map((item, idx) => (
                 <CommandItem
                   key={`${item.value}-${idx}`}
                   value={item.value}
@@ -178,9 +208,15 @@ export function Combobox({
                   />
                 </CommandItem>
               ))}
-              {/* Show loading indicator when fetching more data */}
+
+              {/* Sentinel div for IntersectionObserver */}
+              {items.length > 0 && <div ref={sentinelRef} className="h-1" />}
+
               {isLoadingMore && (
-                <CommandItem className="justify-center">
+                <CommandItem
+                  disabled
+                  className="justify-center pointer-events-none"
+                >
                   <Loader2 className="h-4 w-4 animate-spin" />
                   <span className="ml-2">Loading more...</span>
                 </CommandItem>

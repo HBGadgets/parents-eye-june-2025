@@ -219,6 +219,13 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               url: "/dashboard/reports/geofence-report",
             },
           ];
+        case "Support":
+          return [
+            { title: "FAQ", url: "/dashboard/support/faq" },
+            { title: "Raise Ticket", url: "/dashboard/support/raise-ticket" },
+            { title: "Answer Ticket", url: "/dashboard/support/answer-ticket" },
+            { title: "Contact Us", url: "/dashboard/support/contact-us" },
+          ];
         default:
           return [];
       }

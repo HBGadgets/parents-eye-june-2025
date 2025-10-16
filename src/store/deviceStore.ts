@@ -4,6 +4,7 @@ import DeviceService, {
   SingleDeviceData,
 } from "@/services/livetrack/DeviceService";
 import { AllDeviceResponse } from "@/types/socket";
+import { useChatStore } from "./useChatStore";
 
 export interface DeviceFilters {
   page: number;
@@ -238,9 +239,56 @@ export const useDeviceStore = create<DeviceState>()(
                 }
               }
             },
+            onChatListReceived: (chats) => {
+              const chatStore = useChatStore.getState();
+              chatStore.chats = chats;
+              chatStore.isLoading = false;
+            },
+            onChatHistoryReceived: (messages) => {
+              const chatStore = useChatStore.getState();
+              const activeChatId = chatStore.activeChatId;
+              if (!activeChatId) return;
+
+              const newMessagesByChat = new Map(chatStore.messagesByChat);
+              newMessagesByChat.set(activeChatId, messages);
+
+              chatStore.messagesByChat = newMessagesByChat;
+              chatStore.isLoading = false;
+            },
+            onNewMessage: (message) => {
+              const chatStore = useChatStore.getState();
+              const newMessagesByChat = new Map(chatStore.messagesByChat);
+              const chatMessages = newMessagesByChat.get(message.chatId) || [];
+
+              // Avoid duplicates
+              const exists = chatMessages.some(
+                (msg) => msg._id === message._id
+              );
+              if (!exists) {
+                newMessagesByChat.set(message.chatId, [
+                  ...chatMessages,
+                  message,
+                ]);
+              }
+
+              // Update last message in chat list
+              const newChats = chatStore.chats.map((chat) =>
+                chat._id === message.chatId
+                  ? {
+                      ...chat,
+                      lastMessage: {
+                        text: message.text,
+                        createdAt: message.createdAt,
+                      },
+                    }
+                  : chat
+              );
+              chatStore.messagesByChat = newMessagesByChat;
+              chatStore.chats = newChats;
+            },
           });
         } catch (error) {
-          console.error("[DeviceStore] Connection failed:", error);
+          // console.error("[DeviceStore] Connection failed:", error);
           set({
             error: "Failed to initialize connection",
             isLoading: false,

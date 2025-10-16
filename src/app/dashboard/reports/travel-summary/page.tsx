@@ -1,7 +1,11 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useMemo } from "react";
-import ReportFilter from "@/components/report-filters/Report-Filter";
+import {
+  ReportFilter,
+  DateRange,
+  FilterValues,
+} from "@/components/report-filters/Report-Filter";
 import {
   VisibilityState,
   type ColumnDef,
@@ -83,6 +87,16 @@ interface ExpandedRowData extends TravelReportData {
 }
 
 const TravelReportPage: React.FC = () => {
+  // Filter state (controlled by parent)
+  const [selectedSchool, setSelectedSchool] = useState<string | null>(null);
+  const [selectedBranch, setSelectedBranch] = useState<string | null>(null);
+  const [selectedDevice, setSelectedDevice] = useState<string | null>(null);
+  const [deviceName, setDeviceName] = useState<string | null>(null);
+  const [dateRange, setDateRange] = useState<DateRange>({
+    startDate: null,
+    endDate: null,
+  });
+
   // Main table state
   const [data, setData] = useState<TravelReportData[]>([]);
   const [totalCount, setTotalCount] = useState(0);
@@ -94,7 +108,6 @@ const TravelReportPage: React.FC = () => {
     pageSize: 10,
   });
   const [sorting, setSorting] = useState<SortingState>([]);
-  const [currentFilters, setCurrentFilters] = useState<any>(null);
 
   // Expansion state
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
@@ -349,7 +362,6 @@ const TravelReportPage: React.FC = () => {
         header: "SN",
         size: 80,
         cell: ({ row }) => {
-          // Show content only for main rows
           if (
             row.original.isLoading ||
             row.original.isDetailTable ||
@@ -364,7 +376,6 @@ const TravelReportPage: React.FC = () => {
         header: "Vehicle Number",
         size: 200,
         cell: ({ row }) => {
-          // Handle expanded row states
           if (row.original.isLoading) {
             return (
               <div className="w-full">
@@ -424,7 +435,6 @@ const TravelReportPage: React.FC = () => {
             );
           }
 
-          // Main row content
           return row.original.vehicleNumber;
         },
       },
@@ -626,9 +636,10 @@ const TravelReportPage: React.FC = () => {
     ]
   );
 
+  // Fetch data function
   const fetchTravelReportData = useCallback(
     async (
-      filters: any,
+      filters: FilterValues,
       paginationState: PaginationState,
       sortingState: SortingState
     ) => {
@@ -636,10 +647,19 @@ const TravelReportPage: React.FC = () => {
       setIsLoading(true);
 
       try {
-        // Restored demo data
+        // TODO: Replace with actual API call
+        // const response = await api.get(`/travel-summary-report`, {
+        //   params: {
+        //     deviceIds: filters.deviceId,
+        //     from: filters.startDate,
+        //     to: filters.endDate,
+        //   },
+        // });
+
+        // Demo data for now
         const demoData = [
           {
-            name: "MH35AG1931_",
+            name: deviceName || "MH35AG1931_",
             startLat: 21.423808888888892,
             startLong: 80.195455,
             endLat: 21.44083388888889,
@@ -687,38 +707,6 @@ const TravelReportPage: React.FC = () => {
               },
             ],
           },
-          {
-            name: "MH35D558",
-            startLat: 21.423714999999998,
-            startLong: 80.19545777777778,
-            endLat: 21.440368333333335,
-            endLong: 80.21752388888889,
-            distance: "168.41",
-            running: "0D, 13H, 42M, 0S",
-            idle: "0D, 3H, 8M, 10S",
-            stop: "6D, 5H, 8M, 10S",
-            maxSpeed: 80.994,
-            avgSpeed: 26.70836184,
-            dayWiseTrips: [
-              {
-                date: "2025-09-11",
-                deviceId: 6402,
-                startTime: "2025-09-11T17:40:53.968Z",
-                endTime: "2025-09-11T18:33:54.094Z",
-                distance: "16.29 KM",
-                startLatitude: 21.423714999999998,
-                startLongitude: 80.19545777777778,
-                endLatitude: 21.423589999999997,
-                endLongitude: 80.19537944444444,
-                maxSpeed: 56.1556,
-                avgSpeed: 25.624937286821698,
-                workingHours: "0h 53m",
-                runningTime: "0D, 0H, 43M, 0S",
-                stopTime: "0D, 0H, 56M, 40S",
-                idleTime: "0D, 0H, 6M, 30S",
-              },
-            ],
-          },
         ];
 
         const transformedData: TravelReportData[] = await Promise.all(
@@ -751,7 +739,7 @@ const TravelReportPage: React.FC = () => {
               endCoordinates: { lat: item.endLat, lng: item.endLong },
               maxSpeed: item.maxSpeed,
               avgSpeed: item.avgSpeed,
-              deviceId: `device-${index}`,
+              deviceId: filters.deviceId || `device-${index}`,
               dayWiseTrips: item.dayWiseTrips,
             };
           })
@@ -767,38 +755,65 @@ const TravelReportPage: React.FC = () => {
         setIsLoading(false);
       }
     },
-    []
+    [deviceName]
   );
 
-  useEffect(() => {
-    if (currentFilters && showTable) {
-      fetchTravelReportData(currentFilters, pagination, sorting);
-    }
-  }, [pagination, sorting, currentFilters, showTable, fetchTravelReportData]);
-
+  // Handle filter submission
   const handleFilterSubmit = useCallback(
-    async (filters: any) => {
-      console.log("Filters:", filters);
-      if (!filters.deviceId) {
-        alert("Please select a device before generating the report");
-        return;
-      }
-      if (!filters.startDate || !filters.endDate) {
-        alert("Please select both start and end dates");
-        return;
-      }
+    async (filters: FilterValues) => {
+      console.log("✅ Filter submitted:", filters);
+      console.log("📊 Current selections:", {
+        school: selectedSchool,
+        branch: selectedBranch,
+        device: selectedDevice,
+        deviceName,
+        dateRange,
+      });
+
+      // Reset table state
       setPagination({ pageIndex: 0, pageSize: 10 });
       setSorting([]);
-      setCurrentFilters(filters);
       setShowTable(true);
       setExpandedRows(new Set());
       setDetailedData({});
       setDetailTableStates({});
 
+      // Fetch data
       await fetchTravelReportData(filters, { pageIndex: 0, pageSize: 10 }, []);
     },
-    [fetchTravelReportData]
+    [
+      selectedSchool,
+      selectedBranch,
+      selectedDevice,
+      deviceName,
+      dateRange,
+      fetchTravelReportData,
+    ]
   );
+
+  // Refetch when pagination or sorting changes
+  useEffect(() => {
+    if (
+      showTable &&
+      selectedDevice &&
+      dateRange.startDate &&
+      dateRange.endDate
+    ) {
+      const filters: FilterValues = {
+        schoolId: selectedSchool,
+        branchId: selectedBranch,
+        deviceId: selectedDevice,
+        deviceName,
+        startDate: dateRange.startDate
+          ? new Date(dateRange.startDate).toISOString().split("T")[0]
+          : null,
+        endDate: dateRange.endDate
+          ? new Date(dateRange.endDate).toISOString().split("T")[0]
+          : null,
+      };
+      fetchTravelReportData(filters, pagination, sorting);
+    }
+  }, [pagination, sorting]);
 
   const expandedDataArray = createExpandedData();
 
@@ -820,15 +835,30 @@ const TravelReportPage: React.FC = () => {
   });
 
   return (
-    <div>
+    <div className="p-6">
       <ResponseLoader isLoading={isLoading} />
-      <h1 className="text-xl font-bold mb-4">Travel Reports</h1>
+      <header>
+        <h1 className="text-2xl font-bold mb-4">Travel Summary Report</h1>
+      </header>
+      {/* Filter Component */}
       <ReportFilter
-        onFilterSubmit={handleFilterSubmit}
-        columns={table.getAllColumns()}
-        showColumnVisibility
+        onSubmit={handleFilterSubmit}
         className="mb-6"
+        // Controlled props
+        selectedSchool={selectedSchool}
+        onSchoolChange={setSelectedSchool}
+        selectedBranch={selectedBranch}
+        onBranchChange={setSelectedBranch}
+        selectedDevice={selectedDevice}
+        onDeviceChange={(deviceId, name) => {
+          setSelectedDevice(deviceId);
+          setDeviceName(name);
+        }}
+        dateRange={dateRange}
+        onDateRangeChange={setDateRange}
       />
+
+      {/* Table */}
       {showTable && <section className="mb-4">{tableElement}</section>}
     </div>
   );

@@ -15,7 +15,6 @@ import { DynamicEditDialog, FieldConfig } from "@/components/ui/EditModal";
 import SearchComponent from "@/components/ui/SearchOnlydata";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -23,10 +22,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { SearchableDropdown } from "@/components/SearcheableDropdownFilter";
-import { useSchoolData } from "@/hooks/useSchoolData";
-import { useBranchData } from "@/hooks/useBranchData";
-import { useDeviceData } from "@/hooks/useDeviceData";
 import DateRangeFilter from "@/components/ui/DateRangeFilter";
 import { FloatingMenu } from "@/components/floatingMenu";
 import {
@@ -38,12 +33,13 @@ import {
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/services/apiService";
 import { useExport } from "@/hooks/useExport";
-import { formatDate } from "@/util/formatDate";
-import { Alert } from "@/components/Alert";
 import ResponseLoader from "@/components/ResponseLoader";
 import { ColumnVisibilitySelector } from "@/components/column-visibility-selector";
+import { useSchoolData } from "@/hooks/useSchoolData";
+import { useBranchData } from "@/hooks/useBranchData";
+import { useDeviceData } from "@/hooks/useDeviceData";
+import { Alert } from "@/components/Alert";
 
-// Notification interface
 interface NotificationAssignment {
   _id: string;
   deviceId: string;
@@ -75,17 +71,16 @@ interface Device {
   branchId: string;
 }
 
-// Defensive array fallback helpers
-const safeArray = (arr: any): any[] => Array.isArray(arr) ? arr : [];
+const safeArray = (arr: any): any[] => (Array.isArray(arr) ? arr : []);
 
 const NOTIFICATION_OPTIONS = [
   "Ignition On",
-  "Ignition Off", 
+  "Ignition Off",
   "Geofence Enter",
   "Geofence Exit",
   "Student Present",
   "Student Absent",
-  "Leave Request Status"
+  "Leave Request Status",
 ];
 
 export default function NotificationMaster() {
@@ -94,174 +89,159 @@ export default function NotificationMaster() {
   const [filteredData, setFilteredData] = useState<NotificationAssignment[]>([]);
   const [filterResults, setFilterResults] = useState<NotificationAssignment[]>([]);
   const [deleteTarget, setDeleteTarget] = useState<NotificationAssignment | null>(null);
-  const [editTarget, setEditTarget] = useState<NotificationAssignment | null>(null);
-  const [editDialogOpen, setEditDialogOpen] = useState(false);
-  const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({});
-  
-  // Form states
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
+
+  // Form state
   const [selectedSchool, setSelectedSchool] = useState("");
   const [selectedBranch, setSelectedBranch] = useState("");
   const [selectedDevice, setSelectedDevice] = useState("");
   const [selectedNotifications, setSelectedNotifications] = useState<string[]>([]);
-  
-  const { exportToPDF, exportToExcel } = useExport();
 
-  // Use hooks
+  const { exportToPDF, exportToExcel } = useExport();
   const { data: schoolDataHook } = useSchoolData();
   const { data: branchDataHook } = useBranchData();
   const { data: deviceDataHook } = useDeviceData();
 
-  // Fetch schools - using existing fallback
-  const {
-    data: schoolsRaw,
-    isLoading,
-    isError,
-    error,
-  } = useQuery<School[]>({
+  const { data: schoolsRaw, isLoading } = useQuery<School[]>({
     queryKey: ["schools"],
-    queryFn: async () => {
-      const res = await api.get<School[]>("/school");
-      return res;
-    },
+    queryFn: async () => await api.get<School[]>("/school"),
   });
 
   const schools = safeArray(schoolDataHook) || safeArray(schoolsRaw);
   const branches = safeArray(branchDataHook);
   const devices = safeArray(deviceDataHook);
 
-  // Prepare dropdown data
-  const schoolOptions = useMemo(() => (
-    schools.map((school) => ({
-      label: school.schoolName,
-      value: school._id,
-    }))
-  ), [schools]);
-
-  const branchOptions = useMemo(() => (
-    branches
-      .filter((branch: any) => branch.schoolId?._id === selectedSchool)
-      .map((branch: any) => ({
-        label: branch.branchName,
-        value: branch._id,
-      }))
-  ), [branches, selectedSchool]);
-
-  const deviceOptions = useMemo(() => (
-    devices
-      .filter((device: any) => device.branchId?._id === selectedBranch)
-      .map((device: any) => ({
-        label: `${device.deviceName} (${device.deviceId})`,
-        value: device._id,
-        deviceId: device.deviceId,
-        deviceName: device.deviceName,
-      }))
-  ), [devices, selectedBranch]);
-
-  // Handle notification state sync (assuming notifications comes from main query or prop)
-  useEffect(() => {
-    if (filterResults && filterResults.length > 0) {
-      setFilteredData(filterResults);
-    }
-  }, [filterResults]);
-
-  // Handle notification change in table rows
-  const handleNotificationChange = useCallback(
-    (assignmentId: string, newNotifications: string[]) => {
-      updateNotificationMutation.mutate({
-        assignmentId,
-        data: { assignedNotifications: newNotifications },
-      });
-    },
-    []
+  const branchOptions = useMemo(
+    () =>
+      branches
+        .filter((b: any) => b.schoolId?._id === selectedSchool)
+        .map((b: any) => ({ label: b.branchName, value: b._id })),
+    [branches, selectedSchool]
   );
 
-  // Define the columns for the table
+  const deviceOptions = useMemo(
+    () =>
+      devices
+        .filter((d: any) => d.branchId?._id === selectedBranch)
+        .map((d: any) => ({
+          label: `${d.deviceName} (${d.deviceId})`,
+          value: d._id,
+          deviceId: d.deviceId,
+          deviceName: d.deviceName,
+        })),
+    [devices, selectedBranch]
+  );
+
+  useEffect(() => {
+    if (filterResults?.length > 0) setFilteredData(filterResults);
+  }, [filterResults]);
+
+  const addNotificationMutation = useMutation({
+    mutationFn: async (newNotification: any) => await api.post("/notifications", newNotification),
+    onSuccess: (createdNotification) => {
+      queryClient.setQueryData<NotificationAssignment[]>(["notifications"], (old = []) => [
+        ...old,
+        createdNotification.notification,
+      ]);
+      alert("Notification assignment added successfully.");
+    },
+  });
+
+  const updateNotificationMutation = useMutation({
+    mutationFn: async ({
+      assignmentId,
+      data,
+    }: {
+      assignmentId: string;
+      data: Partial<NotificationAssignment>;
+    }) => await api.put(`/notifications/${assignmentId}`, data),
+    onSuccess: (_, { assignmentId, data }) => {
+      queryClient.setQueryData<NotificationAssignment[]>(["notifications"], (old = []) =>
+        old.map((n) => (n._id === assignmentId ? { ...n, ...data } : n))
+      );
+      setFilteredData((prev) =>
+        prev.map((n) => (n._id === assignmentId ? { ...n, ...data } : n))
+      );
+      alert("Notification assignment updated successfully.");
+    },
+  });
+
+  const deleteNotificationMutation = useMutation({
+    mutationFn: async (assignmentId: string) => await api.delete(`/notifications/${assignmentId}`),
+    onSuccess: (_, deletedId) => {
+      queryClient.setQueryData<NotificationAssignment[]>(["notifications"], (old = []) =>
+        old.filter((n) => n._id !== deletedId)
+      );
+      alert("Notification assignment deleted successfully.");
+    },
+  });
+
+  const handleNotificationChange = (assignmentId: string, newNotifications: string[]) => {
+    updateNotificationMutation.mutate({ assignmentId, data: { assignedNotifications: newNotifications } });
+  };
+
+  const handleSearchResults = useCallback((results: NotificationAssignment[]) => {
+    setFilteredData(results);
+  }, []);
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!selectedSchool || !selectedBranch || !selectedDevice || selectedNotifications.length === 0) {
+      alert("Please fill in all required fields");
+      return;
+    }
+
+    const school = schools.find((s) => s._id === selectedSchool);
+    const branch = branches.find((b) => b._id === selectedBranch);
+    const device = devices.find((d) => d._id === selectedDevice);
+
+    const data = {
+      deviceId: device?.deviceId,
+      deviceName: device?.deviceName,
+      schoolName: school?.schoolName,
+      schoolId: selectedSchool,
+      branchName: branch?.branchName,
+      branchId: selectedBranch,
+      assignedNotifications: selectedNotifications,
+    };
+
+    await addNotificationMutation.mutateAsync(data);
+    closeButtonRef.current?.click();
+    setSelectedSchool("");
+    setSelectedBranch("");
+    setSelectedDevice("");
+    setSelectedNotifications([]);
+  };
+
   const columns: ColumnDef<NotificationAssignment, CellContent>[] = [
-    {
-      header: "Device ID",
-      accessorFn: (row) => ({
-        type: "text",
-        value: row.deviceId ?? "",
-      }),
-      meta: { flex: 1, minWidth: 150, maxWidth: 200 },
-      enableHiding: true,
-    },
-    {
-      header: "Device Name",
-      accessorFn: (row) => ({
-        type: "text",
-        value: row.deviceName ?? "",
-      }),
-      meta: { flex: 1, minWidth: 150, maxWidth: 250 },
-      enableHiding: true,
-    },
-    {
-      header: "School Name",
-      accessorFn: (row) => ({
-        type: "text",
-        value: row.schoolName ?? "",
-      }),
-      meta: { flex: 1, minWidth: 200, maxWidth: 300 },
-      enableHiding: true,
-    },
-    {
-      header: "Branch Name",
-      accessorFn: (row) => ({
-        type: "text",
-        value: row.branchName ?? "",
-      }),
-      meta: { flex: 1, minWidth: 150, maxWidth: 250 },
-      enableHiding: true,
-    },
+    { header: "Device ID", accessorKey: "deviceId" },
+    { header: "Device Name", accessorKey: "deviceName" },
+    { header: "School Name", accessorKey: "schoolName" },
+    { header: "Branch Name", accessorKey: "branchName" },
     {
       header: "Assigned Notifications",
       accessorFn: (row) => ({
         type: "custom",
         value: (
-          <Select
-            value={row.assignedNotifications?.join(",")}
-            onValueChange={(value) => {
-              const notifications = value ? value.split(",") : [];
-              handleNotificationChange(row._id, notifications);
-            }}
-          >
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="Select notifications">
-                {row.assignedNotifications?.length > 0
-                  ? `${row.assignedNotifications.length} selected`
-                  : "Select notifications"}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              {NOTIFICATION_OPTIONS.map((option) => (
-                <SelectItem key={option} value={option}>
-                  <div className="flex items-center space-x-2">
-                    <input
-                      type="checkbox"
-                      checked={row.assignedNotifications?.includes(option) || false}
-                      onChange={(e) => {
-                        const currentNotifications = row.assignedNotifications || [];
-                        let newNotifications;
-                        if (e.target.checked) {
-                          newNotifications = [...currentNotifications, option];
-                        } else {
-                          newNotifications = currentNotifications.filter(n => n !== option);
-                        }
-                        handleNotificationChange(row._id, newNotifications);
-                      }}
-                      className="mr-2"
-                    />
-                    <span>{option}</span>
-                  </div>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="space-y-1">
+            {NOTIFICATION_OPTIONS.map((opt) => (
+              <div key={opt} className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={row.assignedNotifications.includes(opt)}
+                  onChange={(e) => {
+                    const updated = e.target.checked
+                      ? [...row.assignedNotifications, opt]
+                      : row.assignedNotifications.filter((n) => n !== opt);
+                    handleNotificationChange(row._id, updated);
+                  }}
+                />
+                <span>{opt}</span>
+              </div>
+            ))}
+          </div>
         ),
       }),
-      meta: { flex: 1.5, minWidth: 250, maxWidth: 350 },
-      enableSorting: false,
-      enableHiding: true,
     },
     {
       header: "Action",
@@ -270,214 +250,14 @@ export default function NotificationMaster() {
         items: [
           {
             type: "button",
-            label: "Edit",
-            onClick: () => {
-              setEditTarget(row);
-              setEditDialogOpen(true);
-            },
-            className: "cursor-pointer",
-            disabled: updateNotificationMutation.isPending,
-          },
-          {
-            type: "button",
             label: "Delete",
             onClick: () => setDeleteTarget(row),
             className: "text-red-600 cursor-pointer",
-            disabled: deleteNotificationMutation.isPending,
           },
         ],
       }),
-      meta: { flex: 1, minWidth: 150, maxWidth: 200 },
-      enableSorting: false,
-      enableHiding: true,
     },
   ];
-
-  // Columns for export
-  const columnsForExport = [
-    { key: "deviceId", header: "Device ID" },
-    { key: "deviceName", header: "Device Name" },
-    { key: "schoolName", header: "School Name" },
-    { key: "branchName", header: "Branch Name" },
-    { key: "assignedNotifications", header: "Assigned Notifications" },
-  ];
-
-  // Edit fields (always safe with fallback array)
-  const notificationFieldConfigs: FieldConfig[] = [
-    {
-      label: "School",
-      key: "schoolId",
-      type: "select",
-      required: true,
-      options: schools.map(school => ({ value: school._id, label: school.schoolName })),
-    },
-    {
-      label: "Branch",
-      key: "branchId", 
-      type: "select",
-      required: true,
-      options: branches.map(branch => ({ value: branch._id, label: branch.branchName })),
-    },
-    {
-      label: "Device",
-      key: "deviceId",
-      type: "select", 
-      required: true,
-      options: devices.map(device => ({ value: device._id, label: `${device.deviceName} (${device.deviceId})` })),
-    },
-    {
-      label: "Assigned Notifications",
-      key: "assignedNotifications",
-      type: "multiselect",
-      required: true,
-      options: NOTIFICATION_OPTIONS.map(option => ({ value: option, label: option })),
-    },
-  ];
-
-  // Mutation to add new notification assignment
-  const addNotificationMutation = useMutation({
-    mutationFn: async (newNotification: any) => {
-      const notification = await api.post("/notifications", newNotification);
-      return notification.notification;
-    },
-    onSuccess: (createdNotification) => {
-      queryClient.setQueryData<NotificationAssignment[]>(["notifications"], (oldNotifications = []) => {
-        return [...oldNotifications, createdNotification];
-      });
-    },
-  });
-
-  // Edit notification assignment
-  const updateNotificationMutation = useMutation({
-    mutationFn: async ({
-      assignmentId,
-      data,
-    }: {
-      assignmentId: string;
-      data: Partial<NotificationAssignment>;
-    }) => {
-      return await api.put(`/notifications/${assignmentId}`, data);
-    },
-    onSuccess: (_, { assignmentId, data }) => {
-      queryClient.setQueryData<NotificationAssignment[]>(["notifications"], (oldData) => {
-        if (!oldData) return [];
-        return oldData.map((notification) =>
-          notification._id === assignmentId ? { ...notification, ...data } : notification
-        );
-      });
-
-      setFilteredData((prev) =>
-        prev.map((notification) =>
-          notification._id === assignmentId ? { ...notification, ...data } : notification
-        )
-      );
-
-      setEditDialogOpen(false);
-      setEditTarget(null);
-      alert("Notification assignment updated successfully.");
-    },
-    onError: (err) => {
-      alert("Failed to update notification assignment.\nerror: " + err);
-    },
-  });
-
-  // Mutation to delete notification assignment
-  const deleteNotificationMutation = useMutation({
-    mutationFn: async (assignmentId: string) => {
-      return await api.delete(`/notifications/${assignmentId}`);
-    },
-    onSuccess: (_, deletedId) => {
-      queryClient.setQueryData<NotificationAssignment[]>(["notifications"], (oldData) =>
-        safeArray(oldData).filter((notification) => notification._id !== deletedId)
-      );
-      alert("Notification assignment deleted successfully.");
-    },
-    onError: (err) => {
-      alert("Failed to delete notification assignment.\nerror: " + err);
-    },
-  });
-
-  // Search
-  const handleSearchResults = useCallback((results: NotificationAssignment[]) => {
-    setFilteredData(results);
-  }, []);
-
-  // Save handler
-  const handleSave = (updatedData: Partial<NotificationAssignment>) => {
-    if (!editTarget) return;
-
-    const changedFields: Partial<NotificationAssignment> = {};
-    for (const key in updatedData) {
-      const newValue = updatedData[key as keyof NotificationAssignment];
-      const oldValue = editTarget[key as keyof NotificationAssignment];
-      if (newValue !== undefined && newValue !== oldValue) {
-        changedFields[key as keyof NotificationAssignment] = newValue;
-      }
-    }
-
-    if (Object.keys(changedFields).length === 0) {
-      console.log("No changes detected.");
-      return;
-    }
-
-    updateNotificationMutation.mutate({
-      assignmentId: editTarget._id,
-      data: changedFields,
-    });
-  };
-
-  // Form submit handler (use fallback array)
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-
-    if (!selectedSchool || !selectedBranch || !selectedDevice || selectedNotifications.length === 0) {
-      alert("Please fill in all required fields");
-      return;
-    }
-
-    const selectedSchoolData = schools.find(s => s._id === selectedSchool);
-    const selectedBranchData = branches.find(b => b._id === selectedBranch);
-    const selectedDeviceData = devices.find(d => d._id === selectedDevice);
-
-    const data = {
-      deviceId: selectedDeviceData?.deviceId,
-      deviceName: selectedDeviceData?.deviceName,
-      schoolName: selectedSchoolData?.schoolName,
-      schoolId: selectedSchool,
-      branchName: selectedBranchData?.branchName,
-      branchId: selectedBranch,
-      assignedNotifications: selectedNotifications,
-    };
-
-    try {
-      await addNotificationMutation.mutateAsync(data);
-      closeButtonRef.current?.click();
-      setSelectedSchool("");
-      setSelectedBranch("");
-      setSelectedDevice("");
-      setSelectedNotifications([]);
-      alert("Notification assignment added successfully.");
-    } catch (err) {
-      alert("Failed to add notification assignment.\nerror: " + err);
-    }
-  };
-
-  // Date range filter
-  const handleDateFilter = useCallback(
-    (start: Date | null, end: Date | null) => {
-      if (!filteredData || (!start && !end)) {
-        setFilteredData(safeArray(filteredData));
-        return;
-      }
-      const filtered = safeArray(filteredData).filter((notification) => {
-        if (!notification.createdAt) return false;
-        const createdDate = new Date(notification.createdAt);
-        return (!start || createdDate >= start) && (!end || createdDate <= end);
-      });
-      setFilteredData(filtered);
-    },
-    [filteredData]
-  );
 
   const table = useReactTable({
     data: filteredData,
@@ -490,19 +270,15 @@ export default function NotificationMaster() {
   return (
     <main>
       <ResponseLoader isLoading={isLoading} />
-
       <header className="flex items-center justify-between mb-4">
         <section className="flex space-x-4">
           <SearchComponent
             data={filterResults}
             displayKey={["deviceId", "deviceName", "schoolName", "branchName"]}
             onResults={handleSearchResults}
-            className="w-[300px] mb-4"
+            className="w-[300px]"
           />
-          <DateRangeFilter
-            onDateRangeChange={handleDateFilter}
-            title="Search by Date"
-          />
+          <DateRangeFilter onDateRangeChange={() => {}} title="Search by Date" />
           <ColumnVisibilitySelector
             columns={table.getAllColumns()}
             buttonVariant="outline"
@@ -510,198 +286,199 @@ export default function NotificationMaster() {
           />
         </section>
 
-        <section>
-          <Dialog>
-            <DialogTrigger asChild>
-              <Button variant="default">Add Assigned Notifications</Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[500px] max-h-[80vh]">
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <DialogHeader>
-                  <DialogTitle>Add Assigned Notifications</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="grid gap-2">
-                      <Label htmlFor="school">School *</Label>
-                      <Select value={selectedSchool} onValueChange={setSelectedSchool} required>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select School" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {schools.map((school) => (
-                            <SelectItem key={school._id} value={school._id}>
-                              {school.schoolName}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
+        {/* Add Dialog */}
+        <Dialog
+          onOpenChange={(open) => {
+            if (!open) {
+              // Reset only when dialog closes
+              setSelectedSchool("");
+              setSelectedBranch("");
+              setSelectedDevice("");
+              setSelectedNotifications([]);
+            }
+          }}
+        >
+          <DialogTrigger asChild>
+            <Button variant="default">Add Assigned Notifications</Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-[500px] max-h-[80vh]">
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <DialogHeader>
+                <DialogTitle>Add Assigned Notifications</DialogTitle>
+              </DialogHeader>
 
-                    <div className="grid gap-2">
-                      <Label htmlFor="branch">Branch *</Label>
-                      <Select
-                        value={selectedBranch}
-                        onValueChange={setSelectedBranch}
-                        disabled={!selectedSchool}
-                        required
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select Branch" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {branches.map((branch) => (
-                            <SelectItem key={branch._id} value={branch._id}>
-                              {branch.branchName}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
+              <div className="space-y-4">
+                {/* School */}
+                <div className="grid grid-cols-2 gap-4">
                   <div className="grid gap-2">
-                    <Label htmlFor="device">Device *</Label>
-                    <Select
-                      value={selectedDevice}
-                      onValueChange={setSelectedDevice}
-                      disabled={!selectedBranch}
-                      required
-                    >
+                    <Label>School *</Label>
+                    <Select value={selectedSchool} onValueChange={setSelectedSchool} required>
                       <SelectTrigger>
-                        <SelectValue placeholder="Select Device" />
+                        <SelectValue placeholder="Select School" />
                       </SelectTrigger>
                       <SelectContent>
-                        {devices.map((device) => (
-                          <SelectItem key={device._id} value={device._id}>
-                            {device.deviceName} ({device.deviceId})
+                        {schools.map((s) => (
+                          <SelectItem key={s._id} value={s._id}>
+                            {s.schoolName}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
+
                   <div className="grid gap-2">
-                    <Label htmlFor="notifications">Assigned Notifications *</Label>
-                    <div className="border rounded-md p-3 max-h-48 overflow-y-auto bg-white">
-                      <div className="space-y-2">
-                        {NOTIFICATION_OPTIONS.map((option) => (
-                          <div key={option} className="flex items-center space-x-2">
-                            <input
-                              type="checkbox"
-                              id={option}
-                              checked={selectedNotifications.includes(option)}
-                              onChange={(e) => {
-                                if (e.target.checked) {
-                                  setSelectedNotifications([...selectedNotifications, option]);
-                                } else {
-                                  setSelectedNotifications(
-                                    selectedNotifications.filter(n => n !== option)
-                                  );
-                                }
-                              }}
-                              className="h-4 w-4 rounded border-gray-300"
-                            />
-                            <Label htmlFor={option} className="text-sm font-normal cursor-pointer">
-                              {option}
-                            </Label>
-                          </div>
+                    <Label>Branch *</Label>
+                    <Select
+                      value={selectedBranch}
+                      onValueChange={setSelectedBranch}
+                      disabled={!selectedSchool}
+                      required
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select Branch" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {branchOptions.map((b) => (
+                          <SelectItem key={b.value} value={b.value}>
+                            {b.label}
+                          </SelectItem>
                         ))}
-                      </div>
-                    </div>
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
 
-                <DialogFooter className="flex justify-end space-x-2">
-                  <DialogClose asChild>
-                    <Button ref={closeButtonRef} variant="outline">
-                      Cancel
-                    </Button>
-                  </DialogClose>
-                  <Button
-                    type="submit"
-                    disabled={addNotificationMutation.isPending}
-                    className="bg-yellow-500 hover:bg-yellow-600 text-black"
+                {/* Device */}
+                <div className="grid gap-2">
+                  <Label>Device *</Label>
+                  <Select
+                    value={selectedDevice}
+                    onValueChange={setSelectedDevice}
+                    disabled={!selectedBranch}
+                    required
                   >
-                    {addNotificationMutation.isPending ? "Saving..." : "Save Assignment"}
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select Device" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {deviceOptions.map((d) => (
+                        <SelectItem key={d.value} value={d.value}>
+                          {d.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Notifications */}
+                <div className="grid gap-2">
+                  <Label>Assigned Notifications *</Label>
+                  <div className="flex justify-between items-center mb-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        if (selectedNotifications.length === NOTIFICATION_OPTIONS.length) {
+                          setSelectedNotifications([]); // Deselect all
+                        } else {
+                          setSelectedNotifications([...NOTIFICATION_OPTIONS]); // Select all
+                        }
+                      }}
+                    >
+                      {selectedNotifications.length === NOTIFICATION_OPTIONS.length
+                        ? "Deselect All"
+                        : "Select All"}
+                    </Button>
+                  </div>
+                  <div className="border rounded-md p-3 max-h-48 overflow-y-auto bg-white">
+                    {NOTIFICATION_OPTIONS.map((option) => (
+                      <div key={option} className="flex items-center space-x-2">
+                        <input
+                          type="checkbox"
+                          id={option}
+                          checked={selectedNotifications.includes(option)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedNotifications([...selectedNotifications, option]);
+                            } else {
+                              setSelectedNotifications(
+                                selectedNotifications.filter((n) => n !== option)
+                              );
+                            }
+                          }}
+                          className="h-4 w-4 border-gray-300 rounded"
+                        />
+                        <Label htmlFor={option} className="text-sm font-normal cursor-pointer">
+                          {option}
+                        </Label>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <DialogFooter className="flex justify-end space-x-2">
+                <DialogClose asChild>
+                  <Button ref={closeButtonRef} variant="outline">
+                    Cancel
                   </Button>
-                </DialogFooter>
-              </form>
-            </DialogContent>
-          </Dialog>
-        </section>
+                </DialogClose>
+                <Button
+                  type="submit"
+                  disabled={addNotificationMutation.isPending}
+                  className="bg-yellow-500 hover:bg-yellow-600 text-black"
+                >
+                  {addNotificationMutation.isPending ? "Saving..." : "Save Assignment"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
       </header>
 
-      <section className="mb-4">
-        <CustomTable
-          data={filteredData || []}
-          columns={columns}
-          columnVisibility={columnVisibility}
-          onColumnVisibilityChange={setColumnVisibility}
-          pageSizeArray={[10, 20, 50]}
-          maxHeight={600}
-          minHeight={200}
-          showSerialNumber={true}
-          noDataMessage="No notification assignments found"
-          isLoading={isLoading}
-        />
-      </section>
+      {/* Table */}
+      <CustomTable
+        data={filteredData || []}
+        columns={columns}
+        columnVisibility={columnVisibility}
+        onColumnVisibilityChange={setColumnVisibility}
+        pageSizeArray={[10, 20, 50]}
+        maxHeight={600}
+        minHeight={200}
+        showSerialNumber={true}
+        noDataMessage="No notification assignments found"
+        isLoading={isLoading}
+      />
 
-      <section>
-        <div>
-          {deleteTarget && (
-            <Alert<NotificationAssignment>
-              title="Are you absolutely sure?"
-              description={`This will permanently delete the notification assignment for ${deleteTarget?.deviceName} and all associated data.`}
-              actionButton={(target) => {
-                deleteNotificationMutation.mutate(target._id);
-                setDeleteTarget(null);
-              }}
-              target={deleteTarget}
-              setTarget={setDeleteTarget}
-              butttonText="Delete"
-            />
-          )}
-        </div>
-      </section>
-
-      <section>
-        {editTarget && (
-          <DynamicEditDialog
-            data={editTarget}
-            isOpen={editDialogOpen}
-            onClose={() => {
-              setEditDialogOpen(false);
-              setEditTarget(null);
-            }}
-            onSave={handleSave}
-            fields={notificationFieldConfigs}
-            title="Edit Notification Assignment"
-            description="Update the notification assignment information below. Fields marked with * are required."
-          />
-        )}
-      </section>
-
-      <section>
-        <FloatingMenu
-          onExportPdf={() => {
-            exportToPDF(filteredData, columnsForExport, {
-              title: "Notification Assignment Report",
-              companyName: "Parents Eye",
-              metadata: {
-                Total: `${filteredData.length} assignments`,
-              },
-            });
+      {/* Delete Alert */}
+      {deleteTarget && (
+        <Alert<NotificationAssignment>
+          title="Are you absolutely sure?"
+          description={`This will permanently delete ${deleteTarget?.deviceName}'s notifications.`}
+          actionButton={(target) => {
+            deleteNotificationMutation.mutate(target._id);
+            setDeleteTarget(null);
           }}
-          onExportExcel={() => {
-            exportToExcel(filteredData, columnsForExport, {
-              title: "Notification Assignment Report", 
-              companyName: "Parents Eye",
-              metadata: {
-                Total: `${filteredData.length} assignments`,
-              },
-            });
-          }}
+          target={deleteTarget}
+          setTarget={setDeleteTarget}
+          butttonText="Delete"
         />
-      </section>
+      )}
+
+      {/* Floating Menu */}
+      <FloatingMenu
+        onExportPdf={() =>
+          exportToPDF(filteredData, [{ key: "deviceName", header: "Device Name" }], {
+            title: "Notification Assignment Report",
+          })
+        }
+        onExportExcel={() =>
+          exportToExcel(filteredData, [{ key: "deviceName", header: "Device Name" }], {
+            title: "Notification Assignment Report",
+          })
+        }
+      />
     </main>
   );
 }

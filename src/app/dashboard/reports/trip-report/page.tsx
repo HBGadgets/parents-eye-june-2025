@@ -285,13 +285,17 @@ const TripReportPage: React.FC = () => {
     <div>
       <ResponseLoader isLoading={isLoading} />
 
-      <h1 className="text-xl font-bold mb-4">Trip Reports</h1>
-
       <ReportFilter
         onFilterSubmit={handleFilterSubmit}
         columns={table.getAllColumns()}
         showColumnVisibility={true}
         className="mb-6"
+        // Add these props to disable infinite scrolling
+        vehicleMetaData={[]}
+        selectedVehicle=""
+        onVehicleChange={() => {}}
+        searchTerm=""
+        onSearchChange={() => {}}
       />
 
       {showTable && <section className="mb-4">{tableElement}</section>}

@@ -612,6 +612,8 @@ export default function driverApprove() {
     getCoreRowModel: getCoreRowModel(),
   });
 
+  console.log("driver............",drivers)
+
   return (
     <main>
       {/* Progress loader at the top */}
