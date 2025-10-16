@@ -12,9 +12,10 @@ import { getDecodedToken } from "@/lib/jwt";
 import Cookies from "js-cookie";
 import { useSchoolData } from "@/hooks/useSchoolData";
 import { useBranchData } from "@/hooks/useBranchData";
-import { useRouteData } from "@/hooks/useInfiniteRouteData";
+// import { useRouteData } from "@/hooks/useInfiniteRouteData";
 import { SearchableDropdown } from "../SearcheableDropdownFilter";
 import { TimePicker12 } from "../time-picker-12h";
+import { useInfiniteRouteData } from "@/hooks/useInfiniteRouteData";
 
 interface SearchResult {
   lat: string;
@@ -105,7 +106,7 @@ const GeofenceConfigurationPanel: React.FC<Props> = ({
   const role = decoded?.role;
   const { data: schoolData } = useSchoolData();
   const { data: branchData } = useBranchData();
-  const { data: routeData } = useRouteData();
+  const { data: routeData } = useInfiniteRouteData();
 
   // useEffect(() => {
   //   console.log("Role", role);

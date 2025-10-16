@@ -749,7 +749,7 @@ export default function DashboardClient() {
               )}
 
               {viewState !== "mapExpanded" && (
-                <div className="h-full">{tableElement}</div>
+                <div className="h-[80vh]">{tableElement}</div>
               )}
             </section>
 

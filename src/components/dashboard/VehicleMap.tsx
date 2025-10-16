@@ -481,7 +481,7 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
   vehicles,
   center = [21.99099777777778, 78.92973111111111],
   zoom = 10,
-  height = "500px",
+  height = "h-[80vh]",
   onVehicleClick,
   selectedVehicleId,
   showTrails = false,

@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/navigation-menu";
 import { ProfileDropdown } from "@/components/ProfileDropdown";
 import Image from "next/image";
+import { Bell } from "lucide-react";
 
 export function Navbar() {
   const setActiveSection = useNavigationStore(
@@ -22,11 +23,17 @@ export function Navbar() {
   const navigationMap = {
     Dashboard: "/dashboard",
     Maintenance: "https://maintenance.credencetracker.com/#/login",
+    Geofence: "/dashboard/school/geofence",
+    Notifications: "/dashboard/users/notification",
   };
 
   const handleNavClick = React.useCallback(
     (section: string) => {
-      if (section !== "Dashboard") {
+      if (
+        section !== "Dashboard" &&
+        section !== "Notifications" &&
+        section !== "Geofence"
+      ) {
         setActiveSection(section);
         // Open sidebar based on device type
         if (isMobile) {
@@ -60,10 +67,13 @@ export function Navbar() {
             <NavigationMenuList className="flex-wrap justify-center gap-1 sm:gap-2">
               {[
                 "Dashboard",
+                "Master",
                 "School",
                 "Users",
                 "Reports",
+                "Geofence",
                 "Support",
+                "Notifications",
                 "Maintenance",
               ].map((section) => (
                 <NavigationMenuItem key={section}>
@@ -87,7 +97,10 @@ export function Navbar() {
       </div>
 
       {/* Right: Profile dropdown positioned at the right edge */}
-      <div className="absolute right-2 sm:right-4 top-1/2 transform -translate-y-1/2 flex-shrink-0 z-[9999] h-full flex items-center">
+      <div className="absolute right-2 sm:right-4 top-1/2 transform -translate-y-1/2 flex-shrink-0 z-[9999] h-full flex items-center gap-4">
+        <div className="cursor-pointer">
+          <Bell />
+        </div>
         <ProfileDropdown />
       </div>
     </div>

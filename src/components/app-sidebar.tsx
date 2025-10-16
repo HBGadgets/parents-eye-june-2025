@@ -68,6 +68,7 @@ const iconMap: Record<string, React.ElementType> = {
   "Supervisor Approve": UserCheck,
   "Add Device": Smartphone,
   "Read Device": Smartphone,
+  Devices: Smartphone,
   "User Access": Settings,
   Notification: Bell,
   "Status Report": FileBarChart,
@@ -110,13 +111,22 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const getSidebarData = React.useCallback(
     (section: string, role: UserRole) => {
       switch (section) {
-        case "School":
+        case "Master":
           return [
+            { title: "Add Device", url: "/dashboard/users/add-device" },
+            { title: "User Access", url: "/dashboard/users/user-access" },
             {
               title: "Student Details",
               url: "/dashboard/school/student-details",
             },
-            { title: "Geofence", url: "/dashboard/school/geofence" },
+          ];
+        case "School":
+          return [
+            // {
+            //   title: "Student Details",
+            //   url: "/dashboard/school/student-details",
+            // },
+            // { title: "Geofence", url: "/dashboard/school/geofence" },
             { title: "Pickup And Drop", url: "/dashboard/school/pickup-drop" },
             { title: "Absent", url: "/dashboard/school/absent" },
             { title: "Present", url: "/dashboard/school/present" },
@@ -152,10 +162,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 title: "Supervisor Approve",
                 url: "/dashboard/users/supervisor-approve",
               },
-              { title: "Add Device", url: "/dashboard/users/add-device" },
-              { title: "Read Device", url: "/dashboard/users/read-device" },
-              { title: "User Access", url: "/dashboard/users/user-access" },
-              { title: "Notification", url: "/dashboard/users/notification" },
+              // { title: "Add Device", url: "/dashboard/users/add-device" },
+              { title: "Devices", url: "/dashboard/users/read-device" },
+              // { title: "User Access", url: "/dashboard/users/user-access" },
+              // { title: "Notification", url: "/dashboard/users/notification" },
             ];
           } else if (role === "school" || role === "branchGroup") {
             return [
