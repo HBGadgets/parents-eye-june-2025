@@ -18,11 +18,11 @@ import type { Branch, Geofence, Route, School } from "@/interface/modal";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/services/apiService";
 import { Alert } from "@/components/Alert";
-import { useBranchData } from "@/hooks/useBranchData";
-import { useRouteData } from "@/hooks/useInfiniteRouteData";
+import { useBranchData } from "@/hooks/useBranchData"; 
+import { useInfiniteRouteData } from "@/hooks/useInfiniteRouteData";
 import { FloatingMenu } from "@/components/floatingMenu";
-import { useExport } from "@/hooks/useExport";
-import { useGeofences } from "@/hooks/useGeofence"; // ✅ FIXED IMPORT
+import { useExport } from "@/hooks/useExport"; 
+import { useGeofences } from "@/hooks/useGeofence";
 
 export default function GeofenceClient() {
   const queryClient = useQueryClient();
@@ -32,7 +32,7 @@ export default function GeofenceClient() {
     pageSize: 10,
   });
   const [sorting, setSorting] = useState([]);
-  const [name, setName] = useState(""); // ✅ FIXED: added missing state
+  const [name, setName] = useState("");
   const [debouncedName, setDebouncedName] = useState("");
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
   const [deleteTarget, setDeleteTarget] = useState<Geofence | null>(null);
@@ -59,7 +59,7 @@ export default function GeofenceClient() {
   });
 
   const { data: branchData } = useBranchData();
-  const { data: routeData } = useRouteData();
+  const { data: routeData } = useInfiniteRouteData(); 
 
   // Debounce Geofence name search input
   useEffect(() => {

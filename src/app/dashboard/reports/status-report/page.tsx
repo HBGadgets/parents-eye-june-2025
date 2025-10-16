@@ -1,7 +1,11 @@
 "use client";
 
 import React, { useState, useEffect, useMemo, useCallback } from "react";
-import ReportFilter from "@/components/report-filters/Report-Filter";
+import {
+  ReportFilter,
+  DateRange,
+  FilterValues,
+} from "@/components/report-filters/Report-Filter";
 import { type ColumnDef, VisibilityState } from "@tanstack/react-table";
 import { CustomTableServerSidePagination } from "@/components/ui/customTable(serverSidePagination)";
 import { api } from "@/services/apiService";
@@ -28,6 +32,17 @@ interface StatusReportData {
 }
 
 const StatusReportPage: React.FC = () => {
+  // Filter state (controlled by parent)
+  const [selectedSchool, setSelectedSchool] = useState<string | null>(null);
+  const [selectedBranch, setSelectedBranch] = useState<string | null>(null);
+  const [selectedDevice, setSelectedDevice] = useState<string | null>(null);
+  const [deviceName, setDeviceName] = useState<string | null>(null);
+  const [dateRange, setDateRange] = useState<DateRange>({
+    startDate: null,
+    endDate: null,
+  });
+
+  // Table state
   const [data, setData] = useState<StatusReportData[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
@@ -35,13 +50,10 @@ const StatusReportPage: React.FC = () => {
   const [showTable, setShowTable] = useState(false);
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 10 });
   const [sorting, setSorting] = useState<any[]>([]);
-  const [currentFilters, setCurrentFilters] = useState<any>(null);
-  
+
   // Infinite scroll states for vehicle selection
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedVehicle, setSelectedVehicle] = useState("");
-  const [selectedVehicleName, setSelectedVehicleName] = useState("");
-
+  
   const { 
     data: vehicleData, 
     fetchNextPage, 
@@ -75,13 +87,6 @@ const StatusReportPage: React.FC = () => {
   const handleSearchChange = useCallback((search: string) => {
     setSearchTerm(search);
   }, []);
-
-  const handleVehicleChange = useCallback((value: string) => {
-    setSelectedVehicle(value);
-    // Find the selected vehicle name
-    const selected = vehicleMetaData.find(vehicle => vehicle.value === value);
-    setSelectedVehicleName(selected?.label || "");
-  }, [vehicleMetaData]);
 
   const columns: ColumnDef<StatusReportData>[] = [
     { accessorKey: "sn", header: "SN" },
@@ -155,99 +160,122 @@ const StatusReportPage: React.FC = () => {
     { header: "Maximum Speed (km/h)", accessorFn: row => row.maxSpeed?.toFixed(2) ?? "0.00", size: 150 },
   ];
 
-  const fetchStatusReportData = async (filters: any, paginationState: any, sortingState: any) => {
-    if (!filters) return;
-    setIsLoading(true);
-    try {
-      const fromDate = new Date(filters.startDate).toISOString();
-      const toDate = new Date(filters.endDate).toISOString();
-      const queryParams = new URLSearchParams({
-        deviceId: filters.deviceId,
-        period: "Custom",
-        from: fromDate,
-        to: toDate,
-        page: (paginationState.pageIndex + 1).toString(),
-        limit: paginationState.pageSize.toString(),
-      });
-      if (sortingState?.length) {
-        const sort = sortingState[0];
-        queryParams.append("sortBy", sort.id);
-        queryParams.append("sortOrder", sort.desc ? "desc" : "asc");
-      }
-      const response = await api.get(`report/status?${queryParams.toString()}`);
-      const json = response.data;
+  // const fetchStatusReportData = async (filters: FilterValues, paginationState: any, sortingState: any) => {
+  //   if (!filters) return;
+  //   setIsLoading(true);
+  //   try {
+  //     const fromDate = new Date(filters.startDate).toISOString();
+  //     const toDate = new Date(filters.endDate).toISOString();
+  //     const queryParams = new URLSearchParams({
+  //       deviceId: filters.deviceId,
+  //       period: "Custom",
+  //       from: fromDate,
+  //       to: toDate,
+  //       page: (paginationState.pageIndex + 1).toString(),
+  //       limit: paginationState.pageSize.toString(),
+  //     });
+  //     if (sortingState?.length) {
+  //       const sort = sortingState[0];
+  //       queryParams.append("sortBy", sort.id);
+  //       queryParams.append("sortOrder", sort.desc ? "desc" : "asc");
+  //     }
+  //     const response = await api.get(`report/status?${queryParams.toString()}`);
+  //     const json = response.data;
 
-      if (!json || (Array.isArray(json) && json.length === 0)) {
-        setData([]);
-        setTotalCount(0);
+  //     if (!json || (Array.isArray(json) && json.length === 0)) {
+  //       setData([]);
+  //       setTotalCount(0);
+  //       return;
+  //     }
+
+  //     const dataArray = Array.isArray(json) ? json : [json];
+  //     const initialTransformed = dataArray.map((item: any, index: number) => ({
+  //       id: item.deviceId || `row-${index}`,
+  //       sn: (paginationState.pageIndex * paginationState.pageSize) + index + 1,
+  //       deviceName: filters.deviceName,
+  //       vehicleStatus: item.vehicleStatus,
+  //       ignitionOff: item.startDateTime,
+  //       ignitionOn: item.endDateTime,
+  //       duration: item.time,
+  //       startLocation: "Loading...",
+  //       startCoordinates: item.startLocation || "21.991253888888888, 78.92976777777777",
+  //       endLocation: "Loading...",
+  //       endCoordinates: item.endLocation || "21.991253888888888, 78.92976777777777",
+  //       distance: item.distance,
+  //       maxSpeed: item.maxSpeed,
+  //     }));
+
+  //     setData(initialTransformed);
+  //     setTotalCount(response.total || initialTransformed.length);
+
+  //     const transformedWithAddresses = await Promise.all(
+  //       initialTransformed.map(async (item) => {
+  //         const [lat1, lon1] = item.startCoordinates.split(",").map((c: string) => parseFloat(c.trim()));
+  //         const [lat2, lon2] = item.endCoordinates.split(",").map((c: string) => parseFloat(c.trim()));
+  //         const [startAddress, endAddress] = await Promise.all([
+  //           reverseGeocode(lat1, lon1).catch(() => item.startCoordinates),
+  //           reverseGeocode(lat2, lon2).catch(() => item.endCoordinates),
+  //         ]);
+  //         return { ...item, startLocation: startAddress, endLocation: endAddress };
+  //       })
+  //     );
+  //     setData(transformedWithAddresses);
+  //   } catch (error: any) {
+  //     console.error("Error fetching status report data:", error);
+  //     setData([]);
+  //     setTotalCount(0);
+  //     alert(error.response?.data?.error || error.message || "Network error");
+  //   } finally {
+  //     setIsLoading(false);
+  //   }
+  // };
+
+  // Handle filter submission
+  const handleFilterSubmit = useCallback(
+    async (filters: FilterValues) => {
+      console.log("✅ Filter submitted:", filters);
+      console.log("📊 Current selections:", {
+        school: selectedSchool,
+        branch: selectedBranch,
+        device: selectedDevice,
+        deviceName,
+        dateRange,
+      });
+
+      if (!selectedDevice || !dateRange.startDate || !dateRange.endDate) {
+        alert("Please select a vehicle and both dates");
         return;
       }
 
-      const dataArray = Array.isArray(json) ? json : [json];
-      const initialTransformed = dataArray.map((item: any, index: number) => ({
-        id: item.deviceId || `row-${index}`,
-        sn: (paginationState.pageIndex * paginationState.pageSize) + index + 1,
-        deviceName: filters.deviceName,
-        vehicleStatus: item.vehicleStatus,
-        ignitionOff: item.startDateTime,
-        ignitionOn: item.endDateTime,
-        duration: item.time,
-        startLocation: "Loading...",
-        startCoordinates: item.startLocation || "21.991253888888888, 78.92976777777777",
-        endLocation: "Loading...",
-        endCoordinates: item.endLocation || "21.991253888888888, 78.92976777777777",
-        distance: item.distance,
-        maxSpeed: item.maxSpeed,
-      }));
+      // Reset table state
+      setPagination({ pageIndex: 0, pageSize: 10 });
+      setSorting([]);
+      setShowTable(true);
 
-      setData(initialTransformed);
-      setTotalCount(response.total || initialTransformed.length);
+      // Fetch data
+      // await fetchStatusReportData(filters, { pageIndex: 0, pageSize: 10 }, []);
+    },
+    [selectedSchool, selectedBranch, selectedDevice, deviceName, dateRange]
+  );
 
-      const transformedWithAddresses = await Promise.all(
-        initialTransformed.map(async (item) => {
-          const [lat1, lon1] = item.startCoordinates.split(",").map((c: string) => parseFloat(c.trim()));
-          const [lat2, lon2] = item.endCoordinates.split(",").map((c: string) => parseFloat(c.trim()));
-          const [startAddress, endAddress] = await Promise.all([
-            reverseGeocode(lat1, lon1).catch(() => item.startCoordinates),
-            reverseGeocode(lat2, lon2).catch(() => item.endCoordinates),
-          ]);
-          return { ...item, startLocation: startAddress, endLocation: endAddress };
-        })
-      );
-      setData(transformedWithAddresses);
-    } catch (error: any) {
-      console.error("Error fetching status report data:", error);
-      setData([]);
-      setTotalCount(0);
-      alert(error.response?.data?.error || error.message || "Network error");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (currentFilters && showTable) fetchStatusReportData(currentFilters, pagination, sorting);
-  }, [pagination, sorting, currentFilters, showTable]);
-
-  const handleFilterSubmit = async (filters: any) => {
-    // Use the selected vehicle from the combobox
-    if (!selectedVehicle || !filters.startDate || !filters.endDate) {
-      alert("Please select a vehicle and both dates");
-      return;
-    }
-    
-    const updatedFilters = {
-      ...filters,
-      deviceId: selectedVehicle,
-      deviceName: selectedVehicleName
-    };
-    
-    setPagination({ pageIndex: 0, pageSize: 10 });
-    setSorting([]);
-    setCurrentFilters(updatedFilters);
-    setShowTable(true);
-    await fetchStatusReportData(updatedFilters, { pageIndex: 0, pageSize: 10 }, []);
-  };
+  // Refetch when pagination or sorting changes
+  // useEffect(() => {
+  //   if (showTable && selectedDevice && dateRange.startDate && dateRange.endDate) {
+  //     const filters: FilterValues = {
+  //       schoolId: selectedSchool,
+  //       branchId: selectedBranch,
+  //       deviceId: selectedDevice,
+  //       deviceName,
+  //       startDate: dateRange.startDate
+  //         ? new Date(dateRange.startDate).toISOString().split("T")[0]
+  //         : null,
+  //       endDate: dateRange.endDate
+  //         ? new Date(dateRange.endDate).toISOString().split("T")[0]
+  //         : null,
+  //     };
+  //     fetchStatusReportData(filters, pagination, sorting);
+  //   }
+  // }, [pagination, sorting, showTable, selectedDevice, dateRange]);
 
   const { table, tableElement } = CustomTableServerSidePagination({
     data, columns, pagination, totalCount, loading: isLoading,
@@ -258,18 +286,30 @@ const StatusReportPage: React.FC = () => {
   });
 
   return (
-    <div>
+    <div className="p-6">
       <ResponseLoader isLoading={isLoading} />
-
+      <header>
+        <h1 className="text-2xl font-bold mb-4">Status Report</h1>
+      </header>
+      
+      {/* Filter Component */}
       <ReportFilter
-        onFilterSubmit={handleFilterSubmit}
-        columns={table.getAllColumns()}
-        showColumnVisibility
+        onSubmit={handleFilterSubmit}
         className="mb-6"
-        // Pass the infinite scroll combobox props
+        // Controlled props
+        selectedSchool={selectedSchool}
+        onSchoolChange={setSelectedSchool}
+        selectedBranch={selectedBranch}
+        onBranchChange={setSelectedBranch}
+        selectedDevice={selectedDevice}
+        onDeviceChange={(deviceId, name) => {
+          setSelectedDevice(deviceId);
+          setDeviceName(name);
+        }}
+        dateRange={dateRange}
+        onDateRangeChange={setDateRange}
+        // Infinite scroll props
         vehicleMetaData={vehicleMetaData}
-        selectedVehicle={selectedVehicle}
-        onVehicleChange={handleVehicleChange}
         searchTerm={searchTerm}
         onSearchChange={handleSearchChange}
         onVehicleReachEnd={handleVehicleReachEnd}
@@ -277,6 +317,7 @@ const StatusReportPage: React.FC = () => {
         hasNextPage={hasNextPage}
       />
       
+      {/* Table */}
       {showTable && <section className="mb-4">{tableElement}</section>}
     </div>
   );

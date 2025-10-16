@@ -1,7 +1,11 @@
 "use client";
 
 import React, { useEffect, useState, useMemo, useCallback } from "react";
-import ReportFilter from "@/components/report-filters/Report-Filter";
+import {
+  ReportFilter,
+  DateRange,
+  FilterValues,
+} from "@/components/report-filters/Report-Filter";
 import {
   VisibilityState,
   type ColumnDef,
@@ -15,13 +19,23 @@ import { useDeviceData } from "@/hooks/useDeviceData";
 type DistanceRow = Record<string, any>;
 
 const DistanceReportPage: React.FC = () => {
+  // Filter states
+  const [selectedSchool, setSelectedSchool] = useState<string | null>(null);
+  const [selectedBranch, setSelectedBranch] = useState<string | null>(null);
+  const [selectedDevice, setSelectedDevice] = useState<string | null>(null);
+  const [deviceName, setDeviceName] = useState<string | null>(null);
+  const [dateRange, setDateRange] = useState<DateRange>({
+    startDate: null,
+    endDate: null,
+  });
+
+  // Table states
   const [data, setData] = useState<DistanceRow[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [columnVisibility, setColumnVisibility] =
     useState<VisibilityState>({});
   const [isLoading, setIsLoading] = useState(false);
   const [showTable, setShowTable] = useState(false);
-
   const [pagination, setPagination] = useState({
     pageIndex: 0,
     pageSize: 10,
@@ -29,11 +43,8 @@ const DistanceReportPage: React.FC = () => {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [currentFilters, setCurrentFilters] = useState<any>(null);
 
-  // Vehicle selection state
+  // Infinite scroll for vehicles
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedVehicle, setSelectedVehicle] = useState("");
-  const [selectedVehicleName, setSelectedVehicleName] = useState("");
-
   const {
     data: vehicleData,
     fetchNextPage,
@@ -41,7 +52,6 @@ const DistanceReportPage: React.FC = () => {
     isFetchingNextPage,
   } = useDeviceData({ searchTerm });
 
-  // Flatten all vehicles
   const allVehicles = useMemo(() => {
     if (!vehicleData?.pages) return [];
     return vehicleData.pages.flat();
@@ -63,15 +73,7 @@ const DistanceReportPage: React.FC = () => {
     setSearchTerm(search);
   }, []);
 
-  const handleVehicleChange = useCallback(
-    (value: string) => {
-      setSelectedVehicle(value);
-      const selected = vehicleMetaData.find((v) => v.value === value);
-      setSelectedVehicleName(selected?.label || "");
-    },
-    [vehicleMetaData]
-  );
-
+  // Dynamic table columns
   const [columns, setColumns] = useState<ColumnDef<DistanceRow>[]>([
     { accessorKey: "sn", header: "Sr No." },
     { accessorKey: "deviceName", header: "Vehicle Name", size: 200 },
@@ -171,7 +173,7 @@ const DistanceReportPage: React.FC = () => {
         const row: DistanceRow = {};
         row.id = item._id ?? item.deviceId ?? `row-${idx}`;
         row.sn = paginationState.pageIndex * paginationState.pageSize + idx + 1;
-        row.deviceName = filters.deviceName; // ✅ from selectedVehicleName
+        row.deviceName = filters.deviceName;
         let totalDistance = 0;
         dateKeys.forEach((k) => {
           const raw = item[k];
@@ -204,26 +206,30 @@ const DistanceReportPage: React.FC = () => {
     }
   }, [pagination, sorting, currentFilters, showTable]);
 
-  const handleFilterSubmit = async (filters: any) => {
-    if (!selectedVehicle || !filters.startDate || !filters.endDate) {
-      alert("Please select a vehicle and both dates");
-      return;
-    }
+  // ✅ Unified filter handler (same pattern as StatusReport)
+  const handleFilterSubmit = useCallback(
+    async (filters: FilterValues) => {
+      if (!selectedDevice || !dateRange.startDate || !dateRange.endDate) {
+        alert("Please select a vehicle and both dates");
+        return;
+      }
 
-    const updatedFilters = {
-      ...filters,
-      deviceId: selectedVehicle,
-      deviceName: selectedVehicleName,
-    };
+      const updatedFilters = {
+        ...filters,
+        deviceId: selectedDevice,
+        deviceName,
+      };
 
-    setPagination({ pageIndex: 0, pageSize: 10 });
-    setSorting([]);
-    setColumnVisibility({});
-    setCurrentFilters(updatedFilters);
-    setShowTable(true);
+      setPagination({ pageIndex: 0, pageSize: 10 });
+      setSorting([]);
+      setColumnVisibility({});
+      setCurrentFilters(updatedFilters);
+      setShowTable(true);
 
-    await fetchDistanceReportData(updatedFilters, { pageIndex: 0, pageSize: 10 }, []);
-  };
+      await fetchDistanceReportData(updatedFilters, { pageIndex: 0, pageSize: 10 }, []);
+    },
+    [selectedDevice, deviceName, dateRange]
+  );
 
   const { table, tableElement } = CustomTableServerSidePagination({
     data,
@@ -244,17 +250,30 @@ const DistanceReportPage: React.FC = () => {
   });
 
   return (
-    <div>
+    <div className="p-6">
       <ResponseLoader isLoading={isLoading} />
+      <header>
+        <h1 className="text-2xl font-bold mb-4">Distance Report</h1>
+      </header>
 
+      {/* ✅ Report Filter (same as StatusReportPage) */}
       <ReportFilter
-        onFilterSubmit={handleFilterSubmit}
-        columns={table.getAllColumns()}
-        showColumnVisibility
+        onSubmit={handleFilterSubmit}
         className="mb-6"
+        // Controlled props
+        selectedSchool={selectedSchool}
+        onSchoolChange={setSelectedSchool}
+        selectedBranch={selectedBranch}
+        onBranchChange={setSelectedBranch}
+        selectedDevice={selectedDevice}
+        onDeviceChange={(deviceId, name) => {
+          setSelectedDevice(deviceId);
+          setDeviceName(name);
+        }}
+        dateRange={dateRange}
+        onDateRangeChange={setDateRange}
+        // Infinite scroll props
         vehicleMetaData={vehicleMetaData}
-        selectedVehicle={selectedVehicle}
-        onVehicleChange={handleVehicleChange}
         searchTerm={searchTerm}
         onSearchChange={handleSearchChange}
         onVehicleReachEnd={handleVehicleReachEnd}

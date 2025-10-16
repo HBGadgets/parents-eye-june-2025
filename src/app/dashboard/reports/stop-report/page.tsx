@@ -1,7 +1,11 @@
 "use client";
 
 import React, { useState, useEffect, useMemo, useCallback } from "react";
-import ReportFilter from "@/components/report-filters/Report-Filter";
+import {
+  ReportFilter,
+  DateRange,
+  FilterValues,
+} from "@/components/report-filters/Report-Filter";
 import { VisibilityState, type ColumnDef } from "@tanstack/react-table";
 import { CustomTableServerSidePagination } from "@/components/ui/customTable(serverSidePagination)";
 import { api } from "@/services/apiService";
@@ -30,6 +34,17 @@ interface StopReportData {
 }
 
 const StopReportPage: React.FC = () => {
+  // Controlled filter states
+  const [selectedSchool, setSelectedSchool] = useState<string | null>(null);
+  const [selectedBranch, setSelectedBranch] = useState<string | null>(null);
+  const [selectedDevice, setSelectedDevice] = useState<string | null>(null);
+  const [deviceName, setDeviceName] = useState<string | null>(null);
+  const [dateRange, setDateRange] = useState<DateRange>({
+    startDate: null,
+    endDate: null,
+  });
+
+  // Table states
   const [data, setData] = useState<StopReportData[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
@@ -39,10 +54,8 @@ const StopReportPage: React.FC = () => {
   const [sorting, setSorting] = useState<any[]>([]);
   const [currentFilters, setCurrentFilters] = useState<any>(null);
 
-  // Infinite scroll states for vehicle selection
+  // Infinite scroll for vehicle selection
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedVehicle, setSelectedVehicle] = useState("");
-  const [selectedVehicleName, setSelectedVehicleName] = useState("");
 
   const {
     data: vehicleData,
@@ -52,7 +65,7 @@ const StopReportPage: React.FC = () => {
     isLoading: vehiclesLoading,
   } = useDeviceData({ searchTerm });
 
-  // Flatten all pages of vehicles
+  // Flatten all pages of vehicle data
   const allVehicles = useMemo(() => {
     if (!vehicleData?.pages) return [];
     return vehicleData.pages.flat();
@@ -66,7 +79,7 @@ const StopReportPage: React.FC = () => {
     }));
   }, [allVehicles]);
 
-  // Infinite scroll trigger
+  // Infinite scroll handler
   const handleVehicleReachEnd = useCallback(() => {
     if (hasNextPage && !isFetchingNextPage) fetchNextPage();
   }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
@@ -74,15 +87,6 @@ const StopReportPage: React.FC = () => {
   const handleSearchChange = useCallback((search: string) => {
     setSearchTerm(search);
   }, []);
-
-  const handleVehicleChange = useCallback(
-    (value: string) => {
-      setSelectedVehicle(value);
-      const selected = vehicleMetaData.find((v) => v.value === value);
-      setSelectedVehicleName(selected?.label || "");
-    },
-    [vehicleMetaData]
-  );
 
   const columns: ColumnDef<StopReportData>[] = [
     { accessorKey: "sn", header: "SN" },
@@ -223,7 +227,7 @@ const StopReportPage: React.FC = () => {
               item.stopCoordinates.lng
             );
             return { ...item, stopAddress: address };
-          } catch (err) {
+          } catch {
             return { ...item, stopAddress: "Address not found" };
           }
         })
@@ -246,16 +250,16 @@ const StopReportPage: React.FC = () => {
     }
   }, [pagination, sorting, currentFilters, showTable]);
 
-  const handleFilterSubmit = async (filters: any) => {
-    if (!selectedVehicle || !filters.startDate || !filters.endDate) {
+  const handleFilterSubmit = async (filters: FilterValues) => {
+    if (!selectedDevice || !dateRange.startDate || !dateRange.endDate) {
       alert("Please select a vehicle and both dates");
       return;
     }
 
     const updatedFilters = {
       ...filters,
-      deviceId: selectedVehicle,
-      deviceName: selectedVehicleName,
+      deviceId: selectedDevice,
+      deviceName,
     };
 
     setPagination({ pageIndex: 0, pageSize: 10 });
@@ -284,17 +288,28 @@ const StopReportPage: React.FC = () => {
   });
 
   return (
-    <div>
+    <div className="p-6">
       <ResponseLoader isLoading={isLoading} />
+      <header>
+        <h1 className="text-2xl font-bold mb-4">Stop Report</h1>
+      </header>
 
+      {/* Reused ReportFilter like in StatusReportPage */}
       <ReportFilter
-        onFilterSubmit={handleFilterSubmit}
-        columns={table.getAllColumns()}
-        showColumnVisibility
+        onSubmit={handleFilterSubmit}
         className="mb-6"
+        selectedSchool={selectedSchool}
+        onSchoolChange={setSelectedSchool}
+        selectedBranch={selectedBranch}
+        onBranchChange={setSelectedBranch}
+        selectedDevice={selectedDevice}
+        onDeviceChange={(deviceId, name) => {
+          setSelectedDevice(deviceId);
+          setDeviceName(name);
+        }}
+        dateRange={dateRange}
+        onDateRangeChange={setDateRange}
         vehicleMetaData={vehicleMetaData}
-        selectedVehicle={selectedVehicle}
-        onVehicleChange={handleVehicleChange}
         searchTerm={searchTerm}
         onSearchChange={handleSearchChange}
         onVehicleReachEnd={handleVehicleReachEnd}

@@ -99,15 +99,22 @@ const usePickupDropData = ({
             dropDateTime = "-";
           }
 
+          // Get student name from parent name as fallback since child object is empty
+          const studentName = item.child?.childName || item.parent?.parentName || "-";
+          
+          // Use default addresses since child object doesn't have the data
+          const pickupAddress = item.child?.pickupGeofenceName || "School Address";
+          const dropAddress = item.child?.dropGeofenceName || "Home Address";
+
           return {
             _id: item._id,
             serialNo: index + 1 + pagination.pageIndex * pagination.pageSize,
-            studentName: item.child?.childName || "-",
+            studentName: studentName,
             contact: item.parent?.mobileNo || "-",
             pickupDateTime: formatDateTime(item.pickupTime),
-            pickupAddress: item.child?.pickupGeofenceName || "-",
-            dropDateTime,
-            dropAddress: item.child?.dropGeofenceName || "-",
+            pickupAddress: pickupAddress,
+            dropDateTime: dropDateTime,
+            dropAddress: dropAddress,
             status: item.pickup ? "present" : item.drop ? "pending" : "absent",
             schoolName: item.school?.schoolName || "-",
             branchName: item.branch?.branchName || "-",

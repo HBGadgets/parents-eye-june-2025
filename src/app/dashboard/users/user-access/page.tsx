@@ -27,6 +27,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { type ColumnDef, SortingState, VisibilityState } from "@tanstack/react-table";
 import { ChevronDown, X } from "lucide-react";
 import SearchComponent from "@/components/ui/SearchOnlydata";
+import { Combobox } from "@/components/ui/combobox"; // Import the Combobox component
 
 interface BranchGroupAccess {
   _id: string;
@@ -256,6 +257,10 @@ export default function UserAccessPage() {
   const [deleteTarget, setDeleteTarget] = useState<BranchGroupAccess | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editSelectedBranches, setEditSelectedBranches] = useState<string[]>([]);
+  
+  // School selection state
+  const [selectedSchool, setSelectedSchool] = useState<string | null>(null);
+  const [editSelectedSchool, setEditSelectedSchool] = useState<string | null>(null);
 
   const { exportToPDF, exportToExcel } = useExport();
   const { data: schoolData } = useSchoolData();
@@ -315,6 +320,7 @@ export default function UserAccessPage() {
       queryClient.invalidateQueries({ queryKey: ["branchGroups"] });
       setIsAddDialogOpen(false);
       setSelectedBranches([]);
+      setSelectedSchool(null);
       fetchBranchGroups();
     },
     onError: (err: any) => setError(err.response?.data?.message || "Failed to add branch group"),
@@ -327,6 +333,7 @@ export default function UserAccessPage() {
       setIsEditDialogOpen(false);
       setEditTarget(null);
       setEditSelectedBranches([]);
+      setEditSelectedSchool(null);
       fetchBranchGroups();
     },
     onError: (err: any) => setError(err.response?.data?.message || "Failed to update branch group"),
@@ -379,6 +386,18 @@ export default function UserAccessPage() {
     });
   }, [updateBranchesMutation]);
 
+  const handleSchoolChange = (schoolId: string | null) => {
+    setSelectedSchool(schoolId);
+    // Reset branches when school changes
+    setSelectedBranches([]);
+  };
+
+  const handleEditSchoolChange = (schoolId: string | null) => {
+    setEditSelectedSchool(schoolId);
+    // Reset branches when school changes
+    setEditSelectedBranches([]);
+  };
+
   const handleAddUser = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
@@ -386,7 +405,7 @@ export default function UserAccessPage() {
       username: formData.get("username") as string,
       password: formData.get("password") as string,
       mobileNo: formData.get("mobileNo") as string,
-      schoolId: formData.get("schoolId") as string,
+      schoolId: selectedSchool,
       branchGroupName: formData.get("branchGroupName") as string,
       AssignedBranch: selectedBranches,
     };
@@ -401,7 +420,7 @@ export default function UserAccessPage() {
       username: formData.get("username") as string,
       password: formData.get("password") as string,
       mobileNo: formData.get("mobileNo") as string,
-      schoolId: formData.get("schoolId") as string,
+      schoolId: editSelectedSchool || editTarget.schoolId?._id,
       branchGroupName: formData.get("branchGroupName") as string,
       AssignedBranch: editSelectedBranches,
     };
@@ -414,6 +433,7 @@ export default function UserAccessPage() {
   useEffect(() => {
     if (!isAddDialogOpen) {
       setSelectedBranches([]);
+      setSelectedSchool(null);
     }
   }, [isAddDialogOpen]);
 
@@ -425,6 +445,7 @@ export default function UserAccessPage() {
           ? editTarget.AssignedBranch.map(b => b._id)
           : []
       );
+      setEditSelectedSchool(editTarget.schoolId?._id || null);
     }
   }, [editTarget, isEditDialogOpen]);
 
@@ -432,6 +453,7 @@ export default function UserAccessPage() {
   useEffect(() => {
     if (!isEditDialogOpen) {
       setEditSelectedBranches([]);
+      setEditSelectedSchool(null);
       setEditTarget(null);
     }
   }, [isEditDialogOpen]);
@@ -543,17 +565,35 @@ export default function UserAccessPage() {
             <form onSubmit={handleAddUser} className="space-y-4">
               <DialogHeader><DialogTitle>Add Branch Group</DialogTitle></DialogHeader>
               <div className="grid gap-3">
-                <Label htmlFor="username">User Name</Label><Input id="username" name="username" placeholder="Enter username" required />
-                <Label htmlFor="branchGroupName">Branch Group Name</Label><Input id="branchGroupName" name="branchGroupName" placeholder="Enter branch group name" required />
-                <Label htmlFor="password">Password</Label><Input id="password" name="password" type="password" placeholder="Enter password" required />
-                <Label htmlFor="mobileNo">Mobile No</Label><Input id="mobileNo" name="mobileNo" placeholder="Enter mobile no" required />
+                <Label htmlFor="username">User Name</Label>
+                <Input id="username" name="username" placeholder="Enter username" required />
+                
+                <Label htmlFor="branchGroupName">Branch Group Name</Label>
+                <Input id="branchGroupName" name="branchGroupName" placeholder="Enter branch group name" required />
+                
+                <Label htmlFor="password">Password</Label>
+                <Input id="password" name="password" type="password" placeholder="Enter password" required />
+                
+                <Label htmlFor="mobileNo">Mobile No</Label>
+                <Input id="mobileNo" name="mobileNo" placeholder="Enter mobile no" required />
+                
                 <Label htmlFor="schoolId">School</Label>
-                <select id="schoolId" name="schoolId" className="border rounded p-2 w-full" required>
-                  <option value="">Select school</option>
-                  {schoolOptions.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-                </select>
+                <Combobox
+                  items={schoolOptions}
+                  value={selectedSchool}
+                  onValueChange={handleSchoolChange}
+                  placeholder="Select School"
+                  searchPlaceholder="Search Schools..."
+                  emptyMessage="No schools found"
+                />
+                
                 <Label htmlFor="assignedBranches">Assigned Branches</Label>
-                <BranchDropdown selectedBranches={selectedBranches} branchOptions={branchOptions} onBranchToggle={handleBranchToggle} onSelectAll={handleSelectAll} />
+                <BranchDropdown 
+                  selectedBranches={selectedBranches} 
+                  branchOptions={branchOptions} 
+                  onBranchToggle={handleBranchToggle} 
+                  onSelectAll={handleSelectAll} 
+                />
                 {selectedBranches.length > 0 && (
                   <div className="text-sm text-gray-600">Selected: {selectedBranches.length} branch(es)</div>
                 )}
@@ -576,17 +616,35 @@ export default function UserAccessPage() {
             <form onSubmit={handleEditUser} className="space-y-4">
               <DialogHeader><DialogTitle>Edit Branch Group</DialogTitle></DialogHeader>
               <div className="grid gap-3">
-                <Label htmlFor="edit-username">User Name</Label><Input id="edit-username" name="username" defaultValue={editTarget.username} required />
-                <Label htmlFor="edit-branchGroupName">Branch Group Name</Label><Input id="edit-branchGroupName" name="branchGroupName" defaultValue={editTarget.branchGroupName} required />
-                <Label htmlFor="edit-password">Password</Label><Input id="edit-password" name="password" type="password" defaultValue={editTarget.password} required />
-                <Label htmlFor="edit-mobileNo">Mobile No</Label><Input id="edit-mobileNo" name="mobileNo" defaultValue={editTarget.mobileNo || ""} required />
+                <Label htmlFor="edit-username">User Name</Label>
+                <Input id="edit-username" name="username" defaultValue={editTarget.username} required />
+                
+                <Label htmlFor="edit-branchGroupName">Branch Group Name</Label>
+                <Input id="edit-branchGroupName" name="branchGroupName" defaultValue={editTarget.branchGroupName} required />
+                
+                <Label htmlFor="edit-password">Password</Label>
+                <Input id="edit-password" name="password" type="password" defaultValue={editTarget.password} required />
+                
+                <Label htmlFor="edit-mobileNo">Mobile No</Label>
+                <Input id="edit-mobileNo" name="mobileNo" defaultValue={editTarget.mobileNo || ""} required />
+                
                 <Label htmlFor="edit-schoolId">School</Label>
-                <select id="edit-schoolId" name="schoolId" className="border rounded p-2 w-full" defaultValue={editTarget.schoolId?._id || ""} required>
-                  <option value="">Select school</option>
-                  {schoolOptions.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-                </select>
+                <Combobox
+                  items={schoolOptions}
+                  value={editSelectedSchool}
+                  onValueChange={handleEditSchoolChange}
+                  placeholder="Select School"
+                  searchPlaceholder="Search Schools..."
+                  emptyMessage="No schools found"
+                />
+                
                 <Label htmlFor="edit-assignedBranches">Assigned Branches</Label>
-                <BranchDropdown selectedBranches={editSelectedBranches} branchOptions={branchOptions} onBranchToggle={handleEditBranchToggle} onSelectAll={handleEditSelectAll} />
+                <BranchDropdown 
+                  selectedBranches={editSelectedBranches} 
+                  branchOptions={branchOptions} 
+                  onBranchToggle={handleEditBranchToggle} 
+                  onSelectAll={handleEditSelectAll} 
+                />
                 {editSelectedBranches.length > 0 && (
                   <div className="text-sm text-gray-600">Selected: {editSelectedBranches.length} branch(es)</div>
                 )}

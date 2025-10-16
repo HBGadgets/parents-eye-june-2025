@@ -1,7 +1,11 @@
 "use client";
 
 import React, { useState, useEffect, useMemo, useCallback } from "react";
-import ReportFilter from "@/components/report-filters/Report-Filter";
+import {
+  ReportFilter,
+  DateRange,
+  FilterValues,
+} from "@/components/report-filters/Report-Filter";
 import { type ColumnDef, VisibilityState } from "@tanstack/react-table";
 import { CustomTableServerSidePagination } from "@/components/ui/customTable(serverSidePagination)";
 import { api } from "@/services/apiService";
@@ -14,7 +18,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { FaPowerOff } from "react-icons/fa"; 
+import { FaPowerOff } from "react-icons/fa";
 import { format } from "date-fns";
 
 interface IdleReportData {
@@ -89,10 +93,9 @@ const IdleReportPage: React.FC = () => {
       header: "Vehicle Status",
       size: 200,
       cell: ({ row }) => {
-        // ✅ FIX: Use FaPowerOff with yellow color and "Idle" text
         const iconColor = "text-yellow-500";
         const tooltipText = "Idle";
-        const IconComponent = FaPowerOff; // Use the imported FaPowerOff icon
+        const IconComponent = FaPowerOff;
 
         return (
           <div className="flex justify-center">
@@ -183,107 +186,58 @@ const IdleReportPage: React.FC = () => {
         queryParams.append("sortOrder", sort.desc ? "desc" : "asc");
       }
 
-      console.log("API URL:", `/report/idle-report?${queryParams}`);
-
       const response = await api.get(`/report/idle-report?${queryParams}`);
-      
-      console.log("Full API Response:", response);
-      console.log("Response.data:", response.data);
-      
-      // Handle the nested data structure correctly
       let json = response.data;
-      
-      // If response.data has a 'data' property, use that
+
       if (json && json.data) {
-        console.log("Using json.data");
       } else {
-        console.log("Using json directly");
         json = { data: response.data, success: true };
       }
-      
-      console.log("Processed JSON:", json);
-      console.log("JSON.data:", json.data);
 
       if (json.success === false) throw new Error(json.message || "API request failed");
 
-      // Flatten the nested structure
       let flatIdleEvents: any[] = [];
-      
+
       if (json.data && Array.isArray(json.data)) {
-        console.log("Processing devices, count:", json.data.length);
-        
-        json.data.forEach((device: any, deviceIndex: number) => {
-          console.log(`Device ${deviceIndex}:`, device);
-          console.log(`Device ${deviceIndex} idleArray:`, device.idleArray);
-          
+        json.data.forEach((device: any) => {
           if (device.idleArray && Array.isArray(device.idleArray)) {
-            console.log(`Device ${deviceIndex} idleArray length:`, device.idleArray.length);
-            
-            device.idleArray.forEach((idleEvent: any, eventIndex: number) => {
-              // Skip null/undefined entries
-              if (!idleEvent) {
-                console.log(`Skipping null/undefined event at index ${eventIndex}`);
-                return;
-              }
-              
-              console.log(`Adding idle event ${eventIndex}:`, idleEvent);
+            device.idleArray.forEach((idleEvent: any) => {
+              if (!idleEvent) return;
               flatIdleEvents.push({
                 ...idleEvent,
                 deviceId: device.deviceId,
               });
             });
-          } else {
-            console.log(`Device ${deviceIndex} has no valid idleArray`);
           }
         });
-      } else {
-        console.log("json.data is not an array or is missing");
       }
 
-      console.log("Flattened idle events count:", flatIdleEvents.length);
-      console.log("Flattened idle events:", flatIdleEvents);
-
       if (flatIdleEvents.length === 0) {
-        console.warn("No idle events found after flattening");
         setData([]);
         setTotalCount(0);
         setIsLoading(false);
         return;
       }
 
-      // Apply client-side pagination
       const startIndex = paginationState.pageIndex * paginationState.pageSize;
       const endIndex = startIndex + paginationState.pageSize;
       const paginatedEvents = flatIdleEvents.slice(startIndex, endIndex);
 
-      console.log("Pagination - startIndex:", startIndex, "endIndex:", endIndex);
-      console.log("Paginated events:", paginatedEvents);
-      console.log("Paginated events length:", paginatedEvents.length);
-
-      const initialTransformed = paginatedEvents.map((item: any, index: number) => {
-        console.log(`Transforming item ${index}:`, item);
-        return {
-          id: `${item.deviceId}-${item.idleStartTime}-${index}`,
-          sn: startIndex + index + 1,
-          deviceName: filters.deviceName || "Unknown Device",
-          vehicleStatus: "Idle",
-          idleStartTime: item.idleStartTime,
-          idleEndTime: item.idleEndTime,
-          duration: item.duration || "N/A",
-          location: "Loading...",
-          coordinates: `${item.latitude}, ${item.longitude}`,
-        };
-      });
-
-      console.log("Initial transformed data:", initialTransformed);
-      console.log("Initial transformed data length:", initialTransformed.length);
+      const initialTransformed = paginatedEvents.map((item: any, index: number) => ({
+        id: `${item.deviceId}-${item.idleStartTime}-${index}`,
+        sn: startIndex + index + 1,
+        deviceName: filters.deviceName || "Unknown Device",
+        vehicleStatus: "Idle",
+        idleStartTime: item.idleStartTime,
+        idleEndTime: item.idleEndTime,
+        duration: item.duration || "N/A",
+        location: "Loading...",
+        coordinates: `${item.latitude}, ${item.longitude}`,
+      }));
 
       setData(initialTransformed);
       setTotalCount(flatIdleEvents.length);
-      
-      console.log("Data set in state, totalCount:", flatIdleEvents.length);
 
-      // Fetch addresses asynchronously
       const transformedWithAddresses = await Promise.all(
         initialTransformed.map(async (item) => {
           try {
@@ -291,18 +245,14 @@ const IdleReportPage: React.FC = () => {
             if (isNaN(lat) || isNaN(lon)) return { ...item, location: "Invalid coordinates" };
             const address = await reverseGeocode(lat, lon);
             return { ...item, location: address };
-          } catch (error) {
-            console.error("Reverse geocode error:", error);
+          } catch {
             return { ...item, location: "Address not found" };
           }
         })
       );
-      
-      console.log("Data with addresses:", transformedWithAddresses);
+
       setData(transformedWithAddresses);
     } catch (error: any) {
-      console.error("Error fetching idle report data:", error);
-      console.error("Error details:", error?.response?.data);
       alert(error?.response?.data?.message || error.message || "Unknown error");
       setData([]);
       setTotalCount(0);
@@ -317,7 +267,7 @@ const IdleReportPage: React.FC = () => {
     }
   }, [pagination, sorting]);
 
-  const handleFilterSubmit = async (filters: any) => {
+  const handleFilterSubmit = async (filters: FilterValues) => {
     if (!selectedVehicle || !filters.startDate || !filters.endDate) {
       alert("Please select a vehicle and a date range");
       return;
@@ -354,12 +304,10 @@ const IdleReportPage: React.FC = () => {
     showSerialNumber: false,
   });
 
-  console.log("Rendering table with data:", data);
-  console.log("Data length in render:", data.length);
-
   return (
     <div>
       <ResponseLoader isLoading={isLoading} />
+
       <ReportFilter
         onFilterSubmit={handleFilterSubmit}
         columns={table.getAllColumns()}
@@ -374,6 +322,7 @@ const IdleReportPage: React.FC = () => {
         isFetchingNextPage={isFetchingNextPage}
         hasNextPage={hasNextPage}
       />
+
       {showTable && <section className="mb-4">{tableElement}</section>}
     </div>
   );
