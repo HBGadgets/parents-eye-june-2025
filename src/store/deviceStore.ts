@@ -136,23 +136,22 @@ export const useDeviceStore = create<DeviceState>()(
             },
 
             onSingleDeviceDataReceived: (data: SingleDeviceData) => {
-              // console.log(
-              //   "[DeviceStore] Received single device data:",
-              //   data.uniqueId || data.imei
-              // );
-
               set((state) => {
                 const newSingleDeviceData = new Map(state.singleDeviceData);
                 const newSingleDeviceLoading = new Set(
                   state.singleDeviceLoading
                 );
 
-                const deviceKey = data.uniqueId || data.imei;
+                // Convert to string consistently - handle both number and string
+                const deviceKey = String(data.uniqueId || data.imei);
 
-                // Update the device data
+                console.log(
+                  "[DeviceStore] Storing device data with key:",
+                  deviceKey,
+                  data
+                );
+
                 newSingleDeviceData.set(deviceKey, data);
-
-                // Remove from loading set if it was loading
                 newSingleDeviceLoading.delete(deviceKey);
 
                 return {
@@ -365,7 +364,7 @@ export const useDeviceStore = create<DeviceState>()(
       },
 
       // Enhanced single device actions
-      startSingleDeviceStream: (uniqueId: string) => {
+      startSingleDeviceStream: (uniqueId: string | number) => {
         const deviceService = DeviceService.getInstance();
 
         if (!deviceService.authenticated || !deviceService.connected) {
@@ -375,46 +374,54 @@ export const useDeviceStore = create<DeviceState>()(
           return;
         }
 
-        if (!uniqueId?.trim()) {
+        // Convert to string FIRST, before any checks
+        const deviceId = String(uniqueId);
+
+        if (!deviceId.trim()) {
           set({ error: "Device ID is required" });
           return;
         }
 
-        // console.log("[DeviceStore] Starting single device stream:", uniqueId);
+        console.log("[DeviceStore] Starting single device stream:", deviceId);
 
         set((state) => {
           const newActiveSingleDevices = new Set(state.activeSingleDevices);
           const newSingleDeviceLoading = new Set(state.singleDeviceLoading);
 
-          newActiveSingleDevices.add(uniqueId);
-          newSingleDeviceLoading.add(uniqueId);
+          // Use the converted string for all operations
+          newActiveSingleDevices.add(deviceId);
+          newSingleDeviceLoading.add(deviceId);
 
           return {
             activeSingleDevices: newActiveSingleDevices,
             singleDeviceLoading: newSingleDeviceLoading,
             streamingMode: "single" as StreamingMode,
-            activeDeviceId: uniqueId,
+            activeDeviceId: deviceId,
             error: null,
           };
         });
 
-        deviceService.requestSingleDeviceData(uniqueId);
+        deviceService.requestSingleDeviceData(deviceId);
       },
 
-      stopSingleDeviceStream: (uniqueId: string) => {
-        // console.log("[DeviceStore] Stopping single device stream:", uniqueId);
+      stopSingleDeviceStream: (uniqueId: string | number) => {
+        // Convert to string immediately
+        const deviceId = String(uniqueId);
+
+        console.log("[DeviceStore] Stopping single device stream:", deviceId);
 
         const deviceService = DeviceService.getInstance();
-        deviceService.stopSingleDeviceStream(uniqueId);
+        deviceService.stopSingleDeviceStream(deviceId);
 
         set((state) => {
           const newActiveSingleDevices = new Set(state.activeSingleDevices);
           const newSingleDeviceLoading = new Set(state.singleDeviceLoading);
           const newSingleDeviceData = new Map(state.singleDeviceData);
 
-          newActiveSingleDevices.delete(uniqueId);
-          newSingleDeviceLoading.delete(uniqueId);
-          newSingleDeviceData.delete(uniqueId);
+          // Use converted string for all operations
+          newActiveSingleDevices.delete(deviceId);
+          newSingleDeviceLoading.delete(deviceId);
+          newSingleDeviceData.delete(deviceId);
 
           const hasActiveStreams = newActiveSingleDevices.size > 0;
 
@@ -430,9 +437,9 @@ export const useDeviceStore = create<DeviceState>()(
         // If no more single device streams, switch back to all devices
         const updatedState = get();
         if (updatedState.activeSingleDevices.size === 0) {
-          // console.log(
-          //   "[DeviceStore] No more single device streams, switching to all devices"
-          // );
+          console.log(
+            "[DeviceStore] No more single device streams, switching to all devices"
+          );
           updatedState.switchToAllDevices();
         }
       },
@@ -492,25 +499,30 @@ export const useDeviceStore = create<DeviceState>()(
         deviceService.requestDeviceData(state.filters);
       },
 
-      getSingleDeviceData: (uniqueId: string) => {
+      getSingleDeviceData: (uniqueId: string | number) => {
         const state = get();
-        return state.singleDeviceData.get(uniqueId) || null;
+        // Convert to string for Map lookup
+        return state.singleDeviceData.get(String(uniqueId)) || null;
       },
 
-      clearSingleDeviceData: (uniqueId: string) => {
-        // console.log("[DeviceStore] Clearing single device data:", uniqueId);
+      clearSingleDeviceData: (uniqueId: string | number) => {
+        // Convert to string immediately
+        const deviceId = String(uniqueId);
+
+        console.log("[DeviceStore] Clearing single device data:", deviceId);
 
         const deviceService = DeviceService.getInstance();
-        deviceService.stopSingleDeviceStream(uniqueId);
+        deviceService.stopSingleDeviceStream(deviceId);
 
         set((state) => {
           const newSingleDeviceData = new Map(state.singleDeviceData);
           const newActiveSingleDevices = new Set(state.activeSingleDevices);
           const newSingleDeviceLoading = new Set(state.singleDeviceLoading);
 
-          newSingleDeviceData.delete(uniqueId);
-          newActiveSingleDevices.delete(uniqueId);
-          newSingleDeviceLoading.delete(uniqueId);
+          // Use converted string for all operations
+          newSingleDeviceData.delete(deviceId);
+          newActiveSingleDevices.delete(deviceId);
+          newSingleDeviceLoading.delete(deviceId);
 
           const hasActiveStreams = newActiveSingleDevices.size > 0;
 
@@ -526,9 +538,9 @@ export const useDeviceStore = create<DeviceState>()(
         // If no more single device streams, switch back to all devices
         const updatedState = get();
         if (updatedState.activeSingleDevices.size === 0) {
-          // console.log(
-          //   "[DeviceStore] No more single device streams, switching to all devices"
-          // );
+          console.log(
+            "[DeviceStore] No more single device streams, switching to all devices"
+          );
           updatedState.switchToAllDevices();
         }
       },
@@ -553,14 +565,16 @@ export const useDeviceStore = create<DeviceState>()(
       },
 
       // Stream state checks
-      isDeviceStreamActive: (uniqueId: string) => {
+      isDeviceStreamActive: (uniqueId: string | number) => {
         const state = get();
-        return state.activeSingleDevices.has(uniqueId);
+        // Convert to string for Set lookup
+        return state.activeSingleDevices.has(String(uniqueId));
       },
 
-      isDeviceLoading: (uniqueId: string) => {
+      isDeviceLoading: (uniqueId: string | number) => {
         const state = get();
-        return state.singleDeviceLoading.has(uniqueId);
+        // Convert to string for Set lookup
+        return state.singleDeviceLoading.has(String(uniqueId));
       },
 
       isAllDeviceStreamingActive: () => {

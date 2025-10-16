@@ -5,7 +5,7 @@ import { AllDeviceResponse, DeviceFilters } from "@/types/socket";
 // Add interface for single device data
 export interface SingleDeviceData {
   imei: string;
-  uniqueId: string;
+  uniqueId: number;
   attributes: {
     ignition: boolean;
     totalDistance: number;
@@ -173,13 +173,14 @@ class DeviceService {
 
     // Single device data events
     this.socket.on("single-device-data", (data: SingleDeviceData) => {
+      const deviceKey = this.getDeviceKey(data);
       console.log(
         "[DeviceService] Received single device data:",
         data.uniqueId || data.imei
       );
       if (this.streamingMode !== "single") {
         this.streamingMode = "single";
-        this.activeDeviceId = data.uniqueId || data.imei;
+        this.activeDeviceId = deviceKey;
         console.log("[DeviceService] Switched to single device streaming mode");
       }
       callbacks.onSingleDeviceDataReceived(data);
@@ -224,6 +225,11 @@ class DeviceService {
     if (token && this.isConnected && !this.isAuthenticated) {
       this.authenticate(token);
     }
+  }
+
+  private getDeviceKey(data: SingleDeviceData): string {
+    // Always convert to string for consistent Map key usage
+    return String(data.uniqueId || data.imei);
   }
 
   private restoreActiveStreams(): void {
@@ -352,7 +358,7 @@ class DeviceService {
   }
 
   public requestSingleDeviceData(
-    uniqueId: string,
+    uniqueId: string | number, // Accept both types
     addToActiveSet: boolean = true
   ): void {
     if (!this.socket?.connected || !this.isAuthenticated) {
@@ -362,7 +368,10 @@ class DeviceService {
       return;
     }
 
-    if (!uniqueId?.trim()) {
+    // Convert to string for consistency
+    const deviceKey = String(uniqueId).trim();
+
+    if (!deviceKey) {
       console.error("[DeviceService] Invalid uniqueId provided");
       this.callbacks?.onError("Device ID is required");
       return;
@@ -373,11 +382,18 @@ class DeviceService {
       this.stopAllDeviceData();
     }
 
-    console.log("[DeviceService] Requesting single device data for:", uniqueId);
-    this.socket.emit("request-single-device-data", uniqueId);
+    console.log(
+      "[DeviceService] Requesting single device data for:",
+      deviceKey
+    );
+    this.socket.emit("request-single-device-data", deviceKey);
 
     if (addToActiveSet) {
-      this.activeSingleDeviceStreams.add(uniqueId);
+      this.activeSingleDeviceStreams.add(deviceKey);
+      console.log(
+        "[DeviceService] Active streams:",
+        Array.from(this.activeSingleDeviceStreams)
+      );
     }
   }
 

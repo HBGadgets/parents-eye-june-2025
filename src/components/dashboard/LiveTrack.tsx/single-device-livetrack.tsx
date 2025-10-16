@@ -116,7 +116,7 @@ const GeofenceLayer = ({
     return isValid;
   });
 
-  console.log("✅ GeofenceLayer - Rendering valid geofences:", validGeofences);
+  // console.log("✅ GeofenceLayer - Rendering valid geofences:", validGeofences);
 
   if (validGeofences.length === 0) {
     console.log("⚠️ GeofenceLayer - No valid geofences after filtering");
@@ -129,12 +129,12 @@ const GeofenceLayer = ({
         const [latitude, longitude] = geofence.area.center;
         const radius = geofence.area.radius;
 
-        console.log("🟢 Rendering geofence:", {
-          id: geofence._id,
-          name: geofence.geofenceName,
-          center: [latitude, longitude],
-          radius: radius,
-        });
+        // console.log("🟢 Rendering geofence:", {
+        //   id: geofence._id,
+        //   name: geofence.geofenceName,
+        //   center: [latitude, longitude],
+        //   radius: radius,
+        // });
 
         return (
           <React.Fragment key={geofence._id}>

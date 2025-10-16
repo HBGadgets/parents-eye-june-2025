@@ -25,7 +25,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 const VehicleMap = dynamic(() => import("@/components/history/vehicle-map"), {
   ssr: false,
   loading: () => (
-    <div className="w-full h-[400px] flex items-center justify-center bg-gray-100">
+    <div className="w-full h-[50vh] flex items-center justify-center bg-gray-100">
       <div className="text-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
         <p className="mt-2 text-gray-600">Loading map...</p>
@@ -188,25 +188,6 @@ function HistoryReportContent() {
       isFromDashboardRef.current = false;
     }
   }, [selectedVehicle, fromDate, toDate, vehicleIdFromUrl]);
-
-  // const handleAutoLoad = async () => {
-  //   try {
-  //     setLoading(true);
-  //     console.log("Fetching auto-load data...");
-
-  //     const response = await api.get(
-  //       `/device-history-playback?deviceId=${selectedVehicle}&from=${fromDate}&to=${toDate}`
-  //     );
-
-  //     setData(response.deviceHistory);
-  //     setCurrentIndex(0);
-  //     console.log("Auto-load completed successfully");
-  //   } catch (error) {
-  //     console.error("Error in auto-load:", error);
-  //   } finally {
-  //     setLoading(false);
-  //   }
-  // };
 
   // Handle vehicle selection changes (this allows clearing and changing)
   const handleVehicleChange = (vehicleId: string) => {
