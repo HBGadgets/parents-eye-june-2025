@@ -111,7 +111,7 @@ export function CustomTableServerSidePagination<
   manualPagination = true,
   showSerialNumber = true,
   serialNumberHeader = "SN",
-  maxHeight = "500px",
+  maxHeight = "h-[full]",
   columnVisibility,
   onColumnVisibilityChange,
   onRowClick,

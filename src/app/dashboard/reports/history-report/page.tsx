@@ -379,8 +379,8 @@ function HistoryReportContent() {
               <div
                 className={`w-full mt-3 transition-all duration-300 ease-in-out ${
                   isMapExpanded
-                    ? "h-[600px] md:h-[400px] lg:h-[500px]"
-                    : "h-[400px] md:h-[200px] lg:h-[330px]"
+                    ? "h-[100vh] md:h-[80vh] lg:h-[90vh]"
+                    : "h-[50vh] md:h-[25vh] lg:h-[40vh]"
                 }`}
               >
                 <FullScreenSpinner />
@@ -444,8 +444,8 @@ function HistoryReportContent() {
               <div
                 className={`w-full mt-3 transition-all duration-300 ease-in-out ${
                   isMapExpanded
-                    ? "h-[600px] md:h-[400px] lg:h-[500px]"
-                    : "h-[400px] md:h-[200px] lg:h-[330px]"
+                    ? "h-[80vh] md:h-[60vh] lg:h-[70vh]"
+                    : "h-[50vh] md:h-[25vh] lg:h-[40vh]"
                 }`}
               >
                 <VehicleMap

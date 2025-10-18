@@ -112,14 +112,28 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     (section: string, role: UserRole) => {
       switch (section) {
         case "Master":
-          return [
-            { title: "Add Device", url: "/dashboard/users/add-device" },
-            { title: "User Access", url: "/dashboard/users/user-access" },
-            {
-              title: "Student Details",
-              url: "/dashboard/school/student-details",
-            },
-          ];
+          if (role === "superAdmin") {
+            return [
+              { title: "Add Device", url: "/dashboard/users/add-device" },
+              { title: "User Access", url: "/dashboard/users/user-access" },
+              {
+                title: "Student Details",
+                url: "/dashboard/school/student-details",
+              },
+              {
+                title: "Student Approve",
+                url: "/dashboard/users/student-approve",
+              },
+            ];
+          } else {
+            return [
+              {
+                title: "Student Details",
+                url: "/dashboard/school/student-details",
+              },
+            ];
+          }
+
         case "School":
           return [
             // {
@@ -178,10 +192,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 title: "Driver Approve",
                 url: "/dashboard/users/driver-approve",
               },
-              {
-                title: "Student Approve",
-                url: "/dashboard/users/student-approve",
-              },
+
               {
                 title: "Supervisor Approve",
                 url: "/dashboard/users/supervisor-approve",
