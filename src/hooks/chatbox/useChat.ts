@@ -1,24 +1,24 @@
-// hooks/useChat.ts
+// hooks/useChat.ts - USE THIS (DeviceService version)
 "use client";
-import { useEffect, useCallback, useMemo } from "react";
+import { useEffect, useCallback } from "react";
 import { useDeviceStore } from "@/store/deviceStore";
 import { useChatStore, ChatContact } from "@/store/useChatStore";
-import DeviceService from "@/services/livetrack/DeviceService";
+import DeviceService from "@/services/livetrack/DeviceService"; // ✅ Use DeviceService
 
 export const useChat = () => {
   const service = DeviceService.getInstance();
 
-  // Subscribe to device store
   const isConnected = useDeviceStore((state) => state.isConnected);
   const isAuthenticated = useDeviceStore((state) => state.isAuthenticated);
 
-  // Subscribe to chat store with granular selectors for performance
+  // ✅ Subscribe directly to reactive state
   const contacts = useChatStore((state) => state.contacts);
   const activeContact = useChatStore((state) => state.activeContact);
   const activeChatId = useChatStore((state) => state.activeChatId);
+  const messagesByChat = useChatStore((state) => state.messagesByChat);
+  const typingUsers = useChatStore((state) => state.typingUsers);
   const isLoading = useChatStore((state) => state.isLoading);
   const error = useChatStore((state) => state.error);
-  const typingUsers = useChatStore((state) => state.typingUsers);
   const currentUserId = useChatStore((state) => state.currentUserId);
 
   // Actions
@@ -26,62 +26,36 @@ export const useChat = () => {
   const setLoading = useChatStore((state) => state.setLoading);
   const setError = useChatStore((state) => state.setError);
   const clearChat = useChatStore((state) => state.clearChat);
-  const getCurrentMessages = useChatStore((state) => state.getCurrentMessages);
-  const getUnreadCountForContact = useChatStore(
-    (state) => state.getUnreadCountForContact
-  );
-  const isUserTypingInChat = useChatStore((state) => state.isUserTypingInChat);
   const resetUnreadCount = useChatStore((state) => state.resetUnreadCount);
 
-  // ========== AUTO-FETCH CHAT LIST ==========
+  // ✅ Get messages directly (reactive)
+  const activeMessages = activeChatId ? messagesByChat[activeChatId] || [] : [];
 
-  // Fetch contact list when authenticated
+  // ✅ Get typing user directly (reactive)
+  const typingUser = activeChatId ? typingUsers[activeChatId] || null : null;
+
+  // Calculate totals
+  const totalUnreadCount = contacts.reduce(
+    (sum, c) => sum + (c.unreadCount || 0),
+    0
+  );
+
+  const sortedContacts = [...contacts].sort((a, b) => {
+    const timeA = a.lastMessageTime ? new Date(a.lastMessageTime).getTime() : 0;
+    const timeB = b.lastMessageTime ? new Date(b.lastMessageTime).getTime() : 0;
+    return timeB - timeA;
+  });
+
+  // Auto-fetch contacts when authenticated
   useEffect(() => {
     if (isAuthenticated && isConnected && contacts.length === 0) {
-      console.log("[useChat] Fetching chat list");
+      console.log("[useChat] Auto-fetching chat list");
       setLoading(true);
       service.fetchChatList();
     }
   }, [isAuthenticated, isConnected]);
 
-  // ========== COMPUTED VALUES ==========
-
-  // Get messages for active chat
-  const activeMessages = useMemo(() => {
-    return getCurrentMessages();
-  }, [getCurrentMessages, activeChatId]); // Re-compute when active chat changes
-
-  // Get typing indicator for active chat
-  const typingUser = useMemo(() => {
-    if (!activeChatId) return null;
-    return isUserTypingInChat(activeChatId);
-  }, [activeChatId, typingUsers]);
-
-  // Calculate total unread count
-  const totalUnreadCount = useMemo(() => {
-    return contacts.reduce((sum, contact) => {
-      return sum + (contact.unreadCount || 0);
-    }, 0);
-  }, [contacts]);
-
-  // Sort contacts by last message time (most recent first)
-  const sortedContacts = useMemo(() => {
-    return [...contacts].sort((a, b) => {
-      const timeA = a.lastMessageTime
-        ? new Date(a.lastMessageTime).getTime()
-        : 0;
-      const timeB = b.lastMessageTime
-        ? new Date(b.lastMessageTime).getTime()
-        : 0;
-      return timeB - timeA;
-    });
-  }, [contacts]);
-
-  // ========== ACTIONS ==========
-
-  /**
-   * Fetch the list of chat contacts
-   */
+  // Actions
   const fetchChatList = useCallback(() => {
     if (!isConnected || !isAuthenticated) {
       setError("Cannot fetch chat list: Not connected or authenticated");
@@ -91,9 +65,6 @@ export const useChat = () => {
     service.fetchChatList();
   }, [isConnected, isAuthenticated, service]);
 
-  /**
-   * Join a chat with a contact
-   */
   const joinChat = useCallback(
     (contact: ChatContact) => {
       if (!isConnected || !isAuthenticated) {
@@ -106,12 +77,11 @@ export const useChat = () => {
         return;
       }
 
-      console.log("[useChat] Joining chat with:", contact.name);
+      console.log("[useChat] Joining chat:", contact.name, contact._id);
       setLoading(true);
-      setActiveChat(contact); // Set active in store
+      setActiveChat(contact);
       service.joinChatWithContact(contact._id, contact.role);
 
-      // Reset unread count when opening chat
       if (contact.chatId) {
         resetUnreadCount(contact.chatId);
       }
@@ -127,32 +97,20 @@ export const useChat = () => {
     ]
   );
 
-  /**
-   * Leave the current chat
-   */
-  const leaveChat = useCallback(() => {
-    console.log("[useChat] Leaving chat");
-    service.leaveChat();
-    clearChat();
-  }, [service, clearChat]);
-
-  /**
-   * Send a message to the active contact
-   */
   const sendMessage = useCallback(
     (text: string, media?: { url?: string; type?: string }) => {
       if (!activeContact) {
-        console.error("[useChat] No active contact selected");
+        console.error("[useChat] No active contact");
         setError("No active chat");
         return;
       }
 
       if (!text.trim() && !media) {
-        console.error("[useChat] Cannot send empty message");
+        console.error("[useChat] Empty message");
         return;
       }
 
-      console.log("[useChat] Sending message to:", activeContact.name);
+      console.log("[useChat] Sending message:", text.substring(0, 50));
       service.sendMessageToContact(
         activeContact._id,
         activeContact.role,
@@ -163,72 +121,41 @@ export const useChat = () => {
     [activeContact, service]
   );
 
-  /**
-   * Send typing indicator
-   */
   const sendTypingIndicator = useCallback(
     (isTyping: boolean) => {
       if (!activeContact) return;
-
       service.emitTyping(activeContact._id, activeContact.role, isTyping);
     },
     [activeContact, service]
   );
 
-  /**
-   * Mark messages as read
-   */
   const markAsRead = useCallback(
     (messageIds: string[]) => {
       if (!activeChatId) return;
-
       service.markMessagesAsRead(activeChatId, messageIds);
     },
     [activeChatId, service]
   );
 
-  /**
-   * Clear error
-   */
-  const clearError = useCallback(() => {
-    setError(null);
-  }, [setError]);
-
-  /**
-   * Refresh chat list
-   */
-  const refreshChatList = useCallback(() => {
-    fetchChatList();
-  }, [fetchChatList]);
-
-  // ========== RETURN API ==========
-
   return {
-    // State
     contacts: sortedContacts,
     activeContact,
-    activeMessages,
+    activeMessages, // ✅ Reactive!
     activeChatId,
     isConnected,
     isAuthenticated,
     isLoading,
     error,
-    typingUser,
+    typingUser, // ✅ Reactive!
     totalUnreadCount,
     currentUserId,
-
-    // Actions
     fetchChatList,
     joinChat,
-    leaveChat,
+    leaveChat: clearChat,
     sendMessage,
     sendTypingIndicator,
     markAsRead,
-    clearError,
-    refreshChatList,
-
-    // Helpers
-    getUnreadCount: getUnreadCountForContact,
-    isTyping: (chatId: string) => isUserTypingInChat(chatId),
+    clearError: () => setError(null),
+    refreshChatList: fetchChatList,
   };
 };

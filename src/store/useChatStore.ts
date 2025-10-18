@@ -1,18 +1,18 @@
-// store/useChatStore.ts
+// store/useChatStore.ts - FULLY OPTIMIZED FOR REACTIVITY
 import { create } from "zustand";
 import { devtools, persist } from "zustand/middleware";
 import { produce } from "immer";
 
 export interface ChatContact {
-  _id: string; // other user's userId
-  role: string; // "school" | "branch" | "parent" | "branchgroup" | "superAdmin"
+  _id: string;
+  role: string;
   name: string;
   email?: string | null;
   mobileNo?: string | null;
   lastMessage?: string;
   lastMessageTime?: string | null;
-  chatId?: string; // server includes this
-  unreadCount?: number; // track unread messages
+  chatId?: string;
+  unreadCount?: number;
 }
 
 export interface ChatMessage {
@@ -24,6 +24,7 @@ export interface ChatMessage {
   sender: { userId: string; userModel: string };
   deliveredTo?: string[];
   readBy?: string[];
+  status?: string;
   createdAt: string;
 }
 
@@ -34,24 +35,16 @@ export interface TypingUser {
 }
 
 interface ChatState {
-  // Data
   contacts: ChatContact[];
-  messagesByChat: Record<string, ChatMessage[]>; // Changed from Map for persistence
+  messagesByChat: Record<string, ChatMessage[]>;
   activeChatId: string | null;
   activeContact: ChatContact | null;
-
-  // UI state
   isLoading: boolean;
   error: string | null;
-
-  // Real-time indicators
-  typingUsers: Record<string, TypingUser>; // chatId -> typing user
-  onlineUsers: Set<string>; // userId set
-
-  // User context (set after auth)
+  typingUsers: Record<string, TypingUser>;
+  onlineUsers: Set<string>;
   currentUserId: string | null;
 
-  // Actions - Contacts
   setContacts: (contacts: ChatContact[]) => void;
   updateContactLastMessage: (
     chatId: string,
@@ -60,17 +53,11 @@ interface ChatState {
   ) => void;
   incrementUnreadCount: (chatId: string) => void;
   resetUnreadCount: (chatId: string) => void;
-
-  // Actions - Active chat
   setActiveChat: (contact: ChatContact | null) => void;
-
-  // Actions - Messages
   setChatHistory: (chatId: string, messages: ChatMessage[]) => void;
   addMessage: (message: ChatMessage) => void;
   updateMessageDelivery: (messageId: string, deliveredTo: string[]) => void;
   updateMessageReadStatus: (messageIds: string[], readBy: string) => void;
-
-  // Actions - Typing
   setUserTyping: (
     chatId: string,
     userId: string,
@@ -78,17 +65,11 @@ interface ChatState {
     isTyping: boolean
   ) => void;
   clearTypingIndicator: (chatId: string) => void;
-
-  // Actions - UI
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
   setCurrentUserId: (userId: string) => void;
-
-  // Actions - Cleanup
   clearChat: () => void;
   clearAllMessages: () => void;
-
-  // Getters
   getCurrentMessages: () => ChatMessage[];
   getUnreadCountForContact: (chatId: string) => number;
   isUserTypingInChat: (chatId: string) => TypingUser | null;
@@ -167,15 +148,32 @@ export const useChatStore = create<ChatState>()(
             return;
           }
 
-          // Reset unread count when opening chat
-          const chatId = contact.chatId || contact._id;
+          const chatId = contact.chatId || null;
+
+          console.log("[ChatStore] setActiveChat:", {
+            contactName: contact.name,
+            contactUserId: contact._id,
+            chatId: chatId,
+          });
+
+          if (!chatId) {
+            console.error(
+              "[ChatStore] ❌ CRITICAL: Contact has no chatId!",
+              contact
+            );
+            set(
+              { activeChatId: null, activeContact: contact },
+              false,
+              "setActiveChat"
+            );
+            return;
+          }
 
           set(
             produce((state: ChatState) => {
               state.activeChatId = chatId;
               state.activeContact = contact;
 
-              // Reset unread count for this contact
               const existingContact = state.contacts.find(
                 (c) => c.chatId === chatId
               );
@@ -188,37 +186,73 @@ export const useChatStore = create<ChatState>()(
           );
         },
 
-        // ========== MESSAGE ACTIONS ==========
+        // ========== MESSAGE ACTIONS (OPTIMIZED FOR REACTIVITY) ==========
 
         setChatHistory: (chatId, messages) => {
+          console.log("[ChatStore] setChatHistory:", {
+            chatId,
+            messageCount: messages.length,
+          });
+
+          const { messagesByChat } = get();
+
+          // ✅ Create new object reference using spread
           set(
-            produce((state: ChatState) => {
-              state.messagesByChat[chatId] = messages;
-            }),
+            {
+              messagesByChat: {
+                ...messagesByChat,
+                [chatId]: messages, // New array reference
+              },
+            },
             false,
             "setChatHistory"
           );
+
+          console.log("[ChatStore] ✅ Stored messages:", {
+            chatId,
+            count: messages.length,
+          });
         },
 
         addMessage: (message) => {
-          const { activeChatId, currentUserId } = get();
+          const { activeChatId, currentUserId, messagesByChat, contacts } =
+            get();
 
+          // Get existing messages or empty array
+          const existingMessages = messagesByChat[message.chatId] || [];
+
+          // Check for duplicate
+          const exists = existingMessages.some((m) => m._id === message._id);
+          if (exists) {
+            console.log("[ChatStore] Message already exists:", message._id);
+            return;
+          }
+
+          // Create new messages array
+          const newMessages = [...existingMessages, message];
+
+          console.log("[ChatStore] ✅ Adding message:", {
+            chatId: message.chatId,
+            messageId: message._id,
+            text: message.text.substring(0, 30),
+            totalNow: newMessages.length,
+          });
+
+          // ✅ Update messagesByChat with new reference (triggers re-render!)
+          set(
+            {
+              messagesByChat: {
+                ...messagesByChat,
+                [message.chatId]: newMessages,
+              },
+            },
+            false,
+            "addMessage"
+          );
+
+          // Update contact
           set(
             produce((state: ChatState) => {
-              // Add message to messages list
-              if (!state.messagesByChat[message.chatId]) {
-                state.messagesByChat[message.chatId] = [];
-              }
-
-              // Prevent duplicates
-              const exists = state.messagesByChat[message.chatId].some(
-                (m) => m._id === message._id
-              );
-              if (!exists) {
-                state.messagesByChat[message.chatId].push(message);
-              }
-
-              // Update contact last message
               const contact = state.contacts.find(
                 (c) => c.chatId === message.chatId
               );
@@ -226,7 +260,6 @@ export const useChatStore = create<ChatState>()(
                 contact.lastMessage = message.text;
                 contact.lastMessageTime = message.createdAt;
 
-                // Increment unread count if chat is not active and message is not from current user
                 if (
                   message.chatId !== activeChatId &&
                   message.sender.userId !== currentUserId
@@ -236,14 +269,13 @@ export const useChatStore = create<ChatState>()(
               }
             }),
             false,
-            "addMessage"
+            "addMessage-updateContact"
           );
         },
 
         updateMessageDelivery: (messageId, deliveredTo) => {
           set(
             produce((state: ChatState) => {
-              // Find message across all chats and update deliveredTo
               Object.values(state.messagesByChat).forEach((messages) => {
                 const message = messages.find((m) => m._id === messageId);
                 if (message) {
@@ -259,7 +291,6 @@ export const useChatStore = create<ChatState>()(
         updateMessageReadStatus: (messageIds, readBy) => {
           set(
             produce((state: ChatState) => {
-              // Update readBy for multiple messages
               Object.values(state.messagesByChat).forEach((messages) => {
                 messages.forEach((message) => {
                   if (messageIds.includes(message._id)) {
@@ -276,26 +307,35 @@ export const useChatStore = create<ChatState>()(
           );
         },
 
-        // ========== TYPING ACTIONS ==========
+        // ========== TYPING ACTIONS (OPTIMIZED FOR REACTIVITY) ==========
 
         setUserTyping: (chatId, userId, userRole, isTyping) => {
-          set(
-            produce((state: ChatState) => {
-              if (isTyping) {
-                state.typingUsers[chatId] = {
-                  userId,
-                  userRole,
-                  timestamp: Date.now(),
-                };
-              } else {
-                delete state.typingUsers[chatId];
-              }
-            }),
-            false,
-            "setUserTyping"
-          );
+          const { typingUsers } = get();
 
-          // Auto-clear typing indicator after 3 seconds
+          // ✅ Create new typingUsers object with new reference
+          const newTypingUsers = { ...typingUsers };
+
+          if (isTyping) {
+            newTypingUsers[chatId] = {
+              userId,
+              userRole,
+              timestamp: Date.now(),
+            };
+            console.log(
+              "[ChatStore] 👤 User typing:",
+              userId,
+              "in chat:",
+              chatId
+            );
+          } else {
+            delete newTypingUsers[chatId];
+            console.log("[ChatStore] 🛑 User stopped typing:", userId);
+          }
+
+          // ✅ Set with new reference (triggers re-render!)
+          set({ typingUsers: newTypingUsers }, false, "setUserTyping");
+
+          // Auto-clear after 3 seconds
           if (isTyping) {
             setTimeout(() => {
               const current = get().typingUsers[chatId];
@@ -307,13 +347,12 @@ export const useChatStore = create<ChatState>()(
         },
 
         clearTypingIndicator: (chatId) => {
-          set(
-            produce((state: ChatState) => {
-              delete state.typingUsers[chatId];
-            }),
-            false,
-            "clearTypingIndicator"
-          );
+          const { typingUsers } = get();
+          const newTypingUsers = { ...typingUsers };
+          delete newTypingUsers[chatId];
+
+          // ✅ Set with new reference
+          set({ typingUsers: newTypingUsers }, false, "clearTypingIndicator");
         },
 
         // ========== UI ACTIONS ==========
@@ -327,6 +366,7 @@ export const useChatStore = create<ChatState>()(
         },
 
         setCurrentUserId: (userId) => {
+          console.log("[ChatStore] Setting currentUserId:", userId);
           set({ currentUserId: userId }, false, "setCurrentUserId");
         },
 
@@ -361,7 +401,16 @@ export const useChatStore = create<ChatState>()(
 
         getCurrentMessages: () => {
           const { activeChatId, messagesByChat } = get();
-          return activeChatId ? messagesByChat[activeChatId] || [] : [];
+          const messages = activeChatId
+            ? messagesByChat[activeChatId] || []
+            : [];
+
+          console.log("[ChatStore] getCurrentMessages:", {
+            activeChatId,
+            messageCount: messages.length,
+          });
+
+          return messages;
         },
 
         getUnreadCountForContact: (chatId) => {
@@ -373,19 +422,16 @@ export const useChatStore = create<ChatState>()(
         isUserTypingInChat: (chatId) => {
           const { typingUsers, currentUserId } = get();
           const typingUser = typingUsers[chatId];
-          // Don't show typing indicator for current user
           return typingUser && typingUser.userId !== currentUserId
             ? typingUser
             : null;
         },
       }),
       {
-        name: "chat-storage", // localStorage key
+        name: "chat-storage",
         partialize: (state) => ({
-          // Only persist contacts and messages, not UI state
-          contacts: state.contacts,
-          messagesByChat: state.messagesByChat,
           currentUserId: state.currentUserId,
+          // Don't persist messages or contacts - they're fetched on connect
         }),
       }
     ),

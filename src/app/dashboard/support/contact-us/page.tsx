@@ -5,6 +5,7 @@ import ChatArea from "@/components/contact-us/ChatArea";
 import RightPanel from "@/components/contact-us/RightPanel";
 import { useLiveDeviceData } from "@/hooks/livetrack/useLiveDeviceData";
 import { useChat } from "@/hooks/chatbox/useChat";
+import { useChatStore } from "@/store/useChatStore";
 // import { useChat } from "@/hooks/useChat";
 // import { useLiveDeviceData } from "@/hooks/useLiveDeviceData";
 
@@ -221,11 +222,69 @@ const EyeCareBot = () => {
     }
   }, [activeMessages, currentUserId, markAsRead]);
 
+  // In EyeCareBot.tsx - add useEffect to debug
+  useEffect(() => {
+    console.log("[EyeCareBot] State:", {
+      currentUserId,
+      isAuthenticated,
+      activeContact: activeContact?.name,
+      backendContactsCount: backendContacts.length,
+      activeMessagesCount: activeMessages.length,
+      mappedMessagesCount: messages.length,
+    });
+  }, [
+    currentUserId,
+    isAuthenticated,
+    activeContact,
+    backendContacts,
+    activeMessages,
+    messages,
+  ]);
+
+  // Add effect to check currentUserId
+  useEffect(() => {
+    if (isAuthenticated && !currentUserId) {
+      // Try to get userId from localStorage or token
+      const userId = localStorage.getItem("userId");
+      console.log(
+        "[EyeCareBot] Setting currentUserId from localStorage:",
+        userId
+      );
+
+      if (userId) {
+        const chatStore = useChatStore.getState();
+        chatStore.setCurrentUserId(userId);
+      } else {
+        console.error(
+          "[EyeCareBot] currentUserId not found! Messages may not display correctly."
+        );
+      }
+    }
+  }, [isAuthenticated, currentUserId]);
+
   // ========== FILTER MESSAGES BY DATE ==========
 
   const displayedMessages = selectedHistoryDate
     ? messages.filter((m) => m.date === selectedHistoryDate)
     : messages;
+
+  // 1. Check if messages are being added to store
+  const chatStore = useChatStore.getState();
+  console.log("Messages by chat:", chatStore.messagesByChat);
+  console.log("Active chat ID:", chatStore.activeChatId);
+
+  // 2. Send a test message and check if it's stored
+  // (after sending a message, run:)
+  console.log(
+    "Message count:",
+    chatStore.messagesByChat[chatStore.activeChatId]?.length
+  );
+
+  // 3. Check if React is subscribing correctly
+  console.log(
+    "Active messages from getter:",
+    chatStore.getCurrentMessages().length
+  );
 
   // ========== LOADING STATE ==========
 

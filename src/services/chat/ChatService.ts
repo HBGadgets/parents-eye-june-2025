@@ -1,5 +1,6 @@
 import { io, Socket } from "socket.io-client";
 import Cookies from "js-cookie";
+import { useChatStore } from "@/store/useChatStore";
 
 export interface Chat {
   _id: string;
@@ -134,6 +135,23 @@ class ChatService {
       callbacks.onChatHistoryReceived(messages);
     });
 
+    this.socket.on(
+      "userTyping",
+      (data: { userId: string; userRole: string; isTyping: boolean }) => {
+        console.log("[ChatService] User typing:", data);
+
+        if (this.currentChatId) {
+          const chatStore = useChatStore.getState();
+          chatStore.setUserTyping(
+            this.currentChatId,
+            data.userId,
+            data.userRole,
+            data.isTyping
+          );
+        }
+      }
+    );
+
     this.socket.on("newMessage", (message: Message) => {
       console.log("[ChatService] Received new message:", message._id);
       callbacks.onNewMessage(message);
@@ -211,6 +229,13 @@ class ChatService {
 
     console.log("[ChatService] Fetching chat list");
     this.socket.emit("fetchChatList");
+  }
+
+  public emitTyping(isTyping: boolean): void {
+    if (!this.socket?.connected || !this.currentChatId) return;
+
+    console.log("[ChatService] Emitting typing:", isTyping);
+    this.socket.emit("typing", { isTyping });
   }
 
   public joinChat(chatId: string): void {
