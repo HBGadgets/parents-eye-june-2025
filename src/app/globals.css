@@ -235,3 +235,24 @@
     max-width: none;
   }
 } */
+
+/* For 16:9 screens (standard widescreen) */
+@media (aspect-ratio: 16/9) {
+  .table-container {
+    min-height: calc(100vh - 180px);
+  }
+}
+
+/* For 16:10 screens (wider monitors) */
+@media (min-aspect-ratio: 16/10) and (max-aspect-ratio: 16/9) {
+  .table-container {
+    min-height: calc(100vh - 150px);
+  }
+}
+
+/* For ultra-wide screens */
+@media (min-aspect-ratio: 21/9) {
+  .table-container {
+    min-height: calc(100vh - 120px);
+  }
+}
