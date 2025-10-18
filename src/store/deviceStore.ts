@@ -65,7 +65,7 @@ interface DeviceState {
   startSingleDeviceStream: (uniqueId: string) => void;
   stopSingleDeviceStream: (uniqueId: string) => void;
   stopAllSingleDeviceStreams: () => void;
-  switchToAllDevices: () => void; // Added this method
+  switchToAllDevices: () => void;
   getSingleDeviceData: (uniqueId: string) => SingleDeviceData | null;
   clearSingleDeviceData: (uniqueId: string) => void;
   clearAllSingleDeviceData: () => void;
@@ -142,7 +142,6 @@ export const useDeviceStore = create<DeviceState>()(
                   state.singleDeviceLoading
                 );
 
-                // Convert to string consistently - handle both number and string
                 const deviceKey = String(data.uniqueId || data.imei);
 
                 console.log(
@@ -164,16 +163,23 @@ export const useDeviceStore = create<DeviceState>()(
             },
 
             onAuthSuccess: (authData?: AuthData) => {
-              // console.log(
-              //   "[DeviceStore] Authentication successful:",
-              //   authData?.role || "Unknown role"
-              // );
-
               set({
                 isAuthenticated: true,
                 userRole: authData?.role || null,
                 error: null,
               });
+
+              // Set currentUserId in chat store after auth
+              const chatStore = useChatStore.getState();
+              // Assuming authData contains user ID (adjust based on your auth structure)
+              if (authData?.role) {
+                // You may need to extract actual userId from token or another source
+                // For now, using a placeholder - replace with actual user ID extraction
+                const userId = localStorage.getItem("userId") || "";
+                if (userId) {
+                  chatStore.setCurrentUserId(userId);
+                }
+              }
 
               // Request initial data after authentication
               const state = get();
@@ -214,11 +220,6 @@ export const useDeviceStore = create<DeviceState>()(
             },
 
             onConnectionChange: (connected: boolean) => {
-              // console.log(
-              //   "[DeviceStore] Connection status changed:",
-              //   connected
-              // );
-
               set({ isConnected: connected });
 
               if (!connected) {
@@ -231,63 +232,91 @@ export const useDeviceStore = create<DeviceState>()(
                   error: connected === false ? "Connection lost" : null,
                 });
               } else {
-                // Clear connection error when reconnected
                 const currentState = get();
                 if (currentState.error === "Connection lost") {
                   set({ error: null });
                 }
               }
             },
-            onChatListReceived: (chats) => {
+
+            // ========== CHAT CALLBACKS - FIXED ==========
+
+            onChatListReceived: (contacts) => {
+              console.log("[DeviceStore] Chat list received:", contacts.length);
               const chatStore = useChatStore.getState();
-              chatStore.chats = chats;
-              chatStore.isLoading = false;
+              chatStore.setContacts(contacts); // ✅ Use proper action
+              chatStore.setLoading(false);
             },
+
             onChatHistoryReceived: (messages) => {
-              const chatStore = useChatStore.getState();
-              const activeChatId = chatStore.activeChatId;
-              if (!activeChatId) return;
-
-              const newMessagesByChat = new Map(chatStore.messagesByChat);
-              newMessagesByChat.set(activeChatId, messages);
-
-              chatStore.messagesByChat = newMessagesByChat;
-              chatStore.isLoading = false;
-            },
-            onNewMessage: (message) => {
-              const chatStore = useChatStore.getState();
-              const newMessagesByChat = new Map(chatStore.messagesByChat);
-              const chatMessages = newMessagesByChat.get(message.chatId) || [];
-
-              // Avoid duplicates
-              const exists = chatMessages.some(
-                (msg) => msg._id === message._id
+              console.log(
+                "[DeviceStore] Chat history received:",
+                messages.length
               );
-              if (!exists) {
-                newMessagesByChat.set(message.chatId, [
-                  ...chatMessages,
-                  message,
-                ]);
+              const chatStore = useChatStore.getState();
+
+              // Get chatId from first message
+              const chatId = messages[0]?.chatId;
+              if (chatId) {
+                chatStore.setChatHistory(chatId, messages); // ✅ Use proper action
               }
+              chatStore.setLoading(false);
+            },
 
-              // Update last message in chat list
-              const newChats = chatStore.chats.map((chat) =>
-                chat._id === message.chatId
-                  ? {
-                      ...chat,
-                      lastMessage: {
-                        text: message.text,
-                        createdAt: message.createdAt,
-                      },
-                    }
-                  : chat
+            onNewMessage: (message) => {
+              console.log("[DeviceStore] New message received:", message._id);
+              const chatStore = useChatStore.getState();
+              chatStore.addMessage(message); // ✅ Use proper action (handles all updates)
+            },
+
+            // ========== OPTIONAL CHAT CALLBACKS ==========
+
+            onChatJoined: (data) => {
+              console.log("[DeviceStore] Chat joined:", data.chatId);
+              const chatStore = useChatStore.getState();
+              // You can add additional logic here if needed
+            },
+
+            onUserTyping: (data) => {
+              console.log(
+                "[DeviceStore] User typing:",
+                data.userId,
+                data.isTyping
               );
-              chatStore.messagesByChat = newMessagesByChat;
-              chatStore.chats = newChats;
+              const chatStore = useChatStore.getState();
+
+              // Find chatId from contacts
+              const contact = chatStore.contacts.find(
+                (c) => c._id === data.userId && c.role === data.userRole
+              );
+
+              if (contact?.chatId) {
+                chatStore.setUserTyping(
+                  contact.chatId,
+                  data.userId,
+                  data.userRole,
+                  data.isTyping
+                ); // ✅ Use proper action
+              }
+            },
+
+            onMessagesRead: (data) => {
+              console.log(
+                "[DeviceStore] Messages read:",
+                data.messageIds.length
+              );
+              const chatStore = useChatStore.getState();
+              chatStore.updateMessageReadStatus(data.messageIds, data.readBy); // ✅ Use proper action
+            },
+
+            onDeliveryUpdate: (data) => {
+              console.log("[DeviceStore] Delivery update:", data.messageId);
+              const chatStore = useChatStore.getState();
+              chatStore.updateMessageDelivery(data.messageId, data.deliveredTo); // ✅ Use proper action
             },
           });
         } catch (error) {
-          // console.error("[DeviceStore] Connection failed:", error);
+          console.error("[DeviceStore] Connection failed:", error);
           set({
             error: "Failed to initialize connection",
             isLoading: false,
@@ -296,7 +325,7 @@ export const useDeviceStore = create<DeviceState>()(
       },
 
       disconnect: () => {
-        // console.log("[DeviceStore] Disconnecting");
+        console.log("[DeviceStore] Disconnecting");
 
         const deviceService = DeviceService.getInstance();
         deviceService.disconnect();
@@ -313,6 +342,10 @@ export const useDeviceStore = create<DeviceState>()(
           singleDeviceLoading: new Set(),
           error: null,
         });
+
+        // Clear chat store on disconnect
+        const chatStore = useChatStore.getState();
+        chatStore.clearChat();
       },
 
       updateFilters: (newFilters: Partial<DeviceFilters>) => {
@@ -374,7 +407,6 @@ export const useDeviceStore = create<DeviceState>()(
           return;
         }
 
-        // Convert to string FIRST, before any checks
         const deviceId = String(uniqueId);
 
         if (!deviceId.trim()) {
@@ -388,7 +420,6 @@ export const useDeviceStore = create<DeviceState>()(
           const newActiveSingleDevices = new Set(state.activeSingleDevices);
           const newSingleDeviceLoading = new Set(state.singleDeviceLoading);
 
-          // Use the converted string for all operations
           newActiveSingleDevices.add(deviceId);
           newSingleDeviceLoading.add(deviceId);
 
@@ -405,7 +436,6 @@ export const useDeviceStore = create<DeviceState>()(
       },
 
       stopSingleDeviceStream: (uniqueId: string | number) => {
-        // Convert to string immediately
         const deviceId = String(uniqueId);
 
         console.log("[DeviceStore] Stopping single device stream:", deviceId);
@@ -418,7 +448,6 @@ export const useDeviceStore = create<DeviceState>()(
           const newSingleDeviceLoading = new Set(state.singleDeviceLoading);
           const newSingleDeviceData = new Map(state.singleDeviceData);
 
-          // Use converted string for all operations
           newActiveSingleDevices.delete(deviceId);
           newSingleDeviceLoading.delete(deviceId);
           newSingleDeviceData.delete(deviceId);
@@ -434,7 +463,6 @@ export const useDeviceStore = create<DeviceState>()(
           };
         });
 
-        // If no more single device streams, switch back to all devices
         const updatedState = get();
         if (updatedState.activeSingleDevices.size === 0) {
           console.log(
@@ -445,7 +473,7 @@ export const useDeviceStore = create<DeviceState>()(
       },
 
       stopAllSingleDeviceStreams: () => {
-        // console.log("[DeviceStore] Stopping all single device streams");
+        console.log("[DeviceStore] Stopping all single device streams");
 
         const deviceService = DeviceService.getInstance();
         deviceService.stopAllSingleDeviceStreams();
@@ -458,30 +486,25 @@ export const useDeviceStore = create<DeviceState>()(
           activeDeviceId: null,
         });
 
-        // Switch back to all devices
         const state = get();
         state.switchToAllDevices();
       },
 
-      // NEW: Switch to all devices method
       switchToAllDevices: () => {
-        // console.log("[DeviceStore] Switching to all devices mode");
+        console.log("[DeviceStore] Switching to all devices mode");
 
         const state = get();
         const deviceService = DeviceService.getInstance();
 
-        // Only proceed if authenticated and connected
         if (!deviceService.authenticated || !deviceService.connected) {
-          // console.warn(
-          //   "[DeviceStore] Cannot switch to all devices: Not connected or authenticated"
-          // );
+          console.warn(
+            "[DeviceStore] Cannot switch to all devices: Not connected or authenticated"
+          );
           return;
         }
 
-        // Stop all single device streams first
         deviceService.stopAllSingleDeviceStreams();
 
-        // Clear single device state
         set({
           singleDeviceData: new Map(),
           activeSingleDevices: new Set(),
@@ -491,22 +514,19 @@ export const useDeviceStore = create<DeviceState>()(
           isLoading: true,
         });
 
-        // Request all device data
-        // console.log(
-        //   "[DeviceStore] Requesting all device data with filters:",
-        //   state.filters
-        // );
+        console.log(
+          "[DeviceStore] Requesting all device data with filters:",
+          state.filters
+        );
         deviceService.requestDeviceData(state.filters);
       },
 
       getSingleDeviceData: (uniqueId: string | number) => {
         const state = get();
-        // Convert to string for Map lookup
         return state.singleDeviceData.get(String(uniqueId)) || null;
       },
 
       clearSingleDeviceData: (uniqueId: string | number) => {
-        // Convert to string immediately
         const deviceId = String(uniqueId);
 
         console.log("[DeviceStore] Clearing single device data:", deviceId);
@@ -519,7 +539,6 @@ export const useDeviceStore = create<DeviceState>()(
           const newActiveSingleDevices = new Set(state.activeSingleDevices);
           const newSingleDeviceLoading = new Set(state.singleDeviceLoading);
 
-          // Use converted string for all operations
           newSingleDeviceData.delete(deviceId);
           newActiveSingleDevices.delete(deviceId);
           newSingleDeviceLoading.delete(deviceId);
@@ -535,7 +554,6 @@ export const useDeviceStore = create<DeviceState>()(
           };
         });
 
-        // If no more single device streams, switch back to all devices
         const updatedState = get();
         if (updatedState.activeSingleDevices.size === 0) {
           console.log(
@@ -546,7 +564,7 @@ export const useDeviceStore = create<DeviceState>()(
       },
 
       clearAllSingleDeviceData: () => {
-        // console.log("[DeviceStore] Clearing all single device data");
+        console.log("[DeviceStore] Clearing all single device data");
 
         const deviceService = DeviceService.getInstance();
         deviceService.stopAllSingleDeviceStreams();
@@ -559,7 +577,6 @@ export const useDeviceStore = create<DeviceState>()(
           activeDeviceId: null,
         });
 
-        // Switch back to all devices
         const state = get();
         state.switchToAllDevices();
       },
@@ -567,13 +584,11 @@ export const useDeviceStore = create<DeviceState>()(
       // Stream state checks
       isDeviceStreamActive: (uniqueId: string | number) => {
         const state = get();
-        // Convert to string for Set lookup
         return state.activeSingleDevices.has(String(uniqueId));
       },
 
       isDeviceLoading: (uniqueId: string | number) => {
         const state = get();
-        // Convert to string for Set lookup
         return state.singleDeviceLoading.has(String(uniqueId));
       },
 
@@ -603,7 +618,6 @@ export const useDeviceStore = create<DeviceState>()(
     {
       name: "device-store",
       partialize: (state) => ({
-        // Only persist filters and non-sensitive data
         filters: state.filters,
       }),
     }
