@@ -115,7 +115,7 @@ class DeviceService {
   private activeContactInfo: { userId: string; userRole: string } | null = null;
 
   private constructor() {
-    this.baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "";
+    this.baseUrl = process.env.NEXT_PUBLIC_SOCKET_BASE_URL || "";
   }
 
   public static getInstance(): DeviceService {
@@ -457,12 +457,29 @@ class DeviceService {
   /**
    * Emit typing indicator
    */
-  public emitTyping(userId: string, userRole: string, isTyping: boolean): void {
-    if (!this.socket?.connected || !this.isAuthenticated) return;
+  // DeviceService.ts - Add this method
+
+  public emitTyping(
+    chatUserId: string,
+    chatUserRole: string,
+    isTyping: boolean
+  ): void {
+    if (!this.socket?.connected || !this.authenticated) {
+      console.warn(
+        "[DeviceService] Cannot emit typing: Not connected/authenticated"
+      );
+      return;
+    }
+
+    console.log("[DeviceService] Emitting typing:", {
+      chatUserId,
+      chatUserRole,
+      isTyping,
+    });
 
     this.socket.emit("typing", {
-      chatUserId: userId,
-      chatUserRole: userRole,
+      chatUserId,
+      chatUserRole,
       isTyping,
     });
   }
