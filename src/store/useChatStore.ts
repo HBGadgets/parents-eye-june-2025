@@ -150,17 +150,17 @@ export const useChatStore = create<ChatState>()(
 
           const chatId = contact.chatId || null;
 
-          console.log("[ChatStore] setActiveChat:", {
-            contactName: contact.name,
-            contactUserId: contact._id,
-            chatId: chatId,
-          });
+          // console.log("[ChatStore] setActiveChat:", {
+          //   contactName: contact.name,
+          //   contactUserId: contact._id,
+          //   chatId: chatId,
+          // });
 
           if (!chatId) {
-            console.error(
-              "[ChatStore] ❌ CRITICAL: Contact has no chatId!",
-              contact
-            );
+            // console.error(
+            //   "[ChatStore] ❌ CRITICAL: Contact has no chatId!",
+            //   contact
+            // );
             set(
               { activeChatId: null, activeContact: contact },
               false,
@@ -189,10 +189,10 @@ export const useChatStore = create<ChatState>()(
         // ========== MESSAGE ACTIONS (OPTIMIZED FOR REACTIVITY) ==========
 
         setChatHistory: (chatId, messages) => {
-          console.log("[ChatStore] setChatHistory:", {
-            chatId,
-            messageCount: messages.length,
-          });
+          // console.log("[ChatStore] setChatHistory:", {
+          //   chatId,
+          //   messageCount: messages.length,
+          // });
 
           const { messagesByChat } = get();
 
@@ -208,10 +208,10 @@ export const useChatStore = create<ChatState>()(
             "setChatHistory"
           );
 
-          console.log("[ChatStore] ✅ Stored messages:", {
-            chatId,
-            count: messages.length,
-          });
+          // console.log("[ChatStore] ✅ Stored messages:", {
+          //   chatId,
+          //   count: messages.length,
+          // });
         },
 
         addMessage: (message) => {
@@ -224,19 +224,19 @@ export const useChatStore = create<ChatState>()(
           // Check for duplicate
           const exists = existingMessages.some((m) => m._id === message._id);
           if (exists) {
-            console.log("[ChatStore] Message already exists:", message._id);
+            // console.log("[ChatStore] Message already exists:", message._id);
             return;
           }
 
           // Create new messages array
           const newMessages = [...existingMessages, message];
 
-          console.log("[ChatStore] ✅ Adding message:", {
-            chatId: message.chatId,
-            messageId: message._id,
-            text: message.text.substring(0, 30),
-            totalNow: newMessages.length,
-          });
+          // console.log("[ChatStore] ✅ Adding message:", {
+          //   chatId: message.chatId,
+          //   messageId: message._id,
+          //   text: message.text.substring(0, 30),
+          //   totalNow: newMessages.length,
+          // });
 
           // ✅ Update messagesByChat with new reference (triggers re-render!)
           set(
@@ -321,15 +321,15 @@ export const useChatStore = create<ChatState>()(
               userRole,
               timestamp: Date.now(),
             };
-            console.log(
-              "[ChatStore] 👤 User typing:",
-              userId,
-              "in chat:",
-              chatId
-            );
+            // console.log(
+            //   "[ChatStore] 👤 User typing:",
+            //   userId,
+            //   "in chat:",
+            //   chatId
+            // );
           } else {
             delete newTypingUsers[chatId];
-            console.log("[ChatStore] 🛑 User stopped typing:", userId);
+            // console.log("[ChatStore] 🛑 User stopped typing:", userId);
           }
 
           // ✅ Set with new reference (triggers re-render!)
@@ -366,7 +366,7 @@ export const useChatStore = create<ChatState>()(
         },
 
         setCurrentUserId: (userId) => {
-          console.log("[ChatStore] Setting currentUserId:", userId);
+          // console.log("[ChatStore] Setting currentUserId:", userId);
           set({ currentUserId: userId }, false, "setCurrentUserId");
         },
 
@@ -405,10 +405,10 @@ export const useChatStore = create<ChatState>()(
             ? messagesByChat[activeChatId] || []
             : [];
 
-          console.log("[ChatStore] getCurrentMessages:", {
-            activeChatId,
-            messageCount: messages.length,
-          });
+          // console.log("[ChatStore] getCurrentMessages:", {
+          //   activeChatId,
+          //   messageCount: messages.length,
+          // });
 
           return messages;
         },

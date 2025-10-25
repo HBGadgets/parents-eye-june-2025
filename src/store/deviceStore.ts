@@ -220,19 +220,19 @@ export const useDeviceStore = create<DeviceState>()(
                         userId
                       );
                     } else {
-                      console.error(
-                        "[DeviceStore] ❌ No userId found in JWT. Keys:",
-                        Object.keys(payload)
-                      );
+                      // console.error(
+                      //   "[DeviceStore] ❌ No userId found in JWT. Keys:",
+                      //   Object.keys(payload)
+                      // );
                     }
                   } catch (err) {
-                    console.error(
-                      "[DeviceStore] ❌ Failed to decode JWT:",
-                      err
-                    );
+                    // console.error(
+                    //   "[DeviceStore] ❌ Failed to decode JWT:",
+                    //   err
+                    // );
                   }
                 } else {
-                  console.error("[DeviceStore] ❌ No token in cookies");
+                  // console.error("[DeviceStore] ❌ No token in cookies");
                 }
               }
 
@@ -250,7 +250,7 @@ export const useDeviceStore = create<DeviceState>()(
             },
 
             onError: (error: string) => {
-              console.error("[DeviceStore] Error:", error);
+              // console.error("[DeviceStore] Error:", error);
 
               set({
                 error,
@@ -364,7 +364,7 @@ export const useDeviceStore = create<DeviceState>()(
                   }
                 }
               } else {
-                console.error("[DeviceStore] ❌ No chatId in history messages");
+                // console.error("[DeviceStore] ❌ No chatId in history messages");
               }
               chatStore.setLoading(false);
             },
@@ -437,7 +437,7 @@ export const useDeviceStore = create<DeviceState>()(
             },
           });
         } catch (error) {
-          console.error("[DeviceStore] Connection failed:", error);
+          // console.error("[DeviceStore] Connection failed:", error);
           set({
             error: "Failed to initialize connection",
             isLoading: false,

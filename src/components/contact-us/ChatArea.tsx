@@ -36,6 +36,7 @@ interface ChatAreaProps {
   selectedContact: Contact | null;
   typingUser?: TypingUser | null; // NEW
   isLoading?: boolean; // NEW
+  sendTypingIndicator: () => void;
 }
 
 const ChatArea = ({
@@ -50,6 +51,7 @@ const ChatArea = ({
   selectedContact,
   typingUser, // NEW
   isLoading, // NEW
+  sendTypingIndicator,
 }: ChatAreaProps) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [typingTimeout, setTypingTimeout] = useState<NodeJS.Timeout | null>(
@@ -72,6 +74,44 @@ const ChatArea = ({
       console.log("[ChatArea] Typing user:", typingUser);
     }
   }, [typingUser]);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    console.log("[ChatArea] Input changed:", value.length, "chars");
+
+    // Update input text
+    onInputChange(value);
+
+    // Clear previous timeout
+    if (typingTimeout) {
+      clearTimeout(typingTimeout);
+    }
+
+    // Send typing indicator
+    if (value.length > 0) {
+      console.log("[ChatArea] Sending typing=true");
+      sendTypingIndicator(true);
+
+      // Auto-stop typing after 2 seconds
+      const timeout = setTimeout(() => {
+        console.log("[ChatArea] Auto-stopping typing");
+        sendTypingIndicator(false);
+      }, 2000);
+
+      setTypingTimeout(timeout);
+    } else {
+      console.log("[ChatArea] Sending typing=false (empty input)");
+      sendTypingIndicator(false);
+    }
+  };
+
+  // Stop typing when unmounting
+  useEffect(() => {
+    return () => {
+      if (typingTimeout) clearTimeout(typingTimeout);
+      sendTypingIndicator(false);
+    };
+  }, []);
 
   if (!selectedContact) {
     return (
@@ -131,14 +171,25 @@ const ChatArea = ({
               {chatName}
             </h2>
             {/* Show typing indicator in header if active */}
-            {typingUser ? (
-              <p className="text-xs text-blue-600 font-semibold">typing...</p>
-            ) : isBotChat ? (
-              <p className="text-xs text-green-700 font-semibold">● Online</p>
-            ) : (
-              <p className="text-xs text-gray-500 truncate">
-                {selectedContact.phone}
-              </p>
+            {typingUser && (
+              <div className="flex justify-start px-4 py-2">
+                <div className="flex items-end space-x-2">
+                  <PersonAvatar sender="bot" />
+                  <div className="px-4 py-3 bg-white rounded-2xl shadow border border-yellow-100">
+                    <div className="flex space-x-1 items-center">
+                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                      <div
+                        className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+                        style={{ animationDelay: "0.1s" }}
+                      ></div>
+                      <div
+                        className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+                        style={{ animationDelay: "0.2s" }}
+                      ></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
             )}
           </div>
         </div>
