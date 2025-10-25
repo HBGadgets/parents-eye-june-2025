@@ -34,9 +34,9 @@ interface ChatAreaProps {
   onToggleAttachMenu: () => void;
   onToggleSidebar: () => void;
   selectedContact: Contact | null;
-  typingUser?: TypingUser | null; // NEW
-  isLoading?: boolean; // NEW
-  sendTypingIndicator: () => void;
+  typingUser?: TypingUser | null;
+  isLoading?: boolean;
+  sendTypingIndicator: (isTyping: boolean) => void;
 }
 
 const ChatArea = ({
@@ -49,14 +49,22 @@ const ChatArea = ({
   onToggleAttachMenu,
   onToggleSidebar,
   selectedContact,
-  typingUser, // NEW
-  isLoading, // NEW
+  typingUser,
+  isLoading,
   sendTypingIndicator,
 }: ChatAreaProps) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [typingTimeout, setTypingTimeout] = useState<NodeJS.Timeout | null>(
     null
   );
+
+  // ✅ Store latest sendTypingIndicator in ref
+  const sendTypingIndicatorRef = useRef(sendTypingIndicator);
+
+  // ✅ Update ref when function changes
+  useEffect(() => {
+    sendTypingIndicatorRef.current = sendTypingIndicator;
+  }, [sendTypingIndicator]);
 
   // Auto-scroll to bottom when messages change
   useEffect(() => {
@@ -105,13 +113,18 @@ const ChatArea = ({
     }
   };
 
-  // Stop typing when unmounting
+  // ✅ Stop typing when unmounting - use ref
   useEffect(() => {
     return () => {
-      if (typingTimeout) clearTimeout(typingTimeout);
-      sendTypingIndicator(false);
+      if (typingTimeout) {
+        clearTimeout(typingTimeout);
+      }
+      // Use ref to avoid stale closure
+      if (sendTypingIndicatorRef.current) {
+        sendTypingIndicatorRef.current(false);
+      }
     };
-  }, []);
+  }, [typingTimeout]); // Only depend on typingTimeout
 
   if (!selectedContact) {
     return (
@@ -148,7 +161,6 @@ const ChatArea = ({
 
   const chatName = selectedContact.name;
   const chatAvatarLetter = selectedContact.name.charAt(0).toUpperCase();
-  const isBotChat = selectedContact.id === "1";
 
   return (
     <div className="flex-1 flex flex-col h-full bg-white">
@@ -170,27 +182,8 @@ const ChatArea = ({
             <h2 className="font-bold text-gray-900 text-base truncate">
               {chatName}
             </h2>
-            {/* Show typing indicator in header if active */}
-            {typingUser && (
-              <div className="flex justify-start px-4 py-2">
-                <div className="flex items-end space-x-2">
-                  <PersonAvatar sender="bot" />
-                  <div className="px-4 py-3 bg-white rounded-2xl shadow border border-yellow-100">
-                    <div className="flex space-x-1 items-center">
-                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                      <div
-                        className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
-                        style={{ animationDelay: "0.1s" }}
-                      ></div>
-                      <div
-                        className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
-                        style={{ animationDelay: "0.2s" }}
-                      ></div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
+            {/* Show typing indicator text in header if active */}
+            {typingUser && <p className="text-xs text-gray-600">typing...</p>}
           </div>
         </div>
 
@@ -286,10 +279,7 @@ const ChatArea = ({
           <input
             type="text"
             value={inputText}
-            onChange={(e) => {
-              console.log("[ChatArea] Input changed:", e.target.value);
-              onInputChange(e.target.value);
-            }}
+            onChange={handleInputChange}
             onKeyPress={(e) => {
               console.log("[ChatArea] Key pressed:", e.key);
               onKeyPress(e);
