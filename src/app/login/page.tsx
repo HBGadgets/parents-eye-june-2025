@@ -186,12 +186,23 @@ export default function LoginPage() {
                 </Button>
 
                 <div className="text-center pt-2">
-                  <Link
-                    href="#"
-                    className="text-sm text-yellow-600 hover:text-yellow-700 font-medium"
-                  >
-                    Forget Password
-                  </Link>
+                  <div className="text-center">
+                    <span className="text-xs text-muted-foreground">
+                      By continuing, you agree to our{" "}
+                      <u>
+                        <Link href="https://www.parentseye.in/terms">
+                          Terms
+                        </Link>
+                      </u>{" "}
+                      and{" "}
+                      <u>
+                        <Link href="https://www.parentseye.in/privacy">
+                          Privacy Policy
+                        </Link>
+                      </u>
+                      .
+                    </span>
+                  </div>
                 </div>
               </form>
             </CardContent>
