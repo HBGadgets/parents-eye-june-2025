@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { loginUser } from "@/services/userService";
 import Image from "next/image";
-import { Eye, EyeOff, Fullscreen } from "lucide-react";
+import { Eye, EyeOff, Loader2 } from "lucide-react"; // Added Loader2
 import Link from "next/link";
 
 export default function LoginPage() {
@@ -17,6 +17,7 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(false); // ✅ Added loading state
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -26,12 +27,13 @@ export default function LoginPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsLoading(true); // ✅ Set loading to true
 
     try {
-      const data = await loginUser(email, password); // 🟢 API call
+      const data = await loginUser(email, password);
 
       if (data?.token) {
-        login(data.token); // update Zustand store
+        login(data.token);
         router.push("/dashboard");
       } else {
         alert("Invalid response from server.");
@@ -39,6 +41,8 @@ export default function LoginPage() {
     } catch (error: any) {
       console.error("Login error:", error);
       alert("Login failed. Please check your credentials.");
+    } finally {
+      setIsLoading(false); // ✅ Always set loading to false
     }
   };
 
@@ -120,6 +124,7 @@ export default function LoginPage() {
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       required
+                      disabled={isLoading} // ✅ Disable during loading
                       className="h-12 pl-10 text-base border-gray-300 focus:border-yellow-500 focus:ring-yellow-500"
                     />
                   </div>
@@ -151,6 +156,7 @@ export default function LoginPage() {
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       required
+                      disabled={isLoading} // ✅ Disable during loading
                       className="h-12 pl-10 pr-10 text-base border-gray-300 focus:border-yellow-500 focus:ring-yellow-500"
                     />
                     <button
@@ -158,6 +164,7 @@ export default function LoginPage() {
                       className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
                       onClick={() => setShowPassword((prev) => !prev)}
                       tabIndex={-1}
+                      disabled={isLoading} // ✅ Disable during loading
                     >
                       {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                     </button>
@@ -168,6 +175,7 @@ export default function LoginPage() {
                   <input
                     type="checkbox"
                     id="remember"
+                    disabled={isLoading} // ✅ Disable during loading
                     className="w-4 h-4 text-yellow-500 border-gray-300 rounded focus:ring-yellow-500"
                   />
                   <label
@@ -180,11 +188,18 @@ export default function LoginPage() {
 
                 <Button
                   type="submit"
-                  className="w-full h-12 text-base font-semibold bg-gradient-to-r from-yellow-400 to-yellow-500 hover:from-yellow-500 hover:to-yellow-600 text-gray-900 shadow-lg mt-6"
+                  disabled={isLoading} // ✅ Disable button during loading
+                  className="w-full h-12 text-base font-semibold bg-gradient-to-r from-yellow-400 to-yellow-500 hover:from-yellow-500 hover:to-yellow-600 text-gray-900 shadow-lg mt-6 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Login
+                  {isLoading ? ( // ✅ Show loader when loading
+                    <>
+                      <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                      Logging in...
+                    </>
+                  ) : (
+                    "Login"
+                  )}
                 </Button>
-
                 <div className="text-center pt-2">
                   <div className="text-center">
                     <span className="text-xs text-muted-foreground">
