@@ -1,7 +1,6 @@
-
 "use client";
 
-import React, { useCallback, useEffect, useState, useRef } from "react";
+import React, { useCallback, useEffect, useState, useRef, useMemo } from "react";
 import {
   Dialog,
   DialogClose,
@@ -17,7 +16,7 @@ import SearchComponent from "@/components/ui/SearchOnlydata";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { SearchableSelect } from "@/components/custom-select";
+import { Combobox } from "@/components/ui/combobox";
 import DateRangeFilter from "@/components/ui/DateRangeFilter";
 import { FloatingMenu } from "@/components/floatingMenu";
 import {
@@ -72,8 +71,9 @@ export default function BranchMaster() {
     React.useState<VisibilityState>({});
   const { exportToPDF, exportToExcel } = useExport();
   const { data: schoolData } = useSchoolData();
-  const [school, setSchool] = useState<string | undefined>(undefined);
-const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [school, setSchool] = useState<string>("");
+  const [schoolSearch, setSchoolSearch] = useState("");
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [isVerificationDialogOpen, setIsVerificationDialogOpen] = useState(false);
   const [isVerified, setIsVerified] = useState(false);
   const [currentProtectedField, setCurrentProtectedField] = useState<string | null>(null);
@@ -92,16 +92,18 @@ const [selectedDate, setSelectedDate] = useState<Date | null>(null);
     },
   });
 
-  // School data
-  const schoolOptions: SelectOption[] = schoolData
-    ? Array.from(
-        new Map(
-          schoolData
-            .filter((s) => s._id && s.schoolName)
-            .map((s) => [s._id, { label: s.schoolName, value: s._id }])
-        ).values()
-      )
-    : [];
+  // School data - Convert to Combobox format
+  const schoolOptions = useMemo(() => 
+    schoolData && schoolData.length > 0 
+      ? schoolData
+          .filter((s) => s._id && s.schoolName)
+          .map((s) => ({ 
+            label: s.schoolName, 
+            value: s._id 
+          }))
+      : [], 
+    [schoolData]
+  );
 
   useEffect(() => {
     if (branchs && branchs.length > 0) {
@@ -249,7 +251,7 @@ const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   ];
 
   // Define the fields for the edit dialog
-  const getBranchFieldConfigs = (schoolOptions: SelectOption[]): FieldConfig[] => [
+  const getBranchFieldConfigs = (schoolOptions: { label: string; value: string }[]): FieldConfig[] => [
     {
       label: "Branch Name",
       key: "branchName",
@@ -448,7 +450,8 @@ const formattedDate = selectedDate
       await addbranchMutation.mutateAsync(data);
       closeButtonRef.current?.click();
       form.reset();
-      setSchool(undefined);
+      setSchool("");
+      setSchoolSearch("");
       alert("Branch added successfully.");
     } catch (err: any) {
       alert(`Failed to add branch: ${err.response?.data?.message || err.message}`);
@@ -544,13 +547,17 @@ const formattedDate = selectedDate
                     />
                   </div>
                   <div className="grid gap-2">
-                    <Label htmlFor="schoolId">School</Label>
-                    <SearchableSelect
-                      value={school}
-                      onChange={setSchool}
-                      options={schoolOptions}
-                      placeholder="Select school"
-                      allowClear={true}
+                    <Label htmlFor="schoolId">School *</Label>
+                    <Combobox 
+                      items={schoolOptions} 
+                      value={school} 
+                      onValueChange={setSchool}
+                      placeholder="Search school..." 
+                      searchPlaceholder="Search schools..." 
+                      emptyMessage="No school found."
+                      width="w-full" 
+                      onSearchChange={setSchoolSearch} 
+                      searchValue={schoolSearch} 
                     />
                   </div>
                   <div className="grid gap-2">

@@ -16,6 +16,7 @@ import SearchComponent from "@/components/ui/SearchOnlydata";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Combobox } from "@/components/ui/combobox";
 import DateRangeFilter from "@/components/ui/DateRangeFilter";
 import { FloatingMenu } from "@/components/floatingMenu";
 import {
@@ -35,7 +36,9 @@ import { CustomFilter } from "@/components/ui/CustomFilter";
 import { ColumnVisibilitySelector } from "@/components/column-visibility-selector";
 import { useSchoolData } from "@/hooks/useSchoolData";
 import { useBranchData } from "@/hooks/useBranchData";
-import { useDeviceData } from "@/hooks/useDeviceData";
+import { useInfiniteDeviceData } from "@/hooks/useInfiniteDeviceData";
+import Cookies from "js-cookie";
+import { getDecodedToken } from "@/lib/jwt";
 
 declare module "@tanstack/react-table" {
   interface ColumnMeta<TData, TValue> {
@@ -57,6 +60,209 @@ interface SelectOption {
   value: string;
 }
 
+// Helper function to get device items (moved outside component)
+const getDeviceItems = (deviceData: any) => {
+  if (!deviceData?.pages?.length) return [];
+  return deviceData.pages.flatMap((pg: any) => {
+    const list = pg.devices ?? pg.data ?? [];
+    return list.filter((d: any) => d._id && d.name).map((d: any) => ({ label: d.name, value: d._id }));
+  });
+};
+
+// Reusable Form Component
+const SupervisorForm = ({ 
+  formData, 
+  onInputChange, 
+  school, 
+  setSchool,
+  schoolSearch,
+  setSchoolSearch,
+  branch, 
+  setBranch,
+  branchSearch,
+  setBranchSearch,
+  device, 
+  setDevice,
+  deviceSearch,
+  setDeviceSearch,
+  schoolOptions,
+  branchOptions,
+  deviceItems,
+  hasNextPage,
+  fetchNextPage,
+  isFetchingNextPage,
+  isFetching,
+  usernameError,
+}: any) => (
+  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <div className="grid gap-2">
+      <Label htmlFor="supervisorName">Supervisor Name</Label>
+      <Input
+        id="supervisorName"
+        name="supervisorName"
+        value={formData?.supervisorName}
+        onChange={onInputChange}
+        placeholder="Enter supervisor name"
+        required
+      />
+    </div>
+    
+    <div className="grid gap-2">
+      <Label>School *</Label>
+      <Combobox 
+        items={schoolOptions} 
+        value={school} 
+        onValueChange={setSchool}
+        placeholder="Search school..." 
+        searchPlaceholder="Search schools..." 
+        emptyMessage="No school found."
+        width="w-full" 
+        onSearchChange={setSchoolSearch} 
+        searchValue={schoolSearch} 
+      />
+    </div>
+
+    <div className="grid gap-2">
+      <Label>Branch *</Label>
+      <Combobox 
+        items={branchOptions} 
+        value={branch} 
+        onValueChange={setBranch}
+        placeholder={!school ? "Select school first" : branchOptions.length ? "Search branch..." : "No branches available"}
+        searchPlaceholder="Search branches..." 
+        emptyMessage={!school ? "Please select a school first" : branchOptions.length === 0 ? "No branches found for this school" : "No branches match your search"}
+        width="w-full" 
+        disabled={!school}
+        onSearchChange={setBranchSearch} 
+        searchValue={branchSearch} 
+      />
+    </div>
+
+    <div className="grid gap-2">
+      <Label>Device *</Label>
+      <Combobox 
+        items={deviceItems} 
+        value={device} 
+        onValueChange={setDevice}
+        placeholder={!school ? "Select school first" : !branch ? "Select branch first" : "Search device..."}
+        searchPlaceholder="Search devices..." 
+        emptyMessage={!school ? "Please select a school first" : !branch ? "Please select a branch first" : "No devices found"}
+        width="w-full" 
+        disabled={!branch}
+        onSearchChange={setDeviceSearch} 
+        searchValue={deviceSearch}
+        onReachEnd={() => {
+          if (hasNextPage && !isFetchingNextPage && !isFetching) {
+            fetchNextPage();
+          }
+        }}
+        isLoadingMore={isFetchingNextPage}
+      />
+    </div>
+
+    <div className="grid gap-2">
+      <Label htmlFor="email">Email</Label>
+      <Input
+        id="email"
+        name="email"
+        type="email"
+        value={formData?.email}
+        onChange={onInputChange}
+        placeholder="Enter email address"
+        required
+      />
+    </div>
+
+    <div className="grid gap-2">
+      <Label htmlFor="supervisorMobile">Mobile No</Label>
+      <Input
+        id="supervisorMobile"
+        name="supervisorMobile"
+        type="tel"
+        value={formData?.supervisorMobile}
+        onChange={onInputChange}
+        placeholder="Enter mobile number"
+        pattern="[0-9]{10}"
+        maxLength={10}
+        required
+      />
+    </div>
+
+    <div className="grid gap-2">
+      <Label htmlFor="username">Username</Label>
+      <Input
+        id="username"
+        name="username"
+        value={formData?.username}
+        onChange={onInputChange}
+        placeholder="Enter username"
+        required
+        className={usernameError ? "border-red-500" : ""}
+      />
+      {usernameError && <p className="text-red-500 text-sm">{usernameError}</p>}
+    </div>
+
+    <div className="grid gap-2">
+      <Label htmlFor="password">Password</Label>
+      <Input
+        id="password"
+        name="password"
+        type="text"
+        value={formData?.password}
+        onChange={onInputChange}
+        placeholder="Enter password"
+        required
+      />
+    </div>
+  </div>
+);
+
+// Custom hook for form state management
+const useSupervisorForm = (initialData?: Supervisor) => {
+  const [school, setSchool] = useState("");
+  const [schoolSearch, setSchoolSearch] = useState("");
+  const [branch, setBranch] = useState("");
+  const [branchSearch, setBranchSearch] = useState("");
+  const [device, setDevice] = useState("");
+  const [deviceSearch, setDeviceSearch] = useState("");
+
+  useEffect(() => {
+    if (initialData) {
+      setSchool(initialData.schoolId?._id || initialData.schoolId || "");
+      setBranch(initialData.branchId?._id || initialData.branchId || "");
+      setDevice(initialData.deviceObjId?._id || initialData.deviceObjId || "");
+    }
+  }, [initialData]);
+
+  const resetForm = () => {
+    setSchool("");
+    setSchoolSearch("");
+    setBranch("");
+    setBranchSearch("");
+    setDevice("");
+    setDeviceSearch("");
+  };
+
+  useEffect(() => {
+    setBranch("");
+    setBranchSearch("");
+    setDevice("");
+    setDeviceSearch("");
+  }, [school]);
+
+  useEffect(() => {
+    setDevice("");
+    setDeviceSearch("");
+  }, [branch]);
+
+  return {
+    school, setSchool, schoolSearch, setSchoolSearch,
+    branch, setBranch, branchSearch, setBranchSearch,
+    device, setDevice, deviceSearch, setDeviceSearch,
+    resetForm
+  };
+};
+
 export default function SupervisorApprove() {
   const queryClient = useQueryClient();
   const closeButtonRef = useRef<HTMLButtonElement>(null);
@@ -66,18 +272,15 @@ export default function SupervisorApprove() {
   const [deleteTarget, setDeleteTarget] = useState<Supervisor | null>(null);
   const [editTarget, setEditTarget] = useState<Supervisor | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
-  const [school, setSchool] = useState<string>("");
-  const [branch, setBranch] = useState<string>("");
-  const [device, setDevice] = useState<string>("");
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
+  const [role, setRole] = useState<string | null>(null);
 
-  // Edit form state for cascading dropdowns
-  const [editSelectedSchool, setEditSelectedSchool] = useState("");
-  const [editSelectedBranch, setEditSelectedBranch] = useState("");
+  // Form hooks
+  const addForm = useSupervisorForm();
+  const editForm = useSupervisorForm(editTarget || undefined);
 
   const { data: schoolData, isLoading: schoolsLoading } = useSchoolData();
   const { data: branchData, isLoading: branchesLoading } = useBranchData();
-  const { data: deviceData, isLoading: devicesLoading } = useDeviceData();
 
   // Fetch supervisor data
   const {
@@ -93,6 +296,38 @@ export default function SupervisorApprove() {
     },
   });
 
+  const normalizedRole = useMemo(() => {
+    const r = (role || "").toLowerCase();
+    if (["superadmin", "super_admin", "admin", "root"].includes(r)) return "superAdmin";
+    if (["school", "schooladmin"].includes(r)) return "school";
+    if (["branch", "branchadmin"].includes(r)) return "branch";
+    return undefined;
+  }, [role]);
+
+  useEffect(() => {
+    const token = Cookies.get("token");
+    if (token) {
+      const decoded = getDecodedToken(token);
+      setRole((decoded?.role || "").toLowerCase());
+    }
+  }, []);
+
+  // Device data for add dialog
+  const addDeviceQuery = useInfiniteDeviceData({
+    role: normalizedRole as any,
+    branchId: addForm.branch || undefined,
+    search: addForm.deviceSearch,
+    limit: 20,
+  });
+
+  // Device data for edit dialog
+  const editDeviceQuery = useInfiniteDeviceData({
+    role: normalizedRole as any,
+    branchId: editForm.branch || undefined,
+    search: editForm.deviceSearch,
+    limit: 20,
+  });
+
   // School options
   const schoolOptions: SelectOption[] = useMemo(() => {
     if (!schoolData) return [];
@@ -105,6 +340,33 @@ export default function SupervisorApprove() {
     );
   }, [schoolData]);
 
+  const getFilteredBranchOptions = useCallback((schoolId: string) => {
+    if (!schoolId || !branchData) return [];
+    return branchData
+      .filter(branch => {
+        const branchSchoolId = branch.schoolId 
+          ? (typeof branch.schoolId === 'object' ? branch.schoolId?._id : branch.schoolId)
+          : null;
+        return branchSchoolId === schoolId;
+      })
+      .map(branch => ({
+        label: branch.branchName,
+        value: branch._id
+      }));
+  }, [branchData]);
+
+  // Get device items for add form
+  const addDeviceItems = useMemo(() => 
+    getDeviceItems(addDeviceQuery.data),
+    [addDeviceQuery.data]
+  );
+
+  // Get device items for edit form
+  const editDeviceItems = useMemo(() => 
+    getDeviceItems(editDeviceQuery.data),
+    [editDeviceQuery.data]
+  );
+
   useEffect(() => {
     if (supervisors && supervisors.length > 0) {
       setFilteredData(supervisors);
@@ -112,124 +374,8 @@ export default function SupervisorApprove() {
     }
   }, [supervisors]);
 
-  // Branch options - all branches
-  const allBranchOptions: SelectOption[] = useMemo(() => {
-    if (!branchData) return [];
-    return Array.from(
-      new Map(
-        branchData
-          .filter((b) => b._id && b.branchName)
-          .map((b) => [b._id, { label: b.branchName, value: b._id }])
-      ).values()
-    );
-  }, [branchData]);
-
-  // Device options - all devices
-  const allDeviceOptions: SelectOption[] = useMemo(() => {
-    if (!deviceData?.devices) return [];
-    return Array.from(
-      new Map(
-        deviceData.devices
-          .filter((d) => d._id && d.name)
-          .map((d) => [d._id, { label: d.name, value: d._id }])
-      ).values()
-    );
-  }, [deviceData]);
-
-  // Filter branches based on selected school (Add form)
-  const filteredBranchOptions = useMemo(() => {
-    if (!school || !branchData) return [];
-    return branchData
-      .filter(branch => {
-        const branchSchoolId = branch.schoolId 
-          ? (typeof branch.schoolId === 'object' ? branch.schoolId?._id : branch.schoolId)
-          : null;
-        return branchSchoolId === school;
-      })
-      .map(branch => ({
-        label: branch.branchName,
-        value: branch._id
-      }));
-  }, [school, branchData]);
-
-  // Filter devices based on selected branch (Add form)
-  const filteredDeviceOptions = useMemo(() => {
-    if (!branch || !deviceData?.devices) return [];
-    return deviceData.devices
-      .filter(device => {
-        const deviceBranchId = device.branchId 
-          ? (typeof device.branchId === 'object' ? device.branchId?._id : device.branchId)
-          : null;
-        return deviceBranchId === branch;
-      })
-      .map(device => ({
-        label: device.name,
-        value: device._id
-      }));
-  }, [branch, deviceData]);
-
-  // Filter branches for edit dialog
-  const editFilteredBranchOptions = useMemo(() => {
-    if (!editSelectedSchool || !branchData) return allBranchOptions;
-    return branchData
-      .filter(branch => {
-        const branchSchoolId = branch.schoolId 
-          ? (typeof branch.schoolId === 'object' ? branch.schoolId?._id : branch.schoolId)
-          : null;
-        return branchSchoolId === editSelectedSchool;
-      })
-      .map(branch => ({
-        label: branch.branchName,
-        value: branch._id
-      }));
-  }, [editSelectedSchool, branchData, allBranchOptions]);
-
-  // Filter devices for edit dialog
-  const editFilteredDeviceOptions = useMemo(() => {
-    if (!editSelectedBranch || !deviceData?.devices) return allDeviceOptions;
-    return deviceData.devices
-      .filter(device => {
-        const deviceBranchId = device.branchId 
-          ? (typeof device.branchId === 'object' ? device.branchId?._id : device.branchId)
-          : null;
-        return deviceBranchId === editSelectedBranch;
-      })
-      .map(device => ({
-        label: device.name,
-        value: device._id
-      }));
-  }, [editSelectedBranch, deviceData, allDeviceOptions]);
-
-  // Reset branch and device when school changes
-  useEffect(() => {
-    setBranch("");
-    setDevice("");
-  }, [school]);
-
-  // Reset device when branch changes
-  useEffect(() => {
-    setDevice("");
-  }, [branch]);
-
-  // Set edit form initial values when edit target changes
-  useEffect(() => {
-    if (editTarget) {
-      const schoolId = typeof editTarget.schoolId === 'object' 
-        ? editTarget.schoolId?._id || "" 
-        : editTarget.schoolId || "";
-      const branchId = typeof editTarget.branchId === 'object' 
-        ? editTarget.branchId?._id || "" 
-        : editTarget.branchId || "";
-      
-      setEditSelectedSchool(schoolId);
-      setEditSelectedBranch(branchId);
-    } else {
-      setEditSelectedSchool("");
-      setEditSelectedBranch("");
-    }
-  }, [editTarget]);
-
-  const columns: ColumnDef<Supervisor, CellContent>[] = [
+  // Define columns
+  const columns: ColumnDef<Supervisor, CellContent>[] = useMemo(() => [
     {
       header: "Supervisor Name",
       accessorFn: (row) => ({
@@ -239,7 +385,7 @@ export default function SupervisorApprove() {
       meta: { flex: 1, minWidth: 200, maxWidth: 300 },
       enableHiding: true,
     },
-     {
+    {
       header: "School Name",
       accessorFn: (row) => ({
         type: "text",
@@ -248,7 +394,7 @@ export default function SupervisorApprove() {
       meta: { flex: 1, minWidth: 200, maxWidth: 300 },
       enableHiding: true,
     },
-     {
+    {
       header: "Branch Name",
       accessorFn: (row) => ({
         type: "text",
@@ -311,7 +457,6 @@ export default function SupervisorApprove() {
       meta: { flex: 1, minWidth: 120, maxWidth: 150 },
       enableHiding: true,
     },
-
     {
       header: "Approve/Reject",
       accessorFn: (row) => ({
@@ -365,7 +510,6 @@ export default function SupervisorApprove() {
       enableSorting: false,
       enableHiding: true,
     },
-
     {
       header: "Action",
       accessorFn: (row) => ({
@@ -394,10 +538,10 @@ export default function SupervisorApprove() {
       enableSorting: false,
       enableHiding: true,
     },
-  ];
+  ], []);
 
   // columns for export
-  const columnsForExport = [
+  const columnsForExport = useMemo(() => [
     { key: "supervisorName", header: "Supervisor Name" },
     { key: "supervisorMobile", header: "Mobile" },
     { key: "username", header: "Supervisor Username" },
@@ -407,56 +551,7 @@ export default function SupervisorApprove() {
     { key: "deviceObjId.name", header: "Device Name" },
     { key: "status", header: "Status" },
     { key: "createdAt", header: "Registration Date" },
-  ];
-
-  // Define the fields for the edit dialog
-  const supervisorFieldConfigs: FieldConfig[] = [
-    {
-      label: "Supervisor Name",
-      key: "supervisorName",
-      type: "text",
-      required: true,
-    },
-    {
-      label: "School Name",
-      key: "schoolId",
-      type: "select",
-      required: true,
-      options: schoolOptions,
-    },
-    {
-      label: "Branch Name",
-      key: "branchId",
-      type: "select",
-      required: true,
-      options: editFilteredBranchOptions.length > 0 ? editFilteredBranchOptions : allBranchOptions,
-    },
-    {
-      label: "Device Name",
-      key: "deviceObjId",
-      type: "select",
-      required: true,
-      options: editFilteredDeviceOptions.length > 0 ? editFilteredDeviceOptions : allDeviceOptions,
-    },
-    {
-      label: "Mobile Number",
-      key: "supervisorMobile",
-      type: "text",
-      required: true,
-    },
-    {
-      label: "Username",
-      key: "username",
-      type: "text",
-      required: true,
-    },
-    {
-      label: "Password",
-      key: "password",
-      type: "text",
-      required: true,
-    },
-  ];
+  ], []);
 
   // Mutation to add a new supervisor
   const addSupervisorMutation = useMutation({
@@ -467,7 +562,9 @@ export default function SupervisorApprove() {
     onSuccess: (createdSupervisor, variables) => {
       const schoolObj = schoolData?.find(s => s._id === variables.schoolId);
       const branchObj = branchData?.find(b => b._id === variables.branchId);
-      const deviceObj = deviceData?.devices?.find(d => d._id === variables.deviceObjId);
+      
+      // Find device from the current device items
+      const deviceObj = addDeviceItems.find(d => d.value === variables.deviceObjId);
 
       const newSupervisorWithResolvedReferences = {
         ...createdSupervisor,
@@ -479,13 +576,14 @@ export default function SupervisorApprove() {
           ? { _id: branchObj._id, branchName: branchObj.branchName }
           : { _id: variables.branchId, branchName: "Unknown Branch" },
         deviceObjId: deviceObj
-          ? { _id: deviceObj._id, name: deviceObj.name }
+          ? { _id: deviceObj.value, name: deviceObj.label }
           : { _id: variables.deviceObjId, name: "Unknown Device" },
       };
 
       queryClient.setQueryData<Supervisor[]>(["supervisors"], (oldSupervisors = []) => {
         return [...oldSupervisors, newSupervisorWithResolvedReferences];
       });
+      alert("Supervisor added successfully.");
     },
     onError: (error: any) => {
       alert(
@@ -516,8 +614,8 @@ export default function SupervisorApprove() {
       );
       alert("Access updated successfully.");
     },
-    onError: (err) => {
-      alert("Failed to update access.\nerror: " + err);
+    onError: (err: any) => {
+      alert("Failed to update access.\nerror: " + err.message);
     },
   });
 
@@ -536,12 +634,11 @@ export default function SupervisorApprove() {
       queryClient.invalidateQueries({ queryKey: ['supervisors'] });
       setEditDialogOpen(false);
       setEditTarget(null);
-      setEditSelectedSchool("");
-      setEditSelectedBranch("");
+      editForm.resetForm();
       alert("Supervisor updated successfully.");
     },
-    onError: (err) => {
-      alert("Failed to update supervisor.\nerror: " + err);
+    onError: (err: any) => {
+      alert("Failed to update supervisor.\nerror: " + err.message);
     },
   });
 
@@ -556,8 +653,8 @@ export default function SupervisorApprove() {
       );
       alert("Supervisor deleted successfully.");
     },
-    onError: (err) => {
-      alert("Failed to delete supervisor.\nerror: " + err);
+    onError: (err: any) => {
+      alert("Failed to delete supervisor.\nerror: " + err.message);
     },
   });
 
@@ -590,7 +687,7 @@ export default function SupervisorApprove() {
     }
 
     if (Object.keys(changedFields).length === 0) {
-      console.log("No changes detected.");
+      alert("No changes detected.");
       return;
     }
 
@@ -603,10 +700,12 @@ export default function SupervisorApprove() {
   // Custom field change handler for edit dialog
   const handleEditFieldChange = (key: string, value: any) => {
     if (key === "schoolId") {
-      setEditSelectedSchool(value);
-      setEditSelectedBranch("");
+      editForm.setSchool(value);
+      editForm.setBranch("");
+      editForm.setDevice("");
     } else if (key === "branchId") {
-      setEditSelectedBranch(value);
+      editForm.setBranch(value);
+      editForm.setDevice("");
     }
   };
 
@@ -615,14 +714,8 @@ export default function SupervisorApprove() {
     const form = e.currentTarget;
     const formData = new FormData(form);
 
-    if (!school) {
-      alert("Please select a school");
-      return;
-    } else if (!branch) {
-      alert("Please select a branch");
-      return;
-    } else if (!device) {
-      alert("Please select a device");
+    if (!addForm.school || !addForm.branch || !addForm.device) {
+      alert("Please select School, Branch, and Device");
       return;
     }
 
@@ -632,9 +725,9 @@ export default function SupervisorApprove() {
       username: formData.get("username") as string,
       password: formData.get("password") as string,
       email: formData.get("email") as string,
-      schoolId: school,
-      branchId: branch,
-      deviceObjId: device,
+      schoolId: addForm.school,
+      branchId: addForm.branch,
+      deviceObjId: addForm.device,
     };
 
     await addSupervisorMutation.mutateAsync(data);
@@ -642,10 +735,7 @@ export default function SupervisorApprove() {
     if (!addSupervisorMutation.isError) {
       closeButtonRef.current?.click();
       form.reset();
-      setSchool("");
-      setBranch("");
-      setDevice("");
-      alert("Supervisor added successfully.");
+      addForm.resetForm();
     }
   };
 
@@ -693,6 +783,55 @@ export default function SupervisorApprove() {
         deviceObjId: typeof editTarget.deviceObjId === 'object' ? editTarget.deviceObjId?._id || "" : editTarget.deviceObjId || "",
       }
     : null;
+
+  // Define the fields for the edit dialog
+  const supervisorFieldConfigs: FieldConfig[] = useMemo(() => [
+    {
+      label: "Supervisor Name",
+      key: "supervisorName",
+      type: "text",
+      required: true,
+    },
+    {
+      label: "School Name",
+      key: "schoolId",
+      type: "select",
+      required: true,
+      options: schoolOptions,
+    },
+    {
+      label: "Branch Name",
+      key: "branchId",
+      type: "select",
+      required: true,
+      options: getFilteredBranchOptions(editForm.school),
+    },
+    {
+      label: "Device Name",
+      key: "deviceObjId",
+      type: "select",
+      required: true,
+      options: editDeviceItems,
+    },
+    {
+      label: "Mobile Number",
+      key: "supervisorMobile",
+      type: "text",
+      required: true,
+    },
+    {
+      label: "Username",
+      key: "username",
+      type: "text",
+      required: true,
+    },
+    {
+      label: "Password",
+      key: "password",
+      type: "text",
+      required: true,
+    },
+  ], [schoolOptions, getFilteredBranchOptions, editForm.school, editDeviceItems]);
 
   return (
     <main>
@@ -753,136 +892,27 @@ export default function SupervisorApprove() {
                 <DialogHeader>
                   <DialogTitle>Add Supervisor</DialogTitle>
                 </DialogHeader>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="grid gap-2">
-                    <Label htmlFor="supervisorName">Supervisor Name *</Label>
-                    <Input
-                      id="supervisorName"
-                      name="supervisorName"
-                      placeholder="Enter supervisor name"
-                      required
-                    />
-                  </div>
-                  
-                  <div className="grid gap-2">
-                    <Label htmlFor="schoolId">School *</Label>
-                    <select
-                      id="schoolId"
-                      name="schoolId"
-                      required
-                      disabled={schoolsLoading}
-                      value={school}
-                      onChange={(e) => {
-                        setSchool(e.target.value);
-                        setBranch("");
-                        setDevice("");
-                      }}
-                      className="flex h-10 w-full rounded-md border px-3 py-2 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <option value="">Select School</option>
-                      {schoolOptions.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  
-                  <div className="grid gap-2">
-                    <Label htmlFor="branchId">Branch *</Label>
-                    <select
-                      id="branchId"
-                      name="branchId"
-                      required
-                      disabled={branchesLoading || !school}
-                      value={branch}
-                      onChange={(e) => {
-                        setBranch(e.target.value);
-                        setDevice("");
-                      }}
-                      className="flex h-10 w-full rounded-md border px-3 py-2 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <option value="">
-                        {!school ? "Select school first" : filteredBranchOptions.length ? "Select branch" : "No branches available"}
-                      </option>
-                      {filteredBranchOptions.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  
-                  <div className="grid gap-2">
-                    <Label htmlFor="deviceObjId">Device *</Label>
-                    <select
-                      id="deviceObjId"
-                      name="deviceObjId"
-                      required
-                      disabled={devicesLoading || !branch}
-                      value={device}
-                      onChange={(e) => setDevice(e.target.value)}
-                      className="flex h-10 w-full rounded-md border px-3 py-2 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <option value="">
-                        {!school ? "Select school first" : !branch ? "Select branch first" : filteredDeviceOptions.length ? "Select device" : "No devices available"}
-                      </option>
-                      {filteredDeviceOptions.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  
-                  <div className="grid gap-2">
-                    <Label htmlFor="email">Email *</Label>
-                    <Input
-                      id="email"
-                      name="email"
-                      type="email"
-                      placeholder="Enter email address"
-                      required
-                    />
-                  </div>
-
-                  <div className="grid gap-2">
-                    <Label htmlFor="supervisorMobile">Mobile No</Label>
-                    <Input
-                      id="supervisorMobile"
-                      name="supervisorMobile"
-                      type="tel"
-                      placeholder="Enter supervisor mobile number"
-                      pattern="[0-9]{10}"
-                      maxLength={10}
-                      autoComplete="tel"
-                      required
-                    />
-                  </div>
-
-                  <div className="grid gap-2">
-                    <Label htmlFor="username">Username</Label>
-                    <Input
-                      id="username"
-                      name="username"
-                      type="text"
-                      placeholder="Enter username"
-                      required
-                    />
-                  </div>
-
-                  <div className="grid gap-2">
-                    <Label htmlFor="password">Password</Label>
-                    <Input
-                      id="password"
-                      name="password"
-                      type="text"
-                      placeholder="Enter password"
-                      required
-                    />
-                  </div>
-                </div>
-
+                <SupervisorForm
+                  school={addForm.school}
+                  setSchool={addForm.setSchool}
+                  schoolSearch={addForm.schoolSearch}
+                  setSchoolSearch={addForm.setSchoolSearch}
+                  branch={addForm.branch}
+                  setBranch={addForm.setBranch}
+                  branchSearch={addForm.branchSearch}
+                  setBranchSearch={addForm.setBranchSearch}
+                  device={addForm.device}
+                  setDevice={addForm.setDevice}
+                  deviceSearch={addForm.deviceSearch}
+                  setDeviceSearch={addForm.setDeviceSearch}
+                  schoolOptions={schoolOptions}
+                  branchOptions={getFilteredBranchOptions(addForm.school)}
+                  deviceItems={addDeviceItems}
+                  hasNextPage={addDeviceQuery.hasNextPage}
+                  fetchNextPage={addDeviceQuery.fetchNextPage}
+                  isFetchingNextPage={addDeviceQuery.isFetchingNextPage}
+                  isFetching={addDeviceQuery.isFetching}
+                />
                 <DialogFooter>
                   <DialogClose asChild>
                     <Button ref={closeButtonRef} variant="outline">
@@ -943,8 +973,7 @@ export default function SupervisorApprove() {
             onClose={() => {
               setEditDialogOpen(false);
               setEditTarget(null);
-              setEditSelectedSchool("");
-              setEditSelectedBranch("");
+              editForm.resetForm();
             }}
             onSave={handleSave}
             onFieldChange={handleEditFieldChange}
@@ -963,7 +992,6 @@ export default function SupervisorApprove() {
       <section>
         <FloatingMenu
           onExportPdf={() => {
-            console.log("Export PDF triggered");
             exportToPDF(filteredData, columnsForExport, {
               title: "Supervisor Master Report",
               companyName: "Parents Eye",
@@ -973,7 +1001,6 @@ export default function SupervisorApprove() {
             });
           }}
           onExportExcel={() => {
-            console.log("Export Excel triggered");
             exportToExcel(filteredData, columnsForExport, {
               title: "Supervisor Master Report",
               companyName: "Parents Eye",
