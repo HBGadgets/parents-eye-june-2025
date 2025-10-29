@@ -136,12 +136,12 @@ const DriverForm = ({
     </div>
 
     <div className="grid gap-2">
-      <Label htmlFor="driverMobile">Mobile No</Label>
+      <Label htmlFor="mobileNo">Mobile No</Label>
       <Input
-        id="driverMobile"
-        name="driverMobile"
+        id="mobileNo"
+        name="mobileNo"
         type="tel"
-        value={formData?.driverMobile}
+        value={formData?.mobileNo}
         onChange={onInputChange}
         placeholder="Enter mobile number"
         pattern="[0-9]{10}"
@@ -179,6 +179,164 @@ const DriverForm = ({
   </div>
 );
 
+// Add Driver Form Component with proper state management
+const AddDriverForm = ({ 
+  school, 
+  setSchool,
+  schoolSearch,
+  setSchoolSearch,
+  branch, 
+  setBranch,
+  branchSearch,
+  setBranchSearch,
+  device, 
+  setDevice,
+  deviceSearch,
+  setDeviceSearch,
+  schoolOptions,
+  branchOptions,
+  deviceItems,
+  hasNextPage,
+  fetchNextPage,
+  isFetchingNextPage,
+  isFetching,
+}: any) => {
+  const [formData, setFormData] = useState({
+    driverName: "",
+    mobileNo: "",
+    username: "",
+    password: "",
+    email: ""
+  });
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid gap-2">
+        <Label htmlFor="driverName">Driver Name</Label>
+        <Input
+          id="driverName"
+          name="driverName"
+          value={formData.driverName}
+          onChange={handleInputChange}
+          placeholder="Enter driver name"
+          required
+        />
+      </div>
+      
+      <div className="grid gap-2">
+        <Label>School *</Label>
+        <Combobox 
+          items={schoolOptions} 
+          value={school} 
+          onValueChange={setSchool}
+          placeholder="Search school..." 
+          searchPlaceholder="Search schools..." 
+          emptyMessage="No school found."
+          width="w-full" 
+          onSearchChange={setSchoolSearch} 
+          searchValue={schoolSearch} 
+        />
+      </div>
+
+      <div className="grid gap-2">
+        <Label>Branch *</Label>
+        <Combobox 
+          items={branchOptions} 
+          value={branch} 
+          onValueChange={setBranch}
+          placeholder={!school ? "Select school first" : branchOptions.length ? "Search branch..." : "No branches available"}
+          searchPlaceholder="Search branches..." 
+          emptyMessage={!school ? "Please select a school first" : branchOptions.length === 0 ? "No branches found for this school" : "No branches match your search"}
+          width="w-full" 
+          disabled={!school}
+          onSearchChange={setBranchSearch} 
+          searchValue={branchSearch} 
+        />
+      </div>
+
+      <div className="grid gap-2">
+        <Label>Device *</Label>
+        <Combobox 
+          items={deviceItems} 
+          value={device} 
+          onValueChange={setDevice}
+          placeholder={!school ? "Select school first" : !branch ? "Select branch first" : "Search device..."}
+          searchPlaceholder="Search devices..." 
+          emptyMessage={!school ? "Please select a school first" : !branch ? "Please select a branch first" : "No devices found"}
+          width="w-full" 
+          disabled={!branch}
+          onSearchChange={setDeviceSearch} 
+          searchValue={deviceSearch}
+          onReachEnd={() => {
+            if (hasNextPage && !isFetchingNextPage && !isFetching) {
+              fetchNextPage();
+            }
+          }}
+          isLoadingMore={isFetchingNextPage}
+        />
+      </div>
+
+      <div className="grid gap-2">
+        <Label htmlFor="email">Email</Label>
+        <Input
+          id="email"
+          name="email"
+          type="email"
+          value={formData.email}
+          onChange={handleInputChange}
+          placeholder="Enter email address"
+          required
+        />
+      </div>
+
+      <div className="grid gap-2">
+        <Label htmlFor="mobileNo">Mobile No</Label>
+        <Input
+          id="mobileNo"
+          name="mobileNo"
+          type="tel"
+          value={formData.mobileNo}
+          onChange={handleInputChange}
+          placeholder="Enter mobile number"
+          pattern="[0-9]{10}"
+          maxLength={10}
+          required
+        />
+      </div>
+
+      <div className="grid gap-2">
+        <Label htmlFor="username">Username</Label>
+        <Input
+          id="username"
+          name="username"
+          value={formData.username}
+          onChange={handleInputChange}
+          placeholder="Enter username"
+          required
+        />
+      </div>
+
+      <div className="grid gap-2">
+        <Label htmlFor="password">Password</Label>
+        <Input
+          id="password"
+          name="password"
+          type="text"
+          value={formData.password}
+          onChange={handleInputChange}
+          placeholder="Enter password"
+          required
+        />
+      </div>
+    </div>
+  );
+};
+
 // Custom hook for form state management
 const useDriverForm = (initialData?: Driver) => {
   const [school, setSchool] = useState("");
@@ -205,22 +363,39 @@ const useDriverForm = (initialData?: Driver) => {
     setDeviceSearch("");
   };
 
-  useEffect(() => {
-    setBranch("");
-    setBranchSearch("");
-    setDevice("");
-    setDeviceSearch("");
+  // Only reset branch when school actually changes (not on initial load)
+  const handleSchoolChange = useCallback((newSchool: string) => {
+    const prevSchool = school;
+    setSchool(newSchool);
+    if (newSchool !== prevSchool && prevSchool !== "") {
+      setBranch("");
+      setBranchSearch("");
+    }
   }, [school]);
 
-  useEffect(() => {
-    setDevice("");
-    setDeviceSearch("");
+  // Only reset device when branch actually changes (not on initial load)
+  const handleBranchChange = useCallback((newBranch: string) => {
+    const prevBranch = branch;
+    setBranch(newBranch);
+    if (newBranch !== prevBranch && prevBranch !== "") {
+      setDevice("");
+      setDeviceSearch("");
+    }
   }, [branch]);
 
   return {
-    school, setSchool, schoolSearch, setSchoolSearch,
-    branch, setBranch, branchSearch, setBranchSearch,
-    device, setDevice, deviceSearch, setDeviceSearch,
+    school, 
+    setSchool: handleSchoolChange, 
+    schoolSearch, 
+    setSchoolSearch,
+    branch, 
+    setBranch: handleBranchChange, 
+    branchSearch, 
+    setBranchSearch,
+    device, 
+    setDevice, 
+    deviceSearch, 
+    setDeviceSearch,
     resetForm
   };
 };
@@ -232,6 +407,7 @@ export default function DriverApprove() {
   const [deleteTarget, setDeleteTarget] = useState<Driver | null>(null);
   const [editTarget, setEditTarget] = useState<Driver | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
   const { exportToPDF, exportToExcel } = useExport();
   const [role, setRole] = useState<string | null>(null);
@@ -309,21 +485,19 @@ export default function DriverApprove() {
   const addDriverMutation = useMutation({
     mutationFn: async (newDriver: any) => await api.post("/driver", newDriver),
     onSuccess: (createdDriver, variables) => {
-      const school = schoolData?.find(s => s._id === variables.schoolId);
-      const branch = branchData?.find(b => b._id === variables.branchId);
-      const device = getDeviceItems(addDeviceQuery.data).find(d => d.value === variables.deviceObjId);
-
-      queryClient.setQueryData<Driver[]>(["drivers"], (old = []) => [
-        ...old,
-        {
-          ...createdDriver,
-          password: variables.password,
-          schoolId: school ? { _id: school._id, schoolName: school.schoolName } : { _id: variables.schoolId, schoolName: "Unknown" },
-          branchId: branch ? { _id: branch._id, branchName: branch.branchName } : { _id: variables.branchId, branchName: "Unknown" },
-          deviceObjId: device ? { _id: device.value, name: device.label } : { _id: variables.deviceObjId, name: "Unknown" },
-        }
-      ]);
+      // Invalidate and refetch the drivers query to get updated data
+      queryClient.invalidateQueries({ queryKey: ["drivers"] });
+      
       alert("Driver added successfully.");
+      
+      // Close the dialog and reset form
+      setAddDialogOpen(false);
+      addForm.resetForm();
+      
+      // Also reset the form data by triggering a re-render of AddDriverForm
+      if (closeButtonRef.current) {
+        closeButtonRef.current.click();
+      }
     },
     onError: (error: any) => alert(`Failed to add driver: ${error.response?.data?.message || error.message}`),
   });
@@ -364,7 +538,7 @@ export default function DriverApprove() {
   const deleteDriverMutation = useMutation({
     mutationFn: async (driverId: string) => await api.delete(`/driver/${driverId}`),
     onSuccess: (_, deletedId) => {
-      queryClient.setQueryData<Driver[]>(["drivers"], (old) => old?.filter(d => d._id !== deletedId));
+      queryClient.invalidateQueries({ queryKey: ["drivers"] });
       alert("Driver deleted successfully.");
     },
     onError: () => alert("Failed to delete driver."),
@@ -398,7 +572,7 @@ export default function DriverApprove() {
     },
     {
       header: "Mobile",
-      accessorFn: (row) => ({ type: "text", value: row.driverMobile ?? "" }),
+      accessorFn: (row) => ({ type: "text", value: row.mobileNo ?? "" }),
       meta: { flex: 1, minWidth: 150, maxWidth: 300 },
       enableHiding: true,
     },
@@ -485,7 +659,7 @@ export default function DriverApprove() {
 
   const columnsForExport = [
     { key: "driverName", header: "Driver Name" },
-    { key: "driverMobile", header: "Mobile" },
+    { key: "mobileNo", header: "Mobile" },
     { key: "username", header: "Username" },
     { key: "password", header: "Password" },
     { key: "schoolId.schoolName", header: "School Name" },
@@ -507,7 +681,7 @@ export default function DriverApprove() {
 
     const data = {
       driverName: formData.get("driverName") as string,
-      driverMobile: formData.get("driverMobile") as string,
+      mobileNo: formData.get("mobileNo") as string,
       username: formData.get("username") as string,
       password: formData.get("password") as string,
       email: formData.get("email") as string,
@@ -517,11 +691,6 @@ export default function DriverApprove() {
     };
 
     await addDriverMutation.mutateAsync(data);
-    if (!addDriverMutation.isError) {
-      closeButtonRef.current?.click();
-      form.reset();
-      addForm.resetForm();
-    }
   };
 
   const handleEditSave = (updatedData: Partial<Driver>) => {
@@ -557,12 +726,25 @@ export default function DriverApprove() {
 
     const [formData, setFormData] = useState({
       driverName: editTarget.driverName || "",
-      driverMobile: editTarget.driverMobile || "",
+      mobileNo: editTarget.mobileNo || "",
       username: editTarget.username || "",
       password: editTarget.password || "",
       email: editTarget.email || "",
     });
     const [usernameError, setUsernameError] = useState("");
+
+    // Reset form when editTarget changes
+    useEffect(() => {
+      if (editTarget) {
+        setFormData({
+          driverName: editTarget.driverName || "",
+          mobileNo: editTarget.mobileNo || "",
+          username: editTarget.username || "",
+          password: editTarget.password || "",
+          email: editTarget.email || "",
+        });
+      }
+    }, [editTarget]);
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       const { name, value } = e.target;
@@ -654,7 +836,7 @@ export default function DriverApprove() {
         <section className="flex space-x-4">
           <SearchComponent
             data={drivers || []}
-            displayKey={["driverName", "username", "email", "driverMobile"]}
+            displayKey={["driverName", "username", "email", "mobileNo"]}
             onResults={setFilteredData}
             className="w-[300px] mb-4"
           />
@@ -685,7 +867,7 @@ export default function DriverApprove() {
         </section>
 
         <section>
-          <Dialog>
+          <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
             <DialogTrigger asChild>
               <Button variant="default">Add Driver</Button>
             </DialogTrigger>
@@ -694,7 +876,7 @@ export default function DriverApprove() {
                 <DialogHeader>
                   <DialogTitle>Add Driver</DialogTitle>
                 </DialogHeader>
-                <DriverForm
+                <AddDriverForm
                   school={addForm.school}
                   setSchool={addForm.setSchool}
                   schoolSearch={addForm.schoolSearch}
@@ -717,7 +899,11 @@ export default function DriverApprove() {
                 />
                 <DialogFooter>
                   <DialogClose asChild>
-                    <Button ref={closeButtonRef} variant="outline">Cancel</Button>
+                    <Button ref={closeButtonRef} variant="outline" onClick={() => {
+                      addForm.resetForm();
+                    }}>
+                      Cancel
+                    </Button>
                   </DialogClose>
                   <Button type="submit" disabled={addDriverMutation.isPending}>
                     {addDriverMutation.isPending ? "Saving..." : "Save Driver"}

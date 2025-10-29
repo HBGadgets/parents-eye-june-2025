@@ -27,6 +27,7 @@ import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { DatePicker } from "@/components/ui/datePicker";
 
 // ==================== CONSTANTS ====================
 const EDIT_FIELDS: FieldConfig[] = [
@@ -94,40 +95,6 @@ const extractData = (data: any, fallbackKeys: string[] = []): any[] => {
 };
 
 // ==================== COMPONENTS ====================
-const DatePicker = ({ date, onDateChange, placeholder = "Pick a date", disabled = false }: { 
-  date?: Date; 
-  onDateChange: (date: Date | undefined) => void; 
-  placeholder?: string;
-  disabled?: boolean;
-}) => {
-  const [isMounted, setIsMounted] = useState(false);
-
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
-
-  if (!isMounted) {
-    return <Button variant="outline" disabled={true} className={cn("w-full justify-start text-left font-normal h-10", "text-muted-foreground")}>
-      <Calendar className="mr-2 h-4 w-4" />
-      <span>Loading...</span>
-    </Button>;
-  }
-
-  return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <Button variant="outline" disabled={disabled} className={cn("w-full justify-start text-left font-normal h-10", !date && "text-muted-foreground")}>
-          <Calendar className="mr-2 h-4 w-4" />
-          {date ? format(date, "PPP") : <span>{placeholder}</span>}
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-auto p-0 z-50" align="start">
-        <CalendarComponent mode="single" selected={date} onSelect={onDateChange} initialFocus disabled={(date) => date > new Date()} className="rounded-md border" />
-      </PopoverContent>
-    </Popover>
-  );
-};
-
 const FilterBadge = ({ label, value, onRemove }: { label: string; value: string; onRemove: () => void }) => (
   <Badge variant="secondary" className="flex items-center gap-1 bg-blue-100 text-blue-800 border-blue-200">
     <span className="text-xs">{label}: {value}</span>
@@ -171,7 +138,7 @@ export default function StudentDetails() {
     parent: "", school: "", branch: "", route: "", pickupGeo: "", dropGeo: "", gender: "", addParentSchool: "", addParentBranch: ""
   });
 
-  // Filter states
+  // Filter states - hierarchical
   const [filters, setFilters] = useState({
     school: "", branch: "", route: "", pickupGeo: "", dropGeo: ""
   });
@@ -194,7 +161,7 @@ export default function StudentDetails() {
     ...(debouncedSearchTerm && { search: debouncedSearchTerm.trim() }),
     ...(filters.school && { schoolId: filters.school }),
     ...(filters.branch && { branchId: filters.branch }),
-    ...(filters.route && { routeObjId: filters.route }),
+    ...(filters.route && { routeId: filters.route }),
     ...(filters.pickupGeo && { pickupGeoId: filters.pickupGeo }),
     ...(filters.dropGeo && { dropGeoId: filters.dropGeo }),
   }), [debouncedSearchTerm, filters]);
@@ -240,9 +207,52 @@ export default function StudentDetails() {
     [editSelectedBranch, routes]
   );
 
-  // All branches and routes for filter (independent selection)
-  const allBranchOptions = useMemo(() => branches.map(b => ({ label: b.branchName, value: b._id })), [branches]);
-  const allRouteOptions = useMemo(() => routes.map(r => ({ label: r.routeNumber || `Route ${r.routeName || r._id}`, value: r._id })), [routes]);
+  // Hierarchical filter options - ALL items shown, but filtered when parent is selected
+  const filterBranchOptions = useMemo(() => {
+    // If school is selected, show only branches of that school
+    if (filters.school) {
+      return branches.filter(b => getId(b.schoolId) === filters.school).map(b => ({ label: b.branchName, value: b._id }));
+    }
+    // If no school selected, show ALL branches
+    return branches.map(b => ({ label: b.branchName, value: b._id }));
+  }, [branches, filters.school]);
+
+  // Hierarchical filter options - routes filtered by branch ONLY if branch is selected
+  const filterRouteOptions = useMemo(() => {
+    // If branch is selected, show only routes of that branch
+    if (filters.branch) {
+      return routes.filter(r => getId(r.branchId) === filters.branch).map(r => ({ label: r.routeNumber || `Route ${r.routeName || r._id}`, value: r._id }));
+    }
+    // If no branch selected, show ALL routes
+    return routes.map(r => ({ label: r.routeNumber || `Route ${r.routeName || r._id}`, value: r._id }));
+  }, [routes, filters.branch]);
+
+  // Hierarchical filter options - pickup/drop locations filtered by route ONLY if route is selected
+  const filterPickupOptions = useMemo(() => {
+    // If route is selected, show only pickup locations of that route
+    if (filters.route) {
+      const selectedRouteData = routes.find(r => r._id === filters.route);
+      if (selectedRouteData && selectedRouteData.pickupIds && selectedRouteData.pickupIds.length > 0) {
+        const pickupIdSet = new Set(selectedRouteData.pickupIds.map(p => getId(p)));
+        return geofenceOptions.filter(g => pickupIdSet.has(g.value));
+      }
+    }
+    // If no route selected, show ALL pickup locations
+    return geofenceOptions;
+  }, [geofenceOptions, routes, filters.route]);
+
+  const filterDropOptions = useMemo(() => {
+    // If route is selected, show only drop locations of that route
+    if (filters.route) {
+      const selectedRouteData = routes.find(r => r._id === filters.route);
+      if (selectedRouteData && selectedRouteData.dropIds && selectedRouteData.dropIds.length > 0) {
+        const dropIdSet = new Set(selectedRouteData.dropIds.map(d => getId(d)));
+        return geofenceOptions.filter(g => dropIdSet.has(g.value));
+      }
+    }
+    // If no route selected, show ALL drop locations
+    return geofenceOptions;
+  }, [geofenceOptions, routes, filters.route]);
 
   // Get selected parent's school and branch
   const selectedParentData = useMemo(() => parents.find(p => p._id === selectedParent), [selectedParent, parents]);
@@ -255,11 +265,11 @@ export default function StudentDetails() {
       active.push({ key: 'school', label: 'School', value: school?.label || filters.school });
     }
     if (filters.branch) {
-      const branch = allBranchOptions.find(b => b.value === filters.branch);
+      const branch = filterBranchOptions.find(b => b.value === filters.branch);
       active.push({ key: 'branch', label: 'Branch', value: branch?.label || filters.branch });
     }
     if (filters.route) {
-      const route = allRouteOptions.find(r => r.value === filters.route);
+      const route = filterRouteOptions.find(r => r.value === filters.route);
       active.push({ key: 'route', label: 'Route', value: route?.label || filters.route });
     }
     if (filters.pickupGeo) {
@@ -271,7 +281,7 @@ export default function StudentDetails() {
       active.push({ key: 'drop', label: 'Drop', value: drop?.label || filters.dropGeo });
     }
     return active;
-  }, [filters, schoolOptions, allBranchOptions, allRouteOptions, geofenceOptions]);
+  }, [filters, schoolOptions, filterBranchOptions, filterRouteOptions, geofenceOptions]);
 
   // Effects for debouncing search
   useEffect(() => {
@@ -332,9 +342,69 @@ export default function StudentDetails() {
     }
   }, [selectedParentData]);
 
-  // Filter functions
+  // Filter functions with hierarchical cascade
   const clearFilters = () => setFilters({ school: "", branch: "", route: "", pickupGeo: "", dropGeo: "" });
-  const clearFilter = (filterKey: string) => setFilters(prev => ({ ...prev, [filterKey]: "" }));
+  
+  const clearFilter = (filterKey: string) => {
+    setFilters(prev => {
+      const newFilters = { ...prev };
+      
+      // Hierarchical clearing - when clearing a parent, clear its children
+      if (filterKey === 'school') {
+        newFilters.school = "";
+        newFilters.branch = "";
+        newFilters.route = "";
+        newFilters.pickupGeo = "";
+        newFilters.dropGeo = "";
+      } else if (filterKey === 'branch') {
+        newFilters.branch = "";
+        newFilters.route = "";
+        newFilters.pickupGeo = "";
+        newFilters.dropGeo = "";
+      } else if (filterKey === 'route') {
+        newFilters.route = "";
+        newFilters.pickupGeo = "";
+        newFilters.dropGeo = "";
+      } else if (filterKey === 'pickup') {
+        newFilters.pickupGeo = "";
+      } else if (filterKey === 'drop') {
+        newFilters.dropGeo = "";
+      }
+      
+      return newFilters;
+    });
+  };
+
+  // Hierarchical filter handlers
+  const handleSchoolFilterChange = (value: string) => {
+    setFilters(prev => ({
+      ...prev,
+      school: value,
+      branch: "",
+      route: "",
+      pickupGeo: "",
+      dropGeo: ""
+    }));
+  };
+
+  const handleBranchFilterChange = (value: string) => {
+    setFilters(prev => ({
+      ...prev,
+      branch: value,
+      route: "",
+      pickupGeo: "",
+      dropGeo: ""
+    }));
+  };
+
+  const handleRouteFilterChange = (value: string) => {
+    setFilters(prev => ({
+      ...prev,
+      route: value,
+      pickupGeo: "",
+      dropGeo: ""
+    }));
+  };
 
   const isSearchActive = searchTerm.trim() !== "";
   const isFilterActive = Object.values(filters).some(Boolean);
@@ -396,7 +466,7 @@ export default function StudentDetails() {
     const changedFields: Partial<Record<keyof Student, unknown>> = {};
     const dataToCompare = { ...updatedData };
     if (dataToCompare.routeObjId) { 
-      (dataToCompare as any).routeObjId = dataToCompare.routeObjId; 
+      (dataToCompare as any).routeId = dataToCompare.routeObjId; 
       delete dataToCompare.routeObjId; 
     }
     for (const key in dataToCompare) {
@@ -450,7 +520,7 @@ export default function StudentDetails() {
       DOB: selectedDOB ? format(selectedDOB, "yyyy-MM-dd") : "", 
       age: form.age?.value ? parseInt(form.age.value) : undefined,
       gender: selectedGender || "", 
-      routeObjId: selectedRoute, 
+      routeId: selectedRoute, 
       pickupGeoId: selectedPickupGeo, 
       dropGeoId: selectedDropGeo,
     };
@@ -475,7 +545,7 @@ export default function StudentDetails() {
     if (children.length === 0) { alert("Please add at least one child before submitting."); return; }
     
     for (const child of children) {
-      if (!child.childName || !child.routeObjId || !child.pickupGeoId || !child.dropGeoId) {
+      if (!child.childName || !child.routeId || !child.pickupGeoId || !child.dropGeoId) {
         alert("Please ensure all children have Student Name, Route, Pickup Location, and Drop Location filled.");
         return;
       }
@@ -483,7 +553,7 @@ export default function StudentDetails() {
     
     const data = { 
       parentId: selectedParent,
-      children: children.map(c => ({ ...c, routeObjId: c.routeObjId, routeObjId: c.routeObjId })) 
+      children: children.map(c => ({ ...c, routeObjId: c.routeId, routeId: c.routeId })) 
     };
     
     try { 
@@ -506,8 +576,8 @@ export default function StudentDetails() {
         Search: isSearchActive ? "Filtered results" : "All students",
         ...(searchTerm && { "Search Term": `"${searchTerm}"` }),
         ...(filters.school && { "School": schoolOptions.find(s => s.value === filters.school)?.label || filters.school }),
-        ...(filters.branch && { "Branch": allBranchOptions.find(b => b.value === filters.branch)?.label || filters.branch }),
-        ...(filters.route && { "Route": allRouteOptions.find(r => r.value === filters.route)?.label || filters.route }),
+        ...(filters.branch && { "Branch": filterBranchOptions.find(b => b.value === filters.branch)?.label || filters.branch }),
+        ...(filters.route && { "Route": filterRouteOptions.find(r => r.value === filters.route)?.label || filters.route }),
         ...(filters.pickupGeo && { "Pickup Location": geofenceOptions.find(g => g.value === filters.pickupGeo)?.label || filters.pickupGeo }),
         ...(filters.dropGeo && { "Drop Location": geofenceOptions.find(g => g.value === filters.dropGeo)?.label || filters.dropGeo }),
       },
@@ -522,8 +592,8 @@ export default function StudentDetails() {
         Search: isSearchActive ? "Filtered results" : "All students",
         ...(searchTerm && { "Search Term": `"${searchTerm}"` }),
         ...(filters.school && { "School": schoolOptions.find(s => s.value === filters.school)?.label || filters.school }),
-        ...(filters.branch && { "Branch": allBranchOptions.find(b => b.value === filters.branch)?.label || filters.branch }),
-        ...(filters.route && { "Route": allRouteOptions.find(r => r.value === filters.route)?.label || filters.route }),
+        ...(filters.branch && { "Branch": filterBranchOptions.find(b => b.value === filters.branch)?.label || filters.branch }),
+        ...(filters.route && { "Route": filterRouteOptions.find(r => r.value === filters.route)?.label || filters.route }),
         ...(filters.pickupGeo && { "Pickup Location": geofenceOptions.find(g => g.value === filters.pickupGeo)?.label || filters.pickupGeo }),
         ...(filters.dropGeo && { "Drop Location": geofenceOptions.find(g => g.value === filters.dropGeo)?.label || filters.dropGeo }),
       },
@@ -540,7 +610,7 @@ export default function StudentDetails() {
     { id: "branchName", header: "Branch", accessorFn: (row) => row.branchId && typeof row.branchId === "object" ? row.branchId.branchName ?? "N/A" : "N/A" },
     { id: "routeNumber", header: "Route Number", accessorFn: (row) => {
       if (row.routeObjId && typeof row.routeObjId === "object") return row.routeObjId.routeNumber || "N/A";
-      if (row.routeObjId && typeof row.routeObjId === "object") return row.routeObjId.routeNumber || "N/A";
+      if (row.routeId && typeof row.routeId === "object") return row.routeId.routeNumber || "N/A";
       return "N/A";
     }},
     { id: "parentName", header: "Parent Name", accessorFn: (row) => row.parentId && typeof row.parentId === "object" ? row.parentId.parentName ?? "N/A" : "N/A" },
@@ -574,7 +644,7 @@ export default function StudentDetails() {
     _id: editTarget._id, childName: editTarget.childName || "", age: editTarget.age || "",
     className: editTarget.className || "", section: editTarget.section || "", 
     schoolId: getId(editTarget.schoolId), branchId: getId(editTarget.branchId), 
-    routeObjId: getId(editTarget.routeObjId || editTarget.routeObjId), 
+    routeObjId: getId(editTarget.routeObjId || editTarget.routeId), 
     pickupGeoId: getId(editTarget.pickupGeoId), dropGeoId: getId(editTarget.dropGeoId),
   } : null;
 
@@ -595,11 +665,45 @@ export default function StudentDetails() {
 
           <div className="flex items-center gap-2">
             {[
-              { items: schoolOptions, value: filters.school, onChange: (v: string) => setFilters(prev => ({ ...prev, school: v })), placeholder: "Select School", width: "w-33" },
-              { items: allBranchOptions, value: filters.branch, onChange: (v: string) => setFilters(prev => ({ ...prev, branch: v })), placeholder: "Select Branch", width: "w-33" },
-              { items: allRouteOptions, value: filters.route, onChange: (v: string) => setFilters(prev => ({ ...prev, route: v })), placeholder: "Select Route", width: "w-32" },
-              { items: geofenceOptions, value: filters.pickupGeo, onChange: (v: string) => setFilters(prev => ({ ...prev, pickupGeo: v })), placeholder: "Pickup Location", width: "w-37" },
-              { items: geofenceOptions, value: filters.dropGeo, onChange: (v: string) => setFilters(prev => ({ ...prev, dropGeo: v })), placeholder: "Drop Location", width: "w-35" },
+              { 
+                items: schoolOptions, 
+                value: filters.school, 
+                onChange: handleSchoolFilterChange, 
+                placeholder: "Select School", 
+                width: "w-33" 
+              },
+              { 
+                items: filterBranchOptions, 
+                value: filters.branch, 
+                onChange: handleBranchFilterChange, 
+                placeholder: filters.school ? "Select Branch" : "Select School First", 
+                width: "w-33",
+                disabled: !filters.school 
+              },
+              { 
+                items: filterRouteOptions, 
+                value: filters.route, 
+                onChange: handleRouteFilterChange, 
+                placeholder: filters.branch ? "Select Route" : "Select Branch First", 
+                width: "w-32",
+                disabled: !filters.branch 
+              },
+              { 
+                items: filterPickupOptions, 
+                value: filters.pickupGeo, 
+                onChange: (v: string) => setFilters(prev => ({ ...prev, pickupGeo: v })), 
+                placeholder: filters.route ? "Pickup Location" : "Select Route First", 
+                width: "w-37",
+                disabled: !filters.route 
+              },
+              { 
+                items: filterDropOptions, 
+                value: filters.dropGeo, 
+                onChange: (v: string) => setFilters(prev => ({ ...prev, dropGeo: v })), 
+                placeholder: filters.route ? "Drop Location" : "Select Route First", 
+                width: "w-35",
+                disabled: !filters.route 
+              },
             ].map((filter, index) => (
               <div key={index} className={filter.width}>
                 <Combobox 
@@ -609,7 +713,8 @@ export default function StudentDetails() {
                   placeholder={filter.placeholder}
                   searchPlaceholder={`Search ${filter.placeholder.toLowerCase()}...`}
                   emptyMessage={`No ${filter.placeholder.toLowerCase()} found.`}
-                  width="w-full" 
+                  width="w-full"
+                  disabled={filter.disabled}
                 />
               </div>
             ))}
@@ -697,7 +802,12 @@ export default function StudentDetails() {
                           searchValue={searchStates[field.searchKey as keyof typeof searchStates]} 
                         />
                       ) : field.component === "dob" ? (
-                        <DatePicker date={field.value} onDateChange={field.onChange!} placeholder="Select date of birth" />
+                        <DatePicker 
+                          date={field.value} 
+                          onDateChange={field.onChange!} 
+                          placeholder="Select date of birth"
+                          disabled={false}
+                        />
                       ) : (
                         <Input id={field.id} name={field.id} type={field.type} {...field.props} />
                       )}
