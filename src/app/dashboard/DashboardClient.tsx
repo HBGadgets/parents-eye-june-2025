@@ -17,9 +17,13 @@ import { ChevronsLeft, ChevronsRight, Locate } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import { LiveTrack } from "@/components/dashboard/LiveTrack.tsx/livetrack";
 import { BottomDrawer } from "@/components/dashboard/bottom-drawer";
+import SubscriptionExpiry from '@/components/dashboard/SubscriptionExpiry/SubscriptionExpiry';
 
 type ViewState = "split" | "tableExpanded" | "mapExpanded";
 type StatusFilter = "all" | "running" | "idle" | "stopped" | "inactive" | "new";
+
+// Local storage key for subscription popup
+const SUBSCRIPTION_POPUP_KEY = "subscription_popup_shown";
 
 export default function DashboardClient() {
   const router = useRouter();
@@ -49,6 +53,9 @@ export default function DashboardClient() {
 
   // Active status filter
   const [activeStatus, setActiveStatus] = useState<StatusFilter>("all");
+
+  // Subscription expiry popup state
+  const [showSubscriptionPopup, setShowSubscriptionPopup] = useState(false);
 
   const { addresses, loadingAddresses, queueForGeocoding } =
     useReverseGeocode();
@@ -80,6 +87,27 @@ export default function DashboardClient() {
     });
   }, [currentPage, limit]);
 
+  // Combined useEffect for cleanup and subscription popup logic
+  useEffect(() => {
+    // Check localStorage to see if popup has been shown before
+    const hasPopupBeenShown = localStorage.getItem(SUBSCRIPTION_POPUP_KEY);
+    
+    if (!hasPopupBeenShown) {
+      // If no value exists in localStorage, show the popup
+      setShowSubscriptionPopup(true);
+    } else {
+      // If value exists, don't show the popup
+      setShowSubscriptionPopup(false);
+    }
+
+    // Cleanup function for debounce timer
+    return () => {
+      if (searchDebounceRef.current) {
+        clearTimeout(searchDebounceRef.current);
+      }
+    };
+  }, []); // Empty dependency array means this runs once on mount
+
   // **Debounced Search Handler**
   const handleSearchChange = useCallback(
     (value: string) => {
@@ -100,15 +128,6 @@ export default function DashboardClient() {
     },
     [updateFilters]
   );
-
-  // Cleanup debounce timer on unmount
-  useEffect(() => {
-    return () => {
-      if (searchDebounceRef.current) {
-        clearTimeout(searchDebounceRef.current);
-      }
-    };
-  }, []);
 
   // **Status Filter Handler**
   const handleStatusFilter = useCallback(
@@ -246,55 +265,6 @@ export default function DashboardClient() {
       enableHiding: true,
       enableSorting: true,
     },
-    // {
-    //   id: "address",
-    //   header: "Location",
-    //   cell: ({ row }) => {
-    //     const device = row.original;
-    //     const deviceId = device.deviceId;
-    //     const address = addresses[deviceId];
-    //     const isLoading = loadingAddresses[deviceId];
-
-    //     if (isLoading) {
-    //       return (
-    //         <div className="flex items-center space-x-2 text-gray-500">
-    //           <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
-    //           <span className="text-sm">Loading...</span>
-    //         </div>
-    //       );
-    //     }
-
-    //     if (address) {
-    //       return (
-    //         <div className="flex items-start space-x-2 max-w-xs">
-    //           <span className="text-sm text-gray-700 leading-tight break-words">
-    //             {address}
-    //           </span>
-    //         </div>
-    //       );
-    //     }
-
-    //     if (device.latitude && device.longitude) {
-    //       return (
-    //         <div className="flex items-center space-x-2 text-gray-500">
-    //           <span className="text-sm">
-    //             {device.latitude.toFixed(6)}, {device.longitude.toFixed(6)}
-    //           </span>
-    //         </div>
-    //       );
-    //     }
-
-    //     return <span className="text-gray-400 text-sm">No location</span>;
-    //   },
-    //   meta: {
-    //     wrapConfig: {
-    //       wrap: "break-word",
-    //       maxWidth: "300px",
-    //     },
-    //   },
-    //   enableHiding: true,
-    //   enableSorting: false,
-    // },
     {
       id: "lastUpdate",
       header: "Last Update",
@@ -637,6 +607,40 @@ export default function DashboardClient() {
     handleHistoryClick,
   ]);
 
+  // Dummy devices data for subscription expiry
+  const expiringDevices = [
+    {
+      deviceId: 1,
+      name: 'MH-12-AB-1234',
+      imei: '356938035643809',
+      expiryDate: '2025-11-05',
+      daysRemaining: 5,
+      status: 'critical' as const,
+    },
+    {
+      deviceId: 2,
+      name: 'MH-12-CD-5678',
+      imei: '356938035643810',
+      expiryDate: '2025-11-15',
+      daysRemaining: 15,
+      status: 'warning' as const,
+    },
+    {
+      deviceId: 3,
+      name: 'MH-12-EF-9012',
+      imei: '356938035643811',
+      expiryDate: '2025-11-25',
+      daysRemaining: 25,
+      status: 'info' as const,
+    },
+  ];
+
+  const handleCloseSubscriptionPopup = () => {
+    setShowSubscriptionPopup(false);
+    // Mark that popup has been shown - this will persist across page navigation
+    localStorage.setItem(SUBSCRIPTION_POPUP_KEY, "true");
+  };
+
   return (
     <>
       <style jsx>{`
@@ -657,157 +661,115 @@ export default function DashboardClient() {
       `}</style>
 
       <ResponseLoader isLoading={isLoading} />
-      <div>
-        <div className="flex justify-between">
-          <div className="flex items-center gap-3">
-            <Input
-              placeholder="Search bus number or name..."
-              className="flex-1 min-w-[300px]"
-              value={searchInput}
-              onChange={(e) => handleSearchChange(e.target.value)}
-            />
-            <ColumnVisibilitySelector
-              columns={table.getAllColumns()}
-              buttonVariant="outline"
-              buttonSize="default"
-            />
-          </div>
+      
+      {/* Main Dashboard Content */}
+      <div className="relative min-h-screen bg-white">
+        {/* Dashboard Content - Always visible in background */}
+        <div>
+          <div className="flex justify-between items-start mb-4">
+            <div className="flex items-center gap-3 flex-1">
+              <Input
+                placeholder="Search bus number or name..."
+                className="flex-1 min-w-[300px]"
+                value={searchInput}
+                onChange={(e) => handleSearchChange(e.target.value)}
+              />
+              <ColumnVisibilitySelector
+                columns={table.getAllColumns()}
+                buttonVariant="outline"
+                buttonSize="default"
+              />
+              
+              {/* Added margin for spacing */}
+              <div className="ml-4"></div>
+            </div>
 
-          {/* Device/Status Count Buttons with Filtering */}
-          <div className="flex gap-3 mb-2">
-            {counts.map((countObj, index) => {
-              const [key, value] = Object.entries(countObj)[0];
-              const label = key.charAt(0).toUpperCase() + key.slice(1);
-              const statusKey = key.toLowerCase() as StatusFilter;
-              const isActive =
-                activeStatus === (key === "total" ? "all" : statusKey);
+            {/* Device/Status Count Buttons with Filtering */}
+            <div className="flex gap-3">
+              {counts.map((countObj, index) => {
+                const [key, value] = Object.entries(countObj)[0];
+                const label = key.charAt(0).toUpperCase() + key.slice(1);
+                const statusKey = key.toLowerCase() as StatusFilter;
+                const isActive =
+                  activeStatus === (key === "total" ? "all" : statusKey);
 
-              return (
-                <button
-                  key={index}
-                  onClick={() =>
-                    handleStatusFilter(key === "total" ? "all" : statusKey)
-                  }
-                  className={`
-                    inline-flex items-center justify-center
-                    ${statusColors[label]}
-                    text-white font-semibold text-[10px]
-                    px-3 py-2.5 rounded-lg
-                    shadow-md hover:shadow-lg
-                    transform transition-all duration-200 ease-in-out
-                    hover:scale-105 active:scale-95
-                    focus:outline-none focus:ring-4 focus:ring-opacity-50
-                    border-0
-                    min-w-[80px]
-                    cursor-pointer
-                    select-none
-                    relative
-                    overflow-hidden
-                    group
-                    ${
-                      isActive
-                        ? "status-button-active ring-4 ring-blue-300"
-                        : ""
-                    }
-                  `}
-                  type="button"
-                  aria-label={`${label} count: ${value}`}
-                  aria-pressed={isActive}
-                >
-                  <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/20 to-transparent group-hover:translate-x-full transition-transform duration-700 ease-out" />
-
-                  <span className="relative z-10 flex items-center gap-2">
-                    <span className="font-medium">{label}</span>
-                    <span className="bg-white/20 backdrop-blur-sm px-2 py-0.5 rounded-full text-xs font-bold">
-                      {value}
-                    </span>
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Main Layout */}
-        <div className="dashboard">
-          <div className="flex gap-0 h-[80vh]">
-            <section className={`overflow-auto ${getTableClass}`}>
-              {viewState === "mapExpanded" && (
-                <div className="absolute top-1/2 left-0 z-50">
+                return (
                   <button
-                    onClick={handleExpandTable}
-                    className={`p-2 rounded-full border border-gray-300 hover:bg-primary transition-all duration-200 cursor-pointer shadow-lg hover:shadow-xl hover:-translate-y-0.5  ${
-                      viewState === "mapExpanded"
-                        ? "bg-blue-100"
-                        : "bg-white text-gray-600"
-                    }`}
-                    title={"Expand table"}
+                    key={index}
+                    onClick={() =>
+                      handleStatusFilter(key === "total" ? "all" : statusKey)
+                    }
+                    className={`
+                      inline-flex items-center justify-center
+                      ${statusColors[label]}
+                      text-white font-semibold text-[10px]
+                      px-3 py-2.5 rounded-lg
+                      shadow-md hover:shadow-lg
+                      transform transition-all duration-200 ease-in-out
+                      hover:scale-105 active:scale-95
+                      focus:outline-none focus:ring-4 focus:ring-opacity-50
+                      border-0
+                      min-w-[80px]
+                      cursor-pointer
+                      select-none
+                      relative
+                      overflow-hidden
+                      group
+                      ${
+                        isActive
+                          ? "status-button-active ring-4 ring-blue-300"
+                          : ""
+                      }
+                    `}
+                    type="button"
+                    aria-label={`${label} count: ${value}`}
+                    aria-pressed={isActive}
                   >
-                    <ChevronsRight className="w-4 h-4" />
+                    <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/20 to-transparent group-hover:translate-x-full transition-transform duration-700 ease-out" />
+
+                    <span className="relative z-10 flex items-center gap-2">
+                      <span className="font-medium">{label}</span>
+                      <span className="bg-white/20 backdrop-blur-sm px-2 py-0.5 rounded-full text-xs font-bold">
+                        {value}
+                      </span>
+                    </span>
                   </button>
-                </div>
-              )}
+                );
+              })}
+            </div>
+          </div>
 
-              {viewState !== "mapExpanded" && (
-                <div className="h-full">{tableElement}</div>
-              )}
-            </section>
+          {/* Main Layout */}
+          <div className="dashboard">
+            <div className="flex gap-0 h-[80vh]">
+              <section className={`overflow-auto ${getTableClass}`}>
+                {viewState === "mapExpanded" && (
+                  <div className="absolute top-1/2 left-0 z-50">
+                    <button
+                      onClick={handleExpandTable}
+                      className={`p-2 rounded-full border border-gray-300 hover:bg-primary transition-all duration-200 cursor-pointer shadow-lg hover:shadow-xl hover:-translate-y-0.5  ${
+                        viewState === "mapExpanded"
+                          ? "bg-blue-100"
+                          : "bg-white text-gray-600"
+                      }`}
+                      title={"Expand table"}
+                    >
+                      <ChevronsRight className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
 
-            {/* Arrow Controls */}
-            {!["tableExpanded", "mapExpanded"].includes(viewState) && (
-              <div className="flex flex-col justify-center items-center space-y-2 z-50 absolute top-1/2 right-[48.5%]">
-                <button
-                  onClick={handleExpandMap}
-                  className={`p-2 rounded-full border border-gray-300 hover:bg-primary transition-all duration-200 cursor-pointer shadow-lg hover:shadow-xl hover:-translate-y-0.5 [animation-duration:_300ms] [animation:_fadeIn_300ms_ease-in_forwards] ${
-                    viewState === "mapExpanded"
-                      ? "bg-blue-100 "
-                      : "bg-white text-gray-600"
-                  }`}
-                  title={
-                    viewState === "mapExpanded" ? "Show both" : "Expand map"
-                  }
-                >
-                  <ChevronsLeft className="w-4 h-4" />
-                </button>
+                {viewState !== "mapExpanded" && (
+                  <div className="h-full">{tableElement}</div>
+                )}
+              </section>
 
-                {/* <div className="h-px w-8 bg-gray-300"></div> */}
-
-                <button
-                  onClick={handleExpandTable}
-                  className={`p-2 rounded-full border border-gray-300 hover:bg-primary transition-all duration-200 cursor-pointer shadow-lg hover:shadow-xl hover:-translate-y-0.5  [animation-duration:_500ms] [animation:_fadeIn_300ms_ease-in_forwards] ${
-                    viewState === "tableExpanded"
-                      ? "bg-blue-100"
-                      : "bg-white text-gray-600"
-                  }`}
-                  title={
-                    viewState === "tableExpanded" ? "Show both" : "Expand table"
-                  }
-                >
-                  {/* <MoveRight className="w-4 h-4" /> */}
-                  <ChevronsRight className="w-4 h-4" />
-                </button>
-              </div>
-            )}
-
-            {/* Right Side - Map */}
-            <section className={`${getMapClass} rounded-lg overflow-hidden`}>
-              {viewState !== "tableExpanded" && (
-                <VehicleMap
-                  vehicles={devices}
-                  height="100%"
-                  autoFitBounds={false}
-                  showTrails={false}
-                  clusterMarkers={devices.length > 100}
-                  zoom={6}
-                  selectedVehicleId={selectedVehicleId}
-                  onVehicleSelect={setSelectedVehicleId}
-                />
-              )}
-              {viewState === "tableExpanded" && (
-                <div className="absolute top-1/2 right-2 z-50">
+              {/* Arrow Controls */}
+              {!["tableExpanded", "mapExpanded"].includes(viewState) && (
+                <div className="flex flex-col justify-center items-center space-y-2 z-50 absolute top-1/2 right-[48.5%]">
                   <button
                     onClick={handleExpandMap}
-                    className={`p-2 rounded-full border border-gray-300 hover:bg-primary transition-all duration-200 cursor-pointer shadow-lg hover:shadow-xl hover:-translate-y-0.5  ${
+                    className={`p-2 rounded-full border border-gray-300 hover:bg-primary transition-all duration-200 cursor-pointer shadow-lg hover:shadow-xl hover:-translate-y-0.5 [animation-duration:_300ms] [animation:_fadeIn_300ms_ease-in_forwards] ${
                       viewState === "mapExpanded"
                         ? "bg-blue-100 "
                         : "bg-white text-gray-600"
@@ -818,19 +780,77 @@ export default function DashboardClient() {
                   >
                     <ChevronsLeft className="w-4 h-4" />
                   </button>
+
+                  <button
+                    onClick={handleExpandTable}
+                    className={`p-2 rounded-full border border-gray-300 hover:bg-primary transition-all duration-200 cursor-pointer shadow-lg hover:shadow-xl hover:-translate-y-0.5  [animation-duration:_500ms] [animation:_fadeIn_300ms_ease-in_forwards] ${
+                      viewState === "tableExpanded"
+                        ? "bg-blue-100"
+                        : "bg-white text-gray-600"
+                    }`}
+                    title={
+                      viewState === "tableExpanded" ? "Show both" : "Expand table"
+                    }
+                  >
+                    <ChevronsRight className="w-4 h-4" />
+                  </button>
                 </div>
               )}
-            </section>
+
+              {/* Right Side - Map */}
+              <section className={`${getMapClass} rounded-lg overflow-hidden`}>
+                {viewState !== "tableExpanded" && (
+                  <VehicleMap
+                    vehicles={devices}
+                    height="100%"
+                    autoFitBounds={false}
+                    showTrails={false}
+                    clusterMarkers={devices.length > 100}
+                    zoom={6}
+                    selectedVehicleId={selectedVehicleId}
+                    onVehicleSelect={setSelectedVehicleId}
+                  />
+                )}
+                {viewState === "tableExpanded" && (
+                  <div className="absolute top-1/2 right-2 z-50">
+                    <button
+                      onClick={handleExpandMap}
+                      className={`p-2 rounded-full border border-gray-300 hover:bg-primary transition-all duration-200 cursor-pointer shadow-lg hover:shadow-xl hover:-translate-y-0.5  ${
+                        viewState === "mapExpanded"
+                          ? "bg-blue-100 "
+                          : "bg-white text-gray-600"
+                      }`}
+                      title={
+                        viewState === "mapExpanded" ? "Show both" : "Expand map"
+                      }
+                    >
+                      <ChevronsLeft className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
+              </section>
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Drawer */}
-      <div>
-        <BottomDrawer {...bottomDrawerProps} />
-      </div>
+        {/* Drawer */}
+        <div>
+          <BottomDrawer {...bottomDrawerProps} />
+        </div>
 
-      <LiveTrack open={open} setOpen={setOpen} selectedImei={selectedImei} />
+        <LiveTrack open={open} setOpen={setOpen} selectedImei={selectedImei} />
+
+        {/* Subscription Expiry Popup - Fixed to bottom-right corner */}
+        {showSubscriptionPopup && (
+          <div className="fixed bottom-4 right-4 z-50">
+            <SubscriptionExpiry
+              isOpen={showSubscriptionPopup}
+              onClose={handleCloseSubscriptionPopup}
+              devices={expiringDevices}
+            />
+          </div>
+        )}
+      </div>
     </>
   );
 }

@@ -60,39 +60,143 @@ interface SelectOption {
   value: string;
 }
 
-// Helper function to get device items (moved outside component)
-const getDeviceItems = (deviceData: any) => {
-  if (!deviceData?.pages?.length) return [];
-  return deviceData.pages.flatMap((pg: any) => {
-    const list = pg.devices ?? pg.data ?? [];
-    return list.filter((d: any) => d._id && d.name).map((d: any) => ({ label: d.name, value: d._id }));
+interface Route {
+  _id: string;
+  routeNumber: string;
+  routeName?: string;
+  branchId?: string | { _id: string };
+  deviceObjId?: string | { _id: string; name: string };
+}
+
+interface RouteResponse {
+  routes: Route[];
+  total: number;
+  page: number;
+  totalPages: number;
+}
+
+// Helper functions
+const getId = (obj: any): string => {
+  if (!obj) return "";
+  if (typeof obj === "string") return obj;
+  return obj._id || "";
+};
+
+const extractData = (data: any, fallbackKeys: string[] = []): any[] => {
+  if (!data) return [];
+  if (Array.isArray(data)) return data;
+  for (const key of fallbackKeys) {
+    if (data[key] && Array.isArray(data[key])) return data[key];
+  }
+  return [];
+};
+
+// Custom hooks
+const useRouteData = ({ branchId, search }: { branchId?: string; search?: string }) => {
+  return useQuery({
+    queryKey: ["routes", branchId, search],
+    queryFn: async () => {
+      let url = `/route?limit=100`;
+      if (branchId) url += `&branchId=${branchId}`;
+      if (search) url += `&search=${encodeURIComponent(search)}`;
+      return await api.get<RouteResponse>(url);
+    },
+    enabled: !!branchId,
+    staleTime: 5 * 60 * 1000,
   });
 };
 
-// Reusable Form Component
+const useSupervisorForm = (initialData?: Supervisor) => {
+  const [school, setSchool] = useState("");
+  const [schoolSearch, setSchoolSearch] = useState("");
+  const [branch, setBranch] = useState("");
+  const [branchSearch, setBranchSearch] = useState("");
+  const [route, setRoute] = useState("");
+  const [routeSearch, setRouteSearch] = useState("");
+  const [device, setDevice] = useState("");
+  const [deviceSearch, setDeviceSearch] = useState("");
+
+  useEffect(() => {
+    if (initialData) {
+      setSchool(getId(initialData.schoolId));
+      setBranch(getId(initialData.branchId));
+      setRoute(getId(initialData.routeObjId));
+      setDevice(getId(initialData.deviceObjId));
+    }
+  }, [initialData]);
+
+  const resetForm = () => {
+    setSchool(""); setSchoolSearch("");
+    setBranch(""); setBranchSearch("");
+    setRoute(""); setRouteSearch("");
+    setDevice(""); setDeviceSearch("");
+  };
+
+  const handleSchoolChange = useCallback((newSchool: string) => {
+    const prevSchool = school;
+    setSchool(newSchool);
+    if (newSchool !== prevSchool && prevSchool !== "") {
+      setBranch(""); setBranchSearch("");
+      setRoute(""); setRouteSearch("");
+      setDevice(""); setDeviceSearch("");
+    }
+  }, [school]);
+
+  const handleBranchChange = useCallback((newBranch: string) => {
+    const prevBranch = branch;
+    setBranch(newBranch);
+    if (newBranch !== prevBranch && prevBranch !== "") {
+      setRoute(""); setRouteSearch("");
+      setDevice(""); setDeviceSearch("");
+    }
+  }, [branch]);
+
+  const handleRouteChange = useCallback((newRoute: string) => {
+    const prevRoute = route;
+    setRoute(newRoute);
+    if (newRoute !== prevRoute && prevRoute !== "") {
+      setDevice(""); setDeviceSearch("");
+    }
+  }, [route]);
+
+  return {
+    school, setSchool: handleSchoolChange, schoolSearch, setSchoolSearch,
+    branch, setBranch: handleBranchChange, branchSearch, setBranchSearch,
+    route, setRoute: handleRouteChange, routeSearch, setRouteSearch,
+    device, setDevice, deviceSearch, setDeviceSearch, resetForm
+  };
+};
+
+const fetchAllSupervisors = async (): Promise<Supervisor[]> => {
+  let allSupervisors: Supervisor[] = [];
+  let currentPage = 1;
+  let totalPages = 1;
+
+  do {
+    const response = await api.get<SupervisorResponse>(`/supervisor?page=${currentPage}`);
+    const data = response;
+    
+    if (data.supervisors?.length > 0) {
+      allSupervisors = [...allSupervisors, ...data.supervisors];
+    }
+    
+    totalPages = data.totalPages;
+    currentPage++;
+    
+    if (currentPage <= totalPages) {
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+  } while (currentPage <= totalPages);
+
+  return allSupervisors;
+};
+
+// Reusable Components
 const SupervisorForm = ({ 
-  formData, 
-  onInputChange, 
-  school, 
-  setSchool,
-  schoolSearch,
-  setSchoolSearch,
-  branch, 
-  setBranch,
-  branchSearch,
-  setBranchSearch,
-  device, 
-  setDevice,
-  deviceSearch,
-  setDeviceSearch,
-  schoolOptions,
-  branchOptions,
-  deviceItems,
-  hasNextPage,
-  fetchNextPage,
-  isFetchingNextPage,
-  isFetching,
-  usernameError,
+  formData, onInputChange, formState, onFormStateChange, 
+  schoolOptions, branchOptions, routeItems, deviceItems,
+  isFetchingRoutes, hasNextPage, fetchNextPage, isFetchingNextPage, isFetching,
+  usernameError 
 }: any) => (
   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
     <div className="grid gap-2">
@@ -111,14 +215,14 @@ const SupervisorForm = ({
       <Label>School *</Label>
       <Combobox 
         items={schoolOptions} 
-        value={school} 
-        onValueChange={setSchool}
+        value={formState.school} 
+        onValueChange={onFormStateChange.setSchool}
         placeholder="Search school..." 
         searchPlaceholder="Search schools..." 
         emptyMessage="No school found."
         width="w-full" 
-        onSearchChange={setSchoolSearch} 
-        searchValue={schoolSearch} 
+        onSearchChange={onFormStateChange.setSchoolSearch} 
+        searchValue={formState.schoolSearch} 
       />
     </div>
 
@@ -126,31 +230,48 @@ const SupervisorForm = ({
       <Label>Branch *</Label>
       <Combobox 
         items={branchOptions} 
-        value={branch} 
-        onValueChange={setBranch}
-        placeholder={!school ? "Select school first" : branchOptions.length ? "Search branch..." : "No branches available"}
+        value={formState.branch} 
+        onValueChange={onFormStateChange.setBranch}
+        placeholder={!formState.school ? "Select school first" : branchOptions.length ? "Search branch..." : "No branches available"}
         searchPlaceholder="Search branches..." 
-        emptyMessage={!school ? "Please select a school first" : branchOptions.length === 0 ? "No branches found for this school" : "No branches match your search"}
+        emptyMessage={!formState.school ? "Please select a school first" : branchOptions.length === 0 ? "No branches found for this school" : "No branches match your search"}
         width="w-full" 
-        disabled={!school}
-        onSearchChange={setBranchSearch} 
-        searchValue={branchSearch} 
+        disabled={!formState.school}
+        onSearchChange={onFormStateChange.setBranchSearch} 
+        searchValue={formState.branchSearch} 
       />
     </div>
 
     <div className="grid gap-2">
-      <Label>Device *</Label>
+      <Label>Route Number *</Label>
+      <Combobox 
+        items={routeItems} 
+        value={formState.route} 
+        onValueChange={onFormStateChange.setRoute}
+        placeholder={!formState.school ? "Select school first" : !formState.branch ? "Select branch first" : "Search route..."}
+        searchPlaceholder="Search routes..." 
+        emptyMessage={!formState.school ? "Please select a school first" : !formState.branch ? "Please select a branch first" : routeItems.length === 0 ? "No routes found for this branch" : "No routes match your search"}
+        width="w-full" 
+        disabled={!formState.branch}
+        onSearchChange={onFormStateChange.setRouteSearch} 
+        searchValue={formState.routeSearch}
+        isLoadingMore={isFetchingRoutes}
+      />
+    </div>
+
+    <div className="grid gap-2">
+      <Label>Assign Device</Label>
       <Combobox 
         items={deviceItems} 
-        value={device} 
-        onValueChange={setDevice}
-        placeholder={!school ? "Select school first" : !branch ? "Select branch first" : "Search device..."}
+        value={formState.device} 
+        onValueChange={onFormStateChange.setDevice}
+        placeholder={!formState.school ? "Select school first" : !formState.branch ? "Select branch first" : !formState.route ? "Select route first" : deviceItems.length ? "Search device..." : "No device assigned to this route"}
         searchPlaceholder="Search devices..." 
-        emptyMessage={!school ? "Please select a school first" : !branch ? "Please select a branch first" : "No devices found"}
+        emptyMessage={!formState.school ? "Please select a school first" : !formState.branch ? "Please select a branch first" : !formState.route ? "Please select a route first" : deviceItems.length === 0 ? "No device assigned to this route" : "No devices match your search"}
         width="w-full" 
-        disabled={!branch}
-        onSearchChange={setDeviceSearch} 
-        searchValue={deviceSearch}
+        disabled={!formState.route}
+        onSearchChange={onFormStateChange.setDeviceSearch} 
+        searchValue={formState.deviceSearch}
         onReachEnd={() => {
           if (hasNextPage && !isFetchingNextPage && !isFetching) {
             fetchNextPage();
@@ -174,12 +295,12 @@ const SupervisorForm = ({
     </div>
 
     <div className="grid gap-2">
-      <Label htmlFor="supervisorMobile">Mobile No</Label>
+      <Label htmlFor="mobileNo">Mobile No</Label>
       <Input
-        id="supervisorMobile"
-        name="supervisorMobile"
+        id="mobileNo"
+        name="mobileNo"
         type="tel"
-        value={formData?.supervisorMobile}
+        value={formData?.mobileNo}
         onChange={onInputChange}
         placeholder="Enter mobile number"
         pattern="[0-9]{10}"
@@ -217,52 +338,6 @@ const SupervisorForm = ({
   </div>
 );
 
-// Custom hook for form state management
-const useSupervisorForm = (initialData?: Supervisor) => {
-  const [school, setSchool] = useState("");
-  const [schoolSearch, setSchoolSearch] = useState("");
-  const [branch, setBranch] = useState("");
-  const [branchSearch, setBranchSearch] = useState("");
-  const [device, setDevice] = useState("");
-  const [deviceSearch, setDeviceSearch] = useState("");
-
-  useEffect(() => {
-    if (initialData) {
-      setSchool(initialData.schoolId?._id || initialData.schoolId || "");
-      setBranch(initialData.branchId?._id || initialData.branchId || "");
-      setDevice(initialData.deviceObjId?._id || initialData.deviceObjId || "");
-    }
-  }, [initialData]);
-
-  const resetForm = () => {
-    setSchool("");
-    setSchoolSearch("");
-    setBranch("");
-    setBranchSearch("");
-    setDevice("");
-    setDeviceSearch("");
-  };
-
-  useEffect(() => {
-    setBranch("");
-    setBranchSearch("");
-    setDevice("");
-    setDeviceSearch("");
-  }, [school]);
-
-  useEffect(() => {
-    setDevice("");
-    setDeviceSearch("");
-  }, [branch]);
-
-  return {
-    school, setSchool, schoolSearch, setSchoolSearch,
-    branch, setBranch, branchSearch, setBranchSearch,
-    device, setDevice, deviceSearch, setDeviceSearch,
-    resetForm
-  };
-};
-
 export default function SupervisorApprove() {
   const queryClient = useQueryClient();
   const closeButtonRef = useRef<HTMLButtonElement>(null);
@@ -279,30 +354,75 @@ export default function SupervisorApprove() {
   const addForm = useSupervisorForm();
   const editForm = useSupervisorForm(editTarget || undefined);
 
+  // Data hooks
   const { data: schoolData, isLoading: schoolsLoading } = useSchoolData();
   const { data: branchData, isLoading: branchesLoading } = useBranchData();
 
-  // Fetch supervisor data
-  const {
-    data: supervisors,
-    isLoading,
-    isError,
-    error,
-  } = useQuery<Supervisor[]>({
-    queryKey: ["supervisors"],
-    queryFn: async () => {
-      const res = await api.get<SupervisorResponse>("/supervisor");
-      return res.supervisors;
-    },
+  // Route queries
+  const addRouteQuery = useRouteData({ branchId: addForm.branch, search: addForm.routeSearch });
+  const editRouteQuery = useRouteData({ branchId: editForm.branch, search: editForm.routeSearch });
+
+  // Get route device IDs for filtering - FIXED VERSION
+  const getRouteDeviceObjIds = useCallback((routeData: any, routeId: string): string[] => {
+    if (!routeData || !routeId) return [];
+    
+    const routes = extractData(routeData, ["routes", "data"]);
+    const selectedRoute = routes.find((r: Route) => r._id === routeId);
+    
+    if (selectedRoute?.deviceObjId) {
+      // Extract device ID whether it's a string or object
+      const deviceId = getId(selectedRoute.deviceObjId);
+      return deviceId ? [deviceId] : [];
+    }
+    
+    return [];
+  }, []);
+
+  // Get the assigned device for a specific route - NEW FUNCTION
+  const getAssignedDeviceForRoute = useCallback((routeData: any, routeId: string): SelectOption | null => {
+    if (!routeData || !routeId) return null;
+    
+    const routes = extractData(routeData, ["routes", "data"]);
+    const selectedRoute = routes.find((r: Route) => r._id === routeId);
+    
+    if (selectedRoute?.deviceObjId) {
+      const deviceId = getId(selectedRoute.deviceObjId);
+      const deviceName = typeof selectedRoute.deviceObjId === 'object' 
+        ? selectedRoute.deviceObjId.name 
+        : 'Assigned Device';
+      
+      return deviceId ? { label: deviceName, value: deviceId } : null;
+    }
+    
+    return null;
+  }, []);
+
+  // NEW: Get the currently assigned device from supervisor data
+  const getCurrentAssignedDevice = useCallback((supervisor: Supervisor): SelectOption | null => {
+    if (!supervisor?.deviceObjId) return null;
+    
+    const deviceId = getId(supervisor.deviceObjId);
+    const deviceName = typeof supervisor.deviceObjId === 'object' 
+      ? supervisor.deviceObjId.name 
+      : 'Assigned Device';
+    
+    return deviceId ? { label: deviceName, value: deviceId } : null;
+  }, []);
+
+  // Device queries - filtered by route's assigned device
+  const addDeviceQuery = useInfiniteDeviceData({
+    role: (role || "").toLowerCase() as any,
+    deviceObjId: getRouteDeviceObjIds(addRouteQuery.data, addForm.route),
+    search: addForm.deviceSearch,
+    limit: 20,
   });
 
-  const normalizedRole = useMemo(() => {
-    const r = (role || "").toLowerCase();
-    if (["superadmin", "super_admin", "admin", "root"].includes(r)) return "superAdmin";
-    if (["school", "schooladmin"].includes(r)) return "school";
-    if (["branch", "branchadmin"].includes(r)) return "branch";
-    return undefined;
-  }, [role]);
+  const editDeviceQuery = useInfiniteDeviceData({
+    role: (role || "").toLowerCase() as any,
+    deviceObjId: getRouteDeviceObjIds(editRouteQuery.data, editForm.route),
+    search: editForm.deviceSearch,
+    limit: 20,
+  });
 
   useEffect(() => {
     const token = Cookies.get("token");
@@ -312,306 +432,96 @@ export default function SupervisorApprove() {
     }
   }, []);
 
-  // Device data for add dialog
-  const addDeviceQuery = useInfiniteDeviceData({
-    role: normalizedRole as any,
-    branchId: addForm.branch || undefined,
-    search: addForm.deviceSearch,
-    limit: 20,
+  // Supervisor data
+  const { data: supervisors, isLoading } = useQuery<Supervisor[]>({
+    queryKey: ["supervisors"],
+    queryFn: fetchAllSupervisors,
+    staleTime: 5 * 60 * 1000,
   });
 
-  // Device data for edit dialog
-  const editDeviceQuery = useInfiniteDeviceData({
-    role: normalizedRole as any,
-    branchId: editForm.branch || undefined,
-    search: editForm.deviceSearch,
-    limit: 20,
-  });
-
-  // School options
+  // Options and items
   const schoolOptions: SelectOption[] = useMemo(() => {
     if (!schoolData) return [];
-    return Array.from(
-      new Map(
-        schoolData
-          .filter((s) => s._id && s.schoolName)
-          .map((s) => [s._id, { label: s.schoolName, value: s._id }])
-      ).values()
-    );
+    return Array.from(new Map(schoolData.filter(s => s._id && s.schoolName).map(s => [s._id, { label: s.schoolName, value: s._id }])).values());
   }, [schoolData]);
 
   const getFilteredBranchOptions = useCallback((schoolId: string) => {
     if (!schoolId || !branchData) return [];
-    return branchData
-      .filter(branch => {
-        const branchSchoolId = branch.schoolId 
-          ? (typeof branch.schoolId === 'object' ? branch.schoolId?._id : branch.schoolId)
-          : null;
-        return branchSchoolId === schoolId;
-      })
-      .map(branch => ({
-        label: branch.branchName,
-        value: branch._id
-      }));
+    return branchData.filter(branch => getId(branch.schoolId) === schoolId).map(branch => ({
+      label: branch.branchName, value: branch._id
+    }));
   }, [branchData]);
 
-  // Get device items for add form
-  const addDeviceItems = useMemo(() => 
-    getDeviceItems(addDeviceQuery.data),
-    [addDeviceQuery.data]
+  const getRouteItems = (routeData: any) => useMemo(() => {
+    const routes = extractData(routeData, ["routes", "data"]);
+    return routes.filter((r: Route) => r._id && r.routeNumber).map((r: Route) => ({ 
+      label: r.routeNumber + (r.routeName ? ` - ${r.routeName}` : ''), value: r._id 
+    }));
+  }, [routeData]);
+
+  // FIXED: Get device items that only show the assigned device for the selected route
+  const getDeviceItems = (deviceData: any, routeData: any, routeId: string, currentDevice?: SelectOption | null) => useMemo(() => {
+    // Get the assigned device for the current route
+    const assignedDevice = getAssignedDeviceForRoute(routeData, routeId);
+    
+    // If there's a currently assigned device from supervisor data, include it
+    const devices: SelectOption[] = [];
+    
+    if (assignedDevice) {
+      devices.push(assignedDevice);
+    }
+    
+    // If there's a current device assigned to supervisor that's different from route device, include it too
+    if (currentDevice && !devices.some(d => d.value === currentDevice.value)) {
+      devices.push(currentDevice);
+    }
+    
+    return devices;
+  }, [deviceData, routeData, routeId, getAssignedDeviceForRoute, currentDevice]);
+
+  const addDeviceItems = getDeviceItems(addDeviceQuery.data, addRouteQuery.data, addForm.route);
+  
+  // FIXED: For edit, include the currently assigned device
+  const editDeviceItems = getDeviceItems(
+    editDeviceQuery.data, 
+    editRouteQuery.data, 
+    editForm.route,
+    editTarget ? getCurrentAssignedDevice(editTarget) : null
   );
 
-  // Get device items for edit form
-  const editDeviceItems = useMemo(() => 
-    getDeviceItems(editDeviceQuery.data),
-    [editDeviceQuery.data]
-  );
+  const addRouteItems = getRouteItems(addRouteQuery.data);
+  const editRouteItems = getRouteItems(editRouteQuery.data);
 
   useEffect(() => {
-    if (supervisors && supervisors.length > 0) {
+    if (supervisors?.length) {
       setFilteredData(supervisors);
       setFilterResults(supervisors);
     }
   }, [supervisors]);
 
-  // Define columns
-  const columns: ColumnDef<Supervisor, CellContent>[] = useMemo(() => [
-    {
-      header: "Supervisor Name",
-      accessorFn: (row) => ({
-        type: "text",
-        value: row.supervisorName ?? "",
-      }),
-      meta: { flex: 1, minWidth: 200, maxWidth: 300 },
-      enableHiding: true,
-    },
-    {
-      header: "School Name",
-      accessorFn: (row) => ({
-        type: "text",
-        value: typeof row.schoolId === 'object' ? row.schoolId?.schoolName ?? "--" : "--",
-      }),
-      meta: { flex: 1, minWidth: 200, maxWidth: 300 },
-      enableHiding: true,
-    },
-    {
-      header: "Branch Name",
-      accessorFn: (row) => ({
-        type: "text",
-        value: typeof row.branchId === 'object' ? row.branchId?.branchName ?? "--" : "--",
-      }),
-      meta: { flex: 1, minWidth: 200, maxWidth: 300 },
-      enableHiding: true,
-    },
-    {
-      header: "Device Name",
-      accessorFn: (row) => ({
-        type: "text",
-        value: typeof row.deviceObjId === 'object' ? row.deviceObjId?.name ?? "--" : "--",
-      }),
-      meta: { flex: 1, minWidth: 200, maxWidth: 300 },
-      enableHiding: true,
-    },
-    {
-      header: "Mobile",
-      accessorFn: (row) => ({
-        type: "text",
-        value: row.supervisorMobile ?? "",
-      }),
-      meta: { flex: 1, minWidth: 150, maxWidth: 300 },
-      enableHiding: true,
-    },
-    {
-      header: "Username",
-      accessorFn: (row) => ({
-        type: "text",
-        value: row.username ?? "",
-      }),
-      meta: { flex: 1, minWidth: 150, maxWidth: 300 },
-      enableHiding: true,
-    },
-    {
-      header: "Password",
-      accessorFn: (row) => ({
-        type: "text",
-        value: row.password ?? "",
-      }),
-      meta: { flex: 1, minWidth: 150, maxWidth: 300 },
-      enableHiding: true,
-    },
-    {
-      header: "Registration Date",
-      accessorFn: (row) => ({
-        type: "text",
-        value: formatDate(row.createdAt) ?? "",
-      }),
-      meta: { flex: 1, minWidth: 200 },
-      enableHiding: true,
-    },
-    {
-      header: "Status",
-      accessorFn: (row) => ({
-        type: "text",
-        value: row.status ?? "Pending",
-      }),
-      meta: { flex: 1, minWidth: 120, maxWidth: 150 },
-      enableHiding: true,
-    },
-    {
-      header: "Approve/Reject",
-      accessorFn: (row) => ({
-        type: "group",
-        items: row.status === "Pending"
-          ? [
-              {
-                type: "button",
-                label: "Approve",
-                onClick: () =>
-                  ApproveMutation.mutate({
-                    _id: row._id,
-                    status: "Approve",
-                  }),
-                disabled: ApproveMutation.isPending,
-                className:
-                  "flex-shrink-0 text-xs w-20 bg-green-500 hover:bg-green-600 text-white font-semibold rounded-full px-2 py-1 mr-1",
-              },
-              {
-                type: "button",
-                label: "Reject",
-                onClick: () =>
-                  ApproveMutation.mutate({
-                    _id: row._id,
-                    status: "Rejected",
-                  }),
-                disabled: ApproveMutation.isPending,
-                className:
-                  "flex-shrink-0 text-xs w-20 bg-red-500 hover:bg-red-600 text-white font-semibold rounded-full px-2 py-1",
-              },
-            ]
-          : [
-              {
-                type: "button",
-                label: row.status === "Approved" ? "Approved" : "Rejected",
-                onClick: () => {},
-                disabled: true,
-                className: `flex-shrink-0 text-xs w-24 ${
-                  row.status === "Approved"
-                    ? "bg-green-300 text-green-800"
-                    : "bg-red-300 text-red-800"
-                } font-semibold rounded-full px-2 py-1`,
-              },
-            ],
-      }),
-      meta: {
-        flex: 1,
-        minWidth: 180,
-        maxWidth: 200,
-      },
-      enableSorting: false,
-      enableHiding: true,
-    },
-    {
-      header: "Action",
-      accessorFn: (row) => ({
-        type: "group",
-        items: [
-          {
-            type: "button",
-            label: "Edit",
-            onClick: () => {
-              setEditTarget(row);
-              setEditDialogOpen(true);
-            },
-            className: "cursor-pointer",
-            disabled: updateSupervisorMutation.isPending,
-          },
-          {
-            type: "button",
-            label: "Delete",
-            onClick: () => setDeleteTarget(row),
-            className: "text-red-600 cursor-pointer",
-            disabled: deleteSupervisorMutation.isPending,
-          },
-        ],
-      }),
-      meta: { flex: 1.5, minWidth: 150, maxWidth: 200 },
-      enableSorting: false,
-      enableHiding: true,
-    },
-  ], []);
-
-  // columns for export
-  const columnsForExport = useMemo(() => [
-    { key: "supervisorName", header: "Supervisor Name" },
-    { key: "supervisorMobile", header: "Mobile" },
-    { key: "username", header: "Supervisor Username" },
-    { key: "password", header: "Supervisor Password" },
-    { key: "schoolId.schoolName", header: "School Name" },
-    { key: "branchId.branchName", header: "Branch Name" },
-    { key: "deviceObjId.name", header: "Device Name" },
-    { key: "status", header: "Status" },
-    { key: "createdAt", header: "Registration Date" },
-  ], []);
-
-  // Mutation to add a new supervisor
+  // Mutations
   const addSupervisorMutation = useMutation({
     mutationFn: async (newSupervisor: any) => {
       const response = await api.post("/supervisor", newSupervisor);
       return response.data;
     },
-    onSuccess: (createdSupervisor, variables) => {
-      const schoolObj = schoolData?.find(s => s._id === variables.schoolId);
-      const branchObj = branchData?.find(b => b._id === variables.branchId);
-      
-      // Find device from the current device items
-      const deviceObj = addDeviceItems.find(d => d.value === variables.deviceObjId);
-
-      const newSupervisorWithResolvedReferences = {
-        ...createdSupervisor,
-        password: variables.password,
-        schoolId: schoolObj
-          ? { _id: schoolObj._id, schoolName: schoolObj.schoolName }
-          : { _id: variables.schoolId, schoolName: "Unknown School" },
-        branchId: branchObj
-          ? { _id: branchObj._id, branchName: branchObj.branchName }
-          : { _id: variables.branchId, branchName: "Unknown Branch" },
-        deviceObjId: deviceObj
-          ? { _id: deviceObj.value, name: deviceObj.label }
-          : { _id: variables.deviceObjId, name: "Unknown Device" },
-      };
-
-      queryClient.setQueryData<Supervisor[]>(["supervisors"], (oldSupervisors = []) => {
-        return [...oldSupervisors, newSupervisorWithResolvedReferences];
-      });
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['supervisors'] });
       alert("Supervisor added successfully.");
+      closeButtonRef.current?.click();
+      addForm.resetForm();
     },
     onError: (error: any) => {
-      alert(
-        `Failed to add supervisor: ${
-          error.response?.data?.message || error.message
-        }`
-      );
+      alert(`Failed to add supervisor: ${error.response?.data?.message || error.message}`);
     },
   });
 
-  // ApproveMutation with correct status values
-  const ApproveMutation = useMutation({
-    mutationFn: async (supervisor: { _id: string; status: "Approve" | "Rejected" }) => {
-      return await api.post(`/supervisor/approve/${supervisor._id}`, {
-        status: supervisor.status,
-      });
+  const approveMutation = useMutation({
+    mutationFn: async (supervisor: { _id: string; status: "Approved" | "Rejected" }) => {
+      return await api.post(`/supervisor/approve/${supervisor._id}`, { status: supervisor.status });
     },
-    onSuccess: (updated, variables) => {
-      queryClient.setQueryData<Supervisor[]>(["supervisors"], (oldData) =>
-        oldData?.map((supervisor) =>
-          supervisor._id === variables._id
-            ? { 
-                ...supervisor, 
-                status: variables.status === "Approve" ? "Approved" : "Rejected" 
-              }
-            : supervisor
-        )
-      );
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['supervisors'] });
       alert("Access updated successfully.");
     },
     onError: (err: any) => {
@@ -619,15 +529,8 @@ export default function SupervisorApprove() {
     },
   });
 
-  // Mutation for edit supervisor data
   const updateSupervisorMutation = useMutation({
-    mutationFn: async ({
-      supervisorId,
-      data,
-    }: {
-      supervisorId: string;
-      data: Partial<Supervisor>;
-    }) => {
+    mutationFn: async ({ supervisorId, data }: { supervisorId: string; data: Partial<Supervisor> }) => {
       return await api.put(`/supervisor/${supervisorId}`, data);
     },
     onSuccess: () => {
@@ -642,15 +545,12 @@ export default function SupervisorApprove() {
     },
   });
 
-  // Mutation to delete a supervisor
   const deleteSupervisorMutation = useMutation({
     mutationFn: async (supervisorId: string) => {
       return await api.delete(`/supervisor/${supervisorId}`);
     },
-    onSuccess: (_, deletedId) => {
-      queryClient.setQueryData<Supervisor[]>(["supervisors"], (oldData) =>
-        oldData?.filter((supervisor) => supervisor._id !== deletedId)
-      );
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['supervisors'] });
       alert("Supervisor deleted successfully.");
     },
     onError: (err: any) => {
@@ -658,29 +558,67 @@ export default function SupervisorApprove() {
     },
   });
 
-  // Handle search
+  // Event handlers
   const handleSearchResults = useCallback((results: Supervisor[]) => {
     setFilteredData(results);
   }, []);
 
-  // Handle save action for edit supervisor
+  const handleDateFilter = useCallback((start: Date | null, end: Date | null) => {
+    if (!supervisors || (!start && !end)) {
+      setFilteredData(supervisors || []);
+      return;
+    }
+    const filtered = supervisors.filter((supervisor) => {
+      if (!supervisor.createdAt) return false;
+      const createdDate = new Date(supervisor.createdAt);
+      return (!start || createdDate >= start) && (!end || createdDate <= end);
+    });
+    setFilteredData(filtered);
+  }, [supervisors]);
+
+  const handleCustomFilter = useCallback((filtered: Supervisor[]) => {
+    setFilteredData(filtered);
+  }, []);
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+
+    if (!addForm.school || !addForm.branch || !addForm.route) {
+      alert("Please select School, Branch, and Route");
+      return;
+    }
+
+    const data = {
+      supervisorName: formData.get("supervisorName") as string,
+      mobileNo: formData.get("mobileNo") as string,
+      username: formData.get("username") as string,
+      password: formData.get("password") as string,
+      email: formData.get("email") as string,
+      schoolId: addForm.school,
+      branchId: addForm.branch,
+      routeObjId: addForm.route,
+      deviceObjId: addForm.device || undefined,
+    };
+
+    await addSupervisorMutation.mutateAsync(data);
+  };
+
   const handleSave = (updatedData: Partial<Supervisor>) => {
     if (!editTarget) return;
 
     const changedFields: Partial<Record<keyof Supervisor, unknown>> = {};
-    
-    // Extract IDs for comparison
     const editTargetFlat = {
       ...editTarget,
-      schoolId: typeof editTarget.schoolId === 'object' ? editTarget.schoolId?._id : editTarget.schoolId,
-      branchId: typeof editTarget.branchId === 'object' ? editTarget.branchId?._id : editTarget.branchId,
-      deviceObjId: typeof editTarget.deviceObjId === 'object' ? editTarget.deviceObjId?._id : editTarget.deviceObjId,
+      schoolId: getId(editTarget.schoolId),
+      branchId: getId(editTarget.branchId),
+      routeObjId: getId(editTarget.routeObjId),
+      deviceObjId: getId(editTarget.deviceObjId),
     };
 
     for (const key in updatedData) {
       const newValue = updatedData[key as keyof Supervisor];
       const oldValue = editTargetFlat[key as keyof typeof editTargetFlat];
-
       if (newValue !== undefined && newValue !== oldValue) {
         changedFields[key as keyof Supervisor] = newValue;
       }
@@ -691,233 +629,187 @@ export default function SupervisorApprove() {
       return;
     }
 
-    updateSupervisorMutation.mutate({
-      supervisorId: editTarget._id,
-      data: changedFields,
-    });
+    updateSupervisorMutation.mutate({ supervisorId: editTarget._id, data: changedFields });
   };
 
-  // Custom field change handler for edit dialog
-  const handleEditFieldChange = (key: string, value: any) => {
+  const handleEditFieldChange = (key: string, value: string) => {
     if (key === "schoolId") {
       editForm.setSchool(value);
-      editForm.setBranch("");
-      editForm.setDevice("");
+      editForm.setBranch(""); editForm.setRoute(""); editForm.setDevice("");
     } else if (key === "branchId") {
       editForm.setBranch(value);
+      editForm.setRoute(""); editForm.setDevice("");
+    } else if (key === "routeObjId") {
+      editForm.setRoute(value);
       editForm.setDevice("");
+    } else if (key === "deviceObjId") {
+      editForm.setDevice(value);
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const form = e.currentTarget;
-    const formData = new FormData(form);
-
-    if (!addForm.school || !addForm.branch || !addForm.device) {
-      alert("Please select School, Branch, and Device");
-      return;
-    }
-
-    const data = {
-      supervisorName: formData.get("supervisorName") as string,
-      supervisorMobile: formData.get("supervisorMobile") as string,
-      username: formData.get("username") as string,
-      password: formData.get("password") as string,
-      email: formData.get("email") as string,
-      schoolId: addForm.school,
-      branchId: addForm.branch,
-      deviceObjId: addForm.device,
-    };
-
-    await addSupervisorMutation.mutateAsync(data);
-
-    if (!addSupervisorMutation.isError) {
-      closeButtonRef.current?.click();
-      form.reset();
-      addForm.resetForm();
-    }
-  };
-
-  const handleDateFilter = useCallback(
-    (start: Date | null, end: Date | null) => {
-      if (!supervisors || (!start && !end)) {
-        setFilteredData(supervisors || []);
-        return;
-      }
-
-      const filtered = supervisors.filter((supervisor) => {
-        if (!supervisor.createdAt) return false;
-
-        const createdDate = new Date(supervisor.createdAt);
-        return (!start || createdDate >= start) && (!end || createdDate <= end);
-      });
-
-      setFilteredData(filtered);
+  // Table configuration
+  const columns: ColumnDef<Supervisor, CellContent>[] = useMemo(() => [
+    {
+      header: "Supervisor Name", accessorFn: (row) => ({ type: "text", value: row.supervisorName ?? "" }),
+      meta: { flex: 1, minWidth: 200, maxWidth: 300 }, enableHiding: true,
     },
-    [supervisors]
-  );
+    {
+      header: "School Name", accessorFn: (row) => ({ type: "text", value: typeof row.schoolId === 'object' ? row.schoolId?.schoolName ?? "--" : "--" }),
+      meta: { flex: 1, minWidth: 200, maxWidth: 300 }, enableHiding: true,
+    },
+    {
+      header: "Branch Name", accessorFn: (row) => ({ type: "text", value: typeof row.branchId === 'object' ? row.branchId?.branchName ?? "--" : "--" }),
+      meta: { flex: 1, minWidth: 200, maxWidth: 300 }, enableHiding: true,
+    },
+    {
+      header: "Route Number", accessorFn: (row) => ({ type: "text", value: typeof row.routeObjId === 'object' ? row.routeObjId?.routeNumber ?? "--" : "--" }),
+      meta: { flex: 1, minWidth: 150, maxWidth: 200 }, enableHiding: true,
+    },
+    {
+      header: "Assigned Device", accessorFn: (row) => { 
+        const deviceName = typeof row.deviceObjId === 'object' ? row.deviceObjId?.name : "--";
+        const routeDeviceName = typeof row.routeObjId === 'object' && typeof row.routeObjId.deviceObjId === 'object' 
+          ? row.routeObjId.deviceObjId.name 
+          : "--";
+        
+        // Prefer the deviceObjId from supervisor, fallback to route's deviceObjId
+        const displayName = deviceName !== "--" ? deviceName : routeDeviceName;
+        return { type: "text", value: displayName };
+      },
+      meta: { flex: 1, minWidth: 150, maxWidth: 200 }, enableHiding: true,
+    },
+    {
+      header: "Mobile", accessorFn: (row) => ({ type: "text", value: row.mobileNo ?? "" }),
+      meta: { flex: 1, minWidth: 150, maxWidth: 300 }, enableHiding: true,
+    },
+    {
+      header: "Username", accessorFn: (row) => ({ type: "text", value: row.username ?? "" }),
+      meta: { flex: 1, minWidth: 150, maxWidth: 300 }, enableHiding: true,
+    },
+    {
+      header: "Password", accessorFn: (row) => ({ type: "text", value: row.password ?? "" }),
+      meta: { flex: 1, minWidth: 150, maxWidth: 300 }, enableHiding: true,
+    },
+    {
+      header: "Registration Date", accessorFn: (row) => ({ type: "text", value: formatDate(row.createdAt) ?? "" }),
+      meta: { flex: 1, minWidth: 200 }, enableHiding: true,
+    },
+    {
+      header: "Status", accessorFn: (row) => ({ type: "text", value: row.status ?? "Pending" }),
+      meta: { flex: 1, minWidth: 120, maxWidth: 150 }, enableHiding: true,
+    },
+    {
+      header: "Approve/Reject", accessorFn: (row) => ({
+        type: "group", items: row.status === "Pending" ? [
+          { type: "button", label: "Approve", onClick: () => approveMutation.mutate({ _id: row._id, status: "Approved" }), disabled: approveMutation.isPending, className: "flex-shrink-0 text-xs w-20 bg-green-500 hover:bg-green-600 text-white font-semibold rounded-full px-2 py-1 mr-1" },
+          { type: "button", label: "Reject", onClick: () => approveMutation.mutate({ _id: row._id, status: "Rejected" }), disabled: approveMutation.isPending, className: "flex-shrink-0 text-xs w-20 bg-red-500 hover:bg-red-600 text-white font-semibold rounded-full px-2 py-1" },
+        ] : [
+          { type: "button", label: row.status === "Approved" ? "Approved" : "Rejected", onClick: () => {}, disabled: true, className: `flex-shrink-0 text-xs w-24 ${row.status === "Approved" ? "bg-green-300 text-green-800" : "bg-red-300 text-red-800"} font-semibold rounded-full px-2 py-1` },
+        ],
+      }), meta: { flex: 1, minWidth: 180, maxWidth: 200 }, enableSorting: false, enableHiding: true,
+    },
+    {
+      header: "Action", accessorFn: (row) => ({
+        type: "group", items: [
+          { type: "button", label: "Edit", onClick: () => { setEditTarget(row); setEditDialogOpen(true); }, className: "cursor-pointer", disabled: updateSupervisorMutation.isPending },
+          { type: "button", label: "Delete", onClick: () => setDeleteTarget(row), className: "text-red-600 cursor-pointer", disabled: deleteSupervisorMutation.isPending },
+        ],
+      }), meta: { flex: 1.5, minWidth: 150, maxWidth: 200 }, enableSorting: false, enableHiding: true,
+    },
+  ], []);
 
-  const handleCustomFilter = useCallback((filtered: Supervisor[]) => {
-    setFilteredData(filtered);
-  }, []);
+  const columnsForExport = useMemo(() => [
+    { key: "supervisorName", header: "Supervisor Name" },
+    { key: "mobileNo", header: "Mobile" },
+    { key: "username", header: "Supervisor Username" },
+    { key: "password", header: "Supervisor Password" },
+    { key: "schoolId.schoolName", header: "School Name" },
+    { key: "branchId.branchName", header: "Branch Name" },
+    { key: "routeObjId.routeNumber", header: "Route Number" },
+    { key: "deviceObjId.name", header: "Assigned Device" },
+    { key: "status", header: "Status" },
+    { key: "createdAt", header: "Registration Date" },
+  ], []);
 
   const table = useReactTable({
-    data: filteredData,
-    columns,
-    state: { columnVisibility },
-    onColumnVisibilityChange: setColumnVisibility,
-    getCoreRowModel: getCoreRowModel(),
+    data: filteredData, columns, state: { columnVisibility },
+    onColumnVisibilityChange: setColumnVisibility, getCoreRowModel: getCoreRowModel(),
   });
 
-  // Prepare data for edit modal
-  const editData = editTarget
-    ? {
-        _id: editTarget._id,
-        supervisorName: editTarget.supervisorName || "",
-        supervisorMobile: editTarget.supervisorMobile || "",
-        username: editTarget.username || "",
-        password: editTarget.password || "",
-        schoolId: typeof editTarget.schoolId === 'object' ? editTarget.schoolId?._id || "" : editTarget.schoolId || "",
-        branchId: typeof editTarget.branchId === 'object' ? editTarget.branchId?._id || "" : editTarget.branchId || "",
-        deviceObjId: typeof editTarget.deviceObjId === 'object' ? editTarget.deviceObjId?._id || "" : editTarget.deviceObjId || "",
-      }
-    : null;
+  const editData = editTarget ? {
+    _id: editTarget._id, supervisorName: editTarget.supervisorName || "",
+    mobileNo: editTarget.mobileNo || "", username: editTarget.username || "",
+    password: editTarget.password || "", email: editTarget.email || "",
+    schoolId: getId(editTarget.schoolId), branchId: getId(editTarget.branchId),
+    routeObjId: getId(editTarget.routeObjId), deviceObjId: getId(editTarget.deviceObjId),
+  } : null;
 
-  // Define the fields for the edit dialog
   const supervisorFieldConfigs: FieldConfig[] = useMemo(() => [
-    {
-      label: "Supervisor Name",
-      key: "supervisorName",
-      type: "text",
-      required: true,
-    },
-    {
-      label: "School Name",
-      key: "schoolId",
-      type: "select",
-      required: true,
-      options: schoolOptions,
-    },
-    {
-      label: "Branch Name",
-      key: "branchId",
-      type: "select",
-      required: true,
-      options: getFilteredBranchOptions(editForm.school),
-    },
-    {
-      label: "Device Name",
-      key: "deviceObjId",
-      type: "select",
-      required: true,
-      options: editDeviceItems,
-    },
-    {
-      label: "Mobile Number",
-      key: "supervisorMobile",
-      type: "text",
-      required: true,
-    },
-    {
-      label: "Username",
-      key: "username",
-      type: "text",
-      required: true,
-    },
-    {
-      label: "Password",
-      key: "password",
-      type: "text",
-      required: true,
-    },
-  ], [schoolOptions, getFilteredBranchOptions, editForm.school, editDeviceItems]);
+    { label: "Supervisor Name", key: "supervisorName", type: "text", required: true },
+    { label: "Email", key: "email", type: "text", required: true },
+    { label: "Mobile Number", key: "mobileNo", type: "text", required: true },
+    { label: "School Name", key: "schoolId", type: "select", required: true, options: schoolOptions },
+    { label: "Branch Name", key: "branchId", type: "select", required: true, options: getFilteredBranchOptions(editForm.school), disabled: !editForm.school },
+    { label: "Route Number", key: "routeObjId", type: "select", required: true, options: editRouteItems, disabled: !editForm.branch },
+    { label: "Assign Device", key: "deviceObjId", type: "select", required: false, options: editDeviceItems, disabled: !editForm.route },
+    { label: "Username", key: "username", type: "text", required: true },
+    { label: "Password", key: "password", type: "text", required: true },
+  ], [schoolOptions, getFilteredBranchOptions, editForm.school, editForm.branch, editForm.route, editRouteItems, editDeviceItems]);
 
   return (
     <main>
-      {/* Progress loader at the top */}
       <ResponseLoader isLoading={isLoading} />
 
       <header className="flex items-center justify-between mb-4">
         <section className="flex space-x-4">
-          {/* Search component */}
-          <SearchComponent
-            data={filterResults}
-            displayKey={["supervisorName", "username", "email", "supervisorMobile"]}
-            onResults={handleSearchResults}
-            className="w-[300px] mb-4"
-          />
-          {/* Date range picker */}
-          <DateRangeFilter
-            onDateRangeChange={handleDateFilter}
-            title="Search by Registration Date"
-          />
-
-          {/* Custom Filter  */}
-          <CustomFilter
-            data={filteredData}
-            originalData={supervisors}
-            filterFields={["status"]}
-            onFilter={handleCustomFilter}
-            placeholder={"Filter by Status"}
-            valueFormatter={(value) => {
-              if (!value) return "";
-
-              const formatted = value.toString().toLowerCase();
-
-              if (formatted === "rejected") return "Rejected";
-              if (formatted === "approved") return "Approved";
-              if (formatted === "pending") return "Pending";
-
-              return value;
-            }}
-          />
-
-          {/* Column visibility selector */}
-          <ColumnVisibilitySelector
-            columns={table.getAllColumns()}
-            buttonVariant="outline"
-            buttonSize="default"
-          />
+          <SearchComponent data={filterResults} displayKey={["supervisorName", "username", "email", "mobileNo"]} onResults={handleSearchResults} className="w-[300px] mb-4" />
+          <DateRangeFilter onDateRangeChange={handleDateFilter} title="Search by Registration Date" />
+          <CustomFilter data={filteredData} originalData={supervisors} filterFields={["status"]} onFilter={handleCustomFilter} placeholder={"Filter by Status"} valueFormatter={(value) => {
+            if (!value) return "";
+            const formatted = value.toString().toLowerCase();
+            if (formatted === "rejected") return "Rejected";
+            if (formatted === "approved") return "Approved";
+            if (formatted === "pending") return "Pending";
+            return value;
+          }} />
+          <ColumnVisibilitySelector columns={table.getAllColumns()} buttonVariant="outline" buttonSize="default" />
         </section>
 
-        {/* Add supervisor */}
         <section>
           <Dialog>
-            <DialogTrigger asChild>
-              <Button variant="default">Add Supervisor</Button>
-            </DialogTrigger>
+            <DialogTrigger asChild><Button variant="default">Add Supervisor</Button></DialogTrigger>
             <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
               <form onSubmit={handleSubmit} className="space-y-4">
-                <DialogHeader>
-                  <DialogTitle>Add Supervisor</DialogTitle>
-                </DialogHeader>
+                <DialogHeader><DialogTitle>Add Supervisor</DialogTitle></DialogHeader>
                 <SupervisorForm
-                  school={addForm.school}
-                  setSchool={addForm.setSchool}
-                  schoolSearch={addForm.schoolSearch}
-                  setSchoolSearch={addForm.setSchoolSearch}
-                  branch={addForm.branch}
-                  setBranch={addForm.setBranch}
-                  branchSearch={addForm.branchSearch}
-                  setBranchSearch={addForm.setBranchSearch}
-                  device={addForm.device}
-                  setDevice={addForm.setDevice}
-                  deviceSearch={addForm.deviceSearch}
-                  setDeviceSearch={addForm.setDeviceSearch}
+                  formData={{}}
+                  onInputChange={() => {}}
+                  formState={{
+                    school: addForm.school, schoolSearch: addForm.schoolSearch,
+                    branch: addForm.branch, branchSearch: addForm.branchSearch,
+                    route: addForm.route, routeSearch: addForm.routeSearch,
+                    device: addForm.device, deviceSearch: addForm.deviceSearch
+                  }}
+                  onFormStateChange={{
+                    setSchool: addForm.setSchool, setSchoolSearch: addForm.setSchoolSearch,
+                    setBranch: addForm.setBranch, setBranchSearch: addForm.setBranchSearch,
+                    setRoute: addForm.setRoute, setRouteSearch: addForm.setRouteSearch,
+                    setDevice: addForm.setDevice, setDeviceSearch: addForm.setDeviceSearch
+                  }}
                   schoolOptions={schoolOptions}
                   branchOptions={getFilteredBranchOptions(addForm.school)}
+                  routeItems={addRouteItems}
                   deviceItems={addDeviceItems}
+                  isFetchingRoutes={addRouteQuery.isLoading || addRouteQuery.isFetching}
                   hasNextPage={addDeviceQuery.hasNextPage}
                   fetchNextPage={addDeviceQuery.fetchNextPage}
                   isFetchingNextPage={addDeviceQuery.isFetchingNextPage}
                   isFetching={addDeviceQuery.isFetching}
+                  usernameError={""}
                 />
                 <DialogFooter>
                   <DialogClose asChild>
-                    <Button ref={closeButtonRef} variant="outline">
-                      Cancel
-                    </Button>
+                    <Button ref={closeButtonRef} variant="outline" onClick={addForm.resetForm}>Cancel</Button>
                   </DialogClose>
                   <Button type="submit" disabled={addSupervisorMutation.isPending}>
                     {addSupervisorMutation.isPending ? "Saving..." : "Save Supervisor"}
@@ -929,84 +821,58 @@ export default function SupervisorApprove() {
         </section>
       </header>
 
-      {/* Table component */}
       <section className="mb-4">
         <CustomTable
-          data={filteredData || []}
-          columns={columns}
-          columnVisibility={columnVisibility}
-          onColumnVisibilityChange={setColumnVisibility}
-          pageSizeArray={[10, 20, 50]}
-          maxHeight={600}
-          minHeight={200}
-          showSerialNumber={true}
-          noDataMessage="No supervisors found"
-          isLoading={isLoading}
+          data={filteredData || []} columns={columns} columnVisibility={columnVisibility}
+          onColumnVisibilityChange={setColumnVisibility} pageSizeArray={[10, 20, 50, 100]}
+          maxHeight={600} minHeight={200} showSerialNumber={true}
+          noDataMessage="No supervisors found" isLoading={isLoading}
         />
       </section>
 
-      {/* Alert Boxes */}
       <section>
-        <div>
-          {deleteTarget && (
-            <Alert<Supervisor>
-              title="Are you absolutely sure?"
-              description={`This will permanently delete ${deleteTarget?.supervisorName} and all associated data.`}
-              actionButton={(target) => {
-                deleteSupervisorMutation.mutate(target._id);
-                setDeleteTarget(null);
-              }}
-              target={deleteTarget}
-              setTarget={setDeleteTarget}
-              butttonText="Delete"
-            />
-          )}
-        </div>
-      </section>
-      
-      {/* Edit Dialog */}
-      <section>
-        {editTarget && editData && (
-          <DynamicEditDialog
-            data={editData}
-            isOpen={editDialogOpen}
-            onClose={() => {
-              setEditDialogOpen(false);
-              setEditTarget(null);
-              editForm.resetForm();
+        {deleteTarget && (
+          <Alert<Supervisor>
+            title="Are you absolutely sure?"
+            description={`This will permanently delete ${deleteTarget?.supervisorName} and all associated data.`}
+            actionButton={(target) => {
+              deleteSupervisorMutation.mutate(target._id);
+              setDeleteTarget(null);
             }}
-            onSave={handleSave}
-            onFieldChange={handleEditFieldChange}
-            fields={supervisorFieldConfigs}
-            title="Edit Supervisor"
-            description="Update the supervisor information below. Fields marked with * are required."
-            avatarConfig={{
-              imageKey: "logo",
-              nameKeys: ["supervisorName"],
-            }}
+            target={deleteTarget}
+            setTarget={setDeleteTarget}
+            butttonText="Delete"
           />
         )}
       </section>
       
-      {/* Floating Menu */}
+      <section>
+        {editTarget && editData && (
+          <DynamicEditDialog
+            data={editData} isOpen={editDialogOpen}
+            onClose={() => { setEditDialogOpen(false); setEditTarget(null); editForm.resetForm(); }}
+            onSave={handleSave} onFieldChange={handleEditFieldChange}
+            fields={supervisorFieldConfigs} title="Edit Supervisor"
+            description="Update the supervisor information below. Fields marked with * are required."
+            avatarConfig={{ imageKey: "logo", nameKeys: ["supervisorName"] }}
+          />
+        )}
+      </section>
+      
       <section>
         <FloatingMenu
           onExportPdf={() => {
             exportToPDF(filteredData, columnsForExport, {
               title: "Supervisor Master Report",
               companyName: "Parents Eye",
-              metadata: {
-                Total: `${filteredData.length} supervisors`,
-              },
+              metadata: { Total: `${filteredData.length} supervisors` },
             });
           }}
           onExportExcel={() => {
             exportToExcel(filteredData, columnsForExport, {
               title: "Supervisor Master Report",
               companyName: "Parents Eye",
-              metadata: {
-                Total: `${filteredData.length} supervisors`,
-              },
+              metadata: { Total: `${filteredData.length} supervisors` },
             });
           }}
         />

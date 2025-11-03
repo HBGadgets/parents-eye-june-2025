@@ -108,6 +108,7 @@ const FilterBadge = ({ label, value, onRemove }: { label: string; value: string;
 export default function StudentDetails() {
   const queryClient = useQueryClient();
   const addParentCloseRef = useRef<HTMLButtonElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
   
   // State
   const [deleteTarget, setDeleteTarget] = useState<Student | null>(null);
@@ -138,6 +139,14 @@ export default function StudentDetails() {
     parent: "", school: "", branch: "", route: "", pickupGeo: "", dropGeo: "", gender: "", addParentSchool: "", addParentBranch: ""
   });
 
+  // Form state for child inputs
+  const [childForm, setChildForm] = useState({
+    childName: "",
+    age: "",
+    className: "",
+    section: ""
+  });
+
   // Filter states - hierarchical
   const [filters, setFilters] = useState({
     school: "", branch: "", route: "", pickupGeo: "", dropGeo: ""
@@ -161,7 +170,7 @@ export default function StudentDetails() {
     ...(debouncedSearchTerm && { search: debouncedSearchTerm.trim() }),
     ...(filters.school && { schoolId: filters.school }),
     ...(filters.branch && { branchId: filters.branch }),
-    ...(filters.route && { routeId: filters.route }),
+    ...(filters.route && { routeObjId: filters.route }),
     ...(filters.pickupGeo && { pickupGeoId: filters.pickupGeo }),
     ...(filters.dropGeo && { dropGeoId: filters.dropGeo }),
   }), [debouncedSearchTerm, filters]);
@@ -180,8 +189,22 @@ export default function StudentDetails() {
   // Memoized options
   const schoolOptions = useMemo(() => schools.map(s => ({ label: s.schoolName, value: s._id })), [schools]);
   const geofenceOptions = useMemo(() => geofences.map(g => ({ label: g.geofenceName, value: g._id })), [geofences]);
-  const parentOptions = useMemo(() => parents.map(p => ({ label: p.parentName, value: p._id })), [parents]);
   
+  // Filter parents based on selected school and branch
+  const parentOptions = useMemo(() => {
+    let filteredParents = parents;
+    
+    if (selectedSchool) {
+      filteredParents = filteredParents.filter(p => getId(p.schoolId) === selectedSchool);
+    }
+    
+    if (selectedBranch) {
+      filteredParents = filteredParents.filter(p => getId(p.branchId) === selectedBranch);
+    }
+    
+    return filteredParents.map(p => ({ label: p.parentName, value: p._id }));
+  }, [parents, selectedSchool, selectedBranch]);
+
   const branchOptions = useMemo(() => {
     if (!selectedSchool) return [];
     return branches.filter(b => getId(b.schoolId) === selectedSchool).map(b => ({ label: b.branchName, value: b._id }));
@@ -318,6 +341,12 @@ export default function StudentDetails() {
       setSelectedDropGeo(""); 
       setSelectedGender(""); 
       setSelectedDOB(undefined);
+      setChildForm({
+        childName: "",
+        age: "",
+        className: "",
+        section: ""
+      });
       setSearchStates(prev => ({ ...prev, parent: "", school: "", branch: "", route: "", pickupGeo: "", dropGeo: "", gender: "" }));
     }
   }, [addDialogOpen]);
@@ -335,12 +364,13 @@ export default function StudentDetails() {
     if (selectedParentData) {
       setSelectedSchool(getId(selectedParentData.schoolId));
       setSelectedBranch(getId(selectedParentData.branchId));
-    } else {
-      setSelectedSchool("");
-      setSelectedBranch("");
-      setSelectedRoute("");
     }
   }, [selectedParentData]);
+
+  // Reset parent selection when school or branch changes
+  useEffect(() => {
+    setSelectedParent("");
+  }, [selectedSchool, selectedBranch]);
 
   // Filter functions with hierarchical cascade
   const clearFilters = () => setFilters({ school: "", branch: "", route: "", pickupGeo: "", dropGeo: "" });
@@ -432,7 +462,10 @@ export default function StudentDetails() {
       setAddDialogOpen(false);
       alert("Student(s) added successfully.");
     },
-    onError: (err: any) => alert(`Failed to add student.\nError: ${err.message}`),
+    onError: (err: any) => {
+      console.error("Add student error:", err);
+      alert(`Failed to add student.\nError: ${err.response?.data?.message || err.message}`);
+    },
   });
 
   const updateStudentMutation = useMutation({
@@ -465,15 +498,16 @@ export default function StudentDetails() {
     if (!editTarget) return;
     const changedFields: Partial<Record<keyof Student, unknown>> = {};
     const dataToCompare = { ...updatedData };
-    if (dataToCompare.routeObjId) { 
-      (dataToCompare as any).routeId = dataToCompare.routeObjId; 
-      delete dataToCompare.routeObjId; 
-    }
+    
+    // Keep routeObjId as is - don't rename it to routeId
     for (const key in dataToCompare) {
       const newValue = dataToCompare[key as keyof Student];
       const oldValue = editTarget[key as keyof Student];
-      if (newValue !== undefined && newValue !== oldValue) changedFields[key as keyof Student] = newValue;
+      if (newValue !== undefined && newValue !== oldValue) {
+        changedFields[key as keyof Student] = newValue;
+      }
     }
+    
     if (Object.keys(changedFields).length === 0) return;
     updateStudentMutation.mutate({ studentId: editTarget._id, data: changedFields });
   };
@@ -504,62 +538,133 @@ export default function StudentDetails() {
     }
   };
 
-  const handleAddChild = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleChildFormChange = (field: string, value: string) => {
+    setChildForm(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  const handleAddChild = (e: React.FormEvent) => {
     e.preventDefault();
-    const form = e.currentTarget as any;
     
-    if (!selectedParent) { alert("Please select a parent."); return; }
-    if (!selectedRoute) { alert("Please select a route."); return; }
-    if (!selectedPickupGeo) { alert("Please select a pickup location."); return; }
-    if (!selectedDropGeo) { alert("Please select a drop location."); return; }
+    if (!selectedParent) { 
+      alert("Please select a parent."); 
+      return; 
+    }
+    if (!selectedRoute) { 
+      alert("Please select a route."); 
+      return; 
+    }
+    if (!selectedPickupGeo) { 
+      alert("Please select a pickup location."); 
+      return; 
+    }
+    if (!selectedDropGeo) { 
+      alert("Please select a drop location."); 
+      return; 
+    }
+    if (!childForm.childName.trim()) {
+      alert("Please enter student name.");
+      return;
+    }
     
     const newChild = {
-      childName: form.childName.value.trim(), 
-      className: form.className?.value?.trim() || "", 
-      section: form.section?.value?.trim() || "",
-      DOB: selectedDOB ? format(selectedDOB, "yyyy-MM-dd") : "", 
-      age: form.age?.value ? parseInt(form.age.value) : undefined,
+      childName: childForm.childName.trim(), 
+      className: childForm.className.trim() || "", 
+      section: childForm.section.trim() || "",
+      DOB: selectedDOB ? format(selectedDOB, "yyyy-MM-dd") : "", // Optional field
+      age: childForm.age ? parseInt(childForm.age) : undefined,
       gender: selectedGender || "", 
-      routeId: selectedRoute, 
+      routeObjId: selectedRoute, 
       pickupGeoId: selectedPickupGeo, 
       dropGeoId: selectedDropGeo,
+      schoolId: selectedSchool, 
+      branchId: selectedBranch, 
     };
     
     setChildren([...children, newChild]);
-    form.childName.value = ""; 
-    form.className.value = ""; 
-    form.section.value = ""; 
-    form.age.value = "";
+    
+    // Reset form fields
+    setChildForm({
+      childName: "",
+      age: "",
+      className: "",
+      section: ""
+    });
     setSelectedGender(""); 
     setSelectedPickupGeo(""); 
     setSelectedDropGeo(""); 
     setSelectedDOB(undefined);
     setSearchStates(prev => ({ ...prev, gender: "", pickupGeo: "", dropGeo: "" }));
+    
     alert(`Child "${newChild.childName}" added! You can add more siblings or submit.`);
   };
 
   const handleRemoveChild = (index: number) => setChildren(children.filter((_, i) => i !== index));
 
   const handleFinalSubmit = async () => {
-    if (!selectedParent) { alert("Please select a parent."); return; }
-    if (children.length === 0) { alert("Please add at least one child before submitting."); return; }
+    if (!selectedParent) { 
+      alert("Please select a parent."); 
+      return; 
+    }
+    if (children.length === 0) { 
+      alert("Please add at least one child before submitting."); 
+      return; 
+    }
     
+    // Validate all children before submission
     for (const child of children) {
-      if (!child.childName || !child.routeId || !child.pickupGeoId || !child.dropGeoId) {
+      if (!child.childName || !child.routeObjId || !child.pickupGeoId || !child.dropGeoId) {
         alert("Please ensure all children have Student Name, Route, Pickup Location, and Drop Location filled.");
         return;
       }
     }
-    
-    const data = { 
-      parentId: selectedParent,
-      children: children.map(c => ({ ...c, routeObjId: c.routeId, routeId: c.routeId })) 
+
+    // Get the selected parent data
+    const selectedParentObj = parents.find(p => p._id === selectedParent);
+    if (!selectedParentObj) {
+      alert("Selected parent not found. Please select a valid parent.");
+      return;
+    }
+
+    // Prepare the data in the correct format expected by the API
+    // The API expects both parent data and children data
+    const submissionData = {
+      parent: {
+        _id: selectedParentObj._id,
+        parentName: selectedParentObj.parentName,
+        mobileNo: selectedParentObj.mobileNo,
+        email: selectedParentObj.email,
+        username: selectedParentObj.username,
+        password: selectedParentObj.password,
+        schoolId: selectedParentObj.schoolId,
+        branchId: selectedParentObj.branchId,
+        isActive: selectedParentObj.isActive
+      },
+      children: children.map(child => ({
+        childName: child.childName,
+        className: child.className || "",
+        section: child.section || "",
+        DOB: child.DOB || "",
+        age: child.age || undefined,
+        gender: child.gender || "",
+        routeObjId: child.routeObjId,
+        pickupGeoId: child.pickupGeoId,
+        dropGeoId: child.dropGeoId,
+        schoolId: child.schoolId,
+        branchId: child.branchId,
+        parentId: selectedParent // Add parentId to each child
+      }))
     };
+
+    console.log("Submitting data:", submissionData); // For debugging
     
     try { 
-      await addStudentMutation.mutateAsync(data); 
-    } catch (err) { 
-      console.error("SUBMISSION FAILED:", err); 
+      await addStudentMutation.mutateAsync(submissionData); 
+    } catch (err: any) { 
+      console.error("SUBMISSION FAILED:", err);
+      console.error("Error details:", err.response?.data);
     }
   };
 
@@ -610,7 +715,7 @@ export default function StudentDetails() {
     { id: "branchName", header: "Branch", accessorFn: (row) => row.branchId && typeof row.branchId === "object" ? row.branchId.branchName ?? "N/A" : "N/A" },
     { id: "routeNumber", header: "Route Number", accessorFn: (row) => {
       if (row.routeObjId && typeof row.routeObjId === "object") return row.routeObjId.routeNumber || "N/A";
-      if (row.routeId && typeof row.routeId === "object") return row.routeId.routeNumber || "N/A";
+      if (row.routeObjId && typeof row.routeObjId === "object") return row.routeObjId.routeNumber || "N/A";
       return "N/A";
     }},
     { id: "parentName", header: "Parent Name", accessorFn: (row) => row.parentId && typeof row.parentId === "object" ? row.parentId.parentName ?? "N/A" : "N/A" },
@@ -644,7 +749,7 @@ export default function StudentDetails() {
     _id: editTarget._id, childName: editTarget.childName || "", age: editTarget.age || "",
     className: editTarget.className || "", section: editTarget.section || "", 
     schoolId: getId(editTarget.schoolId), branchId: getId(editTarget.branchId), 
-    routeObjId: getId(editTarget.routeObjId || editTarget.routeId), 
+    routeObjId: getId(editTarget.routeObjId || editTarget.routeObjId), 
     pickupGeoId: getId(editTarget.pickupGeoId), dropGeoId: getId(editTarget.dropGeoId),
   } : null;
 
@@ -734,7 +839,50 @@ export default function StudentDetails() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="grid gap-2">
                   <Label htmlFor="childName">Student Name *</Label>
-                  <Input id="childName" name="childName" type="text" required />
+                  <Input 
+                    id="childName" 
+                    name="childName" 
+                    type="text" 
+                    required 
+                    value={childForm.childName}
+                    onChange={(e) => handleChildFormChange("childName", e.target.value)}
+                  />
+                </div>
+
+                <div className="grid gap-2">
+                  <Label>School *</Label>
+                  <Combobox 
+                    items={schoolOptions} 
+                    value={selectedSchool} 
+                    onValueChange={(value) => {
+                      setSelectedSchool(value);
+                      setSelectedBranch("");
+                      setSelectedRoute("");
+                    }}
+                    placeholder="Select school..." 
+                    searchPlaceholder="Search schools..." 
+                    emptyMessage="No school found."
+                    width="w-full"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label>Branch *</Label>
+                  <Combobox 
+                    items={branchOptions} 
+                    value={selectedBranch} 
+                    onValueChange={(value) => {
+                      setSelectedBranch(value);
+                      setSelectedRoute("");
+                    }}
+                    placeholder={!selectedSchool ? "Select school first" : "Select branch..."}
+                    searchPlaceholder="Search branches..." 
+                    emptyMessage={!selectedSchool ? "Please select a school first" : "No branches found for this school"}
+                    width="w-full"
+                    disabled={!selectedSchool}
+                  />
                 </div>
 
                 <div className="grid gap-2">
@@ -744,16 +892,22 @@ export default function StudentDetails() {
                       items={parentOptions} 
                       value={selectedParent} 
                       onValueChange={setSelectedParent}
-                      placeholder="Search parent..." 
+                      placeholder={!selectedSchool || !selectedBranch ? "Select school & branch first" : "Search parent..."} 
                       searchPlaceholder="Search parents..." 
-                      emptyMessage="No parent found."
+                      emptyMessage={!selectedSchool || !selectedBranch ? "Please select school and branch first" : "No parents found for this school and branch"}
+                      disabled={!selectedSchool || !selectedBranch}
                       onSearchChange={(v) => setSearchStates(prev => ({ ...prev, parent: v }))} 
                       searchValue={searchStates.parent} 
                     />
                     <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger asChild>
-                          <Button type="button" onClick={() => setAddParentDialogOpen(true)} className="bg-[#f3c623] hover:bg-[#D3A80C] text-[#e3d728] font-semibold h-10 px-4">
+                          <Button 
+                            type="button" 
+                            onClick={() => setAddParentDialogOpen(true)} 
+                            className="bg-[#f3c623] hover:bg-[#D3A80C] text-[#e3d728] font-semibold h-10 px-4"
+                            disabled={!selectedSchool || !selectedBranch}
+                          >
                             <Plus className="w-4 h-4 text-red-700" />
                           </Button>
                         </TooltipTrigger>
@@ -766,55 +920,115 @@ export default function StudentDetails() {
                 </div>
               </div>
 
-              {[
-                [
-                  { id: "age", label: "Age", type: "number", props: { min: "3", max: "18" } },
-                  { id: "className", label: "Class", type: "text" }
-                ],
-                [
-                  { id: "section", label: "Section", type: "text" },
-                  { component: "gender", label: "Gender", items: GENDER_OPTIONS, value: selectedGender, onChange: setSelectedGender, searchKey: "gender" }
-                ],
-                [
-                  { component: "dob", label: "Date of Birth", value: selectedDOB, onChange: setSelectedDOB },
-                  { component: "route", label: "Route *", items: routeOptions, value: selectedRoute, onChange: setSelectedRoute, disabled: !selectedBranch, searchKey: "route" }
-                ],
-                [
-                  { component: "pickup", label: "Pickup Location *", items: geofenceOptions, value: selectedPickupGeo, onChange: setSelectedPickupGeo, searchKey: "pickupGeo" },
-                  { component: "drop", label: "Drop Location *", items: geofenceOptions, value: selectedDropGeo, onChange: setSelectedDropGeo, searchKey: "dropGeo" }
-                ]
-              ].map((row, rowIndex) => (
-                <div key={rowIndex} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {row.map((field, fieldIndex) => (
-                    <div key={fieldIndex} className="grid gap-2">
-                      <Label>{field.label}</Label>
-                      {field.component === "gender" || field.component === "route" || field.component === "pickup" || field.component === "drop" ? (
-                        <Combobox 
-                          items={field.items!} 
-                          value={field.value} 
-                          onValueChange={field.onChange!}
-                          placeholder={field.component === "route" && !selectedBranch ? "Select a parent/branch first" : `Search ${field.label.toLowerCase()}...`}
-                          searchPlaceholder={`Search ${field.label.toLowerCase()}...`}
-                          emptyMessage={field.component === "route" && !selectedBranch ? "Select a parent/branch first." : field.items!.length === 0 ? `No ${field.label.toLowerCase()} found.` : "No items match your search."}
-                          width="w-full" 
-                          disabled={field.disabled}
-                          onSearchChange={(v) => setSearchStates(prev => ({ ...prev, [field.searchKey!]: v }))} 
-                          searchValue={searchStates[field.searchKey as keyof typeof searchStates]} 
-                        />
-                      ) : field.component === "dob" ? (
-                        <DatePicker 
-                          date={field.value} 
-                          onDateChange={field.onChange!} 
-                          placeholder="Select date of birth"
-                          disabled={false}
-                        />
-                      ) : (
-                        <Input id={field.id} name={field.id} type={field.type} {...field.props} />
-                      )}
-                    </div>
-                  ))}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="age">Age</Label>
+                  <Input 
+                    id="age" 
+                    name="age" 
+                    type="number" 
+                    min="3" 
+                    max="18"
+                    value={childForm.age}
+                    onChange={(e) => handleChildFormChange("age", e.target.value)}
+                  />
                 </div>
-              ))}
+                <div className="grid gap-2">
+                  <Label htmlFor="className">Class</Label>
+                  <Input 
+                    id="className" 
+                    name="className" 
+                    type="text"
+                    value={childForm.className}
+                    onChange={(e) => handleChildFormChange("className", e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="section">Section</Label>
+                  <Input 
+                    id="section" 
+                    name="section" 
+                    type="text"
+                    value={childForm.section}
+                    onChange={(e) => handleChildFormChange("section", e.target.value)}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label>Gender</Label>
+                  <Combobox 
+                    items={GENDER_OPTIONS} 
+                    value={selectedGender} 
+                    onValueChange={setSelectedGender}
+                    placeholder="Select gender..."
+                    searchPlaceholder="Search gender..."
+                    emptyMessage="No gender options found."
+                    width="w-full"
+                    onSearchChange={(v) => setSearchStates(prev => ({ ...prev, gender: v }))} 
+                    searchValue={searchStates.gender} 
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label>Date of Birth (Optional)</Label>
+                  <DatePicker 
+                    date={selectedDOB} 
+                    onDateChange={setSelectedDOB} 
+                    placeholder="Select date of birth (optional)"
+                    disabled={false}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label>Route *</Label>
+                  <Combobox 
+                    items={routeOptions} 
+                    value={selectedRoute} 
+                    onValueChange={setSelectedRoute}
+                    placeholder={!selectedBranch ? "Select school & branch first" : "Select route..."}
+                    searchPlaceholder="Search routes..." 
+                    emptyMessage={!selectedBranch ? "Please select school and branch first" : "No routes found for this branch"}
+                    width="w-full"
+                    disabled={!selectedBranch}
+                    onSearchChange={(v) => setSearchStates(prev => ({ ...prev, route: v }))} 
+                    searchValue={searchStates.route} 
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label>Pickup Location *</Label>
+                  <Combobox 
+                    items={geofenceOptions} 
+                    value={selectedPickupGeo} 
+                    onValueChange={setSelectedPickupGeo}
+                    placeholder="Select pickup location..."
+                    searchPlaceholder="Search pickup locations..."
+                    emptyMessage="No pickup locations found."
+                    width="w-full"
+                    onSearchChange={(v) => setSearchStates(prev => ({ ...prev, pickupGeo: v }))} 
+                    searchValue={searchStates.pickupGeo} 
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label>Drop Location *</Label>
+                  <Combobox 
+                    items={geofenceOptions} 
+                    value={selectedDropGeo} 
+                    onValueChange={setSelectedDropGeo}
+                    placeholder="Select drop location..."
+                    searchPlaceholder="Search drop locations..."
+                    emptyMessage="No drop locations found."
+                    width="w-full"
+                    onSearchChange={(v) => setSearchStates(prev => ({ ...prev, dropGeo: v }))} 
+                    searchValue={searchStates.dropGeo} 
+                  />
+                </div>
+              </div>
 
               {children.length > 0 && (
                 <Card>
@@ -832,6 +1046,7 @@ export default function StudentDetails() {
                                 {child.className ? `Class ${child.className}` : "Class not specified"}
                                 {child.section ? ` (${child.section})` : ""}
                                 {child.age ? ` • Age ${child.age}` : ""}
+                                {child.DOB ? ` • DOB: ${child.DOB}` : ""}
                               </div>
                             </div>
                           </div>
@@ -846,7 +1061,13 @@ export default function StudentDetails() {
               )}
 
               <div className="flex justify-end pt-2">
-                <Button type="button" onClick={handleAddChild} variant="outline" className="flex items-center gap-2" disabled={!selectedParent}>
+                <Button 
+                  type="button" 
+                  onClick={handleAddChild} 
+                  variant="outline" 
+                  className="flex items-center gap-2" 
+                  disabled={!selectedParent || !selectedRoute || !selectedPickupGeo || !selectedDropGeo || !childForm.childName.trim()}
+                >
                   <Plus className="w-4 h-4" />Add This Child
                 </Button>
               </div>
@@ -855,7 +1076,12 @@ export default function StudentDetails() {
                 <DialogClose asChild>
                   <Button variant="outline">Cancel</Button>
                 </DialogClose>
-                <Button onClick={handleFinalSubmit} disabled={children.length === 0 || addStudentMutation.isPending || !selectedParent} type="button" className="flex items-center gap-2">
+                <Button 
+                  onClick={handleFinalSubmit} 
+                  disabled={children.length === 0 || addStudentMutation.isPending || !selectedParent} 
+                  type="button" 
+                  className="flex items-center gap-2"
+                >
                   {addStudentMutation.isPending ? "Submitting..." : `Submit ${children.length > 0 ? `(${children.length} ${children.length === 1 ? "Child" : "Children"})` : ""}`}
                 </Button>
               </DialogFooter>
