@@ -22,12 +22,12 @@ import SearchComponent from "@/components/ui/SearchOnlydata";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Combobox } from "@/components/ui/combobox";
 import DateRangeFilter from "@/components/ui/DateRangeFilter";
 import { FloatingMenu } from "@/components/floatingMenu";
 import { useSchoolData } from "@/hooks/useSchoolData";
 import { useBranchData } from "@/hooks/useBranchData";
 import { useParents } from "@/hooks/useParents";
-import { SearchableSelect } from "@/components/custom-select";
 import {
   getCoreRowModel,
   useReactTable,
@@ -104,18 +104,23 @@ export default function ParentsMaster() {
   const [editTarget, setEditTarget] = useState<Parent | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
-  const { exportToPDF, exportToExcel } = useExport();
 
-  // Add school and branch state hooks
-  const [school, setSchool] = useState<string | undefined>(undefined);
+  // Add school and branch state hooks with search states
+  const [school, setSchool] = useState<string>("");
+  const [schoolSearch, setSchoolSearch] = useState("");
   const { data: schoolData } = useSchoolData();
-  const [branch, setBranch] = useState<string | undefined>(undefined);
+  
+  const [branch, setBranch] = useState<string>("");
+  const [branchSearch, setBranchSearch] = useState("");
   const { data: branchData } = useBranchData();
+  
   const [debouncedName, setDebouncedName] = useState("");
 
   // Search states
   const [filteredData, setFilteredData] = useState<Parent[]>([]);
   const [filterResults, setFilterResults] = useState<Parent[]>([]);
+
+  const { exportToPDF, exportToExcel } = useExport();
 
   // Use the custom hook for fetching parents data
   const {
@@ -141,32 +146,36 @@ export default function ParentsMaster() {
   // Debug logging to see pagination changes
   console.log("parentsData", parentsData?.data);
 
-  // School options
-  const schoolOptions: selectOption[] = schoolData
-    ? Array.from(
-        new Map(
-          schoolData
-            .filter((s) => s._id && s.schoolName)
-            .map((s) => [s._id, { label: s.schoolName, value: s._id }])
-        ).values()
-      )
-    : [];
+  // School options - Convert to Combobox format
+  const schoolOptions = useMemo(() => 
+    schoolData && schoolData.length > 0 
+      ? schoolData
+          .filter((s) => s._id && s.schoolName)
+          .map((s) => ({ 
+            label: s.schoolName, 
+            value: s._id 
+          }))
+      : [], 
+    [schoolData]
+  );
 
-  // Branch options
-  const branchOptions: selectOption[] = branchData
-    ? Array.from(
-        new Map(
-          branchData
-            .filter((s) => s._id && s.branchName)
-            .map((s) => [s._id, { label: s.branchName, value: s._id }])
-        ).values()
-      )
-    : [];
+  // Branch options - Convert to Combobox format
+  const branchOptions = useMemo(() => 
+    branchData && branchData.length > 0 
+      ? branchData
+          .filter((b) => b._id && b.branchName)
+          .map((b) => ({ 
+            label: b.branchName, 
+            value: b._id 
+          }))
+      : [], 
+    [branchData]
+  );
 
   // Filtered branch options based on selected school
   const filteredBranchOptions = useMemo(() => {
     if (!school || !branchData) return [];
-    //console.log("my school", school);
+    
     return branchData
       .filter((branch) => branch.schoolId?._id === school)
       .map((branch) => ({
@@ -177,7 +186,8 @@ export default function ParentsMaster() {
 
   // Reset branch when school changes
   useEffect(() => {
-    setBranch(undefined);
+    setBranch("");
+    setBranchSearch("");
   }, [school]);
 
   // Define the columns for the table
@@ -439,8 +449,10 @@ export default function ParentsMaster() {
       await addParentMutation.mutateAsync(data);
       closeButtonRef.current?.click();
       form.reset();
-      setSchool(undefined);
-      setBranch(undefined);
+      setSchool("");
+      setSchoolSearch("");
+      setBranch("");
+      setBranchSearch("");
     } catch (err) {
       // Error handled in mutation
     }
@@ -524,31 +536,45 @@ export default function ParentsMaster() {
                   </div>
 
                   <div className="grid gap-2">
-                    <Label htmlFor="schoolId">School</Label>
-                    <SearchableSelect
-                      value={school}
-                      onChange={setSchool}
-                      options={schoolOptions}
-                      placeholder="Select school"
-                      allowClear={true}
+                    <Label htmlFor="schoolId">School *</Label>
+                    <Combobox 
+                      items={schoolOptions} 
+                      value={school} 
+                      onValueChange={setSchool}
+                      placeholder="Search school..." 
+                      searchPlaceholder="Search schools..." 
+                      emptyMessage="No school found."
+                      width="w-full" 
+                      onSearchChange={setSchoolSearch} 
+                      searchValue={schoolSearch} 
                     />
                   </div>
 
                   <div className="grid gap-2">
-                    <Label htmlFor="branchId">Branch</Label>
-                    <SearchableSelect
-                      value={branch}
-                      onChange={setBranch}
-                      options={filteredBranchOptions}
+                    <Label htmlFor="branchId">Branch *</Label>
+                    <Combobox 
+                      items={filteredBranchOptions} 
+                      value={branch} 
+                      onValueChange={setBranch}
                       placeholder={
                         !school
-                          ? "select school first"
+                          ? "Select school first"
                           : filteredBranchOptions.length
-                          ? "select branch"
+                          ? "Search branch..." 
                           : "No branches available"
                       }
-                      allowClear={true}
+                      searchPlaceholder="Search branches..." 
+                      emptyMessage={
+                        !school 
+                          ? "Please select a school first" 
+                          : filteredBranchOptions.length === 0 
+                            ? "No branches found for this school" 
+                            : "No branches match your search"
+                      }
+                      width="w-full" 
                       disabled={!school}
+                      onSearchChange={setBranchSearch} 
+                      searchValue={branchSearch} 
                     />
                   </div>
 

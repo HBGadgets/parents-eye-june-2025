@@ -1,12 +1,12 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { CustomTableServerSidePagination } from "@/components/ui/customTable(serverSidePagination)";
 import SearchComponent from "@/components/ui/SearchOnlydata";
 import DateRangeFilter from "@/components/ui/DateRangeFilter";
 import { ColumnVisibilitySelector } from "@/components/column-visibility-selector";
 import { SearchableSelect } from "@/components/custom-select";
-import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/services/apiService";
 import ResponseLoader from "@/components/ResponseLoader";
 import { formatDate } from "@/util/formatDate";
@@ -15,7 +15,6 @@ import { useExport } from "@/hooks/useExport";
 import { Button } from "@/components/ui/button";
 import type { ColumnDef, VisibilityState } from "@tanstack/react-table";
 
-// --- Interfaces ---
 interface Child {
   _id: string;
   childName: string;
@@ -35,38 +34,53 @@ interface Child {
 
 export default function StudentApprove() {
   const queryClient = useQueryClient();
+  const { exportToPDF, exportToExcel } = useExport();
 
   // --- States ---
-  const [filteredData, setFilteredData] = useState<Child[]>([]);
+  const [children, setChildren] = useState<Child[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
+  const [isLoading, setIsLoading] = useState(false);
   const [approvalFilter, setApprovalFilter] = useState<string>("");
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 10 });
   const [sorting, setSorting] = useState<any[]>([]);
   const [searchValue, setSearchValue] = useState("");
+  const [dateRange, setDateRange] = useState<{ start: Date | null; end: Date | null }>({
+    start: null,
+    end: null,
+  });
 
-  const { exportToPDF, exportToExcel } = useExport();
-
-  // --- Fetch children (server-side pagination) ---
-  const { data, isLoading, isFetching } = useQuery({
-    queryKey: ["children", pagination, sorting, searchValue, approvalFilter],
-    queryFn: async () => {
+  // --- Fetch Data (with server-side search & filters) ---
+  const fetchChildren = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      const sort = sorting.map((s) => `${s.id}:${s.desc ? "desc" : "asc"}`).join(",");
       const params: Record<string, any> = {
         page: pagination.pageIndex + 1,
         limit: pagination.pageSize,
       };
+
       if (searchValue) params.search = searchValue;
-      if (approvalFilter) params.isApproved = approvalFilter;
+      if (approvalFilter) params.status = approvalFilter;
+      if (dateRange.start) params.startDate = dateRange.start.toISOString();
+      if (dateRange.end) params.endDate = dateRange.end.toISOString();
+      if (sort) params.sort = sort;
 
-      return await api.get<{
-        children: Child[];
-        total: number;
-      }>("/child", { params });
-    },
-    keepPreviousData: true,
-  });
+      const res = await api.get<{ children: Child[]; total: number }>("/child", { params });
+      setChildren(res.children || []);
+      setTotalCount(res.total || 0);
+    } catch (error) {
+      console.error("Error fetching students:", error);
+      setChildren([]);
+      setTotalCount(0);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [pagination, searchValue, approvalFilter, sorting, dateRange]);
 
-  const children = data?.children || [];
-  const totalCount = data?.total || 0;
+  useEffect(() => {
+    fetchChildren();
+  }, [fetchChildren]);
 
   // --- Approve / Reject Mutation ---
   const approveMutation = useMutation({
@@ -79,7 +93,8 @@ export default function StudentApprove() {
     }) => await api.put(`/child/approve/${_id}`, { isApproved }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["children"] });
-      alert("Approval status updated.");
+      fetchChildren();
+      alert("Status updated successfully!");
     },
     onError: () => alert("Failed to update status."),
   });
@@ -92,34 +107,42 @@ export default function StudentApprove() {
     { id: "branchName", header: "Branch Name", accessorFn: (row) => row.branchId?.branchName ?? "--" },
     { id: "className", header: "Class", accessorFn: (row) => row.className ?? "--" },
     { id: "section", header: "Section", accessorFn: (row) => row.section ?? "--" },
-    { id: "childMobile", header: "Mobile", accessorFn: (row) => row.parentId?.mobileNo ?? "--" },
+    { id: "mobile", header: "Mobile", accessorFn: (row) => row.parentId?.mobileNo ?? "--" },
     { id: "username", header: "Username", accessorFn: (row) => row.parentId?.username ?? "--" },
     { id: "password", header: "Password", accessorFn: (row) => row.parentId?.password ?? "--" },
     { id: "createdAt", header: "Registration Date", accessorFn: (row) => formatDate(row.createdAt) },
     {
-      id: "approveReject",
+      id: "status",
       header: "Status",
       cell: ({ row }) => {
         const child = row.original;
+        const status = child.isApproved?.toLowerCase();
 
-        // Show Approve/Reject buttons for pending students
-        if (child.isApproved?.toLowerCase() === "pending") {
+        if (status === "pending" || !status) {
           return (
             <div className="flex gap-2">
               <Button
                 size="sm"
-                className="bg-green-500 text-white"
+                className="bg-green-500 hover:bg-green-600 text-white font-semibold rounded-full px-3 py-1"
+                disabled={approveMutation.isPending}
                 onClick={() =>
-                  approveMutation.mutate({ _id: child._id, isApproved: "Approved" })
+                  approveMutation.mutate({
+                    _id: child._id,
+                    isApproved: "Approved",
+                  })
                 }
               >
                 Approve
               </Button>
               <Button
                 size="sm"
-                className="bg-red-500 text-white"
+                className="bg-red-500 hover:bg-red-600 text-white font-semibold rounded-full px-3 py-1"
+                disabled={approveMutation.isPending}
                 onClick={() =>
-                  approveMutation.mutate({ _id: child._id, isApproved: "Rejected" })
+                  approveMutation.mutate({
+                    _id: child._id,
+                    isApproved: "Rejected",
+                  })
                 }
               >
                 Reject
@@ -128,18 +151,17 @@ export default function StudentApprove() {
           );
         }
 
-        // Normalize status to lowercase safely
-        const rawStatus = child.isApproved || "Unknown";
-        const status = typeof rawStatus === "string" ? rawStatus.toLowerCase() : "unknown";
-
-        // Badge classes
-        let badgeClass = "bg-gray-100 text-gray-700";
-        if (status === "approved") badgeClass = "bg-green-100 text-green-700";
-        if (status === "rejected") badgeClass = "bg-red-100 text-red-700";
-        if (status === "pending") badgeClass = "bg-yellow-100 text-yellow-700";
+        let badgeClass = "";
+        if (status === "approved")
+          badgeClass = "bg-green-100 text-green-700 border border-green-300";
+        else if (status === "rejected")
+          badgeClass = "bg-red-100 text-red-700 border border-red-300";
+        else badgeClass = "bg-gray-100 text-gray-700 border border-gray-300";
 
         return (
-          <span className={`px-3 py-1 rounded-full text-xs ${badgeClass}`}>
+          <span
+            className={`px-3 py-1 rounded-full text-xs font-semibold ${badgeClass}`}
+          >
             {status.charAt(0).toUpperCase() + status.slice(1)}
           </span>
         );
@@ -147,13 +169,13 @@ export default function StudentApprove() {
     },
   ];
 
-  // --- Table with server-side pagination ---
+  // --- Table ---
   const { table, tableElement } = CustomTableServerSidePagination({
     data: children,
     columns,
     pagination,
     totalCount,
-    loading: isLoading || isFetching,
+    loading: isLoading,
     onPaginationChange: setPagination,
     onSortingChange: setSorting,
     sorting,
@@ -165,7 +187,7 @@ export default function StudentApprove() {
     showSerialNumber: true,
   });
 
-  // --- Export Data ---
+  // --- Export ---
   const exportData = children.map((c) => ({
     studentName: c.childName,
     parentName: c.parentId?.parentName ?? "",
@@ -186,52 +208,50 @@ export default function StudentApprove() {
     { key: "registeredOn", header: "Registered On" },
   ];
 
-  // --- UI ---
   return (
     <main>
       <ResponseLoader isLoading={isLoading} />
 
-      {/* 🔹 Filters Section */}
+      {/* Filters */}
       <header className="flex flex-wrap items-center gap-4 mb-4">
         <SearchComponent
-          data={children}
-          displayKey={["childName", "parentId.parentName", "parentId.username", "parentId.mobileNo"]}
-          onResults={setFilteredData}
-          onInputChange={(val) => setSearchValue(val)}
+          onInputChange={(val) => {
+            setSearchValue(val);
+            setPagination((prev) => ({ ...prev, pageIndex: 0 }));
+          }}
+          placeholder="Search by student"
           className="w-[250px]"
         />
+
         <DateRangeFilter
-          onDateRangeChange={(start, end) => {
-            if (!children) return;
-            let filtered = children;
-            if (start || end) {
-              filtered = children.filter((c) => {
-                const created = new Date(c.createdAt);
-                return (!start || created >= start) && (!end || created <= end);
-              });
-            }
-            setFilteredData(filtered);
-          }}
-          title="Search by Registration Date"
+          onDateRangeChange={(start, end) => setDateRange({ start, end })}
+          title="Filter by Registration Date"
         />
+
         <SearchableSelect
           options={[
             { label: "Approved", value: "Approved" },
             { label: "Rejected", value: "Rejected" },
             { label: "Pending", value: "Pending" },
           ]}
-          value={approvalFilter ? { label: approvalFilter, value: approvalFilter } : null}
-          onChange={(opt) => setApprovalFilter(opt?.value || "")}
+          value={
+            approvalFilter ? { label: approvalFilter, value: approvalFilter } : null
+          }
+          onChange={(opt) => {
+            setApprovalFilter(opt?.value || "");
+            setPagination((prev) => ({ ...prev, pageIndex: 0 }));
+          }}
           placeholder="Filter by Status"
           isClearable
         />
+
         <ColumnVisibilitySelector columns={table.getAllColumns()} />
       </header>
 
-      {/* 🔹 Table */}
+      {/* Table */}
       <section className="mb-4">{tableElement}</section>
 
-      {/* 🔹 Floating Export Menu */}
+      {/* Export Menu */}
       <FloatingMenu
         onExportPdf={() =>
           exportToPDF(exportData, columnsForExport, {

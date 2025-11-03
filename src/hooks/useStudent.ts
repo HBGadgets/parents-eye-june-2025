@@ -1,4 +1,4 @@
-// for server-side pagination
+// useStudents.ts - Fixed version with proper search and filters support
 
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -9,35 +9,69 @@ import { Student } from "@/interface/modal";
 import { api } from "@/services/apiService";
 
 interface StudentResponse {
-  students: Student[];
-  total: number;
+  students?: Student[];
+  children?: Student[];
+  total?: number;
+  totalCount?: number;
   page: number;
   limit: number;
+  pagination?: {
+    total: number;
+  };
+}
+
+interface StudentFilters {
+  search?: string;
+  schoolId?: string;
+  branchId?: string;
+  routeObjId?: string;
+  pickupGeoId?: string;
+  dropGeoId?: string;
 }
 
 interface UseStudentsParams {
   pagination: PaginationState;
   sorting: SortingState;
-  childName?: string;
+  filters?: StudentFilters;
 }
 
-// I don't know if this is the best way to handle the API response structure, Par Mujhe kya Senior aake dekhega.
-// For the pagination and sorting parameters, we use the same structure as in the custom table component
-// This allows us to pass the same parameters directly to the API without needing to transform them
 const fetchStudents = async ({
   pagination,
   sorting,
-  childName,
+  filters,
 }: UseStudentsParams): Promise<StudentResponse> => {
   const params = new URLSearchParams({
     page: (pagination.pageIndex + 1).toString(),
     limit: pagination.pageSize.toString(),
   });
 
-  if (childName?.trim()) {
-    params.append("childName", childName);
+  // Add search parameter (supports student name, age, class, section)
+  if (filters?.search?.trim()) {
+    params.append("search", filters.search.trim());
   }
 
+  // Add filter parameters
+  if (filters?.schoolId) {
+    params.append("schoolId", filters.schoolId);
+  }
+
+  if (filters?.branchId) {
+    params.append("branchId", filters.branchId);
+  }
+
+  if (filters?.routeObjId) {
+    params.append("routeObjId", filters.routeObjId);
+  }
+
+  if (filters?.pickupGeoId) {
+    params.append("pickupGeoId", filters.pickupGeoId);
+  }
+
+  if (filters?.dropGeoId) {
+    params.append("dropGeoId", filters.dropGeoId);
+  }
+
+  // Add sorting parameters
   if (sorting.length > 0) {
     const sort = sorting[0];
     params.append("sortBy", sort.id);
@@ -47,12 +81,13 @@ const fetchStudents = async ({
   try {
     const response = await api.get(`/child?${params.toString()}`);
 
-    if (response?.children) {
+    // Handle different response structures
+    if (response?.children || response?.students) {
       return response;
     }
 
     // If response has .data like Axios
-    if (response?.data?.children) {
+    if (response?.data?.children || response?.data?.students) {
       return response.data;
     }
 
@@ -61,8 +96,8 @@ const fetchStudents = async ({
     console.error("API Error:", error);
     throw new Error(
       error instanceof Error
-        ? `Failed to fetch devices: ${error.message}`
-        : "Failed to fetch devices"
+        ? `Failed to fetch students: ${error.message}`
+        : "Failed to fetch students"
     );
   }
 };
@@ -70,7 +105,7 @@ const fetchStudents = async ({
 export const useStudents = ({
   pagination,
   sorting,
-  childName,
+  filters = {},
 }: UseStudentsParams) => {
   return useQuery({
     queryKey: [
@@ -78,9 +113,13 @@ export const useStudents = ({
       pagination.pageIndex,
       pagination.pageSize,
       sorting.map((s) => `${s.id}-${s.desc ? "desc" : "asc"}`).join(","),
-      childName || "",
+      JSON.stringify(filters),
     ],
-    queryFn: () => fetchStudents({ pagination, sorting, childName }),
+    queryFn: () => fetchStudents({ pagination, sorting, filters }),
     keepPreviousData: true,
+    staleTime: 30000, 
   });
 };
+
+// Export types for use in components
+export type { StudentFilters, UseStudentsParams, StudentResponse };

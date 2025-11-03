@@ -1,39 +1,18 @@
 "use client";
 
-import React, {
-  useCallback,
-  useEffect,
-  useState,
-  useRef,
-  useMemo,
-} from "react";
-
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
+import React, { useCallback, useEffect, useState, useRef, useMemo } from "react";
+import { Dialog, DialogClose, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { CustomTable, CellContent } from "@/components/ui/CustomTable";
-import { DynamicEditDialog, FieldConfig } from "@/components/ui/EditModal";
 import SearchComponent from "@/components/ui/SearchOnlydata";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Combobox } from "@/components/ui/combobox";
 import DateRangeFilter from "@/components/ui/DateRangeFilter";
 import { FloatingMenu } from "@/components/floatingMenu";
-import {
-  getCoreRowModel,
-  useReactTable,
-  VisibilityState,
-  type ColumnDef,
-} from "@tanstack/react-table";
+import { getCoreRowModel, useReactTable, VisibilityState, type ColumnDef } from "@tanstack/react-table";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/services/apiService";
-// import { driver } from "@/interface/modal";
 import { useExport } from "@/hooks/useExport";
 import { formatDate } from "@/util/formatDate";
 import { Alert } from "@/components/Alert";
@@ -41,271 +20,613 @@ import ResponseLoader from "@/components/ResponseLoader";
 import { CustomFilter } from "@/components/ui/CustomFilter";
 import { ColumnVisibilitySelector } from "@/components/column-visibility-selector";
 import { useSchoolData } from "@/hooks/useSchoolData";
-import { SearchableSelect } from "@/components/custom-select";
 import { useBranchData } from "@/hooks/useBranchData";
-// import { Value } from "@radix-ui/react-select";
-import { useDeviceData } from "@/hooks/useDeviceData";
+import { useInfiniteDeviceData } from "@/hooks/useInfiniteDeviceData";
 import { Driver } from "@/interface/modal";
-// import { headers } from "next/headers";
-// interface SchoolMinimal {
-//   _id: string;
-//   schoolName: string;
-// }
-// interface BranchMinimal {
-//   _id: string;
-//   branchName: string;
-// }
-// interface DeviceMinimal {
-//   _id: string;
-//   name: string;
-// }
-declare module "@tanstack/react-table" {
-  interface ColumnMeta<TData, TValue> {
-    flex?: number;
-    minWidth?: number;
-    maxWidth?: number;
-  }
+import Cookies from "js-cookie";
+import { getDecodedToken } from "@/lib/jwt";
+
+interface SelectOption {
+  label: string;
+  value: string;
 }
 
-export default function driverApprove() {
+// Reusable Form Component
+const DriverForm = ({ 
+  formData, 
+  onInputChange, 
+  school, 
+  setSchool,
+  schoolSearch,
+  setSchoolSearch,
+  branch, 
+  setBranch,
+  branchSearch,
+  setBranchSearch,
+  device, 
+  setDevice,
+  deviceSearch,
+  setDeviceSearch,
+  schoolOptions,
+  branchOptions,
+  deviceItems,
+  hasNextPage,
+  fetchNextPage,
+  isFetchingNextPage,
+  isFetching,
+  usernameError,
+}: any) => (
+  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <div className="grid gap-2">
+      <Label htmlFor="driverName">Driver Name</Label>
+      <Input
+        id="driverName"
+        name="driverName"
+        value={formData?.driverName}
+        onChange={onInputChange}
+        placeholder="Enter driver name"
+        required
+      />
+    </div>
+    
+    <div className="grid gap-2">
+      <Label>School *</Label>
+      <Combobox 
+        items={schoolOptions} 
+        value={school} 
+        onValueChange={setSchool}
+        placeholder="Search school..." 
+        searchPlaceholder="Search schools..." 
+        emptyMessage="No school found."
+        width="w-full" 
+        onSearchChange={setSchoolSearch} 
+        searchValue={schoolSearch} 
+      />
+    </div>
+
+    <div className="grid gap-2">
+      <Label>Branch *</Label>
+      <Combobox 
+        items={branchOptions} 
+        value={branch} 
+        onValueChange={setBranch}
+        placeholder={!school ? "Select school first" : branchOptions.length ? "Search branch..." : "No branches available"}
+        searchPlaceholder="Search branches..." 
+        emptyMessage={!school ? "Please select a school first" : branchOptions.length === 0 ? "No branches found for this school" : "No branches match your search"}
+        width="w-full" 
+        disabled={!school}
+        onSearchChange={setBranchSearch} 
+        searchValue={branchSearch} 
+      />
+    </div>
+
+    <div className="grid gap-2">
+      <Label>Device *</Label>
+      <Combobox 
+        items={deviceItems} 
+        value={device} 
+        onValueChange={setDevice}
+        placeholder={!school ? "Select school first" : !branch ? "Select branch first" : "Search device..."}
+        searchPlaceholder="Search devices..." 
+        emptyMessage={!school ? "Please select a school first" : !branch ? "Please select a branch first" : "No devices found"}
+        width="w-full" 
+        disabled={!branch}
+        onSearchChange={setDeviceSearch} 
+        searchValue={deviceSearch}
+        onReachEnd={() => {
+          if (hasNextPage && !isFetchingNextPage && !isFetching) {
+            fetchNextPage();
+          }
+        }}
+        isLoadingMore={isFetchingNextPage}
+      />
+    </div>
+
+    <div className="grid gap-2">
+      <Label htmlFor="email">Email</Label>
+      <Input
+        id="email"
+        name="email"
+        type="email"
+        value={formData?.email}
+        onChange={onInputChange}
+        placeholder="Enter email address"
+        required
+      />
+    </div>
+
+    <div className="grid gap-2">
+      <Label htmlFor="mobileNo">Mobile No</Label>
+      <Input
+        id="mobileNo"
+        name="mobileNo"
+        type="tel"
+        value={formData?.mobileNo}
+        onChange={onInputChange}
+        placeholder="Enter mobile number"
+        pattern="[0-9]{10}"
+        maxLength={10}
+        required
+      />
+    </div>
+
+    <div className="grid gap-2">
+      <Label htmlFor="username">Username</Label>
+      <Input
+        id="username"
+        name="username"
+        value={formData?.username}
+        onChange={onInputChange}
+        placeholder="Enter username"
+        required
+        className={usernameError ? "border-red-500" : ""}
+      />
+      {usernameError && <p className="text-red-500 text-sm">{usernameError}</p>}
+    </div>
+
+    <div className="grid gap-2">
+      <Label htmlFor="password">Password</Label>
+      <Input
+        id="password"
+        name="password"
+        type="text"
+        value={formData?.password}
+        onChange={onInputChange}
+        placeholder="Enter password"
+        required
+      />
+    </div>
+  </div>
+);
+
+// Add Driver Form Component with proper state management
+const AddDriverForm = ({ 
+  school, 
+  setSchool,
+  schoolSearch,
+  setSchoolSearch,
+  branch, 
+  setBranch,
+  branchSearch,
+  setBranchSearch,
+  device, 
+  setDevice,
+  deviceSearch,
+  setDeviceSearch,
+  schoolOptions,
+  branchOptions,
+  deviceItems,
+  hasNextPage,
+  fetchNextPage,
+  isFetchingNextPage,
+  isFetching,
+}: any) => {
+  const [formData, setFormData] = useState({
+    driverName: "",
+    mobileNo: "",
+    username: "",
+    password: "",
+    email: ""
+  });
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid gap-2">
+        <Label htmlFor="driverName">Driver Name</Label>
+        <Input
+          id="driverName"
+          name="driverName"
+          value={formData.driverName}
+          onChange={handleInputChange}
+          placeholder="Enter driver name"
+          required
+        />
+      </div>
+      
+      <div className="grid gap-2">
+        <Label>School *</Label>
+        <Combobox 
+          items={schoolOptions} 
+          value={school} 
+          onValueChange={setSchool}
+          placeholder="Search school..." 
+          searchPlaceholder="Search schools..." 
+          emptyMessage="No school found."
+          width="w-full" 
+          onSearchChange={setSchoolSearch} 
+          searchValue={schoolSearch} 
+        />
+      </div>
+
+      <div className="grid gap-2">
+        <Label>Branch *</Label>
+        <Combobox 
+          items={branchOptions} 
+          value={branch} 
+          onValueChange={setBranch}
+          placeholder={!school ? "Select school first" : branchOptions.length ? "Search branch..." : "No branches available"}
+          searchPlaceholder="Search branches..." 
+          emptyMessage={!school ? "Please select a school first" : branchOptions.length === 0 ? "No branches found for this school" : "No branches match your search"}
+          width="w-full" 
+          disabled={!school}
+          onSearchChange={setBranchSearch} 
+          searchValue={branchSearch} 
+        />
+      </div>
+
+      <div className="grid gap-2">
+        <Label>Device *</Label>
+        <Combobox 
+          items={deviceItems} 
+          value={device} 
+          onValueChange={setDevice}
+          placeholder={!school ? "Select school first" : !branch ? "Select branch first" : "Search device..."}
+          searchPlaceholder="Search devices..." 
+          emptyMessage={!school ? "Please select a school first" : !branch ? "Please select a branch first" : "No devices found"}
+          width="w-full" 
+          disabled={!branch}
+          onSearchChange={setDeviceSearch} 
+          searchValue={deviceSearch}
+          onReachEnd={() => {
+            if (hasNextPage && !isFetchingNextPage && !isFetching) {
+              fetchNextPage();
+            }
+          }}
+          isLoadingMore={isFetchingNextPage}
+        />
+      </div>
+
+      <div className="grid gap-2">
+        <Label htmlFor="email">Email</Label>
+        <Input
+          id="email"
+          name="email"
+          type="email"
+          value={formData.email}
+          onChange={handleInputChange}
+          placeholder="Enter email address"
+          required
+        />
+      </div>
+
+      <div className="grid gap-2">
+        <Label htmlFor="mobileNo">Mobile No</Label>
+        <Input
+          id="mobileNo"
+          name="mobileNo"
+          type="tel"
+          value={formData.mobileNo}
+          onChange={handleInputChange}
+          placeholder="Enter mobile number"
+          pattern="[0-9]{10}"
+          maxLength={10}
+          required
+        />
+      </div>
+
+      <div className="grid gap-2">
+        <Label htmlFor="username">Username</Label>
+        <Input
+          id="username"
+          name="username"
+          value={formData.username}
+          onChange={handleInputChange}
+          placeholder="Enter username"
+          required
+        />
+      </div>
+
+      <div className="grid gap-2">
+        <Label htmlFor="password">Password</Label>
+        <Input
+          id="password"
+          name="password"
+          type="text"
+          value={formData.password}
+          onChange={handleInputChange}
+          placeholder="Enter password"
+          required
+        />
+      </div>
+    </div>
+  );
+};
+
+// Custom hook for form state management
+const useDriverForm = (initialData?: Driver) => {
+  const [school, setSchool] = useState("");
+  const [schoolSearch, setSchoolSearch] = useState("");
+  const [branch, setBranch] = useState("");
+  const [branchSearch, setBranchSearch] = useState("");
+  const [device, setDevice] = useState("");
+  const [deviceSearch, setDeviceSearch] = useState("");
+
+  useEffect(() => {
+    if (initialData) {
+      setSchool(initialData.schoolId?._id || initialData.schoolId || "");
+      setBranch(initialData.branchId?._id || initialData.branchId || "");
+      setDevice(initialData.deviceObjId?._id || initialData.deviceObjId || "");
+    }
+  }, [initialData]);
+
+  const resetForm = () => {
+    setSchool("");
+    setSchoolSearch("");
+    setBranch("");
+    setBranchSearch("");
+    setDevice("");
+    setDeviceSearch("");
+  };
+
+  // Only reset branch when school actually changes (not on initial load)
+  const handleSchoolChange = useCallback((newSchool: string) => {
+    const prevSchool = school;
+    setSchool(newSchool);
+    if (newSchool !== prevSchool && prevSchool !== "") {
+      setBranch("");
+      setBranchSearch("");
+    }
+  }, [school]);
+
+  // Only reset device when branch actually changes (not on initial load)
+  const handleBranchChange = useCallback((newBranch: string) => {
+    const prevBranch = branch;
+    setBranch(newBranch);
+    if (newBranch !== prevBranch && prevBranch !== "") {
+      setDevice("");
+      setDeviceSearch("");
+    }
+  }, [branch]);
+
+  return {
+    school, 
+    setSchool: handleSchoolChange, 
+    schoolSearch, 
+    setSchoolSearch,
+    branch, 
+    setBranch: handleBranchChange, 
+    branchSearch, 
+    setBranchSearch,
+    device, 
+    setDevice, 
+    deviceSearch, 
+    setDeviceSearch,
+    resetForm
+  };
+};
+
+export default function DriverApprove() {
   const queryClient = useQueryClient();
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const [filteredData, setFilteredData] = useState<Driver[]>([]);
-  const [filterResults, setFilterResults] = useState<Driver[]>([]);
-  // const [accessTarget, setAccessTarget] = useState<driver | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Driver | null>(null);
   const [editTarget, setEditTarget] = useState<Driver | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
-  const [columnVisibility, setColumnVisibility] =
-    React.useState<VisibilityState>({});
+  const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
   const { exportToPDF, exportToExcel } = useExport();
-  // const [accessApprove, setAccessApprove] = useState<Driver | null>(null);
-  const [school, setSchool] = useState<string | undefined>(undefined);
+  const [role, setRole] = useState<string | null>(null);
+
+  // Form hooks
+  const addForm = useDriverForm();
+  const editForm = useDriverForm(editTarget || undefined);
+
+  // Data hooks
   const { data: schoolData } = useSchoolData();
-  const [branch, setbranch] = useState<string | undefined>(undefined);
   const { data: branchData } = useBranchData();
-  const [device, setdevice] = useState<string | undefined>(undefined);
-  const { data: deviceData } = useDeviceData();
-
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
-
-  // Fetch driver data
   const { data: drivers, isLoading } = useQuery<Driver[]>({
     queryKey: ["drivers"],
-    queryFn: async () => {
-      const res = await api.get<Driver[]>("/driver");
-      return res;
-    },
+    queryFn: async () => await api.get<Driver[]>("/driver"),
   });
 
-  //school data
-  const schoolOptions: selectOption[] = schoolData
-    ? Array.from(
-        new Map(
-          schoolData
-            .filter((s) => s._id && s.schoolName)
-            .map((s) => [s._id, { label: s.schoolName, value: s._id }])
-        ).values()
-      )
-    : [];
+  const normalizedRole = useMemo(() => {
+    const r = (role || "").toLowerCase();
+    if (["superadmin", "super_admin", "admin", "root"].includes(r)) return "superAdmin";
+    if (["school", "schooladmin"].includes(r)) return "school";
+    if (["branch", "branchadmin"].includes(r)) return "branch";
+    return undefined;
+  }, [role]);
 
   useEffect(() => {
-    if (drivers && drivers.length > 0) {
+    const token = Cookies.get("token");
+    if (token) {
+      const decoded = getDecodedToken(token);
+      setRole((decoded?.role || "").toLowerCase());
+    }
+  }, []);
+
+  // Device data for add dialog
+  const addDeviceQuery = useInfiniteDeviceData({
+    role: normalizedRole as any,
+    branchId: addForm.branch || undefined,
+    search: addForm.deviceSearch,
+    limit: 20,
+  });
+
+  // Device data for edit dialog
+  const editDeviceQuery = useInfiniteDeviceData({
+    role: normalizedRole as any,
+    branchId: editForm.branch || undefined,
+    search: editForm.deviceSearch,
+    limit: 20,
+  });
+
+  // Memoized options
+  const schoolOptions: SelectOption[] = useMemo(() => 
+    schoolData?.filter(s => s._id && s.schoolName).map(s => ({ label: s.schoolName, value: s._id })) || [], 
+    [schoolData]
+  );
+
+  const getFilteredBranchOptions = (schoolId: string) => useMemo(() => 
+    branchData?.filter(b => b.schoolId?._id === schoolId).map(b => ({ label: b.branchName, value: b._id })) || [],
+    [schoolId, branchData]
+  );
+
+  const getDeviceItems = (deviceData: any) => useMemo(() => {
+    if (!deviceData?.pages?.length) return [];
+    return deviceData.pages.flatMap((pg: any) => {
+      const list = pg.devices ?? pg.data ?? [];
+      return list.filter((d: any) => d._id && d.name).map((d: any) => ({ label: d.name, value: d._id }));
+    });
+  }, [deviceData]);
+
+  useEffect(() => {
+    if (drivers) {
       setFilteredData(drivers);
-      setFilterResults(drivers); // For search base
     }
   }, [drivers]);
 
-  //branch DATA
-  const branchOptions: selectOption[] = branchData
-    ? Array.from(
-        new Map(
-          branchData
-            .filter((s) => s._id && s.branchName)
-            .map((s) => [s._id, { label: s.branchName, value: s._id }])
-        ).values()
-      )
-    : [];
+  // Mutations
+  const addDriverMutation = useMutation({
+    mutationFn: async (newDriver: any) => await api.post("/driver", newDriver),
+    onSuccess: (createdDriver, variables) => {
+      // Invalidate and refetch the drivers query to get updated data
+      queryClient.invalidateQueries({ queryKey: ["drivers"] });
+      
+      alert("Driver added successfully.");
+      
+      // Close the dialog and reset form
+      setAddDialogOpen(false);
+      addForm.resetForm();
+      
+      // Also reset the form data by triggering a re-render of AddDriverForm
+      if (closeButtonRef.current) {
+        closeButtonRef.current.click();
+      }
+    },
+    onError: (error: any) => alert(`Failed to add driver: ${error.response?.data?.message || error.message}`),
+  });
 
-  //device DATA
-  const deviceOptions: selectOption[] = deviceData?.devices
-    ? Array.from(
-        new Map(
-          deviceData.devices
-            .filter((s) => s._id && s.name)
-            .map((s) => [s._id, { label: s.name, value: s._id }])
-        ).values()
-      )
-    : [];
+  const approveMutation = useMutation({
+    mutationFn: async (driver: { _id: string; isApproved: "Approved" | "Rejected" }) => 
+      await api.post(`/driver/approve/${driver._id}`, { isApproved: driver.isApproved }),
+    onSuccess: (_, variables) => {
+      queryClient.setQueryData<Driver[]>(["drivers"], (old) =>
+        old?.map(d => d._id === variables._id ? { ...d, isApproved: variables.isApproved } : d)
+      );
+      alert("Driver status updated successfully.");
+    },
+    onError: () => alert("Failed to update driver status."),
+  });
 
-  const filteredBranchOptions = useMemo(() => {
-    if (!school || !branchData) return [];
-    console.log("my school", school);
-    return branchData
-      .filter((branch) => branch.schoolId?._id === school)
-      .map((branch) => ({
-        label: branch.branchName,
-        value: branch._id,
-      }));
-  }, [school, branchData]);
+  const updateDriverMutation = useMutation({
+    mutationFn: async ({ driverId, data }: { driverId: string; data: Partial<Driver> }) => {
+      if (data.username && editTarget && data.username === editTarget.username) {
+        const { username, ...dataWithoutUsername } = data;
+        return await api.put(`/driver/${driverId}`, dataWithoutUsername);
+      }
+      return await api.put(`/driver/${driverId}`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["drivers"] });
+      setEditDialogOpen(false);
+      setEditTarget(null);
+      editForm.resetForm();
+      alert("Driver updated successfully.");
+    },
+    onError: (err: any) => {
+      const msg = err.response?.data?.message || err.message;
+      alert(msg.includes("username") ? "Username may already be taken." : `Failed to update driver: ${msg}`);
+    },
+  });
 
-  // Filter devices based on selected branch
-  const filteredDeviceOptions = useMemo(() => {
-    if (!branch || !deviceData?.devices) return [];
-    return deviceData.devices
-      .filter((device) => device.branchId?._id === branch)
-      .map((device) => ({
-        label: device.name,
-        value: device._id,
-      }));
-  }, [branch, deviceData]);
+  const deleteDriverMutation = useMutation({
+    mutationFn: async (driverId: string) => await api.delete(`/driver/${driverId}`),
+    onSuccess: (_, deletedId) => {
+      queryClient.invalidateQueries({ queryKey: ["drivers"] });
+      alert("Driver deleted successfully.");
+    },
+    onError: () => alert("Failed to delete driver."),
+  });
 
-  // Reset branch and device when school changes
-  useEffect(() => {
-    setbranch(undefined);
-    setdevice(undefined);
-  }, [school]);
-
-  // Reset device when branch changes
-  useEffect(() => {
-    setdevice(undefined);
-  }, [branch]);
-
-  const columns: ColumnDef<driver, CellContent>[] = [
+  // Table columns
+  const columns: ColumnDef<Driver, CellContent>[] = [
     {
-      header: "driver Name",
-      accessorFn: (row) => ({
-        type: "text",
-        value: row.driverName ?? "",
-      }),
-      // cell: (info) => info.getValue(),
+      header: "Driver Name",
+      accessorFn: (row) => ({ type: "text", value: row.driverName ?? "" }),
       meta: { flex: 1, minWidth: 200, maxWidth: 300 },
       enableHiding: true,
     },
     {
       header: "School Name",
-      accessorFn: (row) => ({
-        type: "text",
-        value: row.schoolId?.schoolName ?? "--",
-      }),
+      accessorFn: (row) => ({ type: "text", value: row.schoolId?.schoolName ?? "--" }),
       meta: { flex: 1, minWidth: 200, maxWidth: 300 },
       enableHiding: true,
     },
     {
       header: "Branch Name",
-      accessorFn: (row) => ({
-        type: "text",
-        value: row.branchId?.branchName ?? "--",
-      }),
+      accessorFn: (row) => ({ type: "text", value: row.branchId?.branchName ?? "--" }),
       meta: { flex: 1, minWidth: 200, maxWidth: 300 },
       enableHiding: true,
     },
     {
       header: "Device Name",
-      accessorFn: (row) => ({
-        type: "text",
-        value: row.deviceObjId?.name ?? "--",
-      }),
+      accessorFn: (row) => ({ type: "text", value: row.deviceObjId?.name ?? "--" }),
       meta: { flex: 1, minWidth: 200, maxWidth: 300 },
       enableHiding: true,
     },
     {
       header: "Mobile",
-      accessorFn: (row) => ({
-        type: "text",
-        value: row.driverMobile ?? "",
-      }),
-      // cell: (info) => info.getValue(),
+      accessorFn: (row) => ({ type: "text", value: row.mobileNo ?? "" }),
       meta: { flex: 1, minWidth: 150, maxWidth: 300 },
       enableHiding: true,
     },
     {
       header: "Username",
-      accessorFn: (row) => ({
-        type: "text",
-        value: row.username ?? "",
-      }),
-      // cell: (info) => info.getValue(),
+      accessorFn: (row) => ({ type: "text", value: row.username ?? "" }),
       meta: { flex: 1, minWidth: 150, maxWidth: 300 },
       enableHiding: true,
     },
     {
       header: "Password",
-      accessorFn: (row) => ({
-        type: "text",
-        value: row.password ?? "",
-      }),
-      // cell: (info) => info.getValue(),
+      accessorFn: (row) => ({ type: "text", value: row.password ?? "" }),
       meta: { flex: 1, minWidth: 150, maxWidth: 300 },
       enableHiding: true,
     },
     {
       header: "Registration Date",
-      accessorFn: (row) => ({
-        type: "text",
-        value: formatDate(row.createdAt) ?? "",
-      }),
-      // cell: (info) => info.getValue(),
+      accessorFn: (row) => ({ type: "text", value: formatDate(row.createdAt) ?? "" }),
       meta: { flex: 1, minWidth: 200 },
       enableHiding: true,
     },
-
     {
       header: "Approve/Reject",
       accessorFn: (row) => ({
         type: "group",
-        items:
-          row.isApproved === "Pending"
-            ? [
-                {
-                  type: "button",
-                  label: "Approved",
-                  onClick: () =>
-                    ApproveMutation.mutate({
-                      _id: row._id,
-                      isApproved: "Approved",
-                    }),
-                  disabled: ApproveMutation.isPending,
-                  className:
-                    "flex-shrink-0 text-xs w-20 bg-green-500 hover:bg-green-600 text-white font-semibold rounded-full px-2 py-1 mr-1",
-                },
-                {
-                  type: "button",
-                  label: "Reject",
-                  onClick: () =>
-                    ApproveMutation.mutate({
-                      _id: row._id,
-                      isApproved: "Rejected",
-                    }),
-                  disabled: ApproveMutation.isPending,
-                  className:
-                    "flex-shrink-0 text-xs w-20 bg-red-500 hover:bg-red-600 text-white font-semibold rounded-full px-2 py-1",
-                },
-              ]
-            : [
-                {
-                  type: "button",
-                  label:
-                    row.isApproved === "Approved" ? "Approved" : "Rejected",
-                  onClick: () => {},
-                  disabled: true,
-                  className: `flex-shrink-0 text-xs w-24 ${
-                    row.isApproved === "Approved"
-                      ? "bg-green-300 text-green-800"
-                      : "bg-red-300 text-red-800"
-                  } font-semibold rounded-full px-2 py-1`,
-                },
-              ],
+        items: row.isApproved === "Pending" ? [
+          {
+            type: "button",
+            label: "Approved",
+            onClick: () => approveMutation.mutate({ _id: row._id, isApproved: "Approved" }),
+            disabled: approveMutation.isPending,
+            className: "flex-shrink-0 text-xs w-20 bg-green-500 hover:bg-green-600 text-white font-semibold rounded-full px-2 py-1 mr-1",
+          },
+          {
+            type: "button",
+            label: "Reject",
+            onClick: () => approveMutation.mutate({ _id: row._id, isApproved: "Rejected" }),
+            disabled: approveMutation.isPending,
+            className: "flex-shrink-0 text-xs w-20 bg-red-500 hover:bg-red-600 text-white font-semibold rounded-full px-2 py-1",
+          },
+        ] : [
+          {
+            type: "button",
+            label: row.isApproved === "Approved" ? "Approved" : "Rejected",
+            onClick: () => {},
+            disabled: true,
+            className: `flex-shrink-0 text-xs w-24 ${row.isApproved === "Approved" ? "bg-green-300 text-green-800" : "bg-red-300 text-red-800"} font-semibold rounded-full px-2 py-1`,
+          },
+        ],
       }),
-      meta: {
-        flex: 1,
-        minWidth: 180,
-        maxWidth: 200,
-      },
+      meta: { flex: 1, minWidth: 180, maxWidth: 200 },
       enableSorting: false,
       enableHiding: true,
     },
-
     {
       header: "Action",
       accessorFn: (row) => ({
@@ -319,290 +640,185 @@ export default function driverApprove() {
               setEditDialogOpen(true);
             },
             className: "cursor-pointer",
-            disabled: updatedriverMutation.isPending,
+            disabled: updateDriverMutation.isPending,
           },
           {
             type: "button",
             label: "Delete",
             onClick: () => setDeleteTarget(row),
             className: "text-red-600 cursor-pointer",
-            disabled: deletedriverMutation.isPending,
+            disabled: deleteDriverMutation.isPending,
           },
         ],
       }),
-      // cell: (info) => info.getValue(),
       meta: { flex: 1.5, minWidth: 150, maxWidth: 200 },
       enableSorting: false,
       enableHiding: true,
     },
   ];
 
-  // columns for export
   const columnsForExport = [
-    { key: "driverName", header: "driver Name" },
-    { key: "driverMobile", header: "Mobile" },
-    { key: "username", header: "driver Username" },
-    { key: "password", header: "driver Password" },
+    { key: "driverName", header: "Driver Name" },
+    { key: "mobileNo", header: "Mobile" },
+    { key: "username", header: "Username" },
+    { key: "password", header: "Password" },
     { key: "schoolId.schoolName", header: "School Name" },
     { key: "branchId.branchName", header: "Branch Name" },
-    {
-      key: "deviceObjId.name",
-      header: "Device Name",
-    },
-    {
-      key: "isApproved",
-      header: "status",
-    },
+    { key: "deviceObjId.name", header: "Device Name" },
+    { key: "isApproved", header: "Status" },
     { key: "createdAt", header: "Registration Date" },
   ];
-
-  // Define the fields for the edit dialog
-  const driverFieldConfigs: FieldConfig[] = [
-    {
-      label: "driver Name",
-      key: "driverName",
-      type: "text",
-      required: true,
-    },
-    {
-      label: "School Name",
-      key: "schoolId",
-      type: "select",
-      required: true,
-      options: schoolOptions,
-    },
-    {
-      label: "Branch Name",
-      key: "branchId",
-      type: "select",
-      required: true,
-      options: branchOptions,
-    },
-    {
-      label: "Device Name",
-      key: "deviceObjId",
-      type: "select",
-      required: true,
-      options: deviceOptions,
-    },
-    {
-      label: "Mobile Number",
-      key: "driverMobile",
-      type: "text",
-      required: true,
-    },
-    {
-      label: "Username",
-      key: "username",
-      type: "text",
-      required: true,
-    },
-    {
-      label: "Password",
-      key: "password",
-      type: "text",
-      required: true,
-    },
-  ];
-
-  // Mutation to add a new driver
-
-  const adddriverMutation = useMutation({
-    mutationFn: async (newdriver: any) => {
-      const response = await api.post("/driver", newdriver);
-      return response.data; // assumes `data` has the created driver object
-    },
-    onSuccess: (createddriver, variables) => {
-      const school = schoolData?.find((s) => s._id === variables.schoolId);
-      const branch = branchData?.find((b) => b._id === variables.branchId);
-      const device = deviceData?.devices?.find(
-        (d) => d._id === variables.deviceObjId
-      );
-
-      const newdriverWithResolvedReferences = {
-        ...createddriver,
-        password: variables.password, // since backend likely won't return it
-        schoolId: school
-          ? { _id: school._id, schoolName: school.schoolName }
-          : { _id: variables.schoolId, schoolName: "Unknown School" },
-        branchId: branch
-          ? { _id: branch._id, branchName: branch.branchName }
-          : { _id: variables.branchId, branchName: "Unknown Branch" },
-        deviceObjId: device
-          ? { _id: device._id, device: device.name }
-          : { _id: variables.deviceObjId, device: "Unknown Device" },
-      };
-
-      queryClient.setQueryData<driver[]>(["drivers"], (olddrivers = []) => {
-        return [...olddrivers, newdriverWithResolvedReferences];
-      });
-    },
-
-    onError: (error: any) => {
-      alert(
-        `Failed to add driver: ${
-          error.response?.data?.message || error.message
-        }`
-      );
-    },
-  });
-
-  const ApproveMutation = useMutation({
-    mutationFn: async (driver: {
-      _id: string;
-      isApproved: "Approve" | "Rejected";
-    }) => {
-      return await api.post(`/driver/approve/${driver._id}`, {
-        isApproved: driver.isApproved,
-      });
-    },
-    onSuccess: (updated, variables) => {
-      queryClient.setQueryData<driver[]>(["drivers"], (oldData) =>
-        oldData?.map((driver) =>
-          driver._id === variables._id
-            ? { ...driver, isApproved: variables.isApproved }
-            : driver
-        )
-      );
-      alert("Access updated successfully.");
-    },
-    onError: (err) => {
-      alert("Failed to update access.\nerror: " + err);
-    },
-  });
-  // Mutation for edit driver data
-  const updatedriverMutation = useMutation({
-    mutationFn: async ({
-      driverId,
-      data,
-    }: {
-      driverId: string;
-      data: Partial<driver>;
-    }) => {
-      return await api.put(`/driver/${driverId}`, data);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["driver"] });
-      setEditDialogOpen(false);
-      setEditTarget(null);
-      alert("branch updated successfully.");
-    },
-    onError: (err) => {
-      alert("Failed to update branch.\nerror: " + err);
-    },
-  });
-
-  // Mutation to delete a driver
-  const deletedriverMutation = useMutation({
-    mutationFn: async (driverId: string) => {
-      return await api.delete(`/driver/${driverId}`);
-    },
-    onSuccess: (_, deletedId) => {
-      queryClient.setQueryData<driver[]>(["drivers"], (oldData) =>
-        oldData?.filter((driver) => driver._id !== deletedId)
-      );
-      alert("driver deleted successfully.");
-    },
-    onError: (err) => {
-      alert("Failed to delete driver.\nerror: " + err);
-    },
-  });
-
-  // Handle search
-  const handleSearchResults = useCallback((results: driver[]) => {
-    setFilteredData(results);
-  }, []);
-
-  // Handle save action for edit driver
-  const handleSave = (updatedData: Partial<driver>) => {
-    if (!editTarget) return;
-
-    const changedFields: Partial<Record<keyof driver, unknown>> = {};
-    const flatEditTarget = {
-      ...editTarget,
-      schoolId: editTarget.schoolId._id,
-      branchId: editTarget.branchId._id,
-      deviceObjId: editTarget.deviceObjId._id,
-    };
-    for (const key in updatedData) {
-      const newValue = updatedData[key as keyof driver];
-      const oldValue = editTarget[key as keyof driver];
-
-      if (newValue !== undefined && newValue !== oldValue) {
-        changedFields[key as keyof driver] = newValue;
-      }
-    }
-
-    if (Object.keys(changedFields).length === 0) {
-      console.log("No changes detected.");
-      return;
-    }
-
-    updatedriverMutation.mutate({
-      driverId: editTarget._id,
-      data: changedFields,
-    });
-  };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const form = e.currentTarget;
     const formData = new FormData(form);
 
-    if (!school) {
-      alert("Please select a school");
-      return;
-    } else if (!branch) {
-      alert("Please select a branch");
-      return;
-    } else if (!device) {
-      alert("Please select a device");
+    if (!addForm.school || !addForm.branch || !addForm.device) {
+      alert("Please select School, Branch, and Device");
       return;
     }
 
     const data = {
       driverName: formData.get("driverName") as string,
-      driverMobile: formData.get("driverMobile") as string,
+      mobileNo: formData.get("mobileNo") as string,
       username: formData.get("username") as string,
       password: formData.get("password") as string,
       email: formData.get("email") as string,
-      schoolId: school,
-      branchId: branch,
-      deviceObjId: device,
+      schoolId: addForm.school,
+      branchId: addForm.branch,
+      deviceObjId: addForm.device,
     };
 
-    await adddriverMutation.mutateAsync(data); // let onSuccess/onError handle feedback
-
-    if (!adddriverMutation.isError) {
-      closeButtonRef.current?.click();
-      form.reset();
-      setSchool(undefined);
-      alert("driver added successfully.");
-    }
+    await addDriverMutation.mutateAsync(data);
   };
 
-  const handleDateFilter = useCallback(
-    (start: Date | null, end: Date | null) => {
-      if (!drivers || (!start && !end)) {
-        setFilteredData(drivers || []);
+  const handleEditSave = (updatedData: Partial<Driver>) => {
+    if (!editTarget) return;
+
+    const changedFields: Partial<Driver> = {};
+    const flatTarget = {
+      ...editTarget,
+      schoolId: editTarget.schoolId?._id || editTarget.schoolId,
+      branchId: editTarget.branchId?._id || editTarget.branchId,
+      deviceObjId: editTarget.deviceObjId?._id || editTarget.deviceObjId,
+    };
+
+    for (const key in updatedData) {
+      const newVal = updatedData[key as keyof Driver];
+      const oldVal = flatTarget[key as keyof Driver];
+      if (newVal !== undefined && newVal !== oldVal) {
+        if (key === 'username' && newVal === editTarget.username) continue;
+        changedFields[key as keyof Driver] = newVal;
+      }
+    }
+
+    if (Object.keys(changedFields).length === 0) {
+      alert("No changes detected.");
+      return;
+    }
+
+    updateDriverMutation.mutate({ driverId: editTarget._id, data: changedFields });
+  };
+
+  const EditDriverDialog = () => {
+    if (!editTarget) return null;
+
+    const [formData, setFormData] = useState({
+      driverName: editTarget.driverName || "",
+      mobileNo: editTarget.mobileNo || "",
+      username: editTarget.username || "",
+      password: editTarget.password || "",
+      email: editTarget.email || "",
+    });
+    const [usernameError, setUsernameError] = useState("");
+
+    // Reset form when editTarget changes
+    useEffect(() => {
+      if (editTarget) {
+        setFormData({
+          driverName: editTarget.driverName || "",
+          mobileNo: editTarget.mobileNo || "",
+          username: editTarget.username || "",
+          password: editTarget.password || "",
+          email: editTarget.email || "",
+        });
+      }
+    }, [editTarget]);
+
+    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const { name, value } = e.target;
+      setFormData(prev => ({ ...prev, [name]: value }));
+      if (name === 'username') setUsernameError("");
+    };
+
+    const handleSubmit = (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!editForm.school || !editForm.branch || !editForm.device) {
+        alert("Please select School, Branch, and Device");
+        return;
+      }
+      if (!formData.username.trim()) {
+        setUsernameError("Username is required");
         return;
       }
 
-      const filtered = drivers.filter((driver) => {
-        if (!driver.createdAt) return false;
-
-        const createdDate = new Date(driver.createdAt);
-        return (!start || createdDate >= start) && (!end || createdDate <= end);
+      handleEditSave({
+        ...formData,
+        schoolId: editForm.school,
+        branchId: editForm.branch,
+        deviceObjId: editForm.device,
       });
+    };
 
-      setFilteredData(filtered);
-    },
-    [drivers]
-  );
-
-  const handleCustomFilter = useCallback((filtered: driver[]) => {
-    setFilteredData(filtered);
-  }, []);
+    return (
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent className="sm:max-w-[600px]">
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <DialogHeader>
+              <DialogTitle>Edit Driver</DialogTitle>
+            </DialogHeader>
+            <DriverForm
+              formData={formData}
+              onInputChange={handleInputChange}
+              school={editForm.school}
+              setSchool={editForm.setSchool}
+              schoolSearch={editForm.schoolSearch}
+              setSchoolSearch={editForm.setSchoolSearch}
+              branch={editForm.branch}
+              setBranch={editForm.setBranch}
+              branchSearch={editForm.branchSearch}
+              setBranchSearch={editForm.setBranchSearch}
+              device={editForm.device}
+              setDevice={editForm.setDevice}
+              deviceSearch={editForm.deviceSearch}
+              setDeviceSearch={editForm.setDeviceSearch}
+              schoolOptions={schoolOptions}
+              branchOptions={getFilteredBranchOptions(editForm.school)}
+              deviceItems={getDeviceItems(editDeviceQuery.data)}
+              hasNextPage={editDeviceQuery.hasNextPage}
+              fetchNextPage={editDeviceQuery.fetchNextPage}
+              isFetchingNextPage={editDeviceQuery.isFetchingNextPage}
+              isFetching={editDeviceQuery.isFetching}
+              usernameError={usernameError}
+            />
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => {
+                setEditDialogOpen(false);
+                setEditTarget(null);
+                editForm.resetForm();
+              }}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={updateDriverMutation.isPending}>
+                {updateDriverMutation.isPending ? "Updating..." : "Update Driver"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+    );
+  };
 
   const table = useReactTable({
     data: filteredData,
@@ -612,185 +828,85 @@ export default function driverApprove() {
     getCoreRowModel: getCoreRowModel(),
   });
 
-  console.log("driver............",drivers)
-
   return (
     <main>
-      {/* Progress loader at the top */}
       <ResponseLoader isLoading={isLoading} />
 
       <header className="flex items-center justify-between mb-4">
         <section className="flex space-x-4">
-          {/* Search component */}
           <SearchComponent
-            data={filterResults}
-            displayKey={["driverName", "username", "email", "driverMobile"]}
-            onResults={handleSearchResults}
+            data={drivers || []}
+            displayKey={["driverName", "username", "email", "mobileNo"]}
+            onResults={setFilteredData}
             className="w-[300px] mb-4"
           />
-          {/* Date range picker */}
           <DateRangeFilter
-            onDateRangeChange={handleDateFilter}
+            onDateRangeChange={(start, end) => {
+              if (!drivers || (!start && !end)) {
+                setFilteredData(drivers || []);
+                return;
+              }
+              const filtered = drivers.filter(d => {
+                if (!d.createdAt) return false;
+                const date = new Date(d.createdAt);
+                return (!start || date >= start) && (!end || date <= end);
+              });
+              setFilteredData(filtered);
+            }}
             title="Search by Registration Date"
           />
-
           <CustomFilter
             data={filteredData}
             originalData={drivers}
             filterFields={["isApproved"]}
-            onFilter={handleCustomFilter}
-            placeholder={"Filter by Approval"}
-            valueFormatter={(value) => {
-              if (!value) return "";
-
-              console.log("myval", value);
-
-              const formatted = value.toString().toLowerCase();
-
-              if (formatted === "rejected") return "Rejected";
-              if (formatted === "approved") return "Approved";
-              if (formatted === "pending") return "Pending";
-
-              return value;
-            }}
+            onFilter={setFilteredData}
+            placeholder="Filter by Approval"
+            valueFormatter={(v) => v ? v.toString().charAt(0).toUpperCase() + v.toString().slice(1).toLowerCase() : ""}
           />
-
-          {/* Column visibility selector */}
-          <ColumnVisibilitySelector
-            columns={table.getAllColumns()}
-            buttonVariant="outline"
-            buttonSize="default"
-          />
+          <ColumnVisibilitySelector columns={table.getAllColumns()} />
         </section>
 
-        {/* Add driver */}
         <section>
-          <Dialog>
+          <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
             <DialogTrigger asChild>
-              <Button variant="default">Add driver</Button>
+              <Button variant="default">Add Driver</Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-[600px]">
               <form onSubmit={handleSubmit} className="space-y-4">
                 <DialogHeader>
-                  <DialogTitle>Add driver</DialogTitle>
+                  <DialogTitle>Add Driver</DialogTitle>
                 </DialogHeader>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="grid gap-2">
-                    <Label htmlFor="driverName">driver Name</Label>
-                    <Input
-                      id="driverName"
-                      name="driverName"
-                      placeholder="Enter driver name"
-                      required
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="schoolId">School</Label>
-                    <SearchableSelect
-                      value={school}
-                      onChange={setSchool}
-                      options={schoolOptions}
-                      placeholder="Select school"
-                      allowClear={true}
-                    />
-                  </div>
-
-                  <div className="grid gap-2">
-                    <Label htmlFor="branchId">Branch</Label>
-                    <SearchableSelect
-                      value={branch}
-                      onChange={setbranch}
-                      options={filteredBranchOptions}
-                      // placeholder={filteredBranchOptions.length ? "Select branch" : "No branches available"}
-                      placeholder={
-                        !school
-                          ? "select school first"
-                          : filteredBranchOptions.length
-                          ? "select branch"
-                          : "No branches available"
-                      }
-                      allowClear={true}
-                      disabled={!school}
-                    />
-                  </div>
-
-                  <div className="grid gap-2">
-                    <Label htmlFor="deviceObjId">Device</Label>
-                    <SearchableSelect
-                      value={device}
-                      onChange={setdevice}
-                      options={filteredDeviceOptions}
-                      // placeholder={filteredDeviceOptions.length ? "Select device" : "No devices available"}
-                      placeholder={
-                        !school
-                          ? "select school first"
-                          : !branch
-                          ? "Select branch first"
-                          : filteredDeviceOptions.length
-                          ? "select device"
-                          : "No device available"
-                      }
-                      allowClear={true}
-                      disabled={!branch}
-                    />
-                  </div>
-
-                  <div className="grid gap-2">
-                    <Label htmlFor="email">Email</Label>
-                    <Input
-                      id="email"
-                      name="email"
-                      type="email"
-                      placeholder="Enter email address"
-                      required
-                    />
-                  </div>
-
-                  <div className="grid gap-2">
-                    <Label htmlFor="driverMobile">Mobile No</Label>
-                    <Input
-                      id="driverMobile"
-                      name="driverMobile"
-                      type="tel"
-                      placeholder="Enter driver mobile number"
-                      pattern="[0-9]{10}"
-                      maxLength={10}
-                      autoComplete="tel"
-                      required
-                    />
-                  </div>
-
-                  <div className="grid gap-2">
-                    <Label htmlFor="username">Username</Label>
-                    <Input
-                      id="username"
-                      name="username"
-                      type="text"
-                      placeholder="Enter username"
-                      required
-                    />
-                  </div>
-
-                  <div className="grid gap-2">
-                    <Label htmlFor="password">Password</Label>
-                    <Input
-                      id="password"
-                      name="password"
-                      type="text"
-                      placeholder="Enter password"
-                      required
-                    />
-                  </div>
-                </div>
-
+                <AddDriverForm
+                  school={addForm.school}
+                  setSchool={addForm.setSchool}
+                  schoolSearch={addForm.schoolSearch}
+                  setSchoolSearch={addForm.setSchoolSearch}
+                  branch={addForm.branch}
+                  setBranch={addForm.setBranch}
+                  branchSearch={addForm.branchSearch}
+                  setBranchSearch={addForm.setBranchSearch}
+                  device={addForm.device}
+                  setDevice={addForm.setDevice}
+                  deviceSearch={addForm.deviceSearch}
+                  setDeviceSearch={addForm.setDeviceSearch}
+                  schoolOptions={schoolOptions}
+                  branchOptions={getFilteredBranchOptions(addForm.school)}
+                  deviceItems={getDeviceItems(addDeviceQuery.data)}
+                  hasNextPage={addDeviceQuery.hasNextPage}
+                  fetchNextPage={addDeviceQuery.fetchNextPage}
+                  isFetchingNextPage={addDeviceQuery.isFetchingNextPage}
+                  isFetching={addDeviceQuery.isFetching}
+                />
                 <DialogFooter>
                   <DialogClose asChild>
-                    <Button ref={closeButtonRef} variant="outline">
+                    <Button ref={closeButtonRef} variant="outline" onClick={() => {
+                      addForm.resetForm();
+                    }}>
                       Cancel
                     </Button>
                   </DialogClose>
-                  <Button type="submit" disabled={adddriverMutation.isPending}>
-                    {adddriverMutation.isPending ? "Saving..." : "Save driver"}
+                  <Button type="submit" disabled={addDriverMutation.isPending}>
+                    {addDriverMutation.isPending ? "Saving..." : "Save Driver"}
                   </Button>
                 </DialogFooter>
               </form>
@@ -799,10 +915,9 @@ export default function driverApprove() {
         </section>
       </header>
 
-      {/* Table component */}
       <section className="mb-4">
         <CustomTable
-          data={filteredData || []}
+          data={filteredData}
           columns={columns}
           columnVisibility={columnVisibility}
           onColumnVisibilityChange={setColumnVisibility}
@@ -815,78 +930,34 @@ export default function driverApprove() {
         />
       </section>
 
-      {/* Alert Boxes */}
-      <section>
-        <div>
-          {deleteTarget && (
-            <Alert<driver>
-              title="Are you absolutely sure?"
-              description={`This will permanently delete ${deleteTarget?.driverName} and all associated data.`}
-              actionButton={(target) => {
-                deletedriverMutation.mutate(target._id);
-                setDeleteTarget(null);
-              }}
-              target={deleteTarget}
-              setTarget={setDeleteTarget}
-              butttonText="Delete"
-            />
-          )}
-        </div>
-      </section>
-      {/* Edit Dialog */}
-      <section>
-        {editTarget && (
-          <DynamicEditDialog
-            data={{
-              ...editTarget,
-              schoolId: editTarget.schoolId._id,
-              branchId: editTarget.branchId._id,
-              deviceObjId: editTarget.deviceObjId._id,
-            }}
-            isOpen={editDialogOpen}
-            onClose={() => {
-              setEditDialogOpen(false);
-              setEditTarget(null);
-            }}
-            onSave={handleSave}
-            fields={driverFieldConfigs}
-            title="Edit driver"
-            description="Update the driver information below. Fields marked with * are required."
-            avatarConfig={{
-              imageKey: "logo",
-              nameKeys: ["driverName"],
-            }}
-          />
-        )}
-      </section>
-      {/* Floating Menu */}
-      <section>
-        <FloatingMenu
-          onExportPdf={() => {
-            console.log("Export PDF triggered"); // ✅ Add this for debugging
-            exportToPDF(filteredData, columnsForExport, {
-              title: "driver Master Report",
-              companyName: "Parents Eye",
-              metadata: {
-                Total: `${filteredData.length} drivers`,
-              },
-            });
+      {deleteTarget && (
+        <Alert<Driver>
+          title="Are you absolutely sure?"
+          description={`This will permanently delete ${deleteTarget?.driverName} and all associated data.`}
+          actionButton={(target) => {
+            deleteDriverMutation.mutate(target._id);
+            setDeleteTarget(null);
           }}
-          onExportExcel={() => {
-            console.log("Export Excel triggered"); // ✅ Add this too
-            exportToExcel(filteredData, columnsForExport, {
-              title: "driver Master Report",
-              companyName: "Parents Eye",
-              metadata: {
-                Total: `${filteredData.length} drivers`,
-              },
-            });
-          }}
+          target={deleteTarget}
+          setTarget={setDeleteTarget}
+          butttonText="Delete"
         />
-      </section>
+      )}
+
+      {editTarget && <EditDriverDialog />}
+
+      <FloatingMenu
+        onExportPdf={() => exportToPDF(filteredData, columnsForExport, {
+          title: "Driver Master Report",
+          companyName: "Parents Eye",
+          metadata: { Total: `${filteredData.length} drivers` },
+        })}
+        onExportExcel={() => exportToExcel(filteredData, columnsForExport, {
+          title: "Driver Master Report",
+          companyName: "Parents Eye",
+          metadata: { Total: `${filteredData.length} drivers` },
+        })}
+      />
     </main>
   );
 }
-
-
-// aaa
