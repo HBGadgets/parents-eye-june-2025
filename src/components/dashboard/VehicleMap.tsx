@@ -107,7 +107,7 @@ const VehicleBusMarker = React.memo(
         running: "/bus/top-view/green-top.svg",
         idle: "/bus/top-view/yellow-top.svg",
         stopped: "/bus/top-view/red-top.svg",
-        inactive: "/bus/top-view/grey-top.svg",
+        inactive: "/bus/top-view/gray-top.svg",
         overspeeding: "/bus/top-view/orange-top.svg",
         noData: "/bus/top-view/blue-top.svg",
       };
@@ -481,7 +481,7 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
   vehicles,
   center = [21.99099777777778, 78.92973111111111],
   zoom = 10,
-  height = "500px",
+  height = "h-[80vh]",
   onVehicleClick,
   selectedVehicleId,
   showTrails = false,

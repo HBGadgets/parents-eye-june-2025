@@ -33,11 +33,12 @@ import {
 import GeofenceConfigurationPanel from "./configuration-panel";
 import { Branch, BranchGroup, Route, School } from "@/interface/modal";
 import { useBranchData } from "@/hooks/useBranchData";
-import { useRouteData } from "@/hooks/useInfiniteRouteData";
+// import { useRouteData } from "@/hooks/useInfiniteRouteData";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import "./style.css";
 import { api } from "@/services/apiService";
 import { parseTimeString, safeParseTimeString } from "@/util/timeUtils";
+import { useInfiniteRouteData } from "@/hooks/useInfiniteRouteData";
 
 // Fix for default markers in Leaflet
 delete (L.Icon.Default.prototype as unknown)._getIconUrl;
@@ -116,7 +117,7 @@ const GeofenceManager: React.FC = ({
   //   BranchGroup[]
   // >([]);
   const { data: branchData } = useBranchData();
-  const { data: routeData } = useRouteData();
+  const { data: routeData } = useInfiniteRouteData();
   const queryClient = useQueryClient();
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [pickupTime, setPickupTime] = useState<Date | undefined>(undefined);
@@ -418,9 +419,8 @@ const GeofenceManager: React.FC = ({
       );
 
       // Add tile layer
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        attribution:
-          '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      L.tileLayer(`https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}`, {
+        subdomains: ["mt0", "mt1", "mt2", "mt3"],
       }).addTo(map.current);
 
       // Create layer group for geofences

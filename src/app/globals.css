@@ -50,11 +50,13 @@
   --foreground: oklch(0.141 0.005 285.823);
   --foreground: oklch(0.141 0.005 285.823);
   --card: oklch(1 0 0);
+
   --card-foreground: oklch(0.141 0.005 285.823);
   --card-foreground: oklch(0.141 0.005 285.823);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.141 0.005 285.823);
-  --primary: oklch(0.8423 0.1655 91.33);
+  --primary: oklch(0.87 0.15 94.75 / 0.84);
+  ;
   --primary-foreground: oklch(0.421 0.095 57.708);
   --secondary: oklch(0.967 0.001 286.375);
   --secondary-foreground: oklch(0.21 0.006 285.885);
@@ -63,21 +65,24 @@
   --accent: oklch(0.967 0.001 286.375);
   --accent-foreground: oklch(0.21 0.006 285.885);
   --popover-foreground: oklch(0.141 0.005 285.823);
-  --primary: oklch(0.8423 0.1655 91.33);
+  --primary: oklch(0.87 0.15 94.75 / 0.84);
+  ;
   --primary-foreground: oklch(0.421 0.095 57.708);
   --secondary: oklch(0.967 0.001 286.375);
   --secondary-foreground: oklch(0.21 0.006 285.885);
   --muted: oklch(0.967 0.001 286.375);
   --muted-foreground: oklch(0.552 0.016 285.938);
   --accent: oklch(0.967 0.001 286.375);
-  --accent-foreground: oklch(0.21 0.006 285.885);
+  --accent-foreground: rgb(24, 24, 27);
   --destructive: oklch(0.577 0.245 27.325);
   --border: oklch(0.92 0.004 286.32);
   --input: oklch(0.92 0.004 286.32);
-  --ring: oklch(0.8423 0.1655 91.33);
+  --ring: oklch(0.87 0.15 94.75 / 0.84);
+  ;
   --border: oklch(0.92 0.004 286.32);
   --input: oklch(0.92 0.004 286.32);
-  --ring: oklch(0.8423 0.1655 91.33);
+  --ring: oklch(0.87 0.15 94.75 / 0.84);
+  ;
   --chart-1: oklch(0.646 0.222 41.116);
   --chart-2: oklch(0.6 0.118 184.704);
   --chart-3: oklch(0.398 0.07 227.392);
@@ -85,19 +90,23 @@
   --chart-5: oklch(0.769 0.188 70.08);
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.141 0.005 285.823);
-  --sidebar-primary: oklch(0.8423 0.1655 91.33);
+  --sidebar-primary: oklch(0.87 0.15 94.75 / 0.84);
+  ;
   --sidebar-primary-foreground: oklch(0.421 0.095 57.708);
   --sidebar-accent: oklch(0.967 0.001 286.375);
   --sidebar-accent-foreground: oklch(0.21 0.006 285.885);
   --sidebar-border: oklch(0.92 0.004 286.32);
-  --sidebar-ring: oklch(0.8423 0.1655 91.33);
+  --sidebar-ring: oklch(0.87 0.15 94.75 / 0.84);
+  ;
   --sidebar-foreground: oklch(0.141 0.005 285.823);
-  --sidebar-primary: oklch(0.8423 0.1655 91.33);
+  --sidebar-primary: oklch(0.87 0.15 94.75 / 0.84);
+  ;
   --sidebar-primary-foreground: oklch(0.421 0.095 57.708);
   --sidebar-accent: oklch(0.967 0.001 286.375);
   --sidebar-accent-foreground: oklch(0.21 0.006 285.885);
   --sidebar-border: oklch(0.92 0.004 286.32);
-  --sidebar-ring: oklch(0.8423 0.1655 91.33);
+  --sidebar-ring: oklch(0.87 0.15 94.75 / 0.84);
+  ;
 }
 
 .dark {
@@ -110,10 +119,12 @@
   --popover: oklch(0.21 0.006 285.885);
   --popover: oklch(0.21 0.006 285.885);
   --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.8423 0.1655 91.33);
+  --primary: oklch(0.87 0.15 94.75 / 0.84);
+  ;
   --primary-foreground: oklch(0.421 0.095 57.708);
   --secondary: oklch(0.274 0.006 286.033);
-  --primary: oklch(0.8423 0.1655 91.33);
+  --primary: oklch(0.87 0.15 94.75 / 0.84);
+  ;
   --primary-foreground: oklch(0.421 0.095 57.708);
   --secondary: oklch(0.274 0.006 286.033);
   --secondary-foreground: oklch(0.985 0 0);
@@ -136,10 +147,12 @@
   --sidebar: oklch(0.21 0.006 285.885);
   --sidebar: oklch(0.21 0.006 285.885);
   --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.8423 0.1655 91.33);
+  --sidebar-primary: oklch(0.87 0.15 94.75 / 0.84);
+  ;
   --sidebar-primary-foreground: oklch(0.421 0.095 57.708);
   --sidebar-accent: oklch(0.274 0.006 286.033);
-  --sidebar-primary: oklch(0.8423 0.1655 91.33);
+  --sidebar-primary: oklch(0.87 0.15 94.75 / 0.84);
+  ;
   --sidebar-primary-foreground: oklch(0.421 0.095 57.708);
   --sidebar-accent: oklch(0.274 0.006 286.033);
   --sidebar-accent-foreground: oklch(0.985 0 0);
@@ -222,3 +235,24 @@
     max-width: none;
   }
 } */
+
+/* For 16:9 screens (standard widescreen) */
+@media (aspect-ratio: 16/9) {
+  .table-container {
+    min-height: calc(100vh - 180px);
+  }
+}
+
+/* For 16:10 screens (wider monitors) */
+@media (min-aspect-ratio: 16/10) and (max-aspect-ratio: 16/9) {
+  .table-container {
+    min-height: calc(100vh - 150px);
+  }
+}
+
+/* For ultra-wide screens */
+@media (min-aspect-ratio: 21/9) {
+  .table-container {
+    min-height: calc(100vh - 120px);
+  }
+}

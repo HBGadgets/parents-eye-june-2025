@@ -759,10 +759,10 @@ export default function DashboardClient() {
                   </div>
                 )}
 
-                {viewState !== "mapExpanded" && (
-                  <div className="h-full">{tableElement}</div>
-                )}
-              </section>
+              {viewState !== "mapExpanded" && (
+                <div className="h-[80vh]">{tableElement}</div>
+              )}
+            </section>
 
               {/* Arrow Controls */}
               {!["tableExpanded", "mapExpanded"].includes(viewState) && (
