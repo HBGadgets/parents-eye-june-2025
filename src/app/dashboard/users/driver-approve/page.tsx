@@ -31,6 +31,87 @@ interface SelectOption {
   value: string;
 }
 
+// Status Dropdown Component
+const StatusDropdown = ({ 
+  currentStatus, 
+  onStatusChange, 
+  disabled = false 
+}: { 
+  currentStatus: string; 
+  onStatusChange: (status: "Approved" | "Rejected") => void;
+  disabled?: boolean;
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const statusOptions = [
+    { label: "Approved", value: "Approved" as const },
+    { label: "Rejected", value: "Rejected" as const },
+  ];
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case "Approved": return "text-green-600 bg-green-100 border-green-200";
+      case "Rejected": return "text-red-600 bg-red-100 border-red-200";
+      default: return "text-yellow-600 bg-yellow-100 border-yellow-200";
+    }
+  };
+
+  const handleStatusSelect = (status: "Approved" | "Rejected") => {
+    // Only trigger change if the status is actually different
+    if (status !== currentStatus) {
+      onStatusChange(status);
+    }
+    setIsOpen(false);
+  };
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <button
+        type="button"
+        className={`px-3 py-1 border rounded-full text-sm font-medium ${getStatusColor(currentStatus)} ${
+          disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:opacity-80'
+        }`}
+        onClick={() => !disabled && setIsOpen(!isOpen)}
+        disabled={disabled}
+      >
+        {currentStatus || "Pending"}
+      </button>
+      
+      {isOpen && !disabled && (
+        <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-md shadow-lg z-10 min-w-[120px]">
+          {statusOptions.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-100 ${
+                currentStatus === option.value ? 'bg-blue-50 text-blue-600' : ''
+              }`}
+              onClick={() => handleStatusSelect(option.value)}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 // Reusable Form Component
 const DriverForm = ({ 
   formData, 
@@ -55,6 +136,9 @@ const DriverForm = ({
   isFetchingNextPage,
   isFetching,
   usernameError,
+  role,
+  isSuperAdmin,
+  isSchoolRole,
 }: any) => (
   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
     <div className="grid gap-2">
@@ -69,48 +153,75 @@ const DriverForm = ({
       />
     </div>
     
-    <div className="grid gap-2">
-      <Label>School *</Label>
-      <Combobox 
-        items={schoolOptions} 
-        value={school} 
-        onValueChange={setSchool}
-        placeholder="Search school..." 
-        searchPlaceholder="Search schools..." 
-        emptyMessage="No school found."
-        width="w-full" 
-        onSearchChange={setSchoolSearch} 
-        searchValue={schoolSearch} 
-      />
-    </div>
+    {/* School Selector - Only for Super Admin */}
+    {isSuperAdmin && (
+      <div className="grid gap-2">
+        <Label>School *</Label>
+        <Combobox 
+          items={schoolOptions} 
+          value={school} 
+          onValueChange={setSchool}
+          placeholder="Search school..." 
+          searchPlaceholder="Search schools..." 
+          emptyMessage="No school found."
+          width="w-full" 
+          onSearchChange={setSchoolSearch} 
+          searchValue={schoolSearch} 
+        />
+      </div>
+    )}
 
-    <div className="grid gap-2">
-      <Label>Branch *</Label>
-      <Combobox 
-        items={branchOptions} 
-        value={branch} 
-        onValueChange={setBranch}
-        placeholder={!school ? "Select school first" : branchOptions.length ? "Search branch..." : "No branches available"}
-        searchPlaceholder="Search branches..." 
-        emptyMessage={!school ? "Please select a school first" : branchOptions.length === 0 ? "No branches found for this school" : "No branches match your search"}
-        width="w-full" 
-        disabled={!school}
-        onSearchChange={setBranchSearch} 
-        searchValue={branchSearch} 
-      />
-    </div>
+    {/* Branch Selector - For Super Admin and School roles */}
+    {(isSuperAdmin || isSchoolRole) && (
+      <div className="grid gap-2">
+        <Label>Branch *</Label>
+        <Combobox 
+          items={branchOptions} 
+          value={branch} 
+          onValueChange={setBranch}
+          placeholder={
+            isSuperAdmin 
+              ? !school ? "Select school first" : branchOptions.length ? "Search branch..." : "No branches available"
+              : branchOptions.length ? "Search branch..." : "Loading branches..."
+          }
+          searchPlaceholder="Search branches..." 
+          emptyMessage={
+            isSuperAdmin 
+              ? !school ? "Please select a school first" : branchOptions.length === 0 ? "No branches found for this school" : "No branches match your search"
+              : "No branches found for your school"
+          }
+          width="w-full" 
+          disabled={isSuperAdmin && !school}
+          onSearchChange={setBranchSearch} 
+          searchValue={branchSearch} 
+        />
+      </div>
+    )}
 
+    {/* Device Selector - For all roles */}
     <div className="grid gap-2">
       <Label>Device *</Label>
       <Combobox 
         items={deviceItems} 
         value={device} 
         onValueChange={setDevice}
-        placeholder={!school ? "Select school first" : !branch ? "Select branch first" : "Search device..."}
+        placeholder={
+          isSuperAdmin 
+            ? !school ? "Select school first" : !branch ? "Select branch first" : "Search device..."
+            : isSchoolRole
+            ? !branch ? "Select branch first" : "Search device..."
+            : "Search device..."
+        }
         searchPlaceholder="Search devices..." 
-        emptyMessage={!school ? "Please select a school first" : !branch ? "Please select a branch first" : "No devices found"}
+        emptyMessage={
+          isSuperAdmin 
+            ? !school ? "Please select a school first" : !branch ? "Please select a branch first" : "No devices found"
+            : isSchoolRole
+            ? !branch ? "Please select a branch first" : "No devices found"
+            : "No devices found"
+        }
         width="w-full" 
-        disabled={!branch}
+        disabled={isSuperAdmin ? !branch : isSchoolRole ? !branch : false}
         onSearchChange={setDeviceSearch} 
         searchValue={deviceSearch}
         onReachEnd={() => {
@@ -200,6 +311,9 @@ const AddDriverForm = ({
   fetchNextPage,
   isFetchingNextPage,
   isFetching,
+  role,
+  isSuperAdmin,
+  isSchoolRole,
 }: any) => {
   const [formData, setFormData] = useState({
     driverName: "",
@@ -228,48 +342,75 @@ const AddDriverForm = ({
         />
       </div>
       
-      <div className="grid gap-2">
-        <Label>School *</Label>
-        <Combobox 
-          items={schoolOptions} 
-          value={school} 
-          onValueChange={setSchool}
-          placeholder="Search school..." 
-          searchPlaceholder="Search schools..." 
-          emptyMessage="No school found."
-          width="w-full" 
-          onSearchChange={setSchoolSearch} 
-          searchValue={schoolSearch} 
-        />
-      </div>
+      {/* School Selector - Only for Super Admin */}
+      {isSuperAdmin && (
+        <div className="grid gap-2">
+          <Label>School *</Label>
+          <Combobox 
+            items={schoolOptions} 
+            value={school} 
+            onValueChange={setSchool}
+            placeholder="Search school..." 
+            searchPlaceholder="Search schools..." 
+            emptyMessage="No school found."
+            width="w-full" 
+            onSearchChange={setSchoolSearch} 
+            searchValue={schoolSearch} 
+          />
+        </div>
+      )}
 
-      <div className="grid gap-2">
-        <Label>Branch *</Label>
-        <Combobox 
-          items={branchOptions} 
-          value={branch} 
-          onValueChange={setBranch}
-          placeholder={!school ? "Select school first" : branchOptions.length ? "Search branch..." : "No branches available"}
-          searchPlaceholder="Search branches..." 
-          emptyMessage={!school ? "Please select a school first" : branchOptions.length === 0 ? "No branches found for this school" : "No branches match your search"}
-          width="w-full" 
-          disabled={!school}
-          onSearchChange={setBranchSearch} 
-          searchValue={branchSearch} 
-        />
-      </div>
+      {/* Branch Selector - For Super Admin and School roles */}
+      {(isSuperAdmin || isSchoolRole) && (
+        <div className="grid gap-2">
+          <Label>Branch *</Label>
+          <Combobox 
+            items={branchOptions} 
+            value={branch} 
+            onValueChange={setBranch}
+            placeholder={
+              isSuperAdmin 
+                ? !school ? "Select school first" : branchOptions.length ? "Search branch..." : "No branches available"
+                : branchOptions.length ? "Search branch..." : "Loading branches..."
+            }
+            searchPlaceholder="Search branches..." 
+            emptyMessage={
+              isSuperAdmin 
+                ? !school ? "Please select a school first" : branchOptions.length === 0 ? "No branches found for this school" : "No branches match your search"
+                : "No branches found for your school"
+            }
+            width="w-full" 
+            disabled={isSuperAdmin && !school}
+            onSearchChange={setBranchSearch} 
+            searchValue={branchSearch} 
+          />
+        </div>
+      )}
 
+      {/* Device Selector - For all roles */}
       <div className="grid gap-2">
         <Label>Device *</Label>
         <Combobox 
           items={deviceItems} 
           value={device} 
           onValueChange={setDevice}
-          placeholder={!school ? "Select school first" : !branch ? "Select branch first" : "Search device..."}
+          placeholder={
+            isSuperAdmin 
+              ? !school ? "Select school first" : !branch ? "Select branch first" : "Search device..."
+              : isSchoolRole
+              ? !branch ? "Select branch first" : "Search device..."
+              : "Search device..."
+          }
           searchPlaceholder="Search devices..." 
-          emptyMessage={!school ? "Please select a school first" : !branch ? "Please select a branch first" : "No devices found"}
+          emptyMessage={
+            isSuperAdmin 
+              ? !school ? "Please select a school first" : !branch ? "Please select a branch first" : "No devices found"
+              : isSchoolRole
+              ? !branch ? "Please select a branch first" : "No devices found"
+              : "No devices found"
+          }
           width="w-full" 
-          disabled={!branch}
+          disabled={isSuperAdmin ? !branch : isSchoolRole ? !branch : false}
           onSearchChange={setDeviceSearch} 
           searchValue={deviceSearch}
           onReachEnd={() => {
@@ -338,7 +479,7 @@ const AddDriverForm = ({
 };
 
 // Custom hook for form state management
-const useDriverForm = (initialData?: Driver) => {
+const useDriverForm = (initialData?: Driver, role?: string, isSuperAdmin?: boolean, isSchoolRole?: boolean) => {
   const [school, setSchool] = useState("");
   const [schoolSearch, setSchoolSearch] = useState("");
   const [branch, setBranch] = useState("");
@@ -348,22 +489,29 @@ const useDriverForm = (initialData?: Driver) => {
 
   useEffect(() => {
     if (initialData) {
-      setSchool(initialData.schoolId?._id || initialData.schoolId || "");
-      setBranch(initialData.branchId?._id || initialData.branchId || "");
+      if (isSuperAdmin) {
+        setSchool(initialData.schoolId?._id || initialData.schoolId || "");
+      }
+      if (isSuperAdmin || isSchoolRole) {
+        setBranch(initialData.branchId?._id || initialData.branchId || "");
+      }
       setDevice(initialData.deviceObjId?._id || initialData.deviceObjId || "");
     }
-  }, [initialData]);
+  }, [initialData, isSuperAdmin, isSchoolRole]);
 
   const resetForm = () => {
-    setSchool("");
-    setSchoolSearch("");
-    setBranch("");
-    setBranchSearch("");
+    if (isSuperAdmin) {
+      setSchool("");
+      setSchoolSearch("");
+    }
+    if (isSuperAdmin || isSchoolRole) {
+      setBranch("");
+      setBranchSearch("");
+    }
     setDevice("");
     setDeviceSearch("");
   };
 
-  // Only reset branch when school actually changes (not on initial load)
   const handleSchoolChange = useCallback((newSchool: string) => {
     const prevSchool = school;
     setSchool(newSchool);
@@ -373,7 +521,6 @@ const useDriverForm = (initialData?: Driver) => {
     }
   }, [school]);
 
-  // Only reset device when branch actually changes (not on initial load)
   const handleBranchChange = useCallback((newBranch: string) => {
     const prevBranch = branch;
     setBranch(newBranch);
@@ -384,17 +531,17 @@ const useDriverForm = (initialData?: Driver) => {
   }, [branch]);
 
   return {
-    school, 
-    setSchool: handleSchoolChange, 
-    schoolSearch, 
-    setSchoolSearch,
-    branch, 
-    setBranch: handleBranchChange, 
-    branchSearch, 
-    setBranchSearch,
-    device, 
-    setDevice, 
-    deviceSearch, 
+    school,
+    setSchool: isSuperAdmin ? handleSchoolChange : () => {},
+    schoolSearch,
+    setSchoolSearch: isSuperAdmin ? setSchoolSearch : () => {},
+    branch,
+    setBranch: (isSuperAdmin || isSchoolRole) ? handleBranchChange : () => {},
+    branchSearch,
+    setBranchSearch: (isSuperAdmin || isSchoolRole) ? setBranchSearch : () => {},
+    device,
+    setDevice,
+    deviceSearch,
     setDeviceSearch,
     resetForm
   };
@@ -411,19 +558,11 @@ export default function DriverApprove() {
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
   const { exportToPDF, exportToExcel } = useExport();
   const [role, setRole] = useState<string | null>(null);
+  const [userSchoolId, setUserSchoolId] = useState<string | null>(null);
+  const [userBranchId, setUserBranchId] = useState<string | null>(null);
+  const [userSchoolName, setUserSchoolName] = useState<string | null>(null);
 
-  // Form hooks
-  const addForm = useDriverForm();
-  const editForm = useDriverForm(editTarget || undefined);
-
-  // Data hooks
-  const { data: schoolData } = useSchoolData();
-  const { data: branchData } = useBranchData();
-  const { data: drivers, isLoading } = useQuery<Driver[]>({
-    queryKey: ["drivers"],
-    queryFn: async () => await api.get<Driver[]>("/driver"),
-  });
-
+  // Role checks
   const normalizedRole = useMemo(() => {
     const r = (role || "").toLowerCase();
     if (["superadmin", "super_admin", "admin", "root"].includes(r)) return "superAdmin";
@@ -432,18 +571,64 @@ export default function DriverApprove() {
     return undefined;
   }, [role]);
 
+  const isSuperAdmin = normalizedRole === "superAdmin";
+  const isSchoolRole = normalizedRole === "school";
+  const isBranchRole = normalizedRole === "branch";
+
+  // Form hooks
+  const addForm = useDriverForm(undefined, normalizedRole, isSuperAdmin, isSchoolRole);
+  const editForm = useDriverForm(editTarget || undefined, normalizedRole, isSuperAdmin, isSchoolRole);
+
+  // Get user info from token
   useEffect(() => {
     const token = Cookies.get("token");
     if (token) {
       const decoded = getDecodedToken(token);
       setRole((decoded?.role || "").toLowerCase());
+      setUserSchoolId(decoded?.schoolId || null);
+      setUserBranchId(decoded?.branchId || null);
+      setUserSchoolName(decoded?.schoolName || null);
     }
   }, []);
+
+  // Data hooks - Only fetch school data for super admin
+  const { data: schoolData } = useSchoolData({
+    enabled: isSuperAdmin // Only fetch school data if super admin
+  });
+
+  // FIXED: Branch data fetching - using useBranchData hook instead of useQuery
+  const { data: branchData, isLoading: branchLoading } = useBranchData();
+
+  // Get drivers based on role - FIXED: Remove blinking by using proper state management
+  const { data: drivers, isLoading } = useQuery<Driver[]>({
+    queryKey: ["drivers", normalizedRole, userSchoolId, userBranchId],
+    queryFn: async () => {
+      let url = "/driver";
+      if (isSchoolRole && userSchoolId) {
+        url += `?schoolId=${userSchoolId}`;
+      } else if (isBranchRole && userBranchId) {
+        url += `?branchId=${userBranchId}`;
+      }
+      return await api.get<Driver[]>(url);
+    },
+    enabled: !!normalizedRole,
+  });
+
+  // FIXED: Set initial values for forms based on role
+  useEffect(() => {
+    if (isSchoolRole && userSchoolId) {
+      addForm.setSchool(userSchoolId);
+    }
+    if (isBranchRole && userBranchId) {
+      addForm.setBranch(userBranchId);
+    }
+  }, [isSchoolRole, isBranchRole, userSchoolId, userBranchId]);
 
   // Device data for add dialog
   const addDeviceQuery = useInfiniteDeviceData({
     role: normalizedRole as any,
-    branchId: addForm.branch || undefined,
+    schoolId: isSuperAdmin ? addForm.school || undefined : userSchoolId || undefined,
+    branchId: isSuperAdmin ? addForm.branch || undefined : isSchoolRole ? addForm.branch || undefined : userBranchId || undefined,
     search: addForm.deviceSearch,
     limit: 20,
   });
@@ -451,20 +636,71 @@ export default function DriverApprove() {
   // Device data for edit dialog
   const editDeviceQuery = useInfiniteDeviceData({
     role: normalizedRole as any,
-    branchId: editForm.branch || undefined,
+    schoolId: isSuperAdmin ? editForm.school || undefined : userSchoolId || undefined,
+    branchId: isSuperAdmin ? editForm.branch || undefined : isSchoolRole ? editForm.branch || undefined : userBranchId || undefined,
     search: editForm.deviceSearch,
     limit: 20,
   });
 
-  // Memoized options
-  const schoolOptions: SelectOption[] = useMemo(() => 
-    schoolData?.filter(s => s._id && s.schoolName).map(s => ({ label: s.schoolName, value: s._id })) || [], 
-    [schoolData]
+  // Helper function to get ID from object or string
+  const getId = useCallback((obj: any): string => {
+    if (!obj) return "";
+    if (typeof obj === "string") return obj;
+    return obj._id || "";
+  }, []);
+
+  // Memoized school options
+  const schoolOptions: SelectOption[] = useMemo(() => {
+    if (!schoolData) return [];
+    let filteredSchools = schoolData;
+    
+    // For school role, only show user's school
+    if (isSchoolRole && userSchoolId) {
+      filteredSchools = schoolData.filter(s => s._id === userSchoolId);
+    }
+    // For branch role, get school from user's branch
+    else if (isBranchRole && userBranchId && branchData) {
+      const userBranch = branchData.find(b => b._id === userBranchId);
+      if (userBranch?.schoolId) {
+        const schoolId = getId(userBranch.schoolId);
+        filteredSchools = schoolData.filter(s => s._id === schoolId);
+      }
+    }
+    
+    return Array.from(new Map(filteredSchools.filter(s => s._id && s.schoolName).map(s => [s._id, { label: s.schoolName, value: s._id }])).values());
+  }, [schoolData, isSchoolRole, isBranchRole, userSchoolId, userBranchId, branchData, getId]);
+
+  // FIXED: Branch options for all roles - similar to supervisor page
+  const getFilteredBranchOptions = useCallback((schoolId: string) => {
+    if (!branchData) return [];
+    let filteredBranches = branchData;
+    
+    // For school role, only show branches from user's school
+    if (isSchoolRole && userSchoolId) {
+      filteredBranches = branchData.filter(branch => getId(branch.schoolId) === userSchoolId);
+    }
+    // For branch role, only show user's branch
+    else if (isBranchRole && userBranchId) {
+      filteredBranches = branchData.filter(branch => branch._id === userBranchId);
+    }
+    // For super admin, filter by selected school
+    else if (isSuperAdmin && schoolId) {
+      filteredBranches = branchData.filter(branch => getId(branch.schoolId) === schoolId);
+    }
+    
+    return filteredBranches.filter(branch => branch._id && branch.branchName).map(branch => ({
+      label: branch.branchName, value: branch._id
+    }));
+  }, [branchData, isSuperAdmin, isSchoolRole, isBranchRole, userSchoolId, userBranchId, getId]);
+
+  const addBranchOptions = useMemo(() => 
+    getFilteredBranchOptions(addForm.school), 
+    [getFilteredBranchOptions, addForm.school]
   );
 
-  const getFilteredBranchOptions = (schoolId: string) => useMemo(() => 
-    branchData?.filter(b => b.schoolId?._id === schoolId).map(b => ({ label: b.branchName, value: b._id })) || [],
-    [schoolId, branchData]
+  const editBranchOptions = useMemo(() => 
+    getFilteredBranchOptions(editForm.school), 
+    [getFilteredBranchOptions, editForm.school]
   );
 
   const getDeviceItems = (deviceData: any) => useMemo(() => {
@@ -475,26 +711,28 @@ export default function DriverApprove() {
     });
   }, [deviceData]);
 
+  // FIXED: Remove blinking by using stable filtered data
   useEffect(() => {
     if (drivers) {
       setFilteredData(drivers);
     }
   }, [drivers]);
 
+  // FIXED: Auto-select first branch for school role if not selected yet
+  useEffect(() => {
+    if (isSchoolRole && addBranchOptions.length > 0 && !addForm.branch && !branchLoading) {
+      addForm.setBranch(addBranchOptions[0].value);
+    }
+  }, [isSchoolRole, addBranchOptions, addForm, branchLoading]);
+
   // Mutations
   const addDriverMutation = useMutation({
     mutationFn: async (newDriver: any) => await api.post("/driver", newDriver),
     onSuccess: (createdDriver, variables) => {
-      // Invalidate and refetch the drivers query to get updated data
       queryClient.invalidateQueries({ queryKey: ["drivers"] });
-      
       alert("Driver added successfully.");
-      
-      // Close the dialog and reset form
       setAddDialogOpen(false);
       addForm.resetForm();
-      
-      // Also reset the form data by triggering a re-render of AddDriverForm
       if (closeButtonRef.current) {
         closeButtonRef.current.click();
       }
@@ -502,18 +740,25 @@ export default function DriverApprove() {
     onError: (error: any) => alert(`Failed to add driver: ${error.response?.data?.message || error.message}`),
   });
 
+  // FIXED: Approve/Reject mutation with proper status update
   const approveMutation = useMutation({
     mutationFn: async (driver: { _id: string; isApproved: "Approved" | "Rejected" }) => 
       await api.post(`/driver/approve/${driver._id}`, { isApproved: driver.isApproved }),
     onSuccess: (_, variables) => {
+      // FIXED: Update the specific driver in the cache to prevent blinking
       queryClient.setQueryData<Driver[]>(["drivers"], (old) =>
-        old?.map(d => d._id === variables._id ? { ...d, isApproved: variables.isApproved } : d)
+        old?.map(d => 
+          d._id === variables._id 
+            ? { ...d, isApproved: variables.isApproved }
+            : d
+        )
       );
-      alert("Driver status updated successfully.");
+      alert(`Driver ${variables.isApproved.toLowerCase()} successfully.`);
     },
     onError: () => alert("Failed to update driver status."),
   });
 
+  // FIXED: Update driver mutation - close dialog on success and prevent blinking
   const updateDriverMutation = useMutation({
     mutationFn: async ({ driverId, data }: { driverId: string; data: Partial<Driver> }) => {
       if (data.username && editTarget && data.username === editTarget.username) {
@@ -522,8 +767,16 @@ export default function DriverApprove() {
       }
       return await api.put(`/driver/${driverId}`, data);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["drivers"] });
+    onSuccess: (updatedDriver, variables) => {
+      // FIXED: Update the specific driver in the cache to prevent blinking
+      queryClient.setQueryData<Driver[]>(["drivers"], (old) =>
+        old?.map(d => 
+          d._id === variables.driverId 
+            ? { ...d, ...variables.data }
+            : d
+        )
+      );
+      // FIXED: Close edit dialog immediately after successful update
       setEditDialogOpen(false);
       setEditTarget(null);
       editForm.resetForm();
@@ -544,7 +797,18 @@ export default function DriverApprove() {
     onError: () => alert("Failed to delete driver."),
   });
 
-  // Table columns
+  // FIXED: Handle status change with dropdown - ALWAYS allow status change
+  const handleStatusChange = useCallback((driver: Driver, newStatus: "Approved" | "Rejected") => {
+    if (!driver._id) return;
+    
+    // Always allow status change regardless of current status
+    approveMutation.mutate({ 
+      _id: driver._id, 
+      isApproved: newStatus 
+    });
+  }, [approveMutation]);
+
+  // FIXED: Table columns with proper cell rendering
   const columns: ColumnDef<Driver, CellContent>[] = [
     {
       header: "Driver Name",
@@ -552,18 +816,18 @@ export default function DriverApprove() {
       meta: { flex: 1, minWidth: 200, maxWidth: 300 },
       enableHiding: true,
     },
-    {
+    ...(isSuperAdmin ? [{
       header: "School Name",
       accessorFn: (row) => ({ type: "text", value: row.schoolId?.schoolName ?? "--" }),
       meta: { flex: 1, minWidth: 200, maxWidth: 300 },
       enableHiding: true,
-    },
-    {
+    }] : []),
+    ...((isSuperAdmin || isSchoolRole) ? [{
       header: "Branch Name",
       accessorFn: (row) => ({ type: "text", value: row.branchId?.branchName ?? "--" }),
       meta: { flex: 1, minWidth: 200, maxWidth: 300 },
       enableHiding: true,
-    },
+    }] : []),
     {
       header: "Device Name",
       accessorFn: (row) => ({ type: "text", value: row.deviceObjId?.name ?? "--" }),
@@ -595,35 +859,30 @@ export default function DriverApprove() {
       enableHiding: true,
     },
     {
+      header: "Status",
+      accessorFn: (row) => ({ 
+        type: "text", 
+        value: row.isApproved ?? "Pending",
+        className: row.isApproved === "Approved" ? "text-green-600 font-semibold" : 
+                  row.isApproved === "Rejected" ? "text-red-600 font-semibold" : 
+                  "text-yellow-600 font-semibold"
+      }),
+      meta: { flex: 1, minWidth: 120, maxWidth: 150 },
+      enableHiding: true,
+    },
+    {
       header: "Approve/Reject",
       accessorFn: (row) => ({
-        type: "group",
-        items: row.isApproved === "Pending" ? [
-          {
-            type: "button",
-            label: "Approved",
-            onClick: () => approveMutation.mutate({ _id: row._id, isApproved: "Approved" }),
-            disabled: approveMutation.isPending,
-            className: "flex-shrink-0 text-xs w-20 bg-green-500 hover:bg-green-600 text-white font-semibold rounded-full px-2 py-1 mr-1",
-          },
-          {
-            type: "button",
-            label: "Reject",
-            onClick: () => approveMutation.mutate({ _id: row._id, isApproved: "Rejected" }),
-            disabled: approveMutation.isPending,
-            className: "flex-shrink-0 text-xs w-20 bg-red-500 hover:bg-red-600 text-white font-semibold rounded-full px-2 py-1",
-          },
-        ] : [
-          {
-            type: "button",
-            label: row.isApproved === "Approved" ? "Approved" : "Rejected",
-            onClick: () => {},
-            disabled: true,
-            className: `flex-shrink-0 text-xs w-24 ${row.isApproved === "Approved" ? "bg-green-300 text-green-800" : "bg-red-300 text-red-800"} font-semibold rounded-full px-2 py-1`,
-          },
-        ],
+        type: "custom",
+        render: () => (
+          <StatusDropdown
+            currentStatus={row.isApproved || "Pending"}
+            onStatusChange={(status) => handleStatusChange(row, status)}
+            disabled={approveMutation.isPending}
+          />
+        ),
       }),
-      meta: { flex: 1, minWidth: 180, maxWidth: 200 },
+      meta: { flex: 1, minWidth: 150, maxWidth: 200 },
       enableSorting: false,
       enableHiding: true,
     },
@@ -662,8 +921,8 @@ export default function DriverApprove() {
     { key: "mobileNo", header: "Mobile" },
     { key: "username", header: "Username" },
     { key: "password", header: "Password" },
-    { key: "schoolId.schoolName", header: "School Name" },
-    { key: "branchId.branchName", header: "Branch Name" },
+    ...(isSuperAdmin ? [{ key: "schoolId.schoolName", header: "School Name" }] : []),
+    ...((isSuperAdmin || isSchoolRole) ? [{ key: "branchId.branchName", header: "Branch Name" }] : []),
     { key: "deviceObjId.name", header: "Device Name" },
     { key: "isApproved", header: "Status" },
     { key: "createdAt", header: "Registration Date" },
@@ -674,21 +933,39 @@ export default function DriverApprove() {
     const form = e.currentTarget;
     const formData = new FormData(form);
 
-    if (!addForm.school || !addForm.branch || !addForm.device) {
-      alert("Please select School, Branch, and Device");
+    // Role-based validation
+    if (isSuperAdmin && (!addForm.school || !addForm.branch)) {
+      alert("Please select School and Branch");
+      return;
+    }
+    if (isSchoolRole && !addForm.branch) {
+      alert("Please select Branch");
+      return;
+    }
+    if (!addForm.device) {
+      alert("Please select Device");
       return;
     }
 
-    const data = {
+    const data: any = {
       driverName: formData.get("driverName") as string,
       mobileNo: formData.get("mobileNo") as string,
       username: formData.get("username") as string,
       password: formData.get("password") as string,
       email: formData.get("email") as string,
-      schoolId: addForm.school,
-      branchId: addForm.branch,
       deviceObjId: addForm.device,
     };
+
+    // Add role-based IDs
+    if (isSuperAdmin) {
+      data.schoolId = addForm.school;
+      data.branchId = addForm.branch;
+    } else if (isSchoolRole) {
+      data.schoolId = userSchoolId;
+      data.branchId = addForm.branch;
+    } else if (isBranchRole) {
+      data.branchId = userBranchId;
+    }
 
     await addDriverMutation.mutateAsync(data);
   };
@@ -754,8 +1031,18 @@ export default function DriverApprove() {
 
     const handleSubmit = (e: React.FormEvent) => {
       e.preventDefault();
-      if (!editForm.school || !editForm.branch || !editForm.device) {
-        alert("Please select School, Branch, and Device");
+      
+      // Role-based validation
+      if (isSuperAdmin && (!editForm.school || !editForm.branch)) {
+        alert("Please select School and Branch");
+        return;
+      }
+      if (isSchoolRole && !editForm.branch) {
+        alert("Please select Branch");
+        return;
+      }
+      if (!editForm.device) {
+        alert("Please select Device");
         return;
       }
       if (!formData.username.trim()) {
@@ -763,12 +1050,20 @@ export default function DriverApprove() {
         return;
       }
 
-      handleEditSave({
+      const updatedData: any = {
         ...formData,
-        schoolId: editForm.school,
-        branchId: editForm.branch,
         deviceObjId: editForm.device,
-      });
+      };
+
+      // Add role-based IDs
+      if (isSuperAdmin) {
+        updatedData.schoolId = editForm.school;
+        updatedData.branchId = editForm.branch;
+      } else if (isSchoolRole) {
+        updatedData.branchId = editForm.branch;
+      }
+
+      handleEditSave(updatedData);
     };
 
     return (
@@ -794,13 +1089,16 @@ export default function DriverApprove() {
               deviceSearch={editForm.deviceSearch}
               setDeviceSearch={editForm.setDeviceSearch}
               schoolOptions={schoolOptions}
-              branchOptions={getFilteredBranchOptions(editForm.school)}
+              branchOptions={editBranchOptions}
               deviceItems={getDeviceItems(editDeviceQuery.data)}
               hasNextPage={editDeviceQuery.hasNextPage}
               fetchNextPage={editDeviceQuery.fetchNextPage}
               isFetchingNextPage={editDeviceQuery.isFetchingNextPage}
               isFetching={editDeviceQuery.isFetching}
               usernameError={usernameError}
+              role={normalizedRole}
+              isSuperAdmin={isSuperAdmin}
+              isSchoolRole={isSchoolRole}
             />
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => {
@@ -830,7 +1128,7 @@ export default function DriverApprove() {
 
   return (
     <main>
-      <ResponseLoader isLoading={isLoading} />
+      <ResponseLoader isLoading={isLoading || branchLoading} />
 
       <header className="flex items-center justify-between mb-4">
         <section className="flex space-x-4">
@@ -890,12 +1188,15 @@ export default function DriverApprove() {
                   deviceSearch={addForm.deviceSearch}
                   setDeviceSearch={addForm.setDeviceSearch}
                   schoolOptions={schoolOptions}
-                  branchOptions={getFilteredBranchOptions(addForm.school)}
+                  branchOptions={addBranchOptions}
                   deviceItems={getDeviceItems(addDeviceQuery.data)}
                   hasNextPage={addDeviceQuery.hasNextPage}
                   fetchNextPage={addDeviceQuery.fetchNextPage}
                   isFetchingNextPage={addDeviceQuery.isFetchingNextPage}
                   isFetching={addDeviceQuery.isFetching}
+                  role={normalizedRole}
+                  isSuperAdmin={isSuperAdmin}
+                  isSchoolRole={isSchoolRole}
                 />
                 <DialogFooter>
                   <DialogClose asChild>
