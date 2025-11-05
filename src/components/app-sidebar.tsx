@@ -114,7 +114,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         case "Master":
           if (role === "superAdmin") {
             return [
-              { title: "Add Device", url: "/dashboard/users/add-device" },
               { title: "User Access", url: "/dashboard/users/user-access" },
               {
                 title: "Student Details",
@@ -124,6 +123,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 title: "Student Approve",
                 url: "/dashboard/users/student-approve",
               },
+              { title: "Add Device", url: "/dashboard/users/add-device" },
             ];
           } else {
             return [
@@ -131,6 +131,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 title: "Student Details",
                 url: "/dashboard/school/student-details",
               },
+              { title: "Add Device", url: "/dashboard/users/add-device" },
             ];
           }
 

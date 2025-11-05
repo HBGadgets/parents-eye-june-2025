@@ -24,6 +24,12 @@ import { ColumnVisibilitySelector } from "@/components/column-visibility-selecto
 import DateRangeFilter from "@/components/ui/DateRangeFilter";
 import { CustomFilter } from "@/components/ui/CustomFilter";
 import { set } from "date-fns";
+import { getDecodedToken } from "@/lib/jwt";
+import Cookies from "js-cookie";
+import { useInfiniteDeviceData } from "@/hooks/useInfiniteDeviceData";
+import { useRoutes } from "@/hooks/useRoute";
+
+type UserRole = "superAdmin" | "school" | "branchGroup" | "branch" | null;
 
 const DevicesPage = () => {
   const queryClient = useQueryClient();
@@ -33,31 +39,52 @@ const DevicesPage = () => {
   });
   const [deleteTarget, setDeleteTarget] = useState<Device | null>(null);
   const [editTarget, setEditTarget] = useState<Device | null>(null);
+  const [addTarget, setAddTarget] = useState<Device | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [filteredData, setFilteredData] = useState<Device[]>([]); // For manual updates
   const [sorting, setSorting] = useState([]);
   const [deviceName, setDeviceName] = useState("");
   const [debouncedDeviceName, setDebouncedDeviceName] = useState(deviceName);
   const { data: schoolData } = useSchoolData();
   const { data: branchData } = useBranchData();
+
   const [selectedSchoolId, setSelectedSchoolId] = useState<string | null>(null);
   const [selectedBranchId, setSelectedBranchId] = useState<string | null>(null);
   const [filteredBranches, setFilteredBranches] = useState<any[]>([]);
   const { exportToPDF, exportToExcel } = useExport();
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
   const [filterResults, setFilterResults] = useState<Device[]>([]);
+  const [userRole, setUserRole] = React.useState<UserRole>(null);
 
   const {
     data: devicesData,
     isLoading,
-    error,
-    isError,
     isFetching,
   } = useDevices({
     pagination,
     sorting,
     deviceName: debouncedDeviceName,
   });
+
+  const { data } = useRoutes({
+    limit: "all",
+    schoolId: selectedSchoolId || undefined,
+    branchId: selectedBranchId || undefined,
+  });
+
+  useEffect(() => {
+    const token = Cookies.get("token");
+    const decoded = token ? getDecodedToken(token) : null;
+    const role = decoded?.role;
+
+    if (
+      typeof role === "string" &&
+      ["superAdmin", "school", "branchGroup", "branch"].includes(role)
+    ) {
+      setUserRole(role as UserRole);
+    }
+  }, []);
 
   // Debounce deviceName search input
   useEffect(() => {
@@ -82,24 +109,8 @@ const DevicesPage = () => {
   }, [selectedSchoolId, branchData]);
 
   // branch reset when school changes
-  useEffect(() => {
-    if (editTarget && selectedSchoolId && filteredBranches.length > 0) {
-      // Check if current branch belongs to the selected school
-      const currentBranchId = editTarget.branchId?._id;
-      const branchBelongsToSchool = filteredBranches.some(
-        (branch) => branch._id === currentBranchId
-      );
 
-      // If current branch doesn't belong to selected school, reset it
-      if (currentBranchId && !branchBelongsToSchool) {
-        setEditTarget((prev) => ({
-          ...prev!,
-          branchId: { _id: "", branchName: "" },
-        }));
-      }
-    }
-  }, [filteredBranches, selectedSchoolId]);
-
+  // Update filteredData when devicesData changes
   useEffect(() => {
     setFilteredData(devicesData?.devices || []);
   }, [devicesData]);
@@ -219,33 +230,17 @@ const DevicesPage = () => {
       enableHiding: true,
       enableSorting: true,
     },
-    {
+  ];
+
+  if (userRole === "superAdmin") {
+    columns.push({
       id: "actions",
       header: "Action",
       cell: ({ row }) => {
         const rowData = row.original;
         return (
           <div className="flex items-center justify-center gap-2">
-            <button
-              className="bg-yellow-400 hover:bg-yellow-500 text-[#733e0a] font-semibold py-1 px-3 rounded-md cursor-pointer"
-              onClick={() => {
-                const device = row.original;
-                setEditTarget(device);
-                setEditDialogOpen(true);
-
-                // Initialize selectedSchoolId with the current school
-                const currentSchoolId = device.schoolId?._id || null;
-                setSelectedSchoolId(currentSchoolId);
-
-                // Initialize filtered branches based on current school
-                if (currentSchoolId && branchData) {
-                  const filtered = branchData.filter(
-                    (branch: any) => branch.schoolId._id === currentSchoolId
-                  );
-                  setFilteredBranches(filtered);
-                }
-              }}
-            >
+            <button className="bg-yellow-400 hover:bg-yellow-500 text-[#733e0a] font-semibold py-1 px-3 rounded-md cursor-pointer">
               Edit
             </button>
             <button
@@ -262,12 +257,8 @@ const DevicesPage = () => {
       meta: { flex: 1.5, minWidth: 150, maxWidth: 200 },
       enableSorting: false,
       enableHiding: true,
-    },
-  ];
-
-  // console.log("schoolData", schoolData);
-  // console.log("branchData", branchData);
-  // console.log("devicesData", devicesData);
+    });
+  }
 
   // columns for export
   const columnsForExport = [
@@ -288,7 +279,7 @@ const DevicesPage = () => {
   ];
 
   // Define the fields for the edit dialog
-  const deviceFieldConfigs: FieldConfig[] = [
+  const deviceEditFieldConfigs: FieldConfig[] = [
     {
       label: "Device Name",
       key: "name",
@@ -297,7 +288,7 @@ const DevicesPage = () => {
     {
       label: "Sim Number",
       key: "sim",
-      type: "number",
+      type: "text",
     },
     {
       label: "IMEI Number",
@@ -305,14 +296,14 @@ const DevicesPage = () => {
       type: "text",
     },
     {
-      label: "Speed",
+      label: "Speed Limit in (KM/H)",
       key: "speed",
-      type: "text",
+      type: "number",
     },
     {
-      label: "Average",
+      label: "Average in (KM/Litre)",
       key: "average",
-      type: "text",
+      type: "number",
     },
     {
       label: "Driver",
@@ -350,6 +341,76 @@ const DevicesPage = () => {
       labelKey: "branchName",
       valueKey: "_id",
       disabled: !selectedSchoolId || filteredBranches.length === 0, // Enable when school is selected and branches are available
+    },
+  ];
+
+  // Define the fields for the add dialog
+  const deviceAddFieldConfigs: FieldConfig[] = [
+    {
+      label: "Device Name",
+      key: "name",
+      type: "text",
+    },
+    {
+      label: "Sim Number",
+      key: "sim",
+      type: "text",
+    },
+    {
+      label: "IMEI Number",
+      key: "uniqueId",
+      type: "text",
+    },
+    {
+      label: "Speed Limit in (KM/H)",
+      key: "speed",
+      type: "number",
+    },
+    {
+      label: "Average in (KM/Litre)",
+      key: "average",
+      type: "number",
+    },
+    {
+      label: "Driver",
+      key: "Driver",
+      type: "text",
+    },
+    {
+      label: "Model",
+      key: "model",
+      type: "text",
+    },
+    {
+      label: "Category",
+      key: "category",
+      type: "text",
+    },
+    {
+      label: "School Name",
+      key: "schoolId._id",
+      type: "searchable-select",
+      options: schoolData || [],
+      labelKey: "schoolName",
+      valueKey: "_id",
+    },
+    {
+      label: "Branch Name",
+      key: "branchId._id",
+      type: "searchable-select",
+      options: filteredBranches || [],
+      labelKey: "branchName",
+      valueKey: "_id",
+      disabled: !selectedSchoolId || filteredBranches.length === 0, // Enable when school is selected and branches are available
+    },
+    {
+      label: "Route",
+      key: "data._id",
+      type: "searchable-select",
+      options: data?.data || [],
+      labelKey: "routeNumber",
+      valueKey: "_id",
+      disabled: !selectedBranchId,
     },
   ];
 
@@ -397,70 +458,6 @@ const DevicesPage = () => {
     },
   });
 
-  const handleSave = (updatedData: Partial<Device>) => {
-    if (!editTarget) return;
-
-    const changedFields: Partial<Record<keyof Device, unknown>> = {};
-
-    for (const key in updatedData) {
-      const newValue = updatedData[key as keyof Device];
-      const oldValue = editTarget[key as keyof Device];
-
-      if (newValue !== undefined && newValue !== oldValue) {
-        changedFields[key as keyof Device] = newValue;
-      }
-    }
-
-    console.log("Changed fields:", changedFields);
-
-    if (Object.keys(changedFields).length === 0) {
-      console.log("No changes detected.");
-      return;
-    }
-
-    updateDeviceMutation.mutate({
-      deviceId: editTarget._id,
-      data: changedFields,
-    });
-  };
-
-  const handleSchoolChange = (key: string, value: any, option?: any) => {
-    console.log("handleSchoolChange", key, value, option);
-
-    // Handle school selection
-    if (key === "schoolId._id") {
-      const previousSchoolId = selectedSchoolId;
-      setSelectedSchoolId(value);
-
-      // Only reset branch selection if school actually changed
-      if (editTarget && previousSchoolId !== value) {
-        setEditTarget({
-          ...editTarget,
-          schoolId: { _id: value, schoolName: option?.schoolName || "" },
-          branchId: { _id: "", branchName: "" }, // Reset branch selection only when school changes
-        });
-      } else if (editTarget) {
-        // Just update the school without resetting branch
-        setEditTarget({
-          ...editTarget,
-          schoolId: { _id: value, schoolName: option?.schoolName || "" },
-        });
-      }
-    }
-
-    // Handle branch selection
-    if (key === "branchId._id" && editTarget) {
-      setEditTarget({
-        ...editTarget,
-        branchId: { _id: value, branchName: option?.branchName || "" },
-      });
-    }
-
-    if (option) {
-      console.log("Selected option:", option);
-    }
-  };
-
   // NEEED TO PASSS IN THE QUERY PARAMETERRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR
   const handleDateFilter = useCallback(
     (start: Date | null, end: Date | null) => {
@@ -484,9 +481,6 @@ const DevicesPage = () => {
   const handleCustomFilter = useCallback((filtered: Device[]) => {
     setFilteredData(filtered);
   }, []);
-  {
-    /* NEEED TO PASSS IN THE QUERY PARAMETERRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR */
-  }
 
   // server side pagination table instance
   const { table, tableElement } = CustomTableServerSidePagination({
@@ -512,32 +506,41 @@ const DevicesPage = () => {
       <ResponseLoader isLoading={isLoading} />
 
       <header className="flex items-center gap-4 mb-4">
-        {/* Search Input */}
-        <SearchBar
-          value={deviceName}
-          onChange={setDeviceName}
-          placeholder="Search by device name..."
-          width="w-full md:w-1/4"
-        />
+        <section className="flex items-center gap-4 flex-1">
+          {/* Search Input */}
+          <SearchBar
+            value={deviceName}
+            onChange={setDeviceName}
+            placeholder="Search by device name..."
+            width="w-full md:w-1/4"
+          />
 
-        {/* NEEED TO PASSS IN THE QUERY PARAMETERRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR */}
+          {/* NEEED TO PASSS IN THE QUERY PARAMETERRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR */}
 
-        {/* Column visibility selector */}
-        <ColumnVisibilitySelector
-          columns={table.getAllColumns()}
-          buttonVariant="outline"
-          buttonSize="default"
-        />
+          {/* Column visibility selector */}
+          <ColumnVisibilitySelector
+            columns={table.getAllColumns()}
+            buttonVariant="outline"
+            buttonSize="default"
+          />
 
-        {/* Access Filter*/}
-        <CustomFilter
-          data={filterResults}
-          originalData={filterResults}
-          filterFields={["status"]}
-          onFilter={handleCustomFilter}
-          placeholder={"Filter by Status"}
-          className="w-[180px]"
-        />
+          {/* Access Filter*/}
+          <CustomFilter
+            data={filterResults}
+            originalData={filterResults}
+            filterFields={["status"]}
+            onFilter={handleCustomFilter}
+            placeholder={"Filter by Status"}
+            className="w-[180px]"
+          />
+        </section>
+        <section>
+          {userRole === "superAdmin" && (
+            <button className="bg-[#f5da6c] hover:bg-yellow-500 text-[#733e0a] font-semibold py-1 px-3 rounded-md cursor-pointer">
+              Add Device
+            </button>
+          )}
+        </section>
 
         {/* NEEED TO PASSS IN THE QUERY PARAMETERRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR */}
         {/* Date range picker
@@ -548,21 +551,7 @@ const DevicesPage = () => {
       </header>
 
       {/* Table Section */}
-      <section>
-        {/* <CustomTableServerSidePagination
-          data={devicesData?.devices || []}
-          columns={columns}
-          pagination={pagination}
-          totalCount={devicesData?.total || 0}
-          loading={isLoading || isFetching}
-          onPaginationChange={setPagination}
-          onSortingChange={setSorting}
-          sorting={sorting}
-          emptyMessage="No devices found"
-          pageSizeOptions={[5, 10, 20, 30, 50]}
-        /> */}
-        {tableElement}
-      </section>
+      <section>{tableElement}</section>
 
       {/* Delete Dialog */}
       <section>
@@ -584,30 +573,9 @@ const DevicesPage = () => {
       </section>
 
       <section>
+        {/* Add Dialog */}
+
         {/* Edit Dialog */}
-        <section>
-          {editTarget && (
-            <DynamicEditDialog
-              data={editTarget}
-              isOpen={editDialogOpen}
-              onClose={() => {
-                setEditDialogOpen(false);
-                setEditTarget(null);
-                setSelectedSchoolId(null);
-                setFilteredBranches([]);
-              }}
-              onSave={handleSave}
-              fields={deviceFieldConfigs}
-              title="Edit Device"
-              description="Update the device information below. Fields marked with * are required."
-              avatarConfig={{
-                imageKey: "logo",
-                nameKeys: ["name"],
-              }}
-              onFieldChange={handleSchoolChange}
-            />
-          )}
-        </section>
       </section>
       {/* Floating Menu */}
       <section>
