@@ -884,8 +884,8 @@ export default function StudentDetails() {
             <SearchBar
               value={searchTerm}
               onChange={setSearchTerm}
-              placeholder="Search by student name, class, section, age, pickup/drop location..."
-              width="w-[300px]"
+              placeholder="Search by name, class...."
+              width="w-[230px]"
             />
           </div>
           
