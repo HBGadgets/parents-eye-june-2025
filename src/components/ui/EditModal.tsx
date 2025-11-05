@@ -313,7 +313,7 @@ export const DynamicEditDialog: React.FC<DynamicEditDialogProps> = ({
                   </SelectContent>
                 </Select>
               ) : field.type === "searchable-select" ? (
-                <Popover>
+                <Popover modal={true}>
                   <PopoverTrigger asChild>
                     <Button
                       variant="outline"
