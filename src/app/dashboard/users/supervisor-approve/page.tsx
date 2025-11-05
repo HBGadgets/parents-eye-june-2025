@@ -232,7 +232,7 @@ const SupervisorForm = ({
         <Input
           id="supervisorName"
           name="supervisorName"
-          value={formData?.supervisorName}
+          value={formData?.supervisorName || ""}
           onChange={onInputChange}
           placeholder="Enter supervisor name"
           required
@@ -345,7 +345,7 @@ const SupervisorForm = ({
           id="email"
           name="email"
           type="email"
-          value={formData?.email}
+          value={formData?.email || ""}
           onChange={onInputChange}
           placeholder="Enter email address"
           required
@@ -358,7 +358,7 @@ const SupervisorForm = ({
           id="mobileNo"
           name="mobileNo"
           type="tel"
-          value={formData?.mobileNo}
+          value={formData?.mobileNo || ""}
           onChange={onInputChange}
           placeholder="Enter mobile number"
           pattern="[0-9]{10}"
@@ -372,7 +372,7 @@ const SupervisorForm = ({
         <Input
           id="username"
           name="username"
-          value={formData?.username}
+          value={formData?.username || ""}
           onChange={onInputChange}
           placeholder="Enter username"
           required
@@ -387,7 +387,7 @@ const SupervisorForm = ({
           id="password"
           name="password"
           type="text"
-          value={formData?.password}
+          value={formData?.password || ""}
           onChange={onInputChange}
           placeholder="Enter password"
           required
@@ -408,6 +408,15 @@ export default function SupervisorApprove() {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
   
+  // Form data state
+  const [formData, setFormData] = useState({
+    supervisorName: "",
+    email: "",
+    mobileNo: "",
+    username: "",
+    password: ""
+  });
+
   // Role-based state
   const [role, setRole] = useState<string | null>(null);
   const [userSchoolId, setUserSchoolId] = useState<string | null>(null);
@@ -453,9 +462,10 @@ export default function SupervisorApprove() {
     if (isBranchRole && userBranchId) {
       addForm.setBranch(userBranchId);
     }
-  }, [isSchoolRole, isBranchRole, userSchoolId, userBranchId]);
+  }, [isSchoolRole, isBranchRole, userSchoolId, userBranchId, addForm.setSchool, addForm.setBranch]);
 
-  // Route queries with proper role-based branch selection
+  // FIXED: Route queries with proper role-based branch selection
+  // For branch role, we need to get the user's branch ID and use it directly
   const getBranchIdForRouteQuery = useCallback((formBranch: string, roleType: string | undefined, userBranch: string | null) => {
     if (roleType === "branch" && userBranch) {
       return userBranch;
@@ -466,16 +476,27 @@ export default function SupervisorApprove() {
   const addRouteBranchId = getBranchIdForRouteQuery(addForm.branch, normalizedRole, userBranchId);
   const editRouteBranchId = getBranchIdForRouteQuery(editForm.branch, normalizedRole, userBranchId);
 
+  // FIXED: Enable route queries for branch role even when form.branch is empty
+  const shouldEnableAddRouteQuery = useMemo(() => {
+    if (isBranchRole && userBranchId) return true;
+    return !!addRouteBranchId;
+  }, [isBranchRole, userBranchId, addRouteBranchId]);
+
+  const shouldEnableEditRouteQuery = useMemo(() => {
+    if (isBranchRole && userBranchId) return true;
+    return !!editRouteBranchId;
+  }, [isBranchRole, userBranchId, editRouteBranchId]);
+
   const addRouteQuery = useRouteData({ 
-    branchId: addRouteBranchId, 
+    branchId: isBranchRole ? userBranchId : addRouteBranchId, 
     search: addForm.routeSearch,
-    enabled: !!addRouteBranchId
+    enabled: shouldEnableAddRouteQuery
   });
 
   const editRouteQuery = useRouteData({ 
-    branchId: editRouteBranchId, 
+    branchId: isBranchRole ? userBranchId : editRouteBranchId, 
     search: editForm.routeSearch,
-    enabled: !!editRouteBranchId
+    enabled: shouldEnableEditRouteQuery
   });
 
   // Get route device IDs for filtering
@@ -640,6 +661,15 @@ export default function SupervisorApprove() {
     }
   }, [supervisors]);
 
+  // Form input handler
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
   // Mutations
   const addSupervisorMutation = useMutation({
     mutationFn: async (newSupervisor: any) => {
@@ -651,6 +681,13 @@ export default function SupervisorApprove() {
       alert("Supervisor added successfully.");
       closeButtonRef.current?.click();
       addForm.resetForm();
+      setFormData({
+        supervisorName: "",
+        email: "",
+        mobileNo: "",
+        username: "",
+        password: ""
+      });
     },
     onError: (error: any) => {
       alert(`Failed to add supervisor: ${error.response?.data?.message || error.message}`);
@@ -721,9 +758,19 @@ export default function SupervisorApprove() {
     setFilteredData(filtered);
   }, []);
 
+  // FIXED: Handle form submission with proper role-based data
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const formData = new FormData(e.currentTarget);
+    
+    console.log("Form submission started", {
+      role: normalizedRole,
+      userSchoolId,
+      userBranchId,
+      formSchool: addForm.school,
+      formBranch: addForm.branch,
+      formRoute: addForm.route,
+      formData
+    });
 
     // Role-based validation
     if (isSuperAdmin && !addForm.school) {
@@ -739,9 +786,28 @@ export default function SupervisorApprove() {
       return;
     }
 
-    // Determine school and branch IDs based on role
-    const schoolId = isSuperAdmin ? addForm.school : userSchoolId;
-    const branchId = (isSuperAdmin || isSchoolRole) ? addForm.branch : userBranchId;
+    // FIXED: Determine school and branch IDs based on role with proper fallbacks
+    let schoolId = "";
+    let branchId = "";
+
+    if (isSuperAdmin) {
+      schoolId = addForm.school;
+      branchId = addForm.branch;
+    } else if (isSchoolRole) {
+      schoolId = userSchoolId || "";
+      branchId = addForm.branch;
+    } else if (isBranchRole) {
+      // For branch role, we need to get school ID from the branch
+      if (userBranchId && branchData) {
+        const userBranch = branchData.find(b => b._id === userBranchId);
+        if (userBranch?.schoolId) {
+          schoolId = getId(userBranch.schoolId);
+        }
+      }
+      branchId = userBranchId || "";
+    }
+
+    console.log("Determined IDs:", { schoolId, branchId });
 
     if (!schoolId) {
       alert("School information is missing");
@@ -752,19 +818,31 @@ export default function SupervisorApprove() {
       return;
     }
 
+    // Validate required fields
+    if (!formData.supervisorName || !formData.mobileNo || !formData.username || !formData.password || !formData.email) {
+      alert("Please fill all required fields");
+      return;
+    }
+
     const data = {
-      supervisorName: formData.get("supervisorName") as string,
-      mobileNo: formData.get("mobileNo") as string,
-      username: formData.get("username") as string,
-      password: formData.get("password") as string,
-      email: formData.get("email") as string,
+      supervisorName: formData.supervisorName,
+      mobileNo: formData.mobileNo,
+      username: formData.username,
+      password: formData.password,
+      email: formData.email,
       schoolId: schoolId,
       branchId: branchId,
       routeObjId: addForm.route,
       deviceObjId: addForm.device || undefined,
     };
 
-    await addSupervisorMutation.mutateAsync(data);
+    console.log("Submitting data:", data);
+    
+    try {
+      await addSupervisorMutation.mutateAsync(data);
+    } catch (error) {
+      console.error("Submission error:", error);
+    }
   };
 
   const handleSave = (updatedData: Partial<Supervisor>) => {
@@ -944,8 +1022,8 @@ export default function SupervisorApprove() {
               <form onSubmit={handleSubmit} className="space-y-4">
                 <DialogHeader><DialogTitle>Add Supervisor</DialogTitle></DialogHeader>
                 <SupervisorForm
-                  formData={{}}
-                  onInputChange={() => {}}
+                  formData={formData}
+                  onInputChange={handleInputChange}
                   formState={{
                     school: addForm.school, schoolSearch: addForm.schoolSearch,
                     branch: addForm.branch, branchSearch: addForm.branchSearch,
@@ -974,7 +1052,16 @@ export default function SupervisorApprove() {
                 />
                 <DialogFooter>
                   <DialogClose asChild>
-                    <Button ref={closeButtonRef} variant="outline" onClick={addForm.resetForm}>Cancel</Button>
+                    <Button ref={closeButtonRef} variant="outline" onClick={() => {
+                      addForm.resetForm();
+                      setFormData({
+                        supervisorName: "",
+                        email: "",
+                        mobileNo: "",
+                        username: "",
+                        password: ""
+                      });
+                    }}>Cancel</Button>
                   </DialogClose>
                   <Button type="submit" disabled={addSupervisorMutation.isPending}>
                     {addSupervisorMutation.isPending ? "Saving..." : "Save Supervisor"}
