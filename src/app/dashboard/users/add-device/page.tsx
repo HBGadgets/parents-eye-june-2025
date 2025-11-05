@@ -28,6 +28,7 @@ import { getDecodedToken } from "@/lib/jwt";
 import Cookies from "js-cookie";
 import { useInfiniteDeviceData } from "@/hooks/useInfiniteDeviceData";
 import { useRoutes } from "@/hooks/useRoute";
+import { AddDeviceForm } from "@/components/Device/add-device-form";
 
 type UserRole = "superAdmin" | "school" | "branchGroup" | "branch" | null;
 
@@ -534,13 +535,7 @@ const DevicesPage = () => {
             className="w-[180px]"
           />
         </section>
-        <section>
-          {userRole === "superAdmin" && (
-            <button className="bg-[#f5da6c] hover:bg-yellow-500 text-[#733e0a] font-semibold py-1 px-3 rounded-md cursor-pointer">
-              Add Device
-            </button>
-          )}
-        </section>
+        <section>{userRole === "superAdmin" && <AddDeviceForm />}</section>
 
         {/* NEEED TO PASSS IN THE QUERY PARAMETERRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR */}
         {/* Date range picker
@@ -572,11 +567,7 @@ const DevicesPage = () => {
         </div>
       </section>
 
-      <section>
-        {/* Add Dialog */}
-
-        {/* Edit Dialog */}
-      </section>
+      <section>{/* Edit Dialog */}</section>
       {/* Floating Menu */}
       <section>
         <FloatingMenu
