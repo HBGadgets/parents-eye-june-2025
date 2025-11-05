@@ -92,7 +92,7 @@ const extractData = (data: any, fallbackKeys: string[] = []): any[] => {
 };
 
 // Custom hooks
-const useRouteData = ({ branchId, search }: { branchId?: string; search?: string }) => {
+const useRouteData = ({ branchId, search, enabled = true }: { branchId?: string; search?: string; enabled?: boolean }) => {
   return useQuery({
     queryKey: ["routes", branchId, search],
     queryFn: async () => {
@@ -101,12 +101,12 @@ const useRouteData = ({ branchId, search }: { branchId?: string; search?: string
       if (search) url += `&search=${encodeURIComponent(search)}`;
       return await api.get<RouteResponse>(url);
     },
-    enabled: !!branchId,
+    enabled: enabled && !!branchId,
     staleTime: 5 * 60 * 1000,
   });
 };
 
-const useSupervisorForm = (initialData?: Supervisor) => {
+const useSupervisorForm = (initialData?: Supervisor, role?: string, userSchoolId?: string, userBranchId?: string) => {
   const [school, setSchool] = useState("");
   const [schoolSearch, setSchoolSearch] = useState("");
   const [branch, setBranch] = useState("");
@@ -115,6 +115,16 @@ const useSupervisorForm = (initialData?: Supervisor) => {
   const [routeSearch, setRouteSearch] = useState("");
   const [device, setDevice] = useState("");
   const [deviceSearch, setDeviceSearch] = useState("");
+
+  // Auto-set values based on role
+  useEffect(() => {
+    if (role === "school" && userSchoolId) {
+      setSchool(userSchoolId);
+    }
+    if (role === "branch" && userBranchId) {
+      setBranch(userBranchId);
+    }
+  }, [role, userSchoolId, userBranchId]);
 
   useEffect(() => {
     if (initialData) {
@@ -126,10 +136,19 @@ const useSupervisorForm = (initialData?: Supervisor) => {
   }, [initialData]);
 
   const resetForm = () => {
-    setSchool(""); setSchoolSearch("");
-    setBranch(""); setBranchSearch("");
-    setRoute(""); setRouteSearch("");
-    setDevice(""); setDeviceSearch("");
+    // Don't reset school/branch if they're set by role
+    if (role !== "school") {
+      setSchool(""); 
+      setSchoolSearch("");
+    }
+    if (role !== "branch") {
+      setBranch(""); 
+      setBranchSearch("");
+    }
+    setRoute(""); 
+    setRouteSearch("");
+    setDevice(""); 
+    setDeviceSearch("");
   };
 
   const handleSchoolChange = useCallback((newSchool: string) => {
@@ -167,13 +186,17 @@ const useSupervisorForm = (initialData?: Supervisor) => {
   };
 };
 
-const fetchAllSupervisors = async (): Promise<Supervisor[]> => {
+const fetchAllSupervisors = async (filters?: { schoolId?: string; branchId?: string }): Promise<Supervisor[]> => {
   let allSupervisors: Supervisor[] = [];
   let currentPage = 1;
   let totalPages = 1;
 
   do {
-    const response = await api.get<SupervisorResponse>(`/supervisor?page=${currentPage}`);
+    let url = `/supervisor?page=${currentPage}`;
+    if (filters?.schoolId) url += `&schoolId=${filters.schoolId}`;
+    if (filters?.branchId) url += `&branchId=${filters.branchId}`;
+
+    const response = await api.get<SupervisorResponse>(url);
     const data = response;
     
     if (data.supervisors?.length > 0) {
@@ -196,147 +219,183 @@ const SupervisorForm = ({
   formData, onInputChange, formState, onFormStateChange, 
   schoolOptions, branchOptions, routeItems, deviceItems,
   isFetchingRoutes, hasNextPage, fetchNextPage, isFetchingNextPage, isFetching,
-  usernameError 
-}: any) => (
-  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-    <div className="grid gap-2">
-      <Label htmlFor="supervisorName">Supervisor Name</Label>
-      <Input
-        id="supervisorName"
-        name="supervisorName"
-        value={formData?.supervisorName}
-        onChange={onInputChange}
-        placeholder="Enter supervisor name"
-        required
-      />
-    </div>
-    
-    <div className="grid gap-2">
-      <Label>School *</Label>
-      <Combobox 
-        items={schoolOptions} 
-        value={formState.school} 
-        onValueChange={onFormStateChange.setSchool}
-        placeholder="Search school..." 
-        searchPlaceholder="Search schools..." 
-        emptyMessage="No school found."
-        width="w-full" 
-        onSearchChange={onFormStateChange.setSchoolSearch} 
-        searchValue={formState.schoolSearch} 
-      />
-    </div>
+  usernameError, role, userSchoolId, userBranchId 
+}: any) => {
+  const isSuperAdmin = ["admin", "superadmin", "super_admin", "root"].includes((role || "").toLowerCase());
+  const isSchoolRole = ["school", "schooladmin"].includes((role || "").toLowerCase());
+  const isBranchRole = ["branch", "branchadmin"].includes((role || "").toLowerCase());
 
-    <div className="grid gap-2">
-      <Label>Branch *</Label>
-      <Combobox 
-        items={branchOptions} 
-        value={formState.branch} 
-        onValueChange={onFormStateChange.setBranch}
-        placeholder={!formState.school ? "Select school first" : branchOptions.length ? "Search branch..." : "No branches available"}
-        searchPlaceholder="Search branches..." 
-        emptyMessage={!formState.school ? "Please select a school first" : branchOptions.length === 0 ? "No branches found for this school" : "No branches match your search"}
-        width="w-full" 
-        disabled={!formState.school}
-        onSearchChange={onFormStateChange.setBranchSearch} 
-        searchValue={formState.branchSearch} 
-      />
-    </div>
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid gap-2">
+        <Label htmlFor="supervisorName">Supervisor Name</Label>
+        <Input
+          id="supervisorName"
+          name="supervisorName"
+          value={formData?.supervisorName}
+          onChange={onInputChange}
+          placeholder="Enter supervisor name"
+          required
+        />
+      </div>
+      
+      {/* School Selector - Only show for Super Admin */}
+      {isSuperAdmin && (
+        <div className="grid gap-2">
+          <Label>School *</Label>
+          <Combobox 
+            items={schoolOptions} 
+            value={formState.school} 
+            onValueChange={onFormStateChange.setSchool}
+            placeholder="Search school..." 
+            searchPlaceholder="Search schools..." 
+            emptyMessage="No school found."
+            width="w-full" 
+            onSearchChange={onFormStateChange.setSchoolSearch} 
+            searchValue={formState.schoolSearch} 
+          />
+        </div>
+      )}
 
-    <div className="grid gap-2">
-      <Label>Route Number *</Label>
-      <Combobox 
-        items={routeItems} 
-        value={formState.route} 
-        onValueChange={onFormStateChange.setRoute}
-        placeholder={!formState.school ? "Select school first" : !formState.branch ? "Select branch first" : "Search route..."}
-        searchPlaceholder="Search routes..." 
-        emptyMessage={!formState.school ? "Please select a school first" : !formState.branch ? "Please select a branch first" : routeItems.length === 0 ? "No routes found for this branch" : "No routes match your search"}
-        width="w-full" 
-        disabled={!formState.branch}
-        onSearchChange={onFormStateChange.setRouteSearch} 
-        searchValue={formState.routeSearch}
-        isLoadingMore={isFetchingRoutes}
-      />
-    </div>
+      {/* Branch Selector - Show for Super Admin and School roles */}
+      {(isSuperAdmin || isSchoolRole) && (
+        <div className="grid gap-2">
+          <Label>Branch *</Label>
+          <Combobox 
+            items={branchOptions} 
+            value={formState.branch} 
+            onValueChange={onFormStateChange.setBranch}
+            placeholder={
+              isSuperAdmin && !formState.school ? "Select school first" : 
+              branchOptions.length ? "Search branch..." : "No branches available"
+            }
+            searchPlaceholder="Search branches..." 
+            emptyMessage={
+              isSuperAdmin && !formState.school ? "Please select a school first" : 
+              branchOptions.length === 0 ? "No branches found for this school" : "No branches match your search"
+            }
+            width="w-full" 
+            disabled={isSuperAdmin && !formState.school}
+            onSearchChange={onFormStateChange.setBranchSearch} 
+            searchValue={formState.branchSearch} 
+          />
+        </div>
+      )}
 
-    <div className="grid gap-2">
-      <Label>Assign Device</Label>
-      <Combobox 
-        items={deviceItems} 
-        value={formState.device} 
-        onValueChange={onFormStateChange.setDevice}
-        placeholder={!formState.school ? "Select school first" : !formState.branch ? "Select branch first" : !formState.route ? "Select route first" : deviceItems.length ? "Search device..." : "No device assigned to this route"}
-        searchPlaceholder="Search devices..." 
-        emptyMessage={!formState.school ? "Please select a school first" : !formState.branch ? "Please select a branch first" : !formState.route ? "Please select a route first" : deviceItems.length === 0 ? "No device assigned to this route" : "No devices match your search"}
-        width="w-full" 
-        disabled={!formState.route}
-        onSearchChange={onFormStateChange.setDeviceSearch} 
-        searchValue={formState.deviceSearch}
-        onReachEnd={() => {
-          if (hasNextPage && !isFetchingNextPage && !isFetching) {
-            fetchNextPage();
+      <div className="grid gap-2">
+        <Label>Route Number *</Label>
+        <Combobox 
+          items={routeItems} 
+          value={formState.route} 
+          onValueChange={onFormStateChange.setRoute}
+          placeholder={
+            (isSuperAdmin && !formState.school) ? "Select school first" : 
+            ((isSuperAdmin || isSchoolRole) && !formState.branch) ? "Select branch first" : 
+            "Search route..."
           }
-        }}
-        isLoadingMore={isFetchingNextPage}
-      />
-    </div>
+          searchPlaceholder="Search routes..." 
+          emptyMessage={
+            (isSuperAdmin && !formState.school) ? "Please select a school first" : 
+            ((isSuperAdmin || isSchoolRole) && !formState.branch) ? "Please select a branch first" : 
+            routeItems.length === 0 ? "No routes found for this branch" : "No routes match your search"
+          }
+          width="w-full" 
+          disabled={!formState.branch}
+          onSearchChange={onFormStateChange.setRouteSearch} 
+          searchValue={formState.routeSearch}
+          isLoadingMore={isFetchingRoutes}
+        />
+      </div>
 
-    <div className="grid gap-2">
-      <Label htmlFor="email">Email</Label>
-      <Input
-        id="email"
-        name="email"
-        type="email"
-        value={formData?.email}
-        onChange={onInputChange}
-        placeholder="Enter email address"
-        required
-      />
-    </div>
+      <div className="grid gap-2">
+        <Label>Assign Device</Label>
+        <Combobox 
+          items={deviceItems} 
+          value={formState.device} 
+          onValueChange={onFormStateChange.setDevice}
+          placeholder={
+            (isSuperAdmin && !formState.school) ? "Select school first" : 
+            ((isSuperAdmin || isSchoolRole) && !formState.branch) ? "Select branch first" : 
+            !formState.route ? "Select route first" : 
+            deviceItems.length ? "Search device..." : "No device assigned to this route"
+          }
+          searchPlaceholder="Search devices..." 
+          emptyMessage={
+            (isSuperAdmin && !formState.school) ? "Please select a school first" : 
+            ((isSuperAdmin || isSchoolRole) && !formState.branch) ? "Please select a branch first" : 
+            !formState.route ? "Please select a route first" : 
+            deviceItems.length === 0 ? "No device assigned to this route" : "No devices match your search"
+          }
+          width="w-full" 
+          disabled={!formState.route}
+          onSearchChange={onFormStateChange.setDeviceSearch} 
+          searchValue={formState.deviceSearch}
+          onReachEnd={() => {
+            if (hasNextPage && !isFetchingNextPage && !isFetching) {
+              fetchNextPage();
+            }
+          }}
+          isLoadingMore={isFetchingNextPage}
+        />
+      </div>
 
-    <div className="grid gap-2">
-      <Label htmlFor="mobileNo">Mobile No</Label>
-      <Input
-        id="mobileNo"
-        name="mobileNo"
-        type="tel"
-        value={formData?.mobileNo}
-        onChange={onInputChange}
-        placeholder="Enter mobile number"
-        pattern="[0-9]{10}"
-        maxLength={10}
-        required
-      />
-    </div>
+      <div className="grid gap-2">
+        <Label htmlFor="email">Email</Label>
+        <Input
+          id="email"
+          name="email"
+          type="email"
+          value={formData?.email}
+          onChange={onInputChange}
+          placeholder="Enter email address"
+          required
+        />
+      </div>
 
-    <div className="grid gap-2">
-      <Label htmlFor="username">Username</Label>
-      <Input
-        id="username"
-        name="username"
-        value={formData?.username}
-        onChange={onInputChange}
-        placeholder="Enter username"
-        required
-        className={usernameError ? "border-red-500" : ""}
-      />
-      {usernameError && <p className="text-red-500 text-sm">{usernameError}</p>}
-    </div>
+      <div className="grid gap-2">
+        <Label htmlFor="mobileNo">Mobile No</Label>
+        <Input
+          id="mobileNo"
+          name="mobileNo"
+          type="tel"
+          value={formData?.mobileNo}
+          onChange={onInputChange}
+          placeholder="Enter mobile number"
+          pattern="[0-9]{10}"
+          maxLength={10}
+          required
+        />
+      </div>
 
-    <div className="grid gap-2">
-      <Label htmlFor="password">Password</Label>
-      <Input
-        id="password"
-        name="password"
-        type="text"
-        value={formData?.password}
-        onChange={onInputChange}
-        placeholder="Enter password"
-        required
-      />
+      <div className="grid gap-2">
+        <Label htmlFor="username">Username</Label>
+        <Input
+          id="username"
+          name="username"
+          value={formData?.username}
+          onChange={onInputChange}
+          placeholder="Enter username"
+          required
+          className={usernameError ? "border-red-500" : ""}
+        />
+        {usernameError && <p className="text-red-500 text-sm">{usernameError}</p>}
+      </div>
+
+      <div className="grid gap-2">
+        <Label htmlFor="password">Password</Label>
+        <Input
+          id="password"
+          name="password"
+          type="text"
+          value={formData?.password}
+          onChange={onInputChange}
+          placeholder="Enter password"
+          required
+        />
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 export default function SupervisorApprove() {
   const queryClient = useQueryClient();
@@ -348,21 +407,78 @@ export default function SupervisorApprove() {
   const [editTarget, setEditTarget] = useState<Supervisor | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
+  
+  // Role-based state
   const [role, setRole] = useState<string | null>(null);
+  const [userSchoolId, setUserSchoolId] = useState<string | null>(null);
+  const [userBranchId, setUserBranchId] = useState<string | null>(null);
 
-  // Form hooks
-  const addForm = useSupervisorForm();
-  const editForm = useSupervisorForm(editTarget || undefined);
+  // Determine role type
+  const normalizedRole = useMemo(() => {
+    const r = (role || "").toLowerCase();
+    if (["superadmin", "super_admin", "admin", "root"].includes(r)) return "superAdmin";
+    if (["school", "schooladmin"].includes(r)) return "school";
+    if (["branch", "branchadmin"].includes(r)) return "branch";
+    return undefined;
+  }, [role]);
+
+  const isSuperAdmin = normalizedRole === "superAdmin";
+  const isSchoolRole = normalizedRole === "school";
+  const isBranchRole = normalizedRole === "branch";
+
+  // Form hooks with role-based initialization
+  const addForm = useSupervisorForm(undefined, normalizedRole, userSchoolId, userBranchId);
+  const editForm = useSupervisorForm(editTarget || undefined, normalizedRole, userSchoolId, userBranchId);
 
   // Data hooks
   const { data: schoolData, isLoading: schoolsLoading } = useSchoolData();
   const { data: branchData, isLoading: branchesLoading } = useBranchData();
 
-  // Route queries
-  const addRouteQuery = useRouteData({ branchId: addForm.branch, search: addForm.routeSearch });
-  const editRouteQuery = useRouteData({ branchId: editForm.branch, search: editForm.routeSearch });
+  // Get user info from token
+  useEffect(() => {
+    const token = Cookies.get("token");
+    if (token) {
+      const decoded = getDecodedToken(token);
+      setRole((decoded?.role || "").toLowerCase());
+      setUserSchoolId(decoded?.schoolId || null);
+      setUserBranchId(decoded?.branchId || null);
+    }
+  }, []);
 
-  // Get route device IDs for filtering - FIXED VERSION
+  // Auto-set form values based on role
+  useEffect(() => {
+    if (isSchoolRole && userSchoolId) {
+      addForm.setSchool(userSchoolId);
+    }
+    if (isBranchRole && userBranchId) {
+      addForm.setBranch(userBranchId);
+    }
+  }, [isSchoolRole, isBranchRole, userSchoolId, userBranchId]);
+
+  // Route queries with proper role-based branch selection
+  const getBranchIdForRouteQuery = useCallback((formBranch: string, roleType: string | undefined, userBranch: string | null) => {
+    if (roleType === "branch" && userBranch) {
+      return userBranch;
+    }
+    return formBranch;
+  }, []);
+
+  const addRouteBranchId = getBranchIdForRouteQuery(addForm.branch, normalizedRole, userBranchId);
+  const editRouteBranchId = getBranchIdForRouteQuery(editForm.branch, normalizedRole, userBranchId);
+
+  const addRouteQuery = useRouteData({ 
+    branchId: addRouteBranchId, 
+    search: addForm.routeSearch,
+    enabled: !!addRouteBranchId
+  });
+
+  const editRouteQuery = useRouteData({ 
+    branchId: editRouteBranchId, 
+    search: editForm.routeSearch,
+    enabled: !!editRouteBranchId
+  });
+
+  // Get route device IDs for filtering
   const getRouteDeviceObjIds = useCallback((routeData: any, routeId: string): string[] => {
     if (!routeData || !routeId) return [];
     
@@ -370,7 +486,6 @@ export default function SupervisorApprove() {
     const selectedRoute = routes.find((r: Route) => r._id === routeId);
     
     if (selectedRoute?.deviceObjId) {
-      // Extract device ID whether it's a string or object
       const deviceId = getId(selectedRoute.deviceObjId);
       return deviceId ? [deviceId] : [];
     }
@@ -378,7 +493,6 @@ export default function SupervisorApprove() {
     return [];
   }, []);
 
-  // Get the assigned device for a specific route - NEW FUNCTION
   const getAssignedDeviceForRoute = useCallback((routeData: any, routeId: string): SelectOption | null => {
     if (!routeData || !routeId) return null;
     
@@ -397,7 +511,6 @@ export default function SupervisorApprove() {
     return null;
   }, []);
 
-  // NEW: Get the currently assigned device from supervisor data
   const getCurrentAssignedDevice = useCallback((supervisor: Supervisor): SelectOption | null => {
     if (!supervisor?.deviceObjId) return null;
     
@@ -411,46 +524,77 @@ export default function SupervisorApprove() {
 
   // Device queries - filtered by route's assigned device
   const addDeviceQuery = useInfiniteDeviceData({
-    role: (role || "").toLowerCase() as any,
+    role: (normalizedRole || "").toLowerCase() as any,
     deviceObjId: getRouteDeviceObjIds(addRouteQuery.data, addForm.route),
     search: addForm.deviceSearch,
     limit: 20,
+    enabled: !!addForm.route
   });
 
   const editDeviceQuery = useInfiniteDeviceData({
-    role: (role || "").toLowerCase() as any,
+    role: (normalizedRole || "").toLowerCase() as any,
     deviceObjId: getRouteDeviceObjIds(editRouteQuery.data, editForm.route),
     search: editForm.deviceSearch,
     limit: 20,
+    enabled: !!editForm.route
   });
 
-  useEffect(() => {
-    const token = Cookies.get("token");
-    if (token) {
-      const decoded = getDecodedToken(token);
-      setRole((decoded?.role || "").toLowerCase());
-    }
-  }, []);
+  // Supervisor data with role-based filtering
+  const supervisorFilters = useMemo(() => {
+    const filters: { schoolId?: string; branchId?: string } = {};
+    if (isSchoolRole && userSchoolId) filters.schoolId = userSchoolId;
+    if (isBranchRole && userBranchId) filters.branchId = userBranchId;
+    return filters;
+  }, [isSchoolRole, isBranchRole, userSchoolId, userBranchId]);
 
-  // Supervisor data
   const { data: supervisors, isLoading } = useQuery<Supervisor[]>({
-    queryKey: ["supervisors"],
-    queryFn: fetchAllSupervisors,
+    queryKey: ["supervisors", supervisorFilters],
+    queryFn: () => fetchAllSupervisors(supervisorFilters),
     staleTime: 5 * 60 * 1000,
   });
 
-  // Options and items
+  // Options and items with role-based filtering
   const schoolOptions: SelectOption[] = useMemo(() => {
     if (!schoolData) return [];
-    return Array.from(new Map(schoolData.filter(s => s._id && s.schoolName).map(s => [s._id, { label: s.schoolName, value: s._id }])).values());
-  }, [schoolData]);
+    let filteredSchools = schoolData;
+    
+    // For school role, only show user's school
+    if (isSchoolRole && userSchoolId) {
+      filteredSchools = schoolData.filter(s => s._id === userSchoolId);
+    }
+    // For branch role, get school from user's branch
+    else if (isBranchRole && userBranchId && branchData) {
+      const userBranch = branchData.find(b => b._id === userBranchId);
+      if (userBranch?.schoolId) {
+        const schoolId = getId(userBranch.schoolId);
+        filteredSchools = schoolData.filter(s => s._id === schoolId);
+      }
+    }
+    
+    return Array.from(new Map(filteredSchools.filter(s => s._id && s.schoolName).map(s => [s._id, { label: s.schoolName, value: s._id }])).values());
+  }, [schoolData, isSchoolRole, isBranchRole, userSchoolId, userBranchId, branchData]);
 
   const getFilteredBranchOptions = useCallback((schoolId: string) => {
-    if (!schoolId || !branchData) return [];
-    return branchData.filter(branch => getId(branch.schoolId) === schoolId).map(branch => ({
+    if (!branchData) return [];
+    let filteredBranches = branchData;
+    
+    // For school role, only show branches from user's school
+    if (isSchoolRole && userSchoolId) {
+      filteredBranches = branchData.filter(branch => getId(branch.schoolId) === userSchoolId);
+    }
+    // For branch role, only show user's branch
+    else if (isBranchRole && userBranchId) {
+      filteredBranches = branchData.filter(branch => branch._id === userBranchId);
+    }
+    // For super admin, filter by selected school
+    else if (isSuperAdmin && schoolId) {
+      filteredBranches = branchData.filter(branch => getId(branch.schoolId) === schoolId);
+    }
+    
+    return filteredBranches.filter(branch => branch._id && branch.branchName).map(branch => ({
       label: branch.branchName, value: branch._id
     }));
-  }, [branchData]);
+  }, [branchData, isSuperAdmin, isSchoolRole, isBranchRole, userSchoolId, userBranchId]);
 
   const getRouteItems = (routeData: any) => useMemo(() => {
     const routes = extractData(routeData, ["routes", "data"]);
@@ -459,19 +603,14 @@ export default function SupervisorApprove() {
     }));
   }, [routeData]);
 
-  // FIXED: Get device items that only show the assigned device for the selected route
   const getDeviceItems = (deviceData: any, routeData: any, routeId: string, currentDevice?: SelectOption | null) => useMemo(() => {
-    // Get the assigned device for the current route
     const assignedDevice = getAssignedDeviceForRoute(routeData, routeId);
-    
-    // If there's a currently assigned device from supervisor data, include it
     const devices: SelectOption[] = [];
     
     if (assignedDevice) {
       devices.push(assignedDevice);
     }
     
-    // If there's a current device assigned to supervisor that's different from route device, include it too
     if (currentDevice && !devices.some(d => d.value === currentDevice.value)) {
       devices.push(currentDevice);
     }
@@ -480,8 +619,6 @@ export default function SupervisorApprove() {
   }, [deviceData, routeData, routeId, getAssignedDeviceForRoute, currentDevice]);
 
   const addDeviceItems = getDeviceItems(addDeviceQuery.data, addRouteQuery.data, addForm.route);
-  
-  // FIXED: For edit, include the currently assigned device
   const editDeviceItems = getDeviceItems(
     editDeviceQuery.data, 
     editRouteQuery.data, 
@@ -491,6 +628,10 @@ export default function SupervisorApprove() {
 
   const addRouteItems = getRouteItems(addRouteQuery.data);
   const editRouteItems = getRouteItems(editRouteQuery.data);
+
+  // Get branch options for forms
+  const addBranchOptions = getFilteredBranchOptions(addForm.school);
+  const editBranchOptions = getFilteredBranchOptions(editForm.school);
 
   useEffect(() => {
     if (supervisors?.length) {
@@ -584,8 +725,30 @@ export default function SupervisorApprove() {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
 
-    if (!addForm.school || !addForm.branch || !addForm.route) {
-      alert("Please select School, Branch, and Route");
+    // Role-based validation
+    if (isSuperAdmin && !addForm.school) {
+      alert("Please select School");
+      return;
+    }
+    if ((isSuperAdmin || isSchoolRole) && !addForm.branch) {
+      alert("Please select Branch");
+      return;
+    }
+    if (!addForm.route) {
+      alert("Please select Route");
+      return;
+    }
+
+    // Determine school and branch IDs based on role
+    const schoolId = isSuperAdmin ? addForm.school : userSchoolId;
+    const branchId = (isSuperAdmin || isSchoolRole) ? addForm.branch : userBranchId;
+
+    if (!schoolId) {
+      alert("School information is missing");
+      return;
+    }
+    if (!branchId) {
+      alert("Branch information is missing");
       return;
     }
 
@@ -595,8 +758,8 @@ export default function SupervisorApprove() {
       username: formData.get("username") as string,
       password: formData.get("password") as string,
       email: formData.get("email") as string,
-      schoolId: addForm.school,
-      branchId: addForm.branch,
+      schoolId: schoolId,
+      branchId: branchId,
       routeObjId: addForm.route,
       deviceObjId: addForm.device || undefined,
     };
@@ -672,7 +835,6 @@ export default function SupervisorApprove() {
           ? row.routeObjId.deviceObjId.name 
           : "--";
         
-        // Prefer the deviceObjId from supervisor, fallback to route's deviceObjId
         const displayName = deviceName !== "--" ? deviceName : routeDeviceName;
         return { type: "text", value: displayName };
       },
@@ -748,13 +910,13 @@ export default function SupervisorApprove() {
     { label: "Supervisor Name", key: "supervisorName", type: "text", required: true },
     { label: "Email", key: "email", type: "text", required: true },
     { label: "Mobile Number", key: "mobileNo", type: "text", required: true },
-    { label: "School Name", key: "schoolId", type: "select", required: true, options: schoolOptions },
-    { label: "Branch Name", key: "branchId", type: "select", required: true, options: getFilteredBranchOptions(editForm.school), disabled: !editForm.school },
+    ...(isSuperAdmin ? [{ label: "School Name", key: "schoolId", type: "select", required: true, options: schoolOptions }] : []),
+    ...((isSuperAdmin || isSchoolRole) ? [{ label: "Branch Name", key: "branchId", type: "select", required: true, options: editBranchOptions, disabled: isSuperAdmin && !editForm.school }] : []),
     { label: "Route Number", key: "routeObjId", type: "select", required: true, options: editRouteItems, disabled: !editForm.branch },
     { label: "Assign Device", key: "deviceObjId", type: "select", required: false, options: editDeviceItems, disabled: !editForm.route },
     { label: "Username", key: "username", type: "text", required: true },
     { label: "Password", key: "password", type: "text", required: true },
-  ], [schoolOptions, getFilteredBranchOptions, editForm.school, editForm.branch, editForm.route, editRouteItems, editDeviceItems]);
+  ], [schoolOptions, editBranchOptions, editForm.school, editForm.branch, editForm.route, editRouteItems, editDeviceItems, isSuperAdmin, isSchoolRole]);
 
   return (
     <main>
@@ -797,7 +959,7 @@ export default function SupervisorApprove() {
                     setDevice: addForm.setDevice, setDeviceSearch: addForm.setDeviceSearch
                   }}
                   schoolOptions={schoolOptions}
-                  branchOptions={getFilteredBranchOptions(addForm.school)}
+                  branchOptions={addBranchOptions}
                   routeItems={addRouteItems}
                   deviceItems={addDeviceItems}
                   isFetchingRoutes={addRouteQuery.isLoading || addRouteQuery.isFetching}
@@ -806,6 +968,9 @@ export default function SupervisorApprove() {
                   isFetchingNextPage={addDeviceQuery.isFetchingNextPage}
                   isFetching={addDeviceQuery.isFetching}
                   usernameError={""}
+                  role={normalizedRole}
+                  userSchoolId={userSchoolId}
+                  userBranchId={userBranchId}
                 />
                 <DialogFooter>
                   <DialogClose asChild>

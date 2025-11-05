@@ -28,6 +28,8 @@ import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { DatePicker } from "@/components/ui/datePicker";
+import Cookies from "js-cookie";
+import { getDecodedToken } from "@/lib/jwt";
 
 // ==================== CONSTANTS ====================
 const EDIT_FIELDS: FieldConfig[] = [
@@ -139,6 +141,11 @@ export default function StudentDetails() {
     parent: "", school: "", branch: "", route: "", pickupGeo: "", dropGeo: "", gender: "", addParentSchool: "", addParentBranch: ""
   });
 
+  // Role-based state
+  const [role, setRole] = useState<string | null>(null);
+  const [userSchoolId, setUserSchoolId] = useState<string | null>(null);
+  const [userBranchId, setUserBranchId] = useState<string | null>(null);
+
   // Form state for child inputs
   const [childForm, setChildForm] = useState({
     childName: "",
@@ -158,14 +165,91 @@ export default function StudentDetails() {
 
   const { exportToPDF, exportToExcel } = useExport();
 
-  // Data fetching
-  const { data: schools = [] } = useQuery<School[]>({ queryKey: ["schools"], queryFn: () => api.get<School[]>("/school") });
-  const { data: branches = [] } = useQuery<Branch[]>({ queryKey: ["branches"], queryFn: () => api.get<Branch[]>("/branch") });
-  const { data: routesData } = useQuery({ queryKey: ["routes"], queryFn: () => api.get<Route[]>("/route"), staleTime: 5 * 60 * 1000 });
-  const { data: geofencesData } = useGeofences({ pagination, sorting });
-  const { data: parentsData } = useQuery({ queryKey: ["parents"], queryFn: () => api.get<any[]>("/parent") });
+  // Get user role and permissions
+  useEffect(() => {
+    const token = Cookies.get("token");
+    if (!token) return;
+    
+    const decoded = getDecodedToken(token);
+    const userRole = (decoded?.role || "").toLowerCase();
+    setRole(userRole);
+    
+    // Set user's school and branch IDs based on role
+    if (userRole === "school") {
+      setUserSchoolId(decoded?.schoolId || null);
+      setSelectedSchool(decoded?.schoolId || "");
+      setFilters(prev => ({ ...prev, school: decoded?.schoolId || "" }));
+    } else if (userRole === "branch") {
+      setUserBranchId(decoded?.branchId || null);
+      setSelectedBranch(decoded?.branchId || "");
+      setFilters(prev => ({ ...prev, branch: decoded?.branchId || "" }));
+      
+      // Also set school from branch data if available
+      if (decoded?.schoolId) {
+        setUserSchoolId(decoded.schoolId);
+        setSelectedSchool(decoded.schoolId);
+        setFilters(prev => ({ ...prev, school: decoded.schoolId }));
+      }
+    }
+  }, []);
+
+  // Role checks
+  const isSuperAdmin = useMemo(() => 
+    ["admin", "superadmin", "super_admin", "root"].includes(role || ""), 
+    [role]
+  );
   
-  // Prepare filter object for useStudents hook
+  const isSchoolRole = useMemo(() => 
+    ["school", "schooladmin"].includes(role || ""), 
+    [role]
+  );
+  
+  const isBranchRole = useMemo(() => 
+    ["branch", "branchadmin"].includes(role || ""), 
+    [role]
+  );
+
+  // Data fetching with role-based filtering
+  const { data: schools = [] } = useQuery<School[]>({ 
+    queryKey: ["schools"], 
+    queryFn: () => api.get<School[]>("/school"),
+    enabled: isSuperAdmin
+  });
+
+  const { data: branches = [] } = useQuery<Branch[]>({ 
+    queryKey: ["branches"], 
+    queryFn: () => api.get<Branch[]>("/branch"),
+    enabled: true
+  });
+
+  // Routes query with branch filtering
+  const { data: routesData } = useQuery({ 
+    queryKey: ["routes", userBranchId], 
+    queryFn: () => {
+      // If branch role, fetch routes for that specific branch
+      if (isBranchRole && userBranchId) {
+        return api.get<Route[]>(`/route?branchId=${userBranchId}`);
+      }
+      return api.get<Route[]>("/route");
+    }, 
+    staleTime: 5 * 60 * 1000,
+    enabled: true
+  });
+
+  // Geofences query - fetch all geofences commonly for all roles
+  const { data: geofencesData } = useQuery({ 
+    queryKey: ["geofences"], 
+    queryFn: () => api.get<Geofence[]>("/geofence"),
+    staleTime: 5 * 60 * 1000,
+    enabled: true
+  });
+
+  const { data: parentsData } = useQuery({ 
+    queryKey: ["parents"], 
+    queryFn: () => api.get<any[]>("/parent") 
+  });
+  
+  // Prepare filter object for useStudents hook with role-based filtering
   const studentFilters = useMemo(() => ({
     ...(debouncedSearchTerm && { search: debouncedSearchTerm.trim() }),
     ...(filters.school && { schoolId: filters.school }),
@@ -173,7 +257,10 @@ export default function StudentDetails() {
     ...(filters.route && { routeObjId: filters.route }),
     ...(filters.pickupGeo && { pickupGeoId: filters.pickupGeo }),
     ...(filters.dropGeo && { dropGeoId: filters.dropGeo }),
-  }), [debouncedSearchTerm, filters]);
+    // Role-based automatic filtering
+    ...(isSchoolRole && userSchoolId && { schoolId: userSchoolId }),
+    ...(isBranchRole && userBranchId && { branchId: userBranchId }),
+  }), [debouncedSearchTerm, filters, isSchoolRole, userSchoolId, isBranchRole, userBranchId]);
 
   const { data: studentsData, isLoading: studentsLoading, isFetching } = useStudents({
     pagination, sorting, filters: studentFilters,
@@ -181,39 +268,143 @@ export default function StudentDetails() {
 
   // Data extraction
   const routes = extractData(routesData, ["data", "routes"]);
-  const geofences = extractData(geofencesData, ["data"]);
+  const geofences = extractData(geofencesData, ["data", "geofences"]);
   const students = extractData(studentsData, ["data", "children", "students"]);
   const parents = extractData(parentsData, ["data", "parents"]);
   const totalCount = studentsData?.total ?? studentsData?.totalCount ?? studentsData?.pagination?.total ?? students.length;
 
-  // Memoized options
-  const schoolOptions = useMemo(() => schools.map(s => ({ label: s.schoolName, value: s._id })), [schools]);
-  const geofenceOptions = useMemo(() => geofences.map(g => ({ label: g.geofenceName, value: g._id })), [geofences]);
+  // Memoized options with role-based filtering
+  const schoolOptions = useMemo(() => {
+    if (isSchoolRole && userSchoolId) {
+      const userSchool = schools.find(s => s._id === userSchoolId);
+      return userSchool ? [{ label: userSchool.schoolName, value: userSchool._id }] : [];
+    }
+    if (isBranchRole && userSchoolId) {
+      const userSchool = schools.find(s => s._id === userSchoolId);
+      return userSchool ? [{ label: userSchool.schoolName, value: userSchool._id }] : [];
+    }
+    return schools.map(s => ({ label: s.schoolName, value: s._id }));
+  }, [schools, isSchoolRole, userSchoolId, isBranchRole]);
+
+  // Geofence options - show all geofences commonly for all roles
+  const geofenceOptions = useMemo(() => {
+    return geofences.map(g => ({ 
+      label: g.geofenceName || `Geofence ${g._id}`, 
+      value: g._id 
+    }));
+  }, [geofences]);
   
-  // Filter parents based on selected school and branch
+  // Filter parents based on selected school and branch with role-based filtering
   const parentOptions = useMemo(() => {
     let filteredParents = parents;
     
-    if (selectedSchool) {
+    // Apply role-based filtering first
+    if (isSchoolRole && userSchoolId) {
+      filteredParents = filteredParents.filter(p => getId(p.schoolId) === userSchoolId);
+    }
+    if (isBranchRole && userBranchId) {
+      filteredParents = filteredParents.filter(p => getId(p.branchId) === userBranchId);
+    }
+    
+    // Then apply user selections
+    if (selectedSchool && !isSchoolRole) {
       filteredParents = filteredParents.filter(p => getId(p.schoolId) === selectedSchool);
     }
     
-    if (selectedBranch) {
+    if (selectedBranch && !isBranchRole) {
       filteredParents = filteredParents.filter(p => getId(p.branchId) === selectedBranch);
     }
     
     return filteredParents.map(p => ({ label: p.parentName, value: p._id }));
-  }, [parents, selectedSchool, selectedBranch]);
+  }, [parents, selectedSchool, selectedBranch, isSchoolRole, userSchoolId, isBranchRole, userBranchId]);
 
+  // Branch options
   const branchOptions = useMemo(() => {
-    if (!selectedSchool) return [];
-    return branches.filter(b => getId(b.schoolId) === selectedSchool).map(b => ({ label: b.branchName, value: b._id }));
-  }, [branches, selectedSchool]);
+    if (isBranchRole && userBranchId) {
+      const userBranch = branches.find(b => b._id === userBranchId);
+      return userBranch ? [{ label: userBranch.branchName, value: userBranch._id }] : [];
+    }
+    
+    if (isSchoolRole && userSchoolId) {
+      const schoolBranches = branches.filter(b => {
+        const branchSchoolId = getId(b.schoolId);
+        return branchSchoolId === userSchoolId;
+      });
+      return schoolBranches.map(b => ({ label: b.branchName, value: b._id }));
+    }
+    
+    if (isSuperAdmin && selectedSchool) {
+      return branches.filter(b => getId(b.schoolId) === selectedSchool).map(b => ({ label: b.branchName, value: b._id }));
+    }
+    
+    return branches.map(b => ({ label: b.branchName, value: b._id }));
+  }, [branches, selectedSchool, isSchoolRole, userSchoolId, isBranchRole, userBranchId, isSuperAdmin]);
 
+  // Route options for all roles
   const routeOptions = useMemo(() => {
-    if (!selectedBranch) return [];
-    return routes.filter(r => getId(r.branchId) === selectedBranch).map(r => ({ label: r.routeNumber || `Route ${r.routeName || r._id}`, value: r._id }));
-  }, [routes, selectedBranch]);
+    let filteredRoutes = routes;
+    
+    // For branch role, filter by user's branch
+    if (isBranchRole && userBranchId) {
+      filteredRoutes = routes.filter(r => getId(r.branchId) === userBranchId);
+    } 
+    // For other roles, filter by selected branch if available
+    else if (selectedBranch) {
+      filteredRoutes = routes.filter(r => getId(r.branchId) === selectedBranch);
+    }
+    
+    return filteredRoutes.map(r => ({
+      label: r.routeNumber || `Route ${r.routeName || r._id}`,
+      value: r._id
+    }));
+  }, [routes, selectedBranch, isBranchRole, userBranchId]);
+
+  // Auto-select first route for branch role when only one is available
+  useEffect(() => {
+    if (isBranchRole && userBranchId && routeOptions.length === 1 && !selectedRoute) {
+      setSelectedRoute(routeOptions[0].value);
+    }
+  }, [isBranchRole, userBranchId, routeOptions, selectedRoute]);
+
+  // Pickup Location Options - Now filtered by selected route
+  const routePickupOptions = useMemo(() => {
+    if (!selectedRoute) return [];
+    
+    // Find the selected route to get its geofences
+    const selectedRouteObj = routes.find(r => r._id === selectedRoute);
+    if (!selectedRouteObj) return [];
+    
+    // Get geofences associated with this route
+    const routeGeofenceIds = selectedRouteObj.geofences || [];
+    
+    // Filter geofences to only show those associated with the selected route
+    return geofences
+      .filter(g => routeGeofenceIds.includes(g._id))
+      .map(g => ({ 
+        label: g.geofenceName || `Geofence ${g._id}`, 
+        value: g._id 
+      }));
+  }, [geofences, routes, selectedRoute]);
+
+  // Drop Location Options - Now filtered by selected route
+  const routeDropOptions = useMemo(() => {
+    if (!selectedRoute) return [];
+    
+    // Find the selected route to get its geofences
+    const selectedRouteObj = routes.find(r => r._id === selectedRoute);
+    if (!selectedRouteObj) return [];
+    
+    // Get geofences associated with this route
+    const routeGeofenceIds = selectedRouteObj.geofences || [];
+    
+    // Filter geofences to only show those associated with the selected route
+    return geofences
+      .filter(g => routeGeofenceIds.includes(g._id))
+      .map(g => ({ 
+        label: g.geofenceName || `Geofence ${g._id}`, 
+        value: g._id 
+      }));
+  }, [geofences, routes, selectedRoute]);
 
   const addParentBranchOptions = useMemo(() => {
     if (!addParentSchool) return [];
@@ -230,52 +421,91 @@ export default function StudentDetails() {
     [editSelectedBranch, routes]
   );
 
-  // Hierarchical filter options - ALL items shown, but filtered when parent is selected
+  // Hierarchical filter options
   const filterBranchOptions = useMemo(() => {
-    // If school is selected, show only branches of that school
+    if (isBranchRole && userBranchId) {
+      const userBranch = branches.find(b => b._id === userBranchId);
+      return userBranch ? [{ label: userBranch.branchName, value: userBranch._id }] : [];
+    }
+    
     if (filters.school) {
       return branches.filter(b => getId(b.schoolId) === filters.school).map(b => ({ label: b.branchName, value: b._id }));
     }
-    // If no school selected, show ALL branches
+    
+    if (isSchoolRole && userSchoolId) {
+      return branches.filter(b => getId(b.schoolId) === userSchoolId).map(b => ({ label: b.branchName, value: b._id }));
+    }
+    
     return branches.map(b => ({ label: b.branchName, value: b._id }));
-  }, [branches, filters.school]);
+  }, [branches, filters.school, isSchoolRole, userSchoolId, isBranchRole, userBranchId]);
 
-  // Hierarchical filter options - routes filtered by branch ONLY if branch is selected
   const filterRouteOptions = useMemo(() => {
-    // If branch is selected, show only routes of that branch
+    if (isBranchRole && userBranchId) {
+      return routes.filter(r => getId(r.branchId) === userBranchId).map(r => ({ 
+        label: r.routeNumber || `Route ${r.routeName || r._id}`, 
+        value: r._id 
+      }));
+    }
+    
     if (filters.branch) {
-      return routes.filter(r => getId(r.branchId) === filters.branch).map(r => ({ label: r.routeNumber || `Route ${r.routeName || r._id}`, value: r._id }));
+      return routes.filter(r => getId(r.branchId) === filters.branch).map(r => ({ 
+        label: r.routeNumber || `Route ${r.routeName || r._id}`, 
+        value: r._id 
+      }));
     }
-    // If no branch selected, show ALL routes
-    return routes.map(r => ({ label: r.routeNumber || `Route ${r.routeName || r._id}`, value: r._id }));
-  }, [routes, filters.branch]);
+    
+    if (isSchoolRole && userSchoolId) {
+      const schoolBranches = branches.filter(b => getId(b.schoolId) === userSchoolId).map(b => b._id);
+      return routes.filter(r => schoolBranches.includes(getId(r.branchId))).map(r => ({ 
+        label: r.routeNumber || `Route ${r.routeName || r._id}`, 
+        value: r._id 
+      }));
+    }
+    
+    return routes.map(r => ({ 
+      label: r.routeNumber || `Route ${r.routeName || r._id}`, 
+      value: r._id 
+    }));
+  }, [routes, filters.branch, branches, isSchoolRole, userSchoolId, isBranchRole, userBranchId]);
 
-  // Hierarchical filter options - pickup/drop locations filtered by route ONLY if route is selected
+  // Pickup and drop options for filters - Now filtered by selected route in filters
   const filterPickupOptions = useMemo(() => {
-    // If route is selected, show only pickup locations of that route
-    if (filters.route) {
-      const selectedRouteData = routes.find(r => r._id === filters.route);
-      if (selectedRouteData && selectedRouteData.pickupIds && selectedRouteData.pickupIds.length > 0) {
-        const pickupIdSet = new Set(selectedRouteData.pickupIds.map(p => getId(p)));
-        return geofenceOptions.filter(g => pickupIdSet.has(g.value));
-      }
-    }
-    // If no route selected, show ALL pickup locations
-    return geofenceOptions;
-  }, [geofenceOptions, routes, filters.route]);
+    if (!filters.route) return [];
+    
+    // Find the selected route to get its geofences
+    const selectedRouteObj = routes.find(r => r._id === filters.route);
+    if (!selectedRouteObj) return [];
+    
+    // Get geofences associated with this route
+    const routeGeofenceIds = selectedRouteObj.geofences || [];
+    
+    // Filter geofences to only show those associated with the selected route
+    return geofences
+      .filter(g => routeGeofenceIds.includes(g._id))
+      .map(g => ({ 
+        label: g.geofenceName || `Geofence ${g._id}`, 
+        value: g._id 
+      }));
+  }, [geofences, routes, filters.route]);
 
   const filterDropOptions = useMemo(() => {
-    // If route is selected, show only drop locations of that route
-    if (filters.route) {
-      const selectedRouteData = routes.find(r => r._id === filters.route);
-      if (selectedRouteData && selectedRouteData.dropIds && selectedRouteData.dropIds.length > 0) {
-        const dropIdSet = new Set(selectedRouteData.dropIds.map(d => getId(d)));
-        return geofenceOptions.filter(g => dropIdSet.has(g.value));
-      }
-    }
-    // If no route selected, show ALL drop locations
-    return geofenceOptions;
-  }, [geofenceOptions, routes, filters.route]);
+    if (!filters.route) return [];
+    
+    // Find the selected route to get its geofences
+    const selectedRouteObj = routes.find(r => r._id === filters.route);
+    if (!selectedRouteObj) return [];
+    
+    // Get geofences associated with this route
+    const routeGeofenceIds = selectedRouteObj.geofences || [];
+    
+    // Filter geofences to only show those associated with the selected route
+    return geofences
+      .filter(g => routeGeofenceIds.includes(g._id))
+      .map(g => ({ 
+        label: g.geofenceName || `Geofence ${g._id}`, 
+        value: g._id 
+      }));
+  }, [geofences, routes, filters.route]);
 
   // Get selected parent's school and branch
   const selectedParentData = useMemo(() => parents.find(p => p._id === selectedParent), [selectedParent, parents]);
@@ -283,28 +513,31 @@ export default function StudentDetails() {
   // Get display labels for active filters
   const activeFilters = useMemo(() => {
     const active = [];
-    if (filters.school) {
+    
+    if (filters.school && isSuperAdmin) {
       const school = schoolOptions.find(s => s.value === filters.school);
       active.push({ key: 'school', label: 'School', value: school?.label || filters.school });
     }
-    if (filters.branch) {
+    
+    if (filters.branch && !isBranchRole) {
       const branch = filterBranchOptions.find(b => b.value === filters.branch);
       active.push({ key: 'branch', label: 'Branch', value: branch?.label || filters.branch });
     }
+    
     if (filters.route) {
       const route = filterRouteOptions.find(r => r.value === filters.route);
       active.push({ key: 'route', label: 'Route', value: route?.label || filters.route });
     }
     if (filters.pickupGeo) {
-      const pickup = geofenceOptions.find(g => g.value === filters.pickupGeo);
+      const pickup = filterPickupOptions.find(g => g.value === filters.pickupGeo);
       active.push({ key: 'pickup', label: 'Pickup', value: pickup?.label || filters.pickupGeo });
     }
     if (filters.dropGeo) {
-      const drop = geofenceOptions.find(g => g.value === filters.dropGeo);
+      const drop = filterDropOptions.find(g => g.value === filters.dropGeo);
       active.push({ key: 'drop', label: 'Drop', value: drop?.label || filters.dropGeo });
     }
     return active;
-  }, [filters, schoolOptions, filterBranchOptions, filterRouteOptions, geofenceOptions]);
+  }, [filters, schoolOptions, filterBranchOptions, filterRouteOptions, filterPickupOptions, filterDropOptions, isSuperAdmin, isBranchRole]);
 
   // Effects for debouncing search
   useEffect(() => {
@@ -329,13 +562,34 @@ export default function StudentDetails() {
     }
   }, [editTarget]);
 
+  // Auto-set school and branch based on role when component mounts
+  useEffect(() => {
+    if (isSchoolRole && userSchoolId) {
+      setSelectedSchool(userSchoolId);
+      if (branches.length > 0) {
+        const schoolBranches = branches.filter(b => getId(b.schoolId) === userSchoolId);
+        if (schoolBranches.length > 0) {
+          setSelectedBranch(schoolBranches[0]._id);
+        }
+      }
+    }
+    if (isBranchRole && userBranchId) {
+      setSelectedBranch(userBranchId);
+      if (userSchoolId) {
+        setSelectedSchool(userSchoolId);
+      }
+    }
+  }, [isSchoolRole, userSchoolId, isBranchRole, userBranchId, branches]);
+
   // Reset form states when dialogs close
   useEffect(() => {
     if (!addDialogOpen) {
       setChildren([]);
       setSelectedParent("");
-      setSelectedSchool(""); 
-      setSelectedBranch(""); 
+      
+      if (!isSchoolRole) setSelectedSchool("");
+      if (!isBranchRole) setSelectedBranch("");
+      
       setSelectedRoute(""); 
       setSelectedPickupGeo(""); 
       setSelectedDropGeo(""); 
@@ -349,7 +603,7 @@ export default function StudentDetails() {
       });
       setSearchStates(prev => ({ ...prev, parent: "", school: "", branch: "", route: "", pickupGeo: "", dropGeo: "", gender: "" }));
     }
-  }, [addDialogOpen]);
+  }, [addDialogOpen, isSchoolRole, isBranchRole]);
 
   useEffect(() => {
     if (!addParentDialogOpen) {
@@ -361,36 +615,59 @@ export default function StudentDetails() {
 
   // Update school and branch when parent is selected
   useEffect(() => {
-    if (selectedParentData) {
+    if (selectedParentData && !isSchoolRole && !isBranchRole) {
       setSelectedSchool(getId(selectedParentData.schoolId));
       setSelectedBranch(getId(selectedParentData.branchId));
     }
-  }, [selectedParentData]);
+  }, [selectedParentData, isSchoolRole, isBranchRole]);
 
-  // Reset parent selection when school or branch changes
+  // Reset parent selection when school or branch changes (only for super admin)
   useEffect(() => {
-    setSelectedParent("");
-  }, [selectedSchool, selectedBranch]);
+    if (isSuperAdmin) {
+      setSelectedParent("");
+    }
+  }, [selectedSchool, selectedBranch, isSuperAdmin]);
 
   // Filter functions with hierarchical cascade
-  const clearFilters = () => setFilters({ school: "", branch: "", route: "", pickupGeo: "", dropGeo: "" });
+  const clearFilters = () => {
+    const newFilters = { school: "", branch: "", route: "", pickupGeo: "", dropGeo: "" };
+    
+    if (isSchoolRole && userSchoolId) {
+      newFilters.school = userSchoolId;
+    }
+    if (isBranchRole && userBranchId) {
+      newFilters.branch = userBranchId;
+      if (userSchoolId) {
+        newFilters.school = userSchoolId;
+      }
+    }
+    
+    setFilters(newFilters);
+  };
   
   const clearFilter = (filterKey: string) => {
     setFilters(prev => {
       const newFilters = { ...prev };
       
-      // Hierarchical clearing - when clearing a parent, clear its children
       if (filterKey === 'school') {
         newFilters.school = "";
         newFilters.branch = "";
         newFilters.route = "";
         newFilters.pickupGeo = "";
         newFilters.dropGeo = "";
+        
+        if (isSchoolRole && userSchoolId) {
+          newFilters.school = userSchoolId;
+        }
       } else if (filterKey === 'branch') {
         newFilters.branch = "";
         newFilters.route = "";
         newFilters.pickupGeo = "";
         newFilters.dropGeo = "";
+        
+        if (isBranchRole && userBranchId) {
+          newFilters.branch = userBranchId;
+        }
       } else if (filterKey === 'route') {
         newFilters.route = "";
         newFilters.pickupGeo = "";
@@ -499,7 +776,6 @@ export default function StudentDetails() {
     const changedFields: Partial<Record<keyof Student, unknown>> = {};
     const dataToCompare = { ...updatedData };
     
-    // Keep routeObjId as is - don't rename it to routeId
     for (const key in dataToCompare) {
       const newValue = dataToCompare[key as keyof Student];
       const oldValue = editTarget[key as keyof Student];
@@ -516,8 +792,11 @@ export default function StudentDetails() {
     e.preventDefault();
     const form = e.currentTarget as any;
     
-    if (!addParentSchool) { alert("Please select a school."); return; }
-    if (!addParentBranch) { alert("Please select a branch."); return; }
+    const schoolIdToUse = isSchoolRole ? userSchoolId : (isBranchRole ? userSchoolId : addParentSchool);
+    const branchIdToUse = isBranchRole ? userBranchId : addParentBranch;
+
+    if (!schoolIdToUse) { alert("Please select a school."); return; }
+    if (!branchIdToUse) { alert("Please select a branch."); return; }
 
     const data = {
       parentName: form.parentName.value.trim(),
@@ -525,8 +804,8 @@ export default function StudentDetails() {
       email: form.email.value.trim(),
       username: form.username.value.trim(),
       password: form.password.value,
-      schoolId: addParentSchool,
-      branchId: addParentBranch,
+      schoolId: schoolIdToUse,
+      branchId: branchIdToUse,
       isActive: form.isActive?.checked ?? true,
     };
 
@@ -613,7 +892,6 @@ export default function StudentDetails() {
       return; 
     }
     
-    // Validate all children before submission
     for (const child of children) {
       if (!child.childName || !child.routeObjId || !child.pickupGeoId || !child.dropGeoId) {
         alert("Please ensure all children have Student Name, Route, Pickup Location, and Drop Location filled.");
@@ -621,15 +899,12 @@ export default function StudentDetails() {
       }
     }
 
-    // Get the selected parent data
     const selectedParentObj = parents.find(p => p._id === selectedParent);
     if (!selectedParentObj) {
       alert("Selected parent not found. Please select a valid parent.");
       return;
     }
 
-    // Prepare the data in the correct format expected by the API
-    // The API expects both parent data and children data
     const submissionData = {
       parent: {
         _id: selectedParentObj._id,
@@ -654,11 +929,11 @@ export default function StudentDetails() {
         dropGeoId: child.dropGeoId,
         schoolId: child.schoolId,
         branchId: child.branchId,
-        parentId: selectedParent // Add parentId to each child
+        parentId: selectedParent
       }))
     };
 
-    console.log("Submitting data:", submissionData); // For debugging
+    console.log("Submitting data:", submissionData);
     
     try { 
       await addStudentMutation.mutateAsync(submissionData); 
@@ -683,8 +958,9 @@ export default function StudentDetails() {
         ...(filters.school && { "School": schoolOptions.find(s => s.value === filters.school)?.label || filters.school }),
         ...(filters.branch && { "Branch": filterBranchOptions.find(b => b.value === filters.branch)?.label || filters.branch }),
         ...(filters.route && { "Route": filterRouteOptions.find(r => r.value === filters.route)?.label || filters.route }),
-        ...(filters.pickupGeo && { "Pickup Location": geofenceOptions.find(g => g.value === filters.pickupGeo)?.label || filters.pickupGeo }),
-        ...(filters.dropGeo && { "Drop Location": geofenceOptions.find(g => g.value === filters.dropGeo)?.label || filters.dropGeo }),
+        ...(filters.pickupGeo && { "Pickup Location": filterPickupOptions.find(g => g.value === filters.pickupGeo)?.label || filters.pickupGeo }),
+        ...(filters.dropGeo && { "Drop Location": filterDropOptions.find(g => g.value === filters.dropGeo)?.label || filters.dropGeo }),
+        Role: role || "Unknown",
       },
     });
   };
@@ -699,8 +975,9 @@ export default function StudentDetails() {
         ...(filters.school && { "School": schoolOptions.find(s => s.value === filters.school)?.label || filters.school }),
         ...(filters.branch && { "Branch": filterBranchOptions.find(b => b.value === filters.branch)?.label || filters.branch }),
         ...(filters.route && { "Route": filterRouteOptions.find(r => r.value === filters.route)?.label || filters.route }),
-        ...(filters.pickupGeo && { "Pickup Location": geofenceOptions.find(g => g.value === filters.pickupGeo)?.label || filters.pickupGeo }),
-        ...(filters.dropGeo && { "Drop Location": geofenceOptions.find(g => g.value === filters.dropGeo)?.label || filters.dropGeo }),
+        ...(filters.pickupGeo && { "Pickup Location": filterPickupOptions.find(g => g.value === filters.pickupGeo)?.label || filters.pickupGeo }),
+        ...(filters.dropGeo && { "Drop Location": filterDropOptions.find(g => g.value === filters.dropGeo)?.label || filters.dropGeo }),
+        Role: role || "Unknown",
       },
     });
   };
@@ -770,44 +1047,53 @@ export default function StudentDetails() {
 
           <div className="flex items-center gap-2">
             {[
-              { 
+              // School filter - only show for super admin
+              ...(isSuperAdmin ? [{
                 items: schoolOptions, 
                 value: filters.school, 
                 onChange: handleSchoolFilterChange, 
                 placeholder: "Select School", 
                 width: "w-33" 
-              },
-              { 
+              }] : []),
+              
+              // Branch filter - show for super admin and school role, but not branch role
+              ...(!isBranchRole ? [{
                 items: filterBranchOptions, 
                 value: filters.branch, 
                 onChange: handleBranchFilterChange, 
-                placeholder: filters.school ? "Select Branch" : "Select School First", 
+                placeholder: !isSchoolRole && !filters.school ? "Select School First" : "Select Branch", 
                 width: "w-33",
-                disabled: !filters.school 
-              },
-              { 
+                disabled: isSuperAdmin && !filters.school 
+              }] : []),
+              
+              // Route filter - show for all roles
+              {
                 items: filterRouteOptions, 
                 value: filters.route, 
                 onChange: handleRouteFilterChange, 
-                placeholder: filters.branch ? "Select Route" : "Select Branch First", 
+                placeholder: isBranchRole ? "Select Route" : (!filters.branch ? "Select Branch First" : "Select Route"), 
                 width: "w-32",
-                disabled: !filters.branch 
+                disabled: !isBranchRole && !filters.branch 
               },
-              { 
+              
+              // Pickup location filter - only enabled when route is selected
+              {
                 items: filterPickupOptions, 
                 value: filters.pickupGeo, 
                 onChange: (v: string) => setFilters(prev => ({ ...prev, pickupGeo: v })), 
-                placeholder: filters.route ? "Pickup Location" : "Select Route First", 
+                placeholder: !filters.route ? "Select Route First" : "Pickup Location", 
                 width: "w-37",
-                disabled: !filters.route 
+                disabled: !filters.route // Disabled until route is selected
               },
-              { 
+              
+              // Drop location filter - only enabled when route is selected
+              {
                 items: filterDropOptions, 
                 value: filters.dropGeo, 
                 onChange: (v: string) => setFilters(prev => ({ ...prev, dropGeo: v })), 
-                placeholder: filters.route ? "Drop Location" : "Select Route First", 
+                placeholder: !filters.route ? "Select Route First" : "Drop Location", 
                 width: "w-35",
-                disabled: !filters.route 
+                disabled: !filters.route // Disabled until route is selected
               },
             ].map((filter, index) => (
               <div key={index} className={filter.width}>
@@ -849,41 +1135,53 @@ export default function StudentDetails() {
                   />
                 </div>
 
-                <div className="grid gap-2">
-                  <Label>School *</Label>
-                  <Combobox 
-                    items={schoolOptions} 
-                    value={selectedSchool} 
-                    onValueChange={(value) => {
-                      setSelectedSchool(value);
-                      setSelectedBranch("");
-                      setSelectedRoute("");
-                    }}
-                    placeholder="Select school..." 
-                    searchPlaceholder="Search schools..." 
-                    emptyMessage="No school found."
-                    width="w-full"
-                  />
-                </div>
+                {/* School selector - only show for super admin */}
+                {isSuperAdmin && (
+                  <div className="grid gap-2">
+                    <Label>School *</Label>
+                    <Combobox 
+                      items={schoolOptions} 
+                      value={selectedSchool} 
+                      onValueChange={(value) => {
+                        setSelectedSchool(value);
+                        setSelectedBranch("");
+                        setSelectedRoute("");
+                      }}
+                      placeholder="Select school..." 
+                      searchPlaceholder="Search schools..." 
+                      emptyMessage="No school found."
+                      width="w-full"
+                    />
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="grid gap-2">
-                  <Label>Branch *</Label>
-                  <Combobox 
-                    items={branchOptions} 
-                    value={selectedBranch} 
-                    onValueChange={(value) => {
-                      setSelectedBranch(value);
-                      setSelectedRoute("");
-                    }}
-                    placeholder={!selectedSchool ? "Select school first" : "Select branch..."}
-                    searchPlaceholder="Search branches..." 
-                    emptyMessage={!selectedSchool ? "Please select a school first" : "No branches found for this school"}
-                    width="w-full"
-                    disabled={!selectedSchool}
-                  />
-                </div>
+                {/* Branch selector - show for super admin and school role */}
+                {(isSuperAdmin || isSchoolRole) && (
+                  <div className="grid gap-2">
+                    <Label>Branch *</Label>
+                    <Combobox 
+                      items={branchOptions} 
+                      value={selectedBranch} 
+                      onValueChange={(value) => {
+                        setSelectedBranch(value);
+                        setSelectedRoute("");
+                      }}
+                      placeholder={
+                        isSchoolRole ? "Select branch..." : 
+                        !selectedSchool ? "Select school first" : "Select branch..."
+                      }
+                      searchPlaceholder="Search branches..." 
+                      emptyMessage={
+                        isSchoolRole && branchOptions.length === 0 ? "No branches found for your school" : 
+                        !selectedSchool ? "Please select a school first" : "No branches found for this school"
+                      }
+                      width="w-full"
+                      disabled={isSuperAdmin && !selectedSchool}
+                    />
+                  </div>
+                )}
 
                 <div className="grid gap-2">
                   <Label>Select Parent *</Label>
@@ -892,10 +1190,21 @@ export default function StudentDetails() {
                       items={parentOptions} 
                       value={selectedParent} 
                       onValueChange={setSelectedParent}
-                      placeholder={!selectedSchool || !selectedBranch ? "Select school & branch first" : "Search parent..."} 
+                      placeholder={
+                        (isSuperAdmin && (!selectedSchool || !selectedBranch)) ? "Select school & branch first" : 
+                        (isSchoolRole && !selectedBranch) ? "Select branch first" : 
+                        "Search parent..."
+                      } 
                       searchPlaceholder="Search parents..." 
-                      emptyMessage={!selectedSchool || !selectedBranch ? "Please select school and branch first" : "No parents found for this school and branch"}
-                      disabled={!selectedSchool || !selectedBranch}
+                      emptyMessage={
+                        (isSuperAdmin && (!selectedSchool || !selectedBranch)) ? "Please select school and branch first" : 
+                        (isSchoolRole && !selectedBranch) ? "Please select branch first" : 
+                        "No parents found for this school and branch"
+                      }
+                      disabled={
+                        (isSuperAdmin && (!selectedSchool || !selectedBranch)) || 
+                        (isSchoolRole && !selectedBranch)
+                      }
                       onSearchChange={(v) => setSearchStates(prev => ({ ...prev, parent: v }))} 
                       searchValue={searchStates.parent} 
                     />
@@ -906,7 +1215,10 @@ export default function StudentDetails() {
                             type="button" 
                             onClick={() => setAddParentDialogOpen(true)} 
                             className="bg-[#f3c623] hover:bg-[#D3A80C] text-[#e3d728] font-semibold h-10 px-4"
-                            disabled={!selectedSchool || !selectedBranch}
+                            disabled={
+                              (isSuperAdmin && (!selectedSchool || !selectedBranch)) || 
+                              (isSchoolRole && !selectedBranch)
+                            }
                           >
                             <Plus className="w-4 h-4 text-red-700" />
                           </Button>
@@ -984,17 +1296,29 @@ export default function StudentDetails() {
                 </div>
                 <div className="grid gap-2">
                   <Label>Route *</Label>
-                  <Combobox 
-                    items={routeOptions} 
-                    value={selectedRoute} 
+                  <Combobox
+                    items={routeOptions}
+                    value={selectedRoute}
                     onValueChange={setSelectedRoute}
-                    placeholder={!selectedBranch ? "Select school & branch first" : "Select route..."}
-                    searchPlaceholder="Search routes..." 
-                    emptyMessage={!selectedBranch ? "Please select school and branch first" : "No routes found for this branch"}
+                    placeholder={
+                      isBranchRole
+                        ? "Select route..."
+                        : !selectedBranch
+                        ? "Select branch first"
+                        : "Select route..."
+                    }
+                    searchPlaceholder="Search routes..."
+                    emptyMessage={
+                      isBranchRole
+                        ? "No routes found for your branch"
+                        : !selectedBranch
+                        ? "Please select branch first"
+                        : "No routes found for this branch"
+                    }
                     width="w-full"
-                    disabled={!selectedBranch}
-                    onSearchChange={(v) => setSearchStates(prev => ({ ...prev, route: v }))} 
-                    searchValue={searchStates.route} 
+                    disabled={isBranchRole ? false : !selectedBranch}
+                    onSearchChange={v => setSearchStates(prev => ({ ...prev, route: v }))}
+                    searchValue={searchStates.route}
                   />
                 </div>
               </div>
@@ -1002,30 +1326,32 @@ export default function StudentDetails() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="grid gap-2">
                   <Label>Pickup Location *</Label>
-                  <Combobox 
-                    items={geofenceOptions} 
-                    value={selectedPickupGeo} 
+                  <Combobox
+                    items={routePickupOptions}
+                    value={selectedPickupGeo}
                     onValueChange={setSelectedPickupGeo}
-                    placeholder="Select pickup location..."
+                    placeholder={!selectedRoute ? "Select Route First" : "Select pickup location..."}
                     searchPlaceholder="Search pickup locations..."
-                    emptyMessage="No pickup locations found."
+                    emptyMessage={!selectedRoute ? "Please select a route first" : "No pickup locations found for this route."}
                     width="w-full"
-                    onSearchChange={(v) => setSearchStates(prev => ({ ...prev, pickupGeo: v }))} 
-                    searchValue={searchStates.pickupGeo} 
+                    disabled={!selectedRoute} // Disabled until route is selected
+                    onSearchChange={v => setSearchStates(prev => ({ ...prev, pickupGeo: v }))}
+                    searchValue={searchStates.pickupGeo}
                   />
                 </div>
                 <div className="grid gap-2">
                   <Label>Drop Location *</Label>
-                  <Combobox 
-                    items={geofenceOptions} 
-                    value={selectedDropGeo} 
+                  <Combobox
+                    items={routeDropOptions}
+                    value={selectedDropGeo}
                     onValueChange={setSelectedDropGeo}
-                    placeholder="Select drop location..."
+                    placeholder={!selectedRoute ? "Select Route First" : "Select drop location..."}
                     searchPlaceholder="Search drop locations..."
-                    emptyMessage="No drop locations found."
+                    emptyMessage={!selectedRoute ? "Please select a route first" : "No drop locations found for this route."}
                     width="w-full"
-                    onSearchChange={(v) => setSearchStates(prev => ({ ...prev, dropGeo: v }))} 
-                    searchValue={searchStates.dropGeo} 
+                    disabled={!selectedRoute} // Disabled until route is selected
+                    onSearchChange={v => setSearchStates(prev => ({ ...prev, dropGeo: v }))}
+                    searchValue={searchStates.dropGeo}
                   />
                 </div>
               </div>
@@ -1115,35 +1441,51 @@ export default function StudentDetails() {
                   <Input id={id} name={id} type={type} required {...props} />
                 </div>
               ))}
-              <div className="grid gap-2">
-                <Label>School *</Label>
-                <Combobox 
-                  items={schoolOptions} 
-                  value={addParentSchool} 
-                  onValueChange={(v) => { setAddParentSchool(v); setAddParentBranch(""); setSearchStates(prev => ({ ...prev, addParentBranch: "" })); }}
-                  placeholder="Search school..." 
-                  searchPlaceholder="Search schools..." 
-                  emptyMessage="No school found."
-                  width="w-full" 
-                  onSearchChange={(v) => setSearchStates(prev => ({ ...prev, addParentSchool: v }))} 
-                  searchValue={searchStates.addParentSchool} 
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label>Branch *</Label>
-                <Combobox 
-                  items={addParentBranchOptions} 
-                  value={addParentBranch} 
-                  onValueChange={setAddParentBranch}
-                  placeholder={!addParentSchool ? "Select school first" : "Search branch..."}
-                  searchPlaceholder="Search branches..." 
-                  emptyMessage={!addParentSchool ? "Please select a school first" : addParentBranchOptions.length === 0 ? "No branches found for this school" : "No branches match your search"}
-                  width="w-full" 
-                  disabled={!addParentSchool}
-                  onSearchChange={(v) => setSearchStates(prev => ({ ...prev, addParentBranch: v }))} 
-                  searchValue={searchStates.addParentBranch} 
-                />
-              </div>
+              
+              {/* School selector in add parent - only show for super admin */}
+              {isSuperAdmin && (
+                <div className="grid gap-2">
+                  <Label>School *</Label>
+                  <Combobox 
+                    items={schoolOptions} 
+                    value={addParentSchool} 
+                    onValueChange={(v) => { setAddParentSchool(v); setAddParentBranch(""); setSearchStates(prev => ({ ...prev, addParentBranch: "" })); }}
+                    placeholder="Search school..." 
+                    searchPlaceholder="Search schools..." 
+                    emptyMessage="No school found."
+                    width="w-full" 
+                    onSearchChange={(v) => setSearchStates(prev => ({ ...prev, addParentSchool: v }))} 
+                    searchValue={searchStates.addParentSchool} 
+                  />
+                </div>
+              )}
+              
+              {/* Branch selector in add parent - show for super admin and school role */}
+              {(isSuperAdmin || isSchoolRole) && (
+                <div className="grid gap-2">
+                  <Label>Branch *</Label>
+                  <Combobox 
+                    items={isSuperAdmin ? addParentBranchOptions : branchOptions} 
+                    value={addParentBranch} 
+                    onValueChange={setAddParentBranch}
+                    placeholder={
+                      isSuperAdmin && !addParentSchool ? "Select school first" : 
+                      isSchoolRole ? "Search branch..." : 
+                      "Search branch..."
+                    }
+                    searchPlaceholder="Search branches..." 
+                    emptyMessage={
+                      isSuperAdmin && !addParentSchool ? "Please select a school first" : 
+                      isSchoolRole && branchOptions.length === 0 ? "No branches found for your school" : 
+                      "No branches match your search"
+                    }
+                    width="w-full" 
+                    disabled={isSuperAdmin && !addParentSchool}
+                    onSearchChange={(v) => setSearchStates(prev => ({ ...prev, addParentBranch: v }))} 
+                    searchValue={searchStates.addParentBranch} 
+                  />
+                </div>
+              )}
             </div>
             <div className="flex items-center gap-3 mt-2">
               <input type="checkbox" id="isActive" name="isActive" className="h-5 w-5" defaultChecked />
@@ -1184,18 +1526,26 @@ export default function StudentDetails() {
             onSave={handleSave} 
             onFieldChange={handleEditFieldChange} 
             fields={EDIT_FIELDS.map(f => {
-              if (f.key === "schoolId") return { ...f, options: schoolOptions };
+              if (f.key === "schoolId") return { 
+                ...f, 
+                options: schoolOptions,
+                disabled: isSchoolRole || isBranchRole
+              };
               if (f.key === "branchId") return { 
                 ...f, 
                 options: editFilteredBranches.map(b => ({ label: b.branchName || `Branch ${b._id}`, value: b._id })), 
-                disabled: !editSelectedSchool 
+                disabled: !editSelectedSchool || isBranchRole
               };
               if (f.key === "routeObjId") return { 
                 ...f, 
                 options: editFilteredRoutes.map(r => ({ label: r.routeNumber || `Route ${r.routeName || r._id}`, value: r._id })), 
                 disabled: !editSelectedBranch 
               };
-              if (f.key === "pickupGeoId" || f.key === "dropGeoId") return { ...f, options: geofenceOptions };
+              if (f.key === "pickupGeoId" || f.key === "dropGeoId") return { 
+                ...f, 
+                options: geofenceOptions,
+                disabled: !editSelectedBranch // Disable until route is selected in edit mode
+              };
               return f;
             })} 
             title="Edit Student" 
