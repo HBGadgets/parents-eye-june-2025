@@ -40,16 +40,13 @@ const DevicesPage = () => {
   });
   const [deleteTarget, setDeleteTarget] = useState<Device | null>(null);
   const [editTarget, setEditTarget] = useState<Device | null>(null);
-  const [addTarget, setAddTarget] = useState<Device | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
-  const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [filteredData, setFilteredData] = useState<Device[]>([]); // For manual updates
   const [sorting, setSorting] = useState([]);
   const [deviceName, setDeviceName] = useState("");
   const [debouncedDeviceName, setDebouncedDeviceName] = useState(deviceName);
   const { data: schoolData } = useSchoolData();
   const { data: branchData } = useBranchData();
-
   const [selectedSchoolId, setSelectedSchoolId] = useState<string | null>(null);
   const [selectedBranchId, setSelectedBranchId] = useState<string | null>(null);
   const [filteredBranches, setFilteredBranches] = useState<any[]>([]);
@@ -57,7 +54,6 @@ const DevicesPage = () => {
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
   const [filterResults, setFilterResults] = useState<Device[]>([]);
   const [userRole, setUserRole] = React.useState<UserRole>(null);
-
   const {
     data: devicesData,
     isLoading,
@@ -342,76 +338,6 @@ const DevicesPage = () => {
       labelKey: "branchName",
       valueKey: "_id",
       disabled: !selectedSchoolId || filteredBranches.length === 0, // Enable when school is selected and branches are available
-    },
-  ];
-
-  // Define the fields for the add dialog
-  const deviceAddFieldConfigs: FieldConfig[] = [
-    {
-      label: "Device Name",
-      key: "name",
-      type: "text",
-    },
-    {
-      label: "Sim Number",
-      key: "sim",
-      type: "text",
-    },
-    {
-      label: "IMEI Number",
-      key: "uniqueId",
-      type: "text",
-    },
-    {
-      label: "Speed Limit in (KM/H)",
-      key: "speed",
-      type: "number",
-    },
-    {
-      label: "Average in (KM/Litre)",
-      key: "average",
-      type: "number",
-    },
-    {
-      label: "Driver",
-      key: "Driver",
-      type: "text",
-    },
-    {
-      label: "Model",
-      key: "model",
-      type: "text",
-    },
-    {
-      label: "Category",
-      key: "category",
-      type: "text",
-    },
-    {
-      label: "School Name",
-      key: "schoolId._id",
-      type: "searchable-select",
-      options: schoolData || [],
-      labelKey: "schoolName",
-      valueKey: "_id",
-    },
-    {
-      label: "Branch Name",
-      key: "branchId._id",
-      type: "searchable-select",
-      options: filteredBranches || [],
-      labelKey: "branchName",
-      valueKey: "_id",
-      disabled: !selectedSchoolId || filteredBranches.length === 0, // Enable when school is selected and branches are available
-    },
-    {
-      label: "Route",
-      key: "data._id",
-      type: "searchable-select",
-      options: data?.data || [],
-      labelKey: "routeNumber",
-      valueKey: "_id",
-      disabled: !selectedBranchId,
     },
   ];
 
