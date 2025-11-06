@@ -21,6 +21,7 @@ import { useBranchData } from "@/hooks/useBranchData";
 import { useAddDeviceNew } from "@/hooks/device/useAddDevice(new)";
 import { toast } from "sonner";
 import { add } from "lodash";
+import { useAddDeviceOld } from "@/hooks/device/useAddDevice(old)";
 
 export const AddDeviceForm = () => {
   const { data: driverData, isLoading: driverLoading } = useDriver();
@@ -30,6 +31,7 @@ export const AddDeviceForm = () => {
   const { data: schoolData, isLoading: schoolLoading } = useSchoolData();
   const { data: branchData } = useBranchData();
   const addDeviceMutationNew = useAddDeviceNew();
+  const addDeviceMutationOld = useAddDeviceOld();
   const [open, setOpen] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
@@ -44,6 +46,7 @@ export const AddDeviceForm = () => {
     schoolId: "",
     branchId: "",
   });
+
 
   useEffect(() => {
     if (!open) {
@@ -122,6 +125,7 @@ export const AddDeviceForm = () => {
     console.log("Submitting:", formData);
     try {
       await addDeviceMutationNew.mutateAsync(formData);
+      await addDeviceMutationOld.mutateAsync(formData);
       toast.success("Device added successfully!");
       setOpen(false);
     } catch (error: any) {
