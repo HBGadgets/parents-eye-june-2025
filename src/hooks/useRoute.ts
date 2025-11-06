@@ -1,15 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/services/apiService";
-import { Branch, Device, School } from "@/interface/modal";
-
-interface Route {
-  _id: String;
-  routeName: String;
-  deviceObjId: Device;
-  schoolId: School;
-  branchId: Branch;
-  createdAt: string;
-}
+import { Route } from "@/interface/modal";
 
 interface RouteResponse {
   data: Route[];

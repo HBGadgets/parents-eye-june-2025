@@ -34,8 +34,10 @@ export default function FCMHandler(): null {
           console.warn("❌ Notification permission denied");
           return;
         }
-
-        const storedToken = localStorage.getItem("fcm_token");
+        let storedToken;
+        if (typeof window !== "undefined") {
+          storedToken = localStorage.getItem("fcm_token");
+        }
 
         if (!storedToken) {
           try {

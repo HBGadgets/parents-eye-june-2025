@@ -146,7 +146,7 @@ export interface Supervisor {
   supervisorMobile: string;
   schoolId: School;
   branchId: Branch;
-  deviceObjId: deviceObjId;
+  deviceObjId: Device;
 
   role: string;
   createdAt: string;
