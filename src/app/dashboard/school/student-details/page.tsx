@@ -971,6 +971,39 @@ export default function StudentDetails() {
               <DialogTitle className="flex items-center gap-2"><Users className="w-5 h-5" /> Add New Student</DialogTitle>
             </DialogHeader>
 
+            {children.length > 0 && (
+                <Card>
+                  <CardContent className="pt-2">
+                    <div className="space-y-3">
+                      {children.map((child, i) => (
+                        <div key={i} className="flex justify-between items-center p-3 bg-card border rounded-lg">
+                          <div className="flex items-center gap-3">
+                            <div className="flex items-center justify-center w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs font-medium">
+                              {i + 1}
+                            </div>
+                            <div>
+                              <div className="font-medium">{child.childName}</div>
+                              <div className="text-sm text-muted-foreground">
+                                {child.className ? `Class ${child.className}` : "Class not specified"}
+                                {child.section ? ` (${child.section})` : ""}
+                                {child.age ? ` • Age ${child.age}` : ""}
+                                {child.DOB ? ` • DOB: ${child.DOB}` : ""}
+                                {child.pickupGeoId ? ` • Pickup: ${findGeofenceName(child.pickupGeoId)}` : ""}
+                                {child.dropGeoId ? ` • Drop: ${findGeofenceName(child.dropGeoId)}` : ""}
+                              </div>
+                            </div>
+                          </div>
+                          <button type="button" onClick={() => handleRemoveChild(i)} className="text-destructive hover:text-destructive/80 p-1 rounded-sm">
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+
             <div className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="grid gap-2">
@@ -1207,38 +1240,7 @@ export default function StudentDetails() {
                 </div>
               </div>
 
-              {children.length > 0 && (
-                <Card>
-                  <CardContent className="pt-6">
-                    <div className="space-y-3">
-                      {children.map((child, i) => (
-                        <div key={i} className="flex justify-between items-center p-3 bg-card border rounded-lg">
-                          <div className="flex items-center gap-3">
-                            <div className="flex items-center justify-center w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs font-medium">
-                              {i + 1}
-                            </div>
-                            <div>
-                              <div className="font-medium">{child.childName}</div>
-                              <div className="text-sm text-muted-foreground">
-                                {child.className ? `Class ${child.className}` : "Class not specified"}
-                                {child.section ? ` (${child.section})` : ""}
-                                {child.age ? ` • Age ${child.age}` : ""}
-                                {child.DOB ? ` • DOB: ${child.DOB}` : ""}
-                                {child.pickupGeoId ? ` • Pickup: ${findGeofenceName(child.pickupGeoId)}` : ""}
-                                {child.dropGeoId ? ` • Drop: ${findGeofenceName(child.dropGeoId)}` : ""}
-                              </div>
-                            </div>
-                          </div>
-                          <button type="button" onClick={() => handleRemoveChild(i)} className="text-destructive hover:text-destructive/80 p-1 rounded-sm">
-                            <X className="w-4 h-4" />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-
+              
               <div className="flex justify-end pt-2">
                 <Button 
                   type="button" 
