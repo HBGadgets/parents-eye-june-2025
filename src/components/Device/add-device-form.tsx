@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect, use } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -20,7 +20,6 @@ import { useSchoolData } from "@/hooks/useSchoolData";
 import { useBranchData } from "@/hooks/useBranchData";
 import { useAddDeviceNew } from "@/hooks/device/useAddDevice(new)";
 import { toast } from "sonner";
-import { add } from "lodash";
 import { useAddDeviceOld } from "@/hooks/device/useAddDevice(old)";
 
 export const AddDeviceForm = () => {
@@ -46,7 +45,6 @@ export const AddDeviceForm = () => {
     schoolId: "",
     branchId: "",
   });
-
 
   useEffect(() => {
     if (!open) {
@@ -120,6 +118,7 @@ export const AddDeviceForm = () => {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
+ 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     console.log("Submitting:", formData);

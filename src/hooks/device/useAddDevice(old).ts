@@ -30,20 +30,9 @@ export const useAddDeviceOld = () => {
         `${BASIC_AUTH_USER}:${BASIC_AUTH_PASS}`
       ).toString("base64");
 
-    //   const { data } = await axios.post(
-    //     `${process.env.NEXT_PUBLIC_ROCKETSALESTRACKER_URL}/device`,
-    //     payload,
-    //     {
-    //       headers: {
-    //         "Content-Type": "application/json",
-    //         Authorization: `Basic ${token}`,
-    //       },
-    //     }
-    //   );
-
-      const { data } = await axios.get(
-        `${process.env.NEXT_PUBLIC_ROCKETSALESTRACKER_URL}/devices`,
-        // payload,
+      const { data } = await axios.post(
+        `${process.env.NEXT_PUBLIC_ROCKETSALESTRACKER_URL}/device`,
+        payload,
         {
           headers: {
             "Content-Type": "application/json",
@@ -51,8 +40,6 @@ export const useAddDeviceOld = () => {
           },
         }
       );
-
-      console.log("Response from old add device API: ", data);
 
       return data;
     },
