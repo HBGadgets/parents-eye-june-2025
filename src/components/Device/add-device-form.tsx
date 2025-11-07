@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect, use } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -20,7 +20,9 @@ import { useSchoolData } from "@/hooks/useSchoolData";
 import { useBranchData } from "@/hooks/useBranchData";
 import { useAddDeviceNew } from "@/hooks/device/useAddDevice(new)";
 import { toast } from "sonner";
-import { add } from "lodash";
+import { useAddDeviceOld } from "@/hooks/device/useAddDevice(old)";
+import { uniq, uniqueId } from "lodash";
+import { group } from "console";
 
 export const AddDeviceForm = () => {
   const { data: driverData, isLoading: driverLoading } = useDriver();
@@ -30,6 +32,7 @@ export const AddDeviceForm = () => {
   const { data: schoolData, isLoading: schoolLoading } = useSchoolData();
   const { data: branchData } = useBranchData();
   const addDeviceMutationNew = useAddDeviceNew();
+  const addDeviceMutationOld = useAddDeviceOld();
   const [open, setOpen] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
@@ -117,16 +120,47 @@ export const AddDeviceForm = () => {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
+  const transformForOldApi = (data: any) => {
+    return { name: data.name, uniqueId: data.uniqueId, model: data.model, category: data.category ,phone: sim };
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log("Submitting:", formData);
+
+    const newPayload = formData;
+    const oldPayload = transformForOldApi(formData);
+
+    console.log("Submitting New:", newPayload);
+    console.log("Submitting Old:", oldPayload);
+
     try {
-      await addDeviceMutationNew.mutateAsync(formData);
-      toast.success("Device added successfully!");
+      // Run both at the same time
+      const [newResult, oldResult] = await Promise.allSettled([
+        addDeviceMutationNew.mutateAsync(newPayload),
+        addDeviceMutationOld.mutateAsync(oldPayload),
+      ]);
+
+      // 🟢 Check results separately
+      if (
+        newResult.status === "fulfilled" &&
+        oldResult.status === "fulfilled"
+      ) {
+        toast.success("✅ Device added to both systems!");
+      } else if (newResult.status === "fulfilled") {
+        toast.warning("⚠️ Added to new system, but old system failed.");
+        console.error("Old API error:", oldResult);
+      } else if (oldResult.status === "fulfilled") {
+        toast.warning("⚠️ Added to old system, but new system failed.");
+        console.error("New API error:", newResult);
+      } else {
+        toast.error("❌ Both API requests failed.");
+      }
+
       setOpen(false);
     } catch (error: any) {
-      // console.error("Error adding device:", error);
-      toast.error(error?.response?.data?.message || "Failed to add device");
+      toast.error(
+        error?.response?.data?.message || "Unexpected error occurred"
+      );
     }
   };
 

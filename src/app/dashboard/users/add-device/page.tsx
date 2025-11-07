@@ -29,6 +29,7 @@ import Cookies from "js-cookie";
 import { useInfiniteDeviceData } from "@/hooks/useInfiniteDeviceData";
 import { useRoutes } from "@/hooks/useRoute";
 import { AddDeviceForm } from "@/components/Device/add-device-form";
+import axios from "axios";
 
 type UserRole = "superAdmin" | "school" | "branchGroup" | "branch" | null;
 
@@ -94,6 +95,32 @@ const DevicesPage = () => {
   }, [deviceName]);
 
   // filter branches when school is selected
+
+  const handleSchoolChange = (key: string, value: any, option?: any) => {
+    console.log("handleSchoolChange", key, value, option);
+
+    // Handle school selection
+    if (key === "schoolId._id") {
+      const previousSchoolId = selectedSchoolId;
+      setSelectedSchoolId(value);
+
+      // Only reset branch selection if school actually changed
+      if (editTarget && previousSchoolId !== value) {
+        setEditTarget({
+          ...editTarget,
+          schoolId: { _id: value, schoolName: option?.schoolName || "" },
+          branchId: { _id: "", branchName: "" }, // Reset branch selection only when school changes
+        });
+      } else if (editTarget) {
+        // Just update the school without resetting branch
+        setEditTarget({
+          ...editTarget,
+          schoolId: { _id: value, schoolName: option?.schoolName || "" },
+        });
+      }
+    }
+
+  }
   useEffect(() => {
     if (selectedSchoolId && branchData) {
       const filtered = branchData.filter(
@@ -104,6 +131,34 @@ const DevicesPage = () => {
       setFilteredBranches([]);
     }
   }, [selectedSchoolId, branchData]);
+
+  const handleSave = (updatedData: Partial<Device>) => {
+    if (!editTarget) return;
+
+    const changedFields: Partial<Record<keyof Device, unknown>> = {};
+
+    for (const key in updatedData) {
+      const newValue = updatedData[key as keyof Device];
+      const oldValue = editTarget[key as keyof Device];
+
+      if (newValue !== undefined && newValue !== oldValue) {
+        changedFields[key as keyof Device] = newValue;
+      }
+    }
+
+    console.log("Changed fields:", changedFields);
+
+    if (Object.keys(changedFields).length === 0) {
+      console.log("No changes detected.");
+      return;
+    }
+
+    updateDeviceMutation.mutate({
+      deviceId: editTarget._id,
+      data: changedFields,
+    });
+  };
+
 
   // branch reset when school changes
 
@@ -237,7 +292,25 @@ const DevicesPage = () => {
         const rowData = row.original;
         return (
           <div className="flex items-center justify-center gap-2">
-            <button className="bg-yellow-400 hover:bg-yellow-500 text-[#733e0a] font-semibold py-1 px-3 rounded-md cursor-pointer">
+            <button className="bg-yellow-400 hover:bg-yellow-500 text-[#733e0a] font-semibold py-1 px-3 rounded-md cursor-pointer"
+             onClick={() => {
+                const device = row.original;
+                setEditTarget(device);
+                setEditDialogOpen(true);
+
+                // Initialize selectedSchoolId with the current school
+                const currentSchoolId = device.schoolId?._id || null;
+                setSelectedSchoolId(currentSchoolId);
+
+                // Initialize filtered branches based on current school
+                if (currentSchoolId && branchData) {
+                  const filtered = branchData.filter(
+                    (branch: any) => branch.schoolId._id === currentSchoolId
+                  );
+                  setFilteredBranches(filtered);
+                }
+              }}
+            >
               Edit
             </button>
             <button
@@ -304,7 +377,7 @@ const DevicesPage = () => {
     },
     {
       label: "Driver",
-      key: "Driver",
+      key: "driver",
       type: "text",
     },
     {
@@ -493,7 +566,32 @@ const DevicesPage = () => {
         </div>
       </section>
 
-      <section>{/* Edit Dialog */}</section>
+      <section>
+        {/* Edit Dialog */}
+        <section>
+          {editTarget && (
+            <DynamicEditDialog
+              data={editTarget}
+              isOpen={editDialogOpen}
+              onClose={() => {
+                setEditDialogOpen(false);
+                setEditTarget(null);
+                setSelectedSchoolId(null);
+                setFilteredBranches([]);
+              }}
+              onSave={handleSave}
+              fields={deviceEditFieldConfigs}
+              title="Edit Device"
+              description="Update the device information below. Fields marked with * are required."
+              avatarConfig={{
+                imageKey: "logo",
+                nameKeys: ["name"],
+              }}
+              onFieldChange={handleSchoolChange}
+            />
+          )}
+        </section>
+      </section>
       {/* Floating Menu */}
       <section>
         <FloatingMenu
