@@ -44,6 +44,7 @@ import { Alert } from "@/components/Alert";
 import ResponseLoader from "@/components/ResponseLoader";
 import { ColumnVisibilitySelector } from "@/components/column-visibility-selector";
 import { CustomTableServerSidePagination } from "@/components/ui/customTable(serverSidePagination)";
+import Cookies from "js-cookie";
 
 // Parent interface
 interface Parent {
@@ -70,6 +71,43 @@ interface selectOption {
   label: string;
   value: string;
 }
+
+// Interface for decoded token
+interface DecodedToken {
+  userId: string;
+  role: string;
+  schoolId?: string;
+  branchId?: string;
+  id?: string;
+  schoolName?: string;
+  [key: string]: any;
+}
+
+// Helper function to decode JWT token
+const getDecodedToken = (token: string): DecodedToken | null => {
+  try {
+    const base64Url = token.split('.')[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split('')
+        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    );
+    return JSON.parse(jsonPayload);
+  } catch (error) {
+    console.error('Error decoding token:', error);
+    return null;
+  }
+};
+
+// Helper function to get token from storage
+const getAuthToken = (): string | null => {
+  if (typeof window !== 'undefined') {
+    return Cookies.get("token") || localStorage.getItem('token') || sessionStorage.getItem('token');
+  }
+  return null;
+};
 
 declare module "@tanstack/react-table" {
   interface ColumnMeta<TData, TValue> {
@@ -120,9 +158,74 @@ export default function ParentsMaster() {
   const [filteredData, setFilteredData] = useState<Parent[]>([]);
   const [filterResults, setFilterResults] = useState<Parent[]>([]);
 
+  // Role-based states
+  const [role, setRole] = useState<string | null>(null);
+  const [userSchoolId, setUserSchoolId] = useState<string | null>(null);
+  const [userBranchId, setUserBranchId] = useState<string | null>(null);
+  const [userSchoolName, setUserSchoolName] = useState<string | null>(null);
+
   const { exportToPDF, exportToExcel } = useExport();
 
-  // Use the custom hook for fetching parents data
+  // Get user info from token
+  useEffect(() => {
+    const token = getAuthToken();
+    if (token) {
+      const decoded = getDecodedToken(token);
+      console.log("[Parent Master - Decoded Token]: ", decoded);
+      
+      const role = (decoded?.role || "").toLowerCase();
+      setRole(role);
+
+      // Handle schoolId based on role
+      if (role === "school" || role === "schooladmin") {
+        // For school role, use 'id' field from token
+        setUserSchoolId(decoded?.id || null);
+        console.log("[School Role] Using schoolId from 'id' field:", decoded?.id);
+      } else if (role === "branch" || role === "branchadmin") {
+        // For branch role, use 'schoolId' field from token
+        setUserSchoolId(decoded?.schoolId || null);
+        console.log("[Branch Role] Using schoolId from 'schoolId' field:", decoded?.schoolId);
+      } else {
+        // For superadmin or other roles, use schoolId if available
+        setUserSchoolId(decoded?.schoolId || null);
+        console.log("[Other Role] Using schoolId from 'schoolId' field:", decoded?.schoolId);
+      }
+
+      // Handle branchId - for branch role, use 'id' field as branchId
+      if (role === "branch" || role === "branchadmin") {
+        setUserBranchId(decoded?.id || null);
+        console.log("[Branch Role] Using branchId from 'id' field:", decoded?.id);
+      } else {
+        setUserBranchId(decoded?.branchId || null);
+        console.log("[Other Role] Using branchId from 'branchId' field:", decoded?.branchId);
+      }
+      
+      // Handle schoolName
+      setUserSchoolName(decoded?.schoolName || null);
+
+      console.log("[Parent Master - Final User Info]:", {
+        role,
+        userSchoolId,
+        userBranchId,
+        userSchoolName
+      });
+    }
+  }, []);
+
+  // Role checks
+  const normalizedRole = useMemo(() => {
+    const r = (role || "").toLowerCase();
+    if (["superadmin", "super_admin", "admin", "root"].includes(r)) return "superAdmin";
+    if (["school", "schooladmin"].includes(r)) return "school";
+    if (["branch", "branchadmin"].includes(r)) return "branch";
+    return undefined;
+  }, [role]);
+
+  const isSuperAdmin = normalizedRole === "superAdmin";
+  const isSchoolRole = normalizedRole === "school";
+  const isBranchRole = normalizedRole === "branch";
+
+  // Use the custom hook for fetching parents data with role-based filtering
   const {
     data: parentsData,
     isLoading,
@@ -133,6 +236,9 @@ export default function ParentsMaster() {
     pagination,
     sorting,
     name: debouncedName,
+    // Add role-based filters
+    ...(isSchoolRole && userSchoolId && { schoolId: userSchoolId }),
+    ...(isBranchRole && userBranchId && { branchId: userBranchId }),
   });
 
   // Initialize filtered data when parents data changes
@@ -143,54 +249,87 @@ export default function ParentsMaster() {
     }
   }, [parentsData?.data]);
 
-  // Debug logging to see pagination changes
-  console.log("parentsData", parentsData?.data);
+  // School options - Convert to Combobox format with role-based filtering
+  const schoolOptions = useMemo(() => {
+    if (!schoolData) return [];
+    
+    let filteredSchools = schoolData;
+    
+    // Filter schools based on role
+    if (isSchoolRole && userSchoolId) {
+      filteredSchools = schoolData.filter(s => s._id === userSchoolId);
+    } else if (isBranchRole && userSchoolId) {
+      filteredSchools = schoolData.filter(s => s._id === userSchoolId);
+    }
+    
+    return filteredSchools.filter((s) => s._id && s.schoolName)
+      .map((s) => ({ 
+        label: s.schoolName, 
+        value: s._id 
+      }));
+  }, [schoolData, isSchoolRole, isBranchRole, userSchoolId]);
 
-  // School options - Convert to Combobox format
-  const schoolOptions = useMemo(() => 
-    schoolData && schoolData.length > 0 
-      ? schoolData
-          .filter((s) => s._id && s.schoolName)
-          .map((s) => ({ 
-            label: s.schoolName, 
-            value: s._id 
-          }))
-      : [], 
-    [schoolData]
-  );
-
-  // Branch options - Convert to Combobox format
-  const branchOptions = useMemo(() => 
-    branchData && branchData.length > 0 
-      ? branchData
-          .filter((b) => b._id && b.branchName)
-          .map((b) => ({ 
-            label: b.branchName, 
-            value: b._id 
-          }))
-      : [], 
-    [branchData]
-  );
+  // Branch options - Convert to Combobox format with role-based filtering
+  const branchOptions = useMemo(() => {
+    if (!branchData) return [];
+    
+    let filteredBranches = branchData;
+    
+    // Filter branches based on role
+    if (isSchoolRole && userSchoolId) {
+      filteredBranches = branchData.filter(b => b.schoolId?._id === userSchoolId);
+    } else if (isBranchRole && userBranchId) {
+      // For branch role, they should only see their own branch
+      filteredBranches = branchData.filter(b => b._id === userBranchId);
+    }
+    
+    return filteredBranches.filter((b) => b._id && b.branchName)
+      .map((b) => ({ 
+        label: b.branchName, 
+        value: b._id 
+      }));
+  }, [branchData, isSchoolRole, isBranchRole, userSchoolId, userBranchId]);
 
   // Filtered branch options based on selected school
   const filteredBranchOptions = useMemo(() => {
     if (!school || !branchData) return [];
     
-    return branchData
-      .filter((branch) => branch.schoolId?._id === school)
-      .map((branch) => ({
-        label: branch.branchName,
-        value: branch._id,
-      }));
-  }, [school, branchData]);
+    let branches = branchData.filter((branch) => branch.schoolId?._id === school);
+    
+    // Additional role-based filtering
+    if (isBranchRole && userBranchId) {
+      branches = branches.filter(b => b._id === userBranchId);
+    }
+    
+    return branches.map((branch) => ({
+      label: branch.branchName,
+      value: branch._id,
+    }));
+  }, [school, branchData, isBranchRole, userBranchId]);
+
+  // Set default school for school and branch roles
+  useEffect(() => {
+    if ((isSchoolRole || isBranchRole) && userSchoolId && !school) {
+      setSchool(userSchoolId);
+    }
+  }, [isSchoolRole, isBranchRole, userSchoolId, school]);
+
+  // Set default branch for branch role
+  useEffect(() => {
+    if (isBranchRole && userBranchId && !branch) {
+      setBranch(userBranchId);
+    }
+  }, [isBranchRole, userBranchId, branch]);
 
   // Reset branch when school changes
   useEffect(() => {
-    setBranch("");
-    setBranchSearch("");
-  }, [school]);
+    if (school && !isBranchRole) {
+      setBranch("");
+      setBranchSearch("");
+    }
+  }, [school, isBranchRole]);
 
-  // Define the columns for the table
+  // Define the columns for the table with role-based visibility
   const columns: ColumnDef<Parent>[] = [
     {
       id: "name",
@@ -199,13 +338,13 @@ export default function ParentsMaster() {
       enableHiding: true,
       enableSorting: true,
     },
-    {
+    ...(isSuperAdmin ? [{
       id: "schoolName",
       header: "School Name",
       accessorFn: (row) => row.schoolId?.schoolName || "N/A",
       enableHiding: true,
       enableSorting: true,
-    },
+    }] : []),
     {
       id: "branchName",
       header: "Branch Name",
@@ -230,14 +369,21 @@ export default function ParentsMaster() {
     {
       id: "username",
       header: "User Name",
-      accessorFn: (row) => row.username|| "N/A",
+      accessorFn: (row) => row.username || "N/A",
       enableHiding: true,
       enableSorting: true,
     },
     {
       id: "password",
       header: "Password",
-      accessorFn: (row) => row.password|| "N/A",
+      accessorFn: (row) => row.password || "N/A",
+      enableHiding: true,
+      enableSorting: true,
+    },
+    {
+      id: "status",
+      header: "Status",
+      accessorFn: (row) => row.isActive ? "Active" : "Inactive",
       enableHiding: true,
       enableSorting: true,
     },
@@ -257,23 +403,25 @@ export default function ParentsMaster() {
           >
             Edit
           </Button>
-          <Button
-            variant="destructive"
-            size="sm"
-            onClick={() => setDeleteTarget(row.original)}
-            className="cursor-pointer hover:bg-red-700"
-          >
-            Delete
-          </Button>
+          {(isSuperAdmin || isSchoolRole) && (
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => setDeleteTarget(row.original)}
+              className="cursor-pointer hover:bg-red-700"
+            >
+              Delete
+            </Button>
+          )}
         </div>
       ),
     },
   ];
 
-  // columns for export
+  // Columns for export with role-based visibility
   const columnsForExport = [
     { key: "parentName", header: "Parent Name" },
-    { key: "schoolId.schoolName", header: "School Name" },
+    ...(isSuperAdmin ? [{ key: "schoolId.schoolName", header: "School Name" }] : []),
     { key: "branchId.branchName", header: "Branch Name" },
     { key: "mobileNo", header: "Mobile" },
     { key: "email", header: "Email" },
@@ -282,31 +430,36 @@ export default function ParentsMaster() {
     {
       key: "isActive",
       header: "Status",
-      formatter: (value) => (value ? "Active" : "Inactive"),
+      formatter: (value: boolean) => (value ? "Active" : "Inactive"),
     },
     {
       key: "createdAt",
       header: "Created At",
-      formatter: (value) => new Date(value).toLocaleDateString("en-GB"),
+      formatter: (value: string) => new Date(value).toLocaleDateString("en-GB"),
     },
   ];
 
-  // Define the fields for the edit dialog
-  const parentFieldConfigs: FieldConfig[] = [
+  // Define the fields for the edit dialog with role-based configuration
+  const getParentFieldConfigs = (schoolOptions: selectOption[], branchOptions: selectOption[]): FieldConfig[] => [
     { label: "Parent Name", key: "parentName", type: "text", required: true },
-    {
+    ...(isSuperAdmin ? [{
       label: "School Name",
       key: "schoolId",
       type: "select",
       required: true,
       options: schoolOptions,
-    },
+    }] : []),
     {
       label: "Branch Name",
       key: "branchId",
       type: "select",
       required: true,
       options: branchOptions,
+      ...((isSchoolRole && userSchoolId) && { 
+        filterBy: "schoolId", 
+        filterValue: userSchoolId 
+      }),
+      ...(isBranchRole && { disabled: true }),
     },
     { label: "Mobile Number", key: "mobileNo", type: "text", required: true },
     { label: "Email", key: "email", type: "email", required: true },
@@ -318,7 +471,6 @@ export default function ParentsMaster() {
   // Mutation to add a new parent
   const addParentMutation = useMutation({
     mutationFn: async (newParent: any) => {
-      //console.log("Data going to backend");
       const parent = await api.post("/parent", newParent);
       return parent.parent;
     },
@@ -384,7 +536,6 @@ export default function ParentsMaster() {
     setPagination((prev) => {
       const newPagination =
         typeof updater === "function" ? updater(prev) : updater;
-      //console.log("Pagination changed from", prev, "to", newPagination);
 
       // If page size changed, reset to first page
       if (newPagination.pageSize !== prev.pageSize) {
@@ -411,7 +562,7 @@ export default function ParentsMaster() {
     }
 
     if (Object.keys(changedFields).length === 0) {
-      //console.log("No changes detected.");
+      console.log("No changes detected.");
       return;
     }
 
@@ -426,10 +577,21 @@ export default function ParentsMaster() {
     const form = e.currentTarget;
     const formData = new FormData(form);
 
-    if (!school) {
+    // Role-based school and branch selection
+    let selectedSchool = school;
+    let selectedBranch = branch;
+
+    if (isSchoolRole || isBranchRole) {
+      selectedSchool = userSchoolId || "";
+    }
+    if (isBranchRole) {
+      selectedBranch = userBranchId || "";
+    }
+
+    if (!selectedSchool) {
       alert("Please select a school");
       return;
-    } else if (!branch) {
+    } else if (!selectedBranch) {
       alert("Please select a branch");
       return;
     }
@@ -440,8 +602,8 @@ export default function ParentsMaster() {
       email: formData.get("parentEmail") as string,
       username: formData.get("username") as string,
       password: formData.get("password") as string,
-      schoolId: school,
-      branchId: branch,
+      schoolId: selectedSchool,
+      branchId: selectedBranch,
       isActive: formData.get("isActive") === "on",
     };
 
@@ -449,10 +611,14 @@ export default function ParentsMaster() {
       await addParentMutation.mutateAsync(data);
       closeButtonRef.current?.click();
       form.reset();
-      setSchool("");
-      setSchoolSearch("");
-      setBranch("");
-      setBranchSearch("");
+      
+      // Reset school and branch selection for super admin only
+      if (isSuperAdmin) {
+        setSchool("");
+        setSchoolSearch("");
+        setBranch("");
+        setBranchSearch("");
+      }
     } catch (err) {
       // Error handled in mutation
     }
@@ -491,18 +657,12 @@ export default function ParentsMaster() {
 
       <header className="flex items-center justify-between mb-4">
         <section className="flex space-x-4">
-          {/* Search component - updated to match notification page design */}
+          {/* Search component */}
           <SearchComponent
             data={filterResults}
             displayKey={["parentName", "mobileNo", "email", "username", "schoolId.schoolName", "branchId.branchName"]}
             onResults={handleSearchResults}
             className="w-[300px] mb-4"
-          />
-
-          {/* Date range picker */}
-          <DateRangeFilter
-            onDateRangeChange={handleDateFilter}
-            title="Search by Registration Date"
           />
           
           {/* Column visibility selector */}
@@ -513,144 +673,149 @@ export default function ParentsMaster() {
           />
         </section>
 
-        {/* Add Parent */}
-        <section>
-          <Dialog>
-            <DialogTrigger asChild>
-              <Button variant="default">Add Parent</Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[600px]">
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <DialogHeader>
-                  <DialogTitle>Add Parent</DialogTitle>
-                </DialogHeader>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="grid gap-2">
-                    <Label htmlFor="parentName">Parent Name</Label>
-                    <Input
-                      id="parentName"
-                      name="parentName"
-                      placeholder="Enter parent name"
-                      required
-                    />
+        {/* Add Parent - Only show for super admin, school admin, and branch admin */}
+        {(isSuperAdmin || isSchoolRole || isBranchRole) && (
+          <section>
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button variant="default">Add Parent</Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[600px]">
+                <form onSubmit={handleSubmit} className="space-y-4">
+                  <DialogHeader>
+                    <DialogTitle>Add Parent</DialogTitle>
+                  </DialogHeader>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="grid gap-2">
+                      <Label htmlFor="parentName">Parent Name</Label>
+                      <Input
+                        id="parentName"
+                        name="parentName"
+                        placeholder="Enter parent name"
+                        required
+                      />
+                    </div>
+
+                    {/* Show School field only for superadmin */}
+                    {isSuperAdmin && (
+                      <div className="grid gap-2">
+                        <Label htmlFor="schoolId">School *</Label>
+                        <Combobox 
+                          items={schoolOptions} 
+                          value={school} 
+                          onValueChange={setSchool}
+                          placeholder="Search school..." 
+                          searchPlaceholder="Search schools..." 
+                          emptyMessage="No school found."
+                          width="w-full" 
+                          onSearchChange={setSchoolSearch} 
+                          searchValue={schoolSearch} 
+                        />
+                      </div>
+                    )}
+
+                    <div className="grid gap-2">
+                      <Label htmlFor="branchId">Branch *</Label>
+                      <Combobox 
+                        items={filteredBranchOptions} 
+                        value={branch} 
+                        onValueChange={setBranch}
+                        placeholder={
+                          !school && isSuperAdmin
+                            ? "Select school first"
+                            : filteredBranchOptions.length
+                            ? "Search branch..." 
+                            : "No branches available"
+                        }
+                        searchPlaceholder="Search branches..." 
+                        emptyMessage={
+                          !school && isSuperAdmin
+                            ? "Please select a school first" 
+                            : filteredBranchOptions.length === 0 
+                              ? "No branches found for this school" 
+                              : "No branches match your search"
+                        }
+                        width="w-full" 
+                        disabled={(!school && isSuperAdmin) || isBranchRole}
+                        onSearchChange={setBranchSearch} 
+                        searchValue={branchSearch} 
+                      />
+                    </div>
+
+                    <div className="grid gap-2">
+                      <Label htmlFor="parentEmail">Email</Label>
+                      <Input
+                        id="parentEmail"
+                        name="parentEmail"
+                        type="email"
+                        placeholder="Enter email address"
+                        required
+                      />
+                    </div>
+
+                    <div className="grid gap-2">
+                      <Label htmlFor="contactNo">Mobile No</Label>
+                      <Input
+                        id="contactNo"
+                        name="contactNo"
+                        type="tel"
+                        placeholder="Enter mobile number"
+                        pattern="[0-9]{10}"
+                        maxLength={10}
+                        autoComplete="tel"
+                        required
+                      />
+                    </div>
+
+                    <div className="grid gap-2">
+                      <Label htmlFor="username">Username</Label>
+                      <Input
+                        id="username"
+                        name="username"
+                        type="text"
+                        placeholder="Enter username"
+                        required
+                      />
+                    </div>
+
+                    <div className="grid gap-2">
+                      <Label htmlFor="password">Password</Label>
+                      <Input
+                        id="password"
+                        name="password"
+                        type="text"
+                        placeholder="Enter password"
+                        required
+                      />
+                    </div>
+
+                    <div className="flex items-center gap-3 mt-6">
+                      <input
+                        type="checkbox"
+                        id="isActive"
+                        name="isActive"
+                        className="h-5 w-5"
+                        defaultChecked
+                      />
+                      <Label htmlFor="isActive">Active Status</Label>
+                    </div>
                   </div>
 
-                  <div className="grid gap-2">
-                    <Label htmlFor="schoolId">School *</Label>
-                    <Combobox 
-                      items={schoolOptions} 
-                      value={school} 
-                      onValueChange={setSchool}
-                      placeholder="Search school..." 
-                      searchPlaceholder="Search schools..." 
-                      emptyMessage="No school found."
-                      width="w-full" 
-                      onSearchChange={setSchoolSearch} 
-                      searchValue={schoolSearch} 
-                    />
-                  </div>
-
-                  <div className="grid gap-2">
-                    <Label htmlFor="branchId">Branch *</Label>
-                    <Combobox 
-                      items={filteredBranchOptions} 
-                      value={branch} 
-                      onValueChange={setBranch}
-                      placeholder={
-                        !school
-                          ? "Select school first"
-                          : filteredBranchOptions.length
-                          ? "Search branch..." 
-                          : "No branches available"
-                      }
-                      searchPlaceholder="Search branches..." 
-                      emptyMessage={
-                        !school 
-                          ? "Please select a school first" 
-                          : filteredBranchOptions.length === 0 
-                            ? "No branches found for this school" 
-                            : "No branches match your search"
-                      }
-                      width="w-full" 
-                      disabled={!school}
-                      onSearchChange={setBranchSearch} 
-                      searchValue={branchSearch} 
-                    />
-                  </div>
-
-                  <div className="grid gap-2">
-                    <Label htmlFor="parentEmail">Email</Label>
-                    <Input
-                      id="parentEmail"
-                      name="parentEmail"
-                      type="email"
-                      placeholder="Enter email address"
-                      required
-                    />
-                  </div>
-
-                  <div className="grid gap-2">
-                    <Label htmlFor="contactNo">Mobile No</Label>
-                    <Input
-                      id="contactNo"
-                      name="contactNo"
-                      type="tel"
-                      placeholder="Enter mobile number"
-                      pattern="[0-9]{10}"
-                      maxLength={10}
-                      autoComplete="tel"
-                      required
-                    />
-                  </div>
-
-                  <div className="grid gap-2">
-                    <Label htmlFor="username">Username</Label>
-                    <Input
-                      id="username"
-                      name="username"
-                      type="text"
-                      placeholder="Enter username"
-                      required
-                    />
-                  </div>
-
-                  <div className="grid gap-2">
-                    <Label htmlFor="password">Password</Label>
-                    <Input
-                      id="password"
-                      name="password"
-                      type="text"
-                      placeholder="Enter password"
-                      required
-                    />
-                  </div>
-
-                  <div className="flex items-center gap-3 mt-6">
-                    <input
-                      type="checkbox"
-                      id="isActive"
-                      name="isActive"
-                      className="h-5 w-5"
-                      defaultChecked
-                    />
-                    <Label htmlFor="isActive">Active Status</Label>
-                  </div>
-                </div>
-
-                <DialogFooter>
-                  <DialogClose asChild>
-                    <Button ref={closeButtonRef} variant="outline">
-                      Cancel
+                  <DialogFooter>
+                    <DialogClose asChild>
+                      <Button ref={closeButtonRef} variant="outline">
+                        Cancel
+                      </Button>
+                    </DialogClose>
+                    <Button type="submit" disabled={addParentMutation.isPending}>
+                      {addParentMutation.isPending ? "Saving..." : "Save Parent"}
                     </Button>
-                  </DialogClose>
-                  <Button type="submit" disabled={addParentMutation.isPending}>
-                    {addParentMutation.isPending ? "Saving..." : "Save Parent"}
-                  </Button>
-                </DialogFooter>
-              </form>
-            </DialogContent>
-          </Dialog>
-        </section>
+                  </DialogFooter>
+                </form>
+              </DialogContent>
+            </Dialog>
+          </section>
+        )}
       </header>
 
       {/* Table component with server-side functionality */}
@@ -692,7 +857,7 @@ export default function ParentsMaster() {
               setEditTarget(null);
             }}
             onSave={handleSave}
-            fields={parentFieldConfigs}
+            fields={getParentFieldConfigs(schoolOptions, branchOptions)}
             title="Edit Parent"
             description="Update the parent information below. Fields marked with * are required."
             avatarConfig={{
