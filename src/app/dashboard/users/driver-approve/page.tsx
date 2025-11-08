@@ -25,12 +25,12 @@ import { useInfiniteDeviceData } from "@/hooks/useInfiniteDeviceData";
 import { Driver } from "@/interface/modal";
 import Cookies from "js-cookie";
 import { getDecodedToken } from "@/lib/jwt";
+import ReactDOM from 'react-dom';
 
 interface SelectOption {
   label: string;
   value: string;
 }
-
 // Status Dropdown Component
 const StatusDropdown = ({ 
   currentStatus, 
@@ -43,6 +43,7 @@ const StatusDropdown = ({
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
 
   const statusOptions = [
     { label: "Approved", value: "Approved" as const },
@@ -77,9 +78,41 @@ const StatusDropdown = ({
     };
   }, []);
 
+  // Use React Portal to render dropdown outside the table container
+  const renderDropdown = () => {
+    if (!isOpen || disabled || !buttonRef.current) return null;
+
+    const buttonRect = buttonRef.current.getBoundingClientRect();
+    
+    return ReactDOM.createPortal(
+      <div 
+        className="fixed bg-white border border-gray-200 rounded-md shadow-lg z-[9999] min-w-[120px]"
+        style={{
+          left: buttonRect.left + (buttonRect.width / 2) - 60, // Center the dropdown
+          top: buttonRect.top - 10, // Position above the button
+        }}
+      >
+        {statusOptions.map((option) => (
+          <button
+            key={option.value}
+            type="button"
+            className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-100 ${
+              currentStatus === option.value ? 'bg-blue-50 text-blue-600' : ''
+            }`}
+            onClick={() => handleStatusSelect(option.value)}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>,
+      document.body
+    );
+  };
+
   return (
-    <div className="relative" ref={dropdownRef}>
+    <div className="relative inline-block" ref={dropdownRef}>
       <button
+        ref={buttonRef}
         type="button"
         className={`px-3 py-1 border rounded-full text-sm font-medium ${getStatusColor(currentStatus)} ${
           disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:opacity-80'
@@ -90,22 +123,7 @@ const StatusDropdown = ({
         {currentStatus || "Pending"}
       </button>
       
-      {isOpen && !disabled && (
-        <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-md shadow-lg z-10 min-w-[120px]">
-          {statusOptions.map((option) => (
-            <button
-              key={option.value}
-              type="button"
-              className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-100 ${
-                currentStatus === option.value ? 'bg-blue-50 text-blue-600' : ''
-              }`}
-              onClick={() => handleStatusSelect(option.value)}
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>
-      )}
+      {renderDropdown()}
     </div>
   );
 };
@@ -365,7 +383,7 @@ const useDriverForm = (initialData?: Driver, role?: string, isSuperAdmin?: boole
   };
 };
 
-// Edit Driver Dialog Component - MOVED OUTSIDE MAIN COMPONENT
+// Edit Driver Dialog Component
 const EditDriverDialog = ({ 
   editTarget, 
   editDialogOpen, 
@@ -381,7 +399,6 @@ const EditDriverDialog = ({
   isBranchRole,
   userSchoolId,
   userBranchId,
-  userSchoolIdForBranch,
   handleEditSave,
   getDeviceItems
 }: any) => {
@@ -395,25 +412,25 @@ const EditDriverDialog = ({
   const [usernameError, setUsernameError] = useState("");
 
   // Initialize form data when editTarget changes
-    useEffect(() => {
-      if (editTarget) {
-        setFormData({
-          driverName: editTarget.driverName || "",
-          mobileNo: editTarget.mobileNo || "",
-          username: editTarget.username || "",
-          password: editTarget.password || "",
-          email: editTarget.email || "",
-        });
-      }
-    }, [editTarget]);
+  useEffect(() => {
+    if (editTarget) {
+      setFormData({
+        driverName: editTarget.driverName || "",
+        mobileNo: editTarget.mobileNo || "",
+        username: editTarget.username || "",
+        password: editTarget.password || "",
+        email: editTarget.email || "",
+      });
+    }
+  }, [editTarget]);
 
-    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-      const { name, value } = e.target;
-      setFormData(prev => ({ ...prev, [name]: value }));
-      if (name === 'username') setUsernameError("");
-    };
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+    if (name === 'username') setUsernameError("");
+  };
 
-    const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
     // Role-based validation
@@ -447,8 +464,8 @@ const EditDriverDialog = ({
       updatedData.schoolId = userSchoolId;
       updatedData.branchId = editForm.branch;
     } else if (isBranchRole) {
-      updatedData.schoolId = userSchoolId;  // Use userSchoolId directly
-      updatedData.branchId = userBranchId;  // Use userBranchId directly
+      updatedData.schoolId = userSchoolId;
+      updatedData.branchId = userBranchId;
     }
 
     handleEditSave(updatedData);
@@ -511,7 +528,7 @@ const EditDriverDialog = ({
   );
 };
 
-// Add Driver Dialog Component - MOVED OUTSIDE MAIN COMPONENT
+// Add Driver Dialog Component
 const AddDriverDialog = ({ 
   addDialogOpen, 
   setAddDialogOpen, 
@@ -525,7 +542,6 @@ const AddDriverDialog = ({
   isBranchRole,
   userSchoolId,
   userBranchId,
-  userSchoolIdForBranch,
   handleSubmit,
   getDeviceItems,
   closeButtonRef
@@ -543,7 +559,7 @@ const AddDriverDialog = ({
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-    const handleFormSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleFormSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     
     // Role-based validation
@@ -577,14 +593,15 @@ const AddDriverDialog = ({
       data.schoolId = userSchoolId;
       data.branchId = addForm.branch;
     } else if (isBranchRole) {
-      data.schoolId = userSchoolId;  // Use userSchoolId directly
-      data.branchId = userBranchId;  // Use userBranchId directly
+      data.schoolId = userSchoolId;
+      data.branchId = userBranchId;
     }
 
     console.log("Submitting driver data:", data);
 
     await addDriverMutation.mutateAsync(data);
   };
+
   return (
     <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
       <DialogTrigger asChild>
@@ -665,160 +682,70 @@ export default function DriverApprove() {
   const [userBranchId, setUserBranchId] = useState<string | null>(null);
   const [userSchoolName, setUserSchoolName] = useState<string | null>(null);
 
+  // State to track current page for table
+  const [currentPage, setCurrentPage] = useState(0);
 
+  // Role checks
+  const normalizedRole = useMemo(() => {
+    const r = (role || "").toLowerCase();
+    if (["superadmin", "super_admin", "admin", "root"].includes(r)) return "superAdmin";
+    if (["school", "schooladmin"].includes(r)) return "school";
+    if (["branch", "branchadmin"].includes(r)) return "branch";
+    return undefined;
+  }, [role]);
+
+  const isSuperAdmin = normalizedRole === "superAdmin";
+  const isSchoolRole = normalizedRole === "school";
+  const isBranchRole = normalizedRole === "branch";
+
+  // Get user info from token
   useEffect(() => {
-    
-    console.log("[School Id]: ", userSchoolId);
-  }, [userSchoolId]);
+    const token = Cookies.get("token");
+    if (token) {
+      const decoded = getDecodedToken(token);
+      console.log("[Decoded Token]: ", decoded);
+      
+      const role = (decoded?.role || "").toLowerCase();
+      setRole(role);
 
-  // Role checks - MOVED BEFORE HOOK CALLS
-    const normalizedRole = useMemo(() => {
-      const r = (role || "").toLowerCase();
-      if (["superadmin", "super_admin", "admin", "root"].includes(r)) return "superAdmin";
-      if (["school", "schooladmin"].includes(r)) return "school";
-      if (["branch", "branchadmin"].includes(r)) return "branch";
-      return undefined;
-    }, [role]);
-
-    const isSuperAdmin = normalizedRole === "superAdmin";
-    const isSchoolRole = normalizedRole === "school";
-    const isBranchRole = normalizedRole === "branch";
-
-    // Get user info from token
-    useEffect(() => {
-      const token = Cookies.get("token");
-      if (token) {
-        const decoded = getDecodedToken(token);
-        console.log("[Decoded Token]: ", decoded);
-        
-        const role = (decoded?.role || "").toLowerCase();
-        setRole(role);
-
-        // Handle schoolId based on role
-        if (role === "school" || role === "schooladmin") {
-          // For school role, use 'id' field from token
-          setUserSchoolId(decoded?.id || null);
-          console.log("[School Role] Using schoolId from 'id' field:", decoded?.id);
-        } else if (role === "branch" || role === "branchadmin") {
-          // For branch role, use 'schoolId' field from token
-          setUserSchoolId(decoded?.schoolId || null);
-          console.log("[Branch Role] Using schoolId from 'schoolId' field:", decoded?.schoolId);
-        } else {
-          // For superadmin or other roles, use schoolId if available
-          setUserSchoolId(decoded?.schoolId || null);
-          console.log("[Other Role] Using schoolId from 'schoolId' field:", decoded?.schoolId);
-        }
-
-        // Handle branchId - for branch role, use 'id' field as branchId
-        if (role === "branch" || role === "branchadmin") {
-          setUserBranchId(decoded?.id || null);
-          console.log("[Branch Role] Using branchId from 'id' field:", decoded?.id);
-        } else {
-          setUserBranchId(decoded?.branchId || null);
-          console.log("[Other Role] Using branchId from 'branchId' field:", decoded?.branchId);
-        }
-        
-        // Handle schoolName
-        setUserSchoolName(decoded?.schoolName || null);
-
-        console.log("[Final User Info]:", {
-          role,
-          userSchoolId,
-          userBranchId,
-          userSchoolName
-        });
+      // Handle schoolId based on role
+      if (role === "school" || role === "schooladmin") {
+        setUserSchoolId(decoded?.id || null);
+        console.log("[School Role] Using schoolId from 'id' field:", decoded?.id);
+      } else if (role === "branch" || role === "branchadmin") {
+        setUserSchoolId(decoded?.schoolId || null);
+        console.log("[Branch Role] Using schoolId from 'schoolId' field:", decoded?.schoolId);
+      } else {
+        setUserSchoolId(decoded?.schoolId || null);
+        console.log("[Other Role] Using schoolId from 'schoolId' field:", decoded?.schoolId);
       }
-    }, []);
 
+      // Handle branchId - for branch role, use 'id' field as branchId
+      if (role === "branch" || role === "branchadmin") {
+        setUserBranchId(decoded?.id || null);
+        console.log("[Branch Role] Using branchId from 'id' field:", decoded?.id);
+      } else {
+        setUserBranchId(decoded?.branchId || null);
+        console.log("[Other Role] Using branchId from 'branchId' field:", decoded?.branchId);
+      }
+      
+      setUserSchoolName(decoded?.schoolName || null);
 
-  // Data hooks - MOVED AFTER STATE DECLARATIONS
+      console.log("[Final User Info]:", {
+        role,
+        userSchoolId,
+        userBranchId,
+        userSchoolName
+      });
+    }
+  }, []);
+
+  // Data hooks
   const { data: schoolData } = useSchoolData({
     enabled: isSuperAdmin
   });
 
   const { data: branchData, isLoading: branchLoading } = useBranchData();
-
-  // Form hooks - MOVED AFTER ALL USE STATE DECLARATIONS
-  const addForm = useDriverForm(undefined, normalizedRole, isSuperAdmin, isSchoolRole);
-  const editForm = useDriverForm(editTarget || undefined, normalizedRole, isSuperAdmin, isSchoolRole);
-
-  // Get drivers based on role
-  const { data: drivers, isLoading } = useQuery<Driver[]>({
-    queryKey: ["drivers", normalizedRole, userSchoolId, userBranchId],
-    queryFn: async () => {
-      let url = "/driver";
-      if (isSchoolRole && userSchoolId) {
-        url += `?schoolId=${userSchoolId}`;
-      } else if (isBranchRole && userBranchId) {
-        url += `?branchId=${userBranchId}`;
-      }
-      return await api.get<Driver[]>(url);
-    },
-    enabled: !!normalizedRole,
-  });
-
-  // Set initial values for forms based on role
-  useEffect(() => {
-    if (isSchoolRole && userSchoolId) {
-      addForm.setSchool(userSchoolId);
-    }
-    if (isBranchRole && userBranchId) {
-      addForm.setBranch(userBranchId);
-    }
-  }, [isSchoolRole, isBranchRole, userSchoolId, userBranchId, addForm]);
-
-  // Get schoolId for branch role from branchData
-  const userSchoolIdForBranch = useMemo(() => {
-    if (isBranchRole && userBranchId && branchData) {
-      const userBranch = branchData.find(b => b._id === userBranchId);
-      console.log("[userSchoolIdForBranch] Found branch:", userBranch);
-      console.log("[userSchoolIdForBranch] Result:", userBranch?.schoolId?._id || userBranch?.schoolId || null);
-      return userBranch?.schoolId?._id || userBranch?.schoolId || null;
-    }
-    return null;
-  }, [isBranchRole, userBranchId, branchData]);
-
-  // Device data for add dialog - Proper schoolId handling for school role
-  const addDeviceQuery = useInfiniteDeviceData({
-    role: normalizedRole as any,
-    schoolId: isSuperAdmin 
-      ? addForm.school || undefined 
-      : isSchoolRole 
-      ? userSchoolId || undefined
-      : isBranchRole
-      ? userSchoolId || undefined  // Use userSchoolId directly for branch role
-      : undefined,
-    branchId: isSuperAdmin 
-      ? addForm.branch || undefined 
-      : isSchoolRole 
-      ? addForm.branch || undefined 
-      : isBranchRole
-      ? userBranchId || undefined
-      : undefined,
-    search: addForm.deviceSearch,
-    limit: 20,
-  });
-
-  // Device data for edit dialog - Proper schoolId handling for school role
-  const editDeviceQuery = useInfiniteDeviceData({
-    role: normalizedRole as any,
-    schoolId: isSuperAdmin 
-      ? editForm.school || undefined 
-      : isSchoolRole 
-      ? userSchoolId || undefined
-      : isBranchRole
-      ? userSchoolId || undefined  // Use userSchoolId directly for branch role
-      : undefined,
-    branchId: isSuperAdmin 
-      ? editForm.branch || undefined 
-      : isSchoolRole 
-      ? editForm.branch || undefined 
-      : isBranchRole
-      ? userBranchId || undefined
-      : undefined,
-    search: editForm.deviceSearch,
-    limit: 20,
-  });
 
   // Helper function to get ID from object or string
   const getId = useCallback((obj: any): string => {
@@ -834,12 +761,12 @@ export default function DriverApprove() {
     
     if (isSchoolRole && userSchoolId) {
       filteredSchools = schoolData.filter(s => s._id === userSchoolId);
-    } else if (isBranchRole && userSchoolIdForBranch) {
-      filteredSchools = schoolData.filter(s => s._id === userSchoolIdForBranch);
+    } else if (isBranchRole && userSchoolId) {
+      filteredSchools = schoolData.filter(s => s._id === userSchoolId);
     }
     
     return Array.from(new Map(filteredSchools.filter(s => s._id && s.schoolName).map(s => [s._id, { label: s.schoolName, value: s._id }])).values());
-  }, [schoolData, isSchoolRole, isBranchRole, userSchoolId, userSchoolIdForBranch]);
+  }, [schoolData, isSchoolRole, isBranchRole, userSchoolId]);
 
   // Branch options for all roles
   const getFilteredBranchOptions = useCallback((schoolId: string) => {
@@ -859,6 +786,11 @@ export default function DriverApprove() {
     }));
   }, [branchData, isSuperAdmin, isSchoolRole, isBranchRole, userSchoolId, userBranchId, getId]);
 
+  // Form hooks - MOVED AFTER branch options functions
+  const addForm = useDriverForm(undefined, normalizedRole, isSuperAdmin, isSchoolRole);
+  const editForm = useDriverForm(editTarget || undefined, normalizedRole, isSuperAdmin, isSchoolRole);
+
+  // Memoized branch options - MOVED AFTER form hooks
   const addBranchOptions = useMemo(() => 
     getFilteredBranchOptions(addForm.school), 
     [getFilteredBranchOptions, addForm.school]
@@ -868,6 +800,75 @@ export default function DriverApprove() {
     getFilteredBranchOptions(editForm.school), 
     [getFilteredBranchOptions, editForm.school]
   );
+
+  // Get drivers based on role
+  const { data: drivers, isLoading } = useQuery<Driver[]>({
+    queryKey: ["drivers", normalizedRole, userSchoolId, userBranchId, currentPage],
+    queryFn: async () => {
+      let url = "/driver";
+      if (isSchoolRole && userSchoolId) {
+        url += `?schoolId=${userSchoolId}`;
+      } else if (isBranchRole && userBranchId) {
+        url += `?branchId=${userBranchId}`;
+      }
+      return await api.get<Driver[]>(url);
+    },
+    enabled: !!normalizedRole,
+  });
+
+  // Set initial values for forms based on role - FIXED: Using useEffect to handle auto-selection
+  useEffect(() => {
+    if (isSchoolRole && userSchoolId) {
+      // Set school for school role
+      addForm.setSchool(userSchoolId);
+      
+    }
+    if (isBranchRole && userBranchId) {
+      addForm.setBranch(userBranchId);
+    }
+  }, [isSchoolRole, isBranchRole, userSchoolId, userBranchId, addForm, addBranchOptions]);
+
+  // Device data for add dialog
+  const addDeviceQuery = useInfiniteDeviceData({
+    role: normalizedRole as any,
+    schoolId: isSuperAdmin 
+      ? addForm.school || undefined 
+      : isSchoolRole 
+      ? userSchoolId || undefined
+      : isBranchRole
+      ? userSchoolId || undefined
+      : undefined,
+    branchId: isSuperAdmin 
+      ? addForm.branch || undefined 
+      : isSchoolRole 
+      ? addForm.branch || undefined 
+      : isBranchRole
+      ? userBranchId || undefined
+      : undefined,
+    search: addForm.deviceSearch,
+    limit: 20,
+  });
+
+  // Device data for edit dialog
+  const editDeviceQuery = useInfiniteDeviceData({
+    role: normalizedRole as any,
+    schoolId: isSuperAdmin 
+      ? editForm.school || undefined 
+      : isSchoolRole 
+      ? userSchoolId || undefined
+      : isBranchRole
+      ? userSchoolId || undefined
+      : undefined,
+    branchId: isSuperAdmin 
+      ? editForm.branch || undefined 
+      : isSchoolRole 
+      ? editForm.branch || undefined 
+      : isBranchRole
+      ? userBranchId || undefined
+      : undefined,
+    search: editForm.deviceSearch,
+    limit: 20,
+  });
 
   const getDeviceItems = useCallback((deviceData: any) => {
     if (!deviceData?.pages?.length) return [];
@@ -883,13 +884,6 @@ export default function DriverApprove() {
       setFilteredData(drivers);
     }
   }, [drivers]);
-
-  // Auto-select first branch for school role if not selected yet
-  useEffect(() => {
-    if (isSchoolRole && addBranchOptions.length > 0 && !addForm.branch && !branchLoading) {
-      addForm.setBranch(addBranchOptions[0].value);
-    }
-  }, [isSchoolRole, addBranchOptions, addForm, branchLoading]);
 
   // Approve/reject mutation
   const approveMutation = useMutation({
@@ -925,7 +919,6 @@ export default function DriverApprove() {
       alert("Failed to update driver status.");
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["drivers"] });
       alert(`Driver ${variables.isApproved.toLowerCase()} successfully.`);
     },
   });
@@ -1215,7 +1208,6 @@ export default function DriverApprove() {
             isBranchRole={isBranchRole}
             userSchoolId={userSchoolId}
             userBranchId={userBranchId}
-            userSchoolIdForBranch={userSchoolIdForBranch}
             handleSubmit={handleSubmit}
             getDeviceItems={getDeviceItems}
             closeButtonRef={closeButtonRef}
@@ -1235,6 +1227,7 @@ export default function DriverApprove() {
           showSerialNumber={true}
           noDataMessage="No drivers found"
           isLoading={isLoading}
+          onPageChange={setCurrentPage}
         />
       </section>
 
@@ -1267,7 +1260,6 @@ export default function DriverApprove() {
         isBranchRole={isBranchRole}
         userSchoolId={userSchoolId}
         userBranchId={userBranchId}
-        userSchoolIdForBranch={userSchoolIdForBranch}
         handleEditSave={handleEditSave}
         getDeviceItems={getDeviceItems}
       />

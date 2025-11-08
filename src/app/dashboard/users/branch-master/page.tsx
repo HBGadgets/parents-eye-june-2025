@@ -35,11 +35,8 @@ import { Alert } from "@/components/Alert";
 import ResponseLoader from "@/components/ResponseLoader";
 import { CustomFilter } from "@/components/ui/CustomFilter";
 import { ColumnVisibilitySelector } from "@/components/column-visibility-selector";
-import DatePicker from 'react-datepicker';
-import { CalendarDays } from 'lucide-react';
-
-import 'react-datepicker/dist/react-datepicker.css';
-import ExpirationDatePicker from "@/components/ui/ExpirationDatePicker";
+import { DatePicker } from "@/components/ui/datePicker";
+import Cookies from "js-cookie";
 
 type branchAccess = {
   _id: string;
@@ -50,13 +47,43 @@ interface SchoolMinimal {
   _id: string;
   schoolName: string;
 }
-declare module "@tanstack/react-table" {
-  interface ColumnMeta<TData, TValue> {
-    flex?: number;
-    minWidth?: number;
-    maxWidth?: number;
-  }
+
+// Interface for decoded token
+interface DecodedToken {
+  userId: string;
+  role: string;
+  schoolId?: string;
+  branchId?: string;
+  id?: string;
+  schoolName?: string;
+  [key: string]: any;
 }
+
+// Helper function to decode JWT token
+const getDecodedToken = (token: string): DecodedToken | null => {
+  try {
+    const base64Url = token.split('.')[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split('')
+        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    );
+    return JSON.parse(jsonPayload);
+  } catch (error) {
+    console.error('Error decoding token:', error);
+    return null;
+  }
+};
+
+// Helper function to get token from storage
+const getAuthToken = (): string | null => {
+  if (typeof window !== 'undefined') {
+    return Cookies.get("token") || localStorage.getItem('token') || sessionStorage.getItem('token');
+  }
+  return null;
+};
 
 export default function BranchMaster() {
   const queryClient = useQueryClient();
@@ -77,8 +104,71 @@ export default function BranchMaster() {
   const [isVerificationDialogOpen, setIsVerificationDialogOpen] = useState(false);
   const [isVerified, setIsVerified] = useState(false);
   const [currentProtectedField, setCurrentProtectedField] = useState<string | null>(null);
+  const [role, setRole] = useState<string | null>(null);
+  const [userSchoolId, setUserSchoolId] = useState<string | null>(null);
+  const [userBranchId, setUserBranchId] = useState<string | null>(null);
+  const [userSchoolName, setUserSchoolName] = useState<string | null>(null);
 
-  // Fetch branch data
+  // Get user info from token
+  useEffect(() => {
+    const token = getAuthToken();
+    if (token) {
+      const decoded = getDecodedToken(token);
+      console.log("[Branch Master - Decoded Token]: ", decoded);
+      
+      const role = (decoded?.role || "").toLowerCase();
+      setRole(role);
+
+      // Handle schoolId based on role
+      if (role === "school" || role === "schooladmin") {
+        // For school role, use 'id' field from token
+        setUserSchoolId(decoded?.id || null);
+        console.log("[School Role] Using schoolId from 'id' field:", decoded?.id);
+      } else if (role === "branch" || role === "branchadmin") {
+        // For branch role, use 'schoolId' field from token
+        setUserSchoolId(decoded?.schoolId || null);
+        console.log("[Branch Role] Using schoolId from 'schoolId' field:", decoded?.schoolId);
+      } else {
+        // For superadmin or other roles, use schoolId if available
+        setUserSchoolId(decoded?.schoolId || null);
+        console.log("[Other Role] Using schoolId from 'schoolId' field:", decoded?.schoolId);
+      }
+
+      // Handle branchId - for branch role, use 'id' field as branchId
+      if (role === "branch" || role === "branchadmin") {
+        setUserBranchId(decoded?.id || null);
+        console.log("[Branch Role] Using branchId from 'id' field:", decoded?.id);
+      } else {
+        setUserBranchId(decoded?.branchId || null);
+        console.log("[Other Role] Using branchId from 'branchId' field:", decoded?.branchId);
+      }
+      
+      // Handle schoolName
+      setUserSchoolName(decoded?.schoolName || null);
+
+      console.log("[Branch Master - Final User Info]:", {
+        role,
+        userSchoolId,
+        userBranchId,
+        userSchoolName
+      });
+    }
+  }, []);
+
+  // Role checks
+  const normalizedRole = useMemo(() => {
+    const r = (role || "").toLowerCase();
+    if (["superadmin", "super_admin", "admin", "root"].includes(r)) return "superAdmin";
+    if (["school", "schooladmin"].includes(r)) return "school";
+    if (["branch", "branchadmin"].includes(r)) return "branch";
+    return undefined;
+  }, [role]);
+
+  const isSuperAdmin = normalizedRole === "superAdmin";
+  const isSchoolRole = normalizedRole === "school";
+  const isBranchRole = normalizedRole === "branch";
+
+  // Fetch branch data with role-based filtering
   const {
     data: branchs,
     isLoading,
@@ -92,25 +182,55 @@ export default function BranchMaster() {
     },
   });
 
-  // School data - Convert to Combobox format
-  const schoolOptions = useMemo(() => 
-    schoolData && schoolData.length > 0 
-      ? schoolData
-          .filter((s) => s._id && s.schoolName)
-          .map((s) => ({ 
-            label: s.schoolName, 
-            value: s._id 
-          }))
-      : [], 
-    [schoolData]
-  );
+  // Filter branches based on user role
+  const filteredBranches = useMemo(() => {
+    if (!branchs) return [];
+    
+    if (isSchoolRole && userSchoolId) {
+      return branchs.filter((branch) => branch.schoolId._id === userSchoolId);
+    } else if (isBranchRole && userBranchId) {
+      // For branch role, they should only see their own branch
+      return branchs.filter((branch) => branch._id === userBranchId);
+    }
+    return branchs;
+  }, [branchs, isSchoolRole, isBranchRole, userSchoolId, userBranchId]);
+
+  // School data - Convert to Combobox format with role-based filtering
+  const schoolOptions = useMemo(() => {
+    if (!schoolData) return [];
+    
+    let filteredSchools = schoolData;
+    
+    // Filter schools based on role
+    if (isSchoolRole && userSchoolId) {
+      filteredSchools = schoolData.filter(s => s._id === userSchoolId);
+    } else if (isBranchRole && userSchoolId) {
+      filteredSchools = schoolData.filter(s => s._id === userSchoolId);
+    }
+    
+    return filteredSchools.filter((s) => s._id && s.schoolName)
+      .map((s) => ({ 
+        label: s.schoolName, 
+        value: s._id 
+      }));
+  }, [schoolData, isSchoolRole, isBranchRole, userSchoolId]);
+
+  // Set default school for school and branch roles
+  useEffect(() => {
+    if ((isSchoolRole || isBranchRole) && userSchoolId && !school) {
+      setSchool(userSchoolId);
+    }
+  }, [isSchoolRole, isBranchRole, userSchoolId, school]);
 
   useEffect(() => {
-    if (branchs && branchs.length > 0) {
-      setFilteredData(branchs);
-      setFilterResults(branchs);
+    if (filteredBranches && filteredBranches.length > 0) {
+      setFilteredData(filteredBranches);
+      setFilterResults(filteredBranches);
+    } else {
+      setFilteredData([]);
+      setFilterResults([]);
     }
-  }, [branchs]);
+  }, [filteredBranches]);
 
   // Define the columns for the table
   const columns: ColumnDef<branch, CellContent>[] = [
@@ -123,7 +243,7 @@ export default function BranchMaster() {
       meta: { flex: 1, minWidth: 200, maxWidth: 300 },
       enableHiding: true,
     },
-    {
+    ...(isSuperAdmin ? [{
       header: "School Name",
       accessorFn: (row) => ({
         type: "text",
@@ -131,7 +251,7 @@ export default function BranchMaster() {
       }),
       meta: { flex: 1, minWidth: 200, maxWidth: 300 },
       enableHiding: true,
-    },
+    }] : []),
     {
       header: "Mobile",
       accessorFn: (row) => ({
@@ -168,20 +288,18 @@ export default function BranchMaster() {
       meta: { flex: 1, minWidth: 150, maxWidth: 300 },
       enableHiding: true,
     },
-  
     {
-  header: "Expiration Date",
-  accessorFn: (row) => ({
-    type: "text",
-    value: row.subscriptionExpirationDate
-      ? formatDate(row.subscriptionExpirationDate)
-      : "---",
-  }),
-  meta: { flex: 1, minWidth: 150, maxWidth: 300 },
-  enableHiding: true,
-},
-
-    {
+      header: "Expiration Date",
+      accessorFn: (row) => ({
+        type: "text",
+        value: row.subscriptionExpirationDate
+          ? formatDate(row.subscriptionExpirationDate)
+          : "---",
+      }),
+      meta: { flex: 1, minWidth: 150, maxWidth: 300 },
+      enableHiding: true,
+    },
+    ...((isSuperAdmin || isSchoolRole) ? [{
       header: "Access",
       accessorFn: (row) => ({
         type: "group",
@@ -202,7 +320,7 @@ export default function BranchMaster() {
       meta: { flex: 1.5, minWidth: 150, maxWidth: 200 },
       enableSorting: false,
       enableHiding: true,
-    },
+    }] : []),
     {
       header: "Action",
       accessorFn: (row) => ({
@@ -217,12 +335,12 @@ export default function BranchMaster() {
             },
             disabled: accessMutation.isPending,
           },
-          {
+          ...((isSuperAdmin || isSchoolRole) ? [{
             type: "button",
             label: "Delete",
             onClick: () => setDeleteTarget(row),
             disabled: deletebranchMutation.isPending,
-          },
+          }] : []),
         ],
       }),
       meta: { flex: 1.5, minWidth: 150, maxWidth: 200 },
@@ -234,20 +352,18 @@ export default function BranchMaster() {
   // Columns for export
   const columnsForExport = [
     { key: "branchName", header: "Branch Name" },
-    { key: "schoolId.schoolName", header: "School Name" },
+    ...(isSuperAdmin ? [{ key: "schoolId.schoolName", header: "School Name" }] : []),
     { key: "mobileNo", header: "Mobile" },
     { key: "email", header: "Email" },
     { key: "username", header: "branch Username" },
     { key: "password", header: "branch Password" },
-        { key: "subscriptionExpirationDate", header: "Expiration Date" },
-
-        { key: "createdAt", header: "Registration Date" },
-
-    {
+    { key: "subscriptionExpirationDate", header: "Expiration Date" },
+    { key: "createdAt", header: "Registration Date" },
+    ...((isSuperAdmin || isSchoolRole) ? [{
       key: "fullAccess",
       header: "Access Level",
       formatter: (val: boolean) => (val ? "Full Access" : "Limited Access"),
-    },
+    }] : []),
   ];
 
   // Define the fields for the edit dialog
@@ -258,20 +374,20 @@ export default function BranchMaster() {
       type: "text",
       required: true,
     },
-    {
+    ...(isSuperAdmin ? [{
       label: "School Name",
       key: "schoolId",
       type: "select",
       required: true,
       options: schoolOptions,
+    }] : []),
+    {
+      label: "Mobile Number",
+      key: "mobileNo",
+      type: "text",
+      required: true,
+      transformInput: (value) => String(value),
     },
-  {
-  label: "Mobile Number",
-  key: "mobileNo",
-  type: "text",
-  required: true,
-  transformInput: (value) => String(value), // Add this to ensure string conversion
-},
     {
       label: "Username",
       key: "username",
@@ -284,25 +400,26 @@ export default function BranchMaster() {
       type: "text",
       required: true,
     },
-      {
+    ...((isSuperAdmin || isSchoolRole) ? [{
       label: "Expiration Date",
       key: "subscriptionExpirationDate",
       type: "date",
       isProtected: true,
-      disabled: !isVerified, // Disabled until verified
+      disabled: false, // Changed from !isVerified to false to make it always clickable
       onFocus: () => {
         if (!isVerified) {
           setCurrentProtectedField("subscriptionExpirationDate");
           setIsVerificationDialogOpen(true);
         }
       }
-    },
-
+    }] : []),
   ];
+
   const handleVerificationSuccess = () => {
     setIsVerified(true);
     setIsVerificationDialogOpen(false);
   };
+
   // Mutation to add a new branch
   const addbranchMutation = useMutation({
     mutationFn: async (newbranch: any) => {
@@ -363,6 +480,7 @@ export default function BranchMaster() {
       queryClient.invalidateQueries({ queryKey: ['branchs'] });
       setEditDialogOpen(false);
       setEditTarget(null);
+      setIsVerified(false); // Reset verification state
       alert("branch updated successfully.");
     },
     onError: (err) => {
@@ -392,23 +510,23 @@ export default function BranchMaster() {
   }, []);
 
   // Handle save action for edit branch
- const handleSave = (updatedData: Partial<branch>) => {
-  if (!editTarget) return;
+  const handleSave = (updatedData: Partial<branch>) => {
+    if (!editTarget) return;
 
-  const changedFields: Partial<Record<keyof branch, unknown>> = {};
-  const flatEditTarget = {
-    ...editTarget,
-    schoolId: editTarget.schoolId._id, // Use the ID for comparison
-  };
+    const changedFields: Partial<Record<keyof branch, unknown>> = {};
+    const flatEditTarget = {
+      ...editTarget,
+      schoolId: editTarget.schoolId._id,
+    };
 
-  for (const key in updatedData) {
-    const newValue = updatedData[key as keyof branch];
-    const oldValue = flatEditTarget[key as keyof branch];
+    for (const key in updatedData) {
+      const newValue = updatedData[key as keyof branch];
+      const oldValue = flatEditTarget[key as keyof branch];
 
-    if (newValue !== undefined && newValue !== oldValue) {
-      changedFields[key as keyof branch] = newValue;
+      if (newValue !== undefined && newValue !== oldValue) {
+        changedFields[key as keyof branch] = newValue;
+      }
     }
-  }
 
     if (Object.keys(changedFields).length === 0) {
       console.log("No changes detected.");
@@ -425,24 +543,29 @@ export default function BranchMaster() {
     e.preventDefault();
     const form = e.currentTarget;
     
-    if (!school) {
+    // Role-based school selection
+    let selectedSchool = school;
+    if (isSchoolRole || isBranchRole) {
+      selectedSchool = userSchoolId || "";
+    }
+    
+    if (!selectedSchool) {
       alert("Please select a school");
       return;
     }
 
-const formattedDate = selectedDate
-  ? selectedDate.toLocaleDateString('en-CA')
-  : "";
-
+    const formattedDate = selectedDate
+      ? selectedDate.toLocaleDateString('en-CA')
+      : "";
 
     const data = {
       branchName: form.branchName.value,
-      schoolId: school,
+      schoolId: selectedSchool,
       mobileNo: form.branchMobile.value,
       username: form.username.value,
       password: form.password.value,
       email: form.email.value,
-      subscriptionExpirationDate:formattedDate,
+      subscriptionExpirationDate: formattedDate,
       fullAccess: form.fullAccess.checked,
     };
 
@@ -450,8 +573,11 @@ const formattedDate = selectedDate
       await addbranchMutation.mutateAsync(data);
       closeButtonRef.current?.click();
       form.reset();
-      setSchool("");
-      setSchoolSearch("");
+      if (isSuperAdmin) {
+        setSchool("");
+        setSchoolSearch("");
+      }
+      setSelectedDate(null);
       alert("Branch added successfully.");
     } catch (err: any) {
       alert(`Failed to add branch: ${err.response?.data?.message || err.message}`);
@@ -460,12 +586,12 @@ const formattedDate = selectedDate
 
   const handleDateFilter = useCallback(
     (start: Date | null, end: Date | null) => {
-      if (!branchs || (!start && !end)) {
-        setFilteredData(branchs || []);
+      if (!filteredBranches || (!start && !end)) {
+        setFilteredData(filteredBranches || []);
         return;
       }
 
-      const filtered = branchs.filter((branch) => {
+      const filtered = filteredBranches.filter((branch) => {
         if (!branch.createdAt) return false;
 
         const createdDate = new Date(branch.createdAt);
@@ -474,7 +600,7 @@ const formattedDate = selectedDate
 
       setFilteredData(filtered);
     },
-    [branchs]
+    [filteredBranches]
   );
 
   const handleCustomFilter = useCallback((filtered: branch[]) => {
@@ -505,20 +631,22 @@ const formattedDate = selectedDate
             onDateRangeChange={handleDateFilter}
             title="Search by Registration Date"
           />
-          <CustomFilter
-            data={filterResults}
-            originalData={filterResults}
-            filterFields={["fullAccess"]}
-            onFilter={handleCustomFilter}
-            placeholder={"Filter by Access"}
-            className="w-[180px]"
-            valueFormatter={(value) =>
-              value ? "Full Access" : "Limited Access"
-            }
-            booleanToLable={"fullAccess"}
-            trueValue={"Full Access"}
-            falseValue={"Limited Access"}
-          />
+          {((isSuperAdmin || isSchoolRole)) && (
+            <CustomFilter
+              data={filterResults}
+              originalData={filterResults}
+              filterFields={["fullAccess"]}
+              onFilter={handleCustomFilter}
+              placeholder={"Filter by Access"}
+              className="w-[180px]"
+              valueFormatter={(value) =>
+                value ? "Full Access" : "Limited Access"
+              }
+              booleanToLable={"fullAccess"}
+              trueValue={"Full Access"}
+              falseValue={"Limited Access"}
+            />
+          )}
           <ColumnVisibilitySelector
             columns={table.getAllColumns()}
             buttonVariant="outline"
@@ -527,109 +655,122 @@ const formattedDate = selectedDate
         </section>
 
         <section>
-          <Dialog>
-            <DialogTrigger asChild>
-              <Button variant="default">Add branch</Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[600px]">
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <DialogHeader>
-                  <DialogTitle>Add branch</DialogTitle>
-                </DialogHeader>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="grid gap-2">
-                    <Label htmlFor="branchName">branch Name</Label>
-                    <Input
-                      id="branchName"
-                      name="branchName"
-                      placeholder="Enter branch name"
-                      required
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="schoolId">School *</Label>
-                    <Combobox 
-                      items={schoolOptions} 
-                      value={school} 
-                      onValueChange={setSchool}
-                      placeholder="Search school..." 
-                      searchPlaceholder="Search schools..." 
-                      emptyMessage="No school found."
-                      width="w-full" 
-                      onSearchChange={setSchoolSearch} 
-                      searchValue={schoolSearch} 
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="email">Email</Label>
-                    <Input
-                      id="email"
-                      name="email"
-                      type="email"
-                      placeholder="Enter email address"
-                      required
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="branchMobile">Mobile No</Label>
-                    <Input
-                      id="branchMobile"
-                      name="branchMobile"
-                      type="tel"
-                      placeholder="Enter branch mobile number"
-                      pattern="[0-9]{10}"
-                      maxLength={10}
-                      autoComplete="tel"
-                      required
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="username">Username</Label>
-                    <Input
-                      id="username"
-                      name="username"
-                      type="text"
-                      placeholder="Enter username"
-                      required
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="password">Password</Label>
-                    <Input
-                      id="password"
-                      name="password"
-                      type="text"
-                      placeholder="Enter password"
-                      required
-                    />
-                  </div>
-                  
-        
-   <ExpirationDatePicker value={selectedDate} onChange={setSelectedDate} />
+          {(isSuperAdmin || isSchoolRole) && (
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button variant="default">Add branch</Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[600px]">
+                <form onSubmit={handleSubmit} className="space-y-4">
+                  <DialogHeader>
+                    <DialogTitle>Add branch</DialogTitle>
+                  </DialogHeader>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="grid gap-2">
+                      <Label htmlFor="branchName">branch Name</Label>
+                      <Input
+                        id="branchName"
+                        name="branchName"
+                        placeholder="Enter branch name"
+                        required
+                      />
+                    </div>
+                    {/* Show School field only for superadmin */}
+                    {isSuperAdmin && (
+                      <div className="grid gap-2">
+                        <Label htmlFor="schoolId">School *</Label>
+                        <Combobox 
+                          items={schoolOptions} 
+                          value={school} 
+                          onValueChange={setSchool}
+                          placeholder="Search school..." 
+                          searchPlaceholder="Search schools..." 
+                          emptyMessage="No school found."
+                          width="w-full" 
+                          onSearchChange={setSchoolSearch} 
+                          searchValue={schoolSearch} 
+                        />
+                      </div>
+                    )}
+                    <div className="grid gap-2">
+                      <Label htmlFor="email">Email</Label>
+                      <Input
+                        id="email"
+                        name="email"
+                        type="email"
+                        placeholder="Enter email address"
+                        required
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="branchMobile">Mobile No</Label>
+                      <Input
+                        id="branchMobile"
+                        name="branchMobile"
+                        type="tel"
+                        placeholder="Enter branch mobile number"
+                        pattern="[0-9]{10}"
+                        maxLength={10}
+                        autoComplete="tel"
+                        required
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="username">Username</Label>
+                      <Input
+                        id="username"
+                        name="username"
+                        type="text"
+                        placeholder="Enter username"
+                        required
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="password">Password</Label>
+                      <Input
+                        id="password"
+                        name="password"
+                        type="text"
+                        placeholder="Enter password"
+                        required
+                      />
+                    </div>
+                    
+                    {/* DatePicker for Expiration Date */}
+                    <div className="grid gap-2">
+                      <Label htmlFor="expirationDate">Expiration Date</Label>
+                      <DatePicker
+                        selected={selectedDate}
+                        onChange={setSelectedDate}
+                        placeholderText="Select expiration date"
+                        className="w-full"
+                      />
+                    </div>
 
-                  <div className="flex items-center gap-3 mt-6">
-                    <input
-                      type="checkbox"
-                      id="fullAccess"
-                      name="fullAccess"
-                      className="h-5 w-5"
-                    />
-                    <Label htmlFor="fullAccess">Full Access</Label>
+                    <div className="flex items-center gap-3 mt-6">
+                      <input
+                        type="checkbox"
+                        id="fullAccess"
+                        name="fullAccess"
+                        className="h-5 w-5"
+                      />
+                      <Label htmlFor="fullAccess">Full Access</Label>
+                    </div>
                   </div>
-                </div>
-                <DialogFooter>
-                  <DialogClose asChild>
-                    <Button ref={closeButtonRef} variant="outline">
-                      Cancel
+                  <DialogFooter>
+                    <DialogClose asChild>
+                      <Button ref={closeButtonRef} variant="outline">
+                        Cancel
+                      </Button>
+                    </DialogClose>
+                    <Button type="submit" disabled={addbranchMutation.isPending}>
+                      {addbranchMutation.isPending ? "Saving..." : "Save branch"}
                     </Button>
-                  </DialogClose>
-                  <Button type="submit" disabled={addbranchMutation.isPending}>
-                    {addbranchMutation.isPending ? "Saving..." : "Save branch"}
-                  </Button>
-                </DialogFooter>
-              </form>
-            </DialogContent>
-          </Dialog>
+                  </DialogFooter>
+                </form>
+              </DialogContent>
+            </Dialog>
+          )}
         </section>
       </header>
 
@@ -650,21 +791,23 @@ const formattedDate = selectedDate
 
       <section>
         <div>
-          <Alert<branchAccess>
-            title="Are you absolutely sure?"
-            description={`You are about to give ${accessTarget?.branchName} ${
-              accessTarget?.fullAccess ? "limited" : "full"
-            } access.`}
-            actionButton={(target) => {
-              accessMutation.mutate({
-                _id: target._id,
-                fullAccess: !target.fullAccess,
-              });
-            }}
-            target={accessTarget}
-            setTarget={setAccessTarget}
-            butttonText="Confirm"
-          />
+          {((isSuperAdmin || isSchoolRole)) && (
+            <Alert<branchAccess>
+              title="Are you absolutely sure?"
+              description={`You are about to give ${accessTarget?.branchName} ${
+                accessTarget?.fullAccess ? "limited" : "full"
+              } access.`}
+              actionButton={(target) => {
+                accessMutation.mutate({
+                  _id: target._id,
+                  fullAccess: !target.fullAccess,
+                });
+              }}
+              target={accessTarget}
+              setTarget={setAccessTarget}
+              butttonText="Confirm"
+            />
+          )}
         </div>
 
         <div>

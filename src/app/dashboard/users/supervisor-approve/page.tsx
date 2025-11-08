@@ -38,6 +38,7 @@ import { useBranchData } from "@/hooks/useBranchData";
 import { useInfiniteDeviceData } from "@/hooks/useInfiniteDeviceData";
 import Cookies from "js-cookie";
 import { getDecodedToken } from "@/lib/jwt";
+import ReactDOM from 'react-dom';
 
 declare module "@tanstack/react-table" {
   interface ColumnMeta<TData, TValue> {
@@ -228,6 +229,7 @@ const StatusDropdown = ({
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
 
   const statusOptions = [
     { label: "Approved", value: "Approved" as const },
@@ -257,12 +259,46 @@ const StatusDropdown = ({
     };
 
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
   }, []);
 
+  // Use React Portal to render dropdown outside the table container
+  const renderDropdown = () => {
+    if (!isOpen || disabled || !buttonRef.current) return null;
+
+    const buttonRect = buttonRef.current.getBoundingClientRect();
+    
+    return ReactDOM.createPortal(
+      <div 
+        className="fixed bg-white border border-gray-200 rounded-md shadow-lg z-[9999] min-w-[120px]"
+        style={{
+          left: buttonRect.left + (buttonRect.width / 2) - 60, // Center the dropdown
+          top: buttonRect.top - 10, // Position above the button
+        }}
+      >
+        {statusOptions.map((option) => (
+          <button
+            key={option.value}
+            type="button"
+            className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-100 ${
+              currentStatus === option.value ? 'bg-blue-50 text-blue-600' : ''
+            }`}
+            onClick={() => handleStatusSelect(option.value)}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>,
+      document.body
+    );
+  };
+
   return (
-    <div className="relative" ref={dropdownRef}>
+    <div className="relative inline-block" ref={dropdownRef}>
       <button
+        ref={buttonRef}
         type="button"
         className={`px-3 py-1 border rounded-full text-sm font-medium ${getStatusColor(currentStatus)} ${
           disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:opacity-80'
@@ -273,22 +309,7 @@ const StatusDropdown = ({
         {currentStatus || "Pending"}
       </button>
       
-      {isOpen && !disabled && (
-        <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-md shadow-lg z-10 min-w-[120px]">
-          {statusOptions.map((option) => (
-            <button
-              key={option.value}
-              type="button"
-              className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-100 ${
-                currentStatus === option.value ? 'bg-blue-50 text-blue-600' : ''
-              }`}
-              onClick={() => handleStatusSelect(option.value)}
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>
-      )}
+      {renderDropdown()}
     </div>
   );
 };
@@ -655,6 +676,7 @@ const EditSupervisorDialog = ({
   });
   const [usernameError, setUsernameError] = useState("");
 
+  // Initialize form data when editTarget changes - FIXED: Pre-fetch device data
   useEffect(() => {
     if (editTarget) {
       setFormData({
@@ -664,8 +686,38 @@ const EditSupervisorDialog = ({
         password: editTarget.password || "",
         email: editTarget.email || "",
       });
+
+      // Pre-fill the device if it exists in editTarget
+      if (editTarget.deviceObjId) {
+        const deviceId = typeof editTarget.deviceObjId === 'object' 
+          ? editTarget.deviceObjId._id 
+          : editTarget.deviceObjId;
+        
+        if (deviceId) {
+          // Use setTimeout to ensure the form state is updated after the current render cycle
+          setTimeout(() => {
+            editForm.setDevice(deviceId);
+          }, 0);
+        }
+      }
+
+      // Also pre-fill route device if no specific device is assigned
+      if (!editTarget.deviceObjId && editTarget.routeObjId) {
+        const routeDeviceId = typeof editTarget.routeObjId === 'object' && 
+                             typeof editTarget.routeObjId.deviceObjId === 'object'
+          ? editTarget.routeObjId.deviceObjId._id
+          : typeof editTarget.routeObjId === 'object' 
+            ? editTarget.routeObjId.deviceObjId
+            : null;
+        
+        if (routeDeviceId) {
+          setTimeout(() => {
+            editForm.setDevice(routeDeviceId);
+          }, 0);
+        }
+      }
     }
-  }, [editTarget]);
+  }, [editTarget, editForm]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -857,6 +909,28 @@ export default function SupervisorApprove() {
     return null;
   }, [isBranchRole, userBranchId, branchData]);
 
+  // Helper functions - MOVED BEFORE useCallbacks that depend on them
+  const getId = useCallback((obj: any): string => {
+    if (!obj) return "";
+    if (typeof obj === "string") return obj;
+    return obj._id || "";
+  }, []);
+
+  // Get route device IDs - UPDATED: Return assigned device for ALL roles
+  const getRouteDeviceIds = useCallback((routeData: any, routeId: string): string[] => {
+    if (!routeData || !routeId) return [];
+    const routes = extractData(routeData, ["routes", "data"]);
+    const selectedRoute = routes.find((r: Route) => r._id === routeId);
+    
+    // For ALL roles, return the assigned device of the route
+    if (selectedRoute?.deviceObjId) {
+      const deviceId = getId(selectedRoute.deviceObjId);
+      return deviceId ? [deviceId] : [];
+    }
+    
+    return [];
+  }, [getId]);
+
   // Route data queries
   const addRouteQuery = useRouteData({ 
     branchId: isBranchRole ? userBranchId : addForm.branch,
@@ -870,19 +944,7 @@ export default function SupervisorApprove() {
     enabled: isBranchRole ? !!userBranchId : !!editForm.branch
   });
 
-  // Get route device IDs
-  const getRouteDeviceIds = useCallback((routeData: any, routeId: string): string[] => {
-    if (!routeData || !routeId) return [];
-    const routes = extractData(routeData, ["routes", "data"]);
-    const selectedRoute = routes.find((r: Route) => r._id === routeId);
-    if (selectedRoute?.deviceObjId) {
-      const deviceId = getId(selectedRoute.deviceObjId);
-      return deviceId ? [deviceId] : [];
-    }
-    return [];
-  }, []);
-
-  // Device data queries
+  // Device data queries - UPDATED: Enable for ALL roles to show route-assigned devices
   const addDeviceQuery = useInfiniteDeviceData({
     role: normalizedRole as any,
     schoolId: isSuperAdmin ? addForm.school || undefined : userSchoolId || undefined,
@@ -890,6 +952,7 @@ export default function SupervisorApprove() {
     deviceObjId: getRouteDeviceIds(addRouteQuery.data, addForm.route),
     search: addForm.deviceSearch,
     limit: 20,
+    // Enable device query for ALL roles to show available devices
     enabled: !!addForm.route
   });
 
@@ -900,15 +963,9 @@ export default function SupervisorApprove() {
     deviceObjId: getRouteDeviceIds(editRouteQuery.data, editForm.route),
     search: editForm.deviceSearch,
     limit: 20,
+    // Enable device query for ALL roles to show available devices
     enabled: !!editForm.route
   });
-
-  // Helper functions
-  const getId = useCallback((obj: any): string => {
-    if (!obj) return "";
-    if (typeof obj === "string") return obj;
-    return obj._id || "";
-  }, []);
 
   // Memoized school options
   const schoolOptions: SelectOption[] = useMemo(() => {
@@ -924,7 +981,7 @@ export default function SupervisorApprove() {
     return Array.from(new Map(filteredSchools.filter(s => s._id && s.schoolName).map(s => [s._id, { label: s.schoolName, value: s._id }])).values());
   }, [schoolData, isSchoolRole, isBranchRole, userSchoolId, userSchoolIdForBranch]);
 
-  // Branch options
+  // Branch options - FIXED: Remove auto-selection for School role
   const getFilteredBranchOptions = useCallback((schoolId: string) => {
     if (!branchData) return [];
     let filteredBranches = branchData;
@@ -973,9 +1030,9 @@ export default function SupervisorApprove() {
       }));
   }, []);
 
-  // Device items
+  // Device items - UPDATED: Show only route assigned device for ALL roles
   const getDeviceItems = useCallback((deviceData: any, routeData: any, routeId: string) => {
-    let routeAssignedDevice: SelectOption | null = null;
+    // For ALL roles, only show the device assigned to the route
     if (routeData && routeId) {
       const routes = extractData(routeData, ["routes", "data"]);
       const selectedRoute = routes.find((r: Route) => r._id === routeId);
@@ -987,44 +1044,21 @@ export default function SupervisorApprove() {
           : 'Assigned Device';
         
         if (deviceId) {
-          routeAssignedDevice = { label: `${deviceName} (Route Assigned)`, value: deviceId };
+          return [{ label: deviceName, value: deviceId }];
         }
       }
+      return [];
     }
-
-    const devicesFromQuery: SelectOption[] = [];
-    if (deviceData?.pages?.length) {
-      deviceData.pages.forEach((pg: any) => {
-        const list = pg.devices ?? pg.data ?? [];
-        list.filter((d: any) => d._id && d.name).forEach((d: any) => {
-          devicesFromQuery.push({ label: d.name, value: d._id });
-        });
-      });
-    }
-
-    const allDevices: SelectOption[] = [];
-    if (routeAssignedDevice) allDevices.push(routeAssignedDevice);
     
-    devicesFromQuery.forEach(device => {
-      if (!routeAssignedDevice || device.value !== routeAssignedDevice.value) {
-        allDevices.push(device);
-      }
-    });
-
-    return allDevices;
-  }, []);
+    return [];
+  }, [getId]);
 
   // Set filtered data
   useEffect(() => {
     if (supervisors) setFilteredData(supervisors);
   }, [supervisors]);
 
-  // Auto-select branch for school role
-  useEffect(() => {
-    if (isSchoolRole && addBranchOptions.length > 0 && !addForm.branch && !branchLoading) {
-      setTimeout(() => addForm.setBranch(addBranchOptions[0].value), 100);
-    }
-  }, [isSchoolRole, addBranchOptions, addForm, branchLoading]);
+  // REMOVED: Auto-select branch for school role - now it will show normal branch selection
 
   // Mutations
   const approveMutation = useMutation({
