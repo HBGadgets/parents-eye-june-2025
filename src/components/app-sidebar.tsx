@@ -81,6 +81,7 @@ const iconMap: Record<string, React.ElementType> = {
   "Idle Report": Clock,
   "Alerts/Events": Bell,
   "Geofence Report": Map,
+  "Route Report": Route,
 };
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
@@ -254,13 +255,17 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               title: "Geofence Report",
               url: "/dashboard/reports/geofence-report",
             },
+            {
+              title: "Route Report",
+              url: "/dashboard/reports/route-report",
+            },
           ];
         case "Support":
           return [
-            { title: "FAQ", url: "/dashboard/support/faq" },
+            { title: "Contact Us", url: "/dashboard/support/contact-us" },
             { title: "Raise Ticket", url: "/dashboard/support/raise-ticket" },
             { title: "Answer Ticket", url: "/dashboard/support/answer-ticket" },
-            { title: "Contact Us", url: "/dashboard/support/contact-us" },
+            { title: "FAQ", url: "/dashboard/support/faq" },
           ];
         default:
           return [];
