@@ -5,6 +5,7 @@ import { toast } from "sonner"; // optional if you're using Sonner or any toast 
 interface DevicePayload {
   name: string;
   uniqueId: string;
+  deviceId: string;
   sim: string;
   speed: string;
   average: string;

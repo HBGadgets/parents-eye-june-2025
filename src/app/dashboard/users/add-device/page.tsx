@@ -25,6 +25,7 @@ import { ColumnVisibilitySelector } from "@/components/column-visibility-selecto
 import { CustomFilter } from "@/components/ui/CustomFilter";
 import { CustomTableServerSidePagination } from "@/components/ui/customTable(serverSidePagination)";
 import { useExport } from "@/hooks/useExport";
+import { deleteDeviceOld, updateDeviceOld } from "@/hooks/device/useAddDevice(old)";
 
 type UserRole = "superAdmin" | "school" | "branchGroup" | "branch" | null;
 
@@ -46,7 +47,10 @@ const DevicesPage = () => {
   const [selectedSchoolId, setSelectedSchoolId] = useState<string | null>(null);
   const [selectedBranchId, setSelectedBranchId] = useState<string | null>(null);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
-
+  const BASIC_AUTH_USER =
+    process.env.NEXT_PUBLIC_ROCKETSALESTRACKER_BASIC_AUTH_USERNAME;
+  const BASIC_AUTH_PASS =
+    process.env.NEXT_PUBLIC_ROCKETSALESTRACKER_BASIC_AUTH_PASSWORD;
   const { exportToPDF, exportToExcel } = useExport();
 
   // API hooks
@@ -187,48 +191,126 @@ const DevicesPage = () => {
   /** =========================
    * 🔄 MUTATIONS
    * ========================= */
+  // const deleteDeviceMutation = useMutation({
+  //   mutationFn: async (deviceId: string) => api.delete(`/device/${deviceId}`),
+  //   onSuccess: () => {
+  //     queryClient.invalidateQueries({ queryKey: ["devices"] });
+  //     toast.success("Device deleted successfully.");
+  //   },
+  //   onError: () => toast.error("Failed to delete device."),
+  // });
+
   const deleteDeviceMutation = useMutation({
-    mutationFn: async (deviceId: string) => api.delete(`/device/${deviceId}`),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["devices"] });
-      toast.success("Device deleted successfully.");
-    },
-    onError: () => toast.error("Failed to delete device."),
-  });
+  mutationFn: async (device: Device) => {
+    const newDeviceId = device._id;
+    const oldDeviceId = device.deviceId ? parseInt(device.deviceId) : null;
+
+    // 1️⃣ Delete from NEW system first (so local data syncs immediately)
+    await api.delete(`/device/${newDeviceId}`);
+
+    // 2️⃣ Delete from OLD system (using its numeric ID)
+    if (oldDeviceId) {
+      await deleteDeviceOld(oldDeviceId);
+    }
+
+    return { success: true };
+  },
+
+  onSuccess: () => {
+    queryClient.invalidateQueries({ queryKey: ["devices"] });
+    toast.success("🗑 Device deleted from both systems!");
+  },
+
+  onError: (err: any) => {
+    console.error("Delete Sync Error:", err);
+    toast.error("❌ Failed to delete device in one or both systems.");
+  },
+});
+
+  
+  // const updateDeviceMutation = useMutation({
+  //   mutationFn: async ({
+  //     deviceId,
+  //     data,
+  //   }: {
+  //     deviceId: string;
+  //     data: Partial<Device>;
+  //   }) => api.put(`/device/${deviceId}`, data),
+  //   onSuccess: (_, { deviceId, data }) => {
+  //     queryClient.invalidateQueries({ queryKey: ["devices"] });
+  //     setFilteredData((prev) =>
+  //       prev.map((d) => (d._id === deviceId ? { ...d, ...data } : d))
+  //     );
+  //     setEditDialogOpen(false);
+  //     setEditTarget(null);
+  //     toast.success("Device updated successfully.");
+  //   },
+  //   onError: () => toast.error("Failed to update device."),
+  // });
 
   const updateDeviceMutation = useMutation({
-    mutationFn: async ({
-      deviceId,
-      data,
-    }: {
-      deviceId: string;
-      data: Partial<Device>;
-    }) => api.put(`/device/${deviceId}`, data),
-    onSuccess: (_, { deviceId, data }) => {
-      queryClient.invalidateQueries({ queryKey: ["devices"] });
-      setFilteredData((prev) =>
-        prev.map((d) => (d._id === deviceId ? { ...d, ...data } : d))
-      );
-      setEditDialogOpen(false);
-      setEditTarget(null);
-      toast.success("Device updated successfully.");
-    },
-    onError: () => toast.error("Failed to update device."),
-  });
+  mutationFn: async ({
+    device,
+    data,
+  }: {
+    device: Device;
+    data: Partial<Device>;
+  }) => {
+
+    console.log("Updating device in both systems:", device, data);
+    // Extract both IDs
+    const newDeviceId = device._id;
+    const oldDeviceId = device.deviceId ? parseInt(device.deviceId) : null; // Old API ID
+
+    // 1️⃣ Update OLD system first
+    if (oldDeviceId) {
+      await updateDeviceOld(oldDeviceId, data);
+    }
+
+    // 2️⃣ Update NEW system
+    const { data: updated } = await api.put(`/device/${newDeviceId}`, data);
+    return updated;
+  },
+
+  onSuccess: (_, variables) => {
+    queryClient.invalidateQueries({ queryKey: ["devices"] });
+    toast.success("✅ Device updated in both systems!");
+    setEditDialogOpen(false);
+    setEditTarget(null);
+  },
+
+  onError: (err: any) => {
+    console.error("Update Sync Error:", err);
+    toast.error("❌ Failed to update in one or both systems.");
+  },
+});
+
 
   /** =========================
    * 📊 TABLE COLUMNS
    * ========================= */
   const columns: ColumnDef<Device>[] = [
     { id: "name", header: "Device Name", accessorFn: (r) => r.name ?? "" },
-    { id: "uniqueId", header: "IMEI Number", accessorFn: (r) => r.uniqueId ?? "" },
+    {
+      id: "uniqueId",
+      header: "IMEI Number",
+      accessorFn: (r) => r.uniqueId ?? "",
+    },
     { id: "sim", header: "Sim Number", accessorFn: (r) => r.sim ?? "" },
     { id: "speed", header: "Speed", accessorFn: (r) => r.speed ?? "" },
-    { id: "average", header: "Average Speed", accessorFn: (r) => r.average ?? "" },
+    {
+      id: "average",
+      header: "Average Speed",
+      accessorFn: (r) => r.average ?? "",
+    },
     { id: "Driver", header: "Driver", accessorFn: (r) => r.Driver ?? "" },
     { id: "model", header: "Model", accessorFn: (r) => r.model ?? "" },
     { id: "category", header: "Category", accessorFn: (r) => r.category ?? "" },
-    { id: "deviceId", header: "Device ID", accessorFn: (r) => r.deviceId ?? "" },
+    {
+      id: "deviceId",
+      header: "Device ID",
+      accessorFn: (r) => r.deviceId ?? "",
+    },
     { id: "status", header: "Status", accessorFn: (r) => r.status ?? "" },
     {
       id: "lastUpdate",
@@ -337,7 +419,7 @@ const DevicesPage = () => {
           title="Are you sure?"
           description={`This will permanently delete ${deleteTarget.name}.`}
           actionButton={(target) => {
-            deleteDeviceMutation.mutate(target._id);
+            deleteDeviceMutation.mutate(target);
             setDeleteTarget(null);
           }}
           target={deleteTarget}
@@ -358,7 +440,7 @@ const DevicesPage = () => {
           }}
           onSave={(data) =>
             updateDeviceMutation.mutate({
-              deviceId: editTarget._id,
+              device: editTarget,
               data,
             })
           }
