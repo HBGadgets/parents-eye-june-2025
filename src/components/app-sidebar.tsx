@@ -327,6 +327,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                       height={150}
                       src="/logo.svg"
                       alt="Logo"
+                      priority
                       className="relative left-10 -top-2.5"
                     />
                   </div>
