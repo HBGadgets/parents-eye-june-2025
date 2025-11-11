@@ -134,19 +134,30 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 url: "/dashboard/reports/geofence-report",
               },
               { title: "Notification", url: "/dashboard/users/notification" },
-
-              // {
-              //   title: "Student Approve",
-              //   url: "/dashboard/users/student-approve",
-              // },
             ];
-          } else {
+          } else if (role === "school" || role === "branchGroup") {
             return [
+              { title: "Add Device", url: "/dashboard/users/add-device" },
+              {
+                title: "Branch Master",
+                url: "/dashboard/users/branch-master",
+              },
               {
                 title: "Student Details",
                 url: "/dashboard/school/student-details",
               },
-              { title: "Add Device", url: "/dashboard/users/add-device" },
+              {
+                title: "Parents Master",
+                url: "/dashboard/users/parents-master",
+              },
+              {
+                title: "Routes",
+                url: "/dashboard/master/route",
+              },
+              {
+                title: "Geofence",
+                url: "/dashboard/school/geofence",
+              },
             ];
           }
 
