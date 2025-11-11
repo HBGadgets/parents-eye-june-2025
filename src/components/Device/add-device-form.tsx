@@ -14,29 +14,36 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Combobox } from "../ui/combobox";
+import { toast } from "sonner";
+
+// Hooks
 import { useDriver } from "@/hooks/useDriver";
 import { useRoutes } from "@/hooks/useRoute";
 import { useSchoolData } from "@/hooks/useSchoolData";
 import { useBranchData } from "@/hooks/useBranchData";
 import { useAddDeviceNew } from "@/hooks/device/useAddDevice(new)";
-import { toast } from "sonner";
 import { useAddDeviceOld } from "@/hooks/device/useAddDevice(old)";
-import { uniq, uniqueId } from "lodash";
-import { group } from "console";
 
 export const AddDeviceForm = () => {
+  // ======================
+  // 🔹 Hook Setup
+  // ======================
   const { data: driverData, isLoading: driverLoading } = useDriver();
-  const { data: routeData } = useRoutes({
-    limit: "all",
-  });
+  const { data: routeData } = useRoutes({ limit: "all" });
   const { data: schoolData, isLoading: schoolLoading } = useSchoolData();
   const { data: branchData } = useBranchData();
+
   const addDeviceMutationNew = useAddDeviceNew();
   const addDeviceMutationOld = useAddDeviceOld();
+
+  // ======================
+  // 🔹 Local State
+  // ======================
   const [open, setOpen] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
     uniqueId: "",
+    deviceId: "",
     sim: "",
     speed: "",
     average: "",
@@ -48,11 +55,12 @@ export const AddDeviceForm = () => {
     branchId: "",
   });
 
+  // Reset form on modal close
   useEffect(() => {
     if (!open) {
-      // Reset all fields when dialog closes
       setFormData({
         name: "",
+        deviceId: "",
         uniqueId: "",
         sim: "",
         speed: "",
@@ -67,103 +75,103 @@ export const AddDeviceForm = () => {
     }
   }, [open]);
 
-  // 🧠 Convert driver data into combobox-friendly format
-  const driverOptions = useMemo(() => {
-    if (!driverData) return [];
-    return driverData.map((driver: any) => ({
-      value: driver._id,
-      label: driver.driverName,
-    }));
-  }, [driverData]);
+  // ======================
+  // 🔹 Dropdown Options
+  // ======================
+  const driverOptions = useMemo(
+    () =>
+      driverData?.map((driver: any) => ({
+        value: driver._id,
+        label: driver.driverName,
+      })) || [],
+    [driverData]
+  );
 
-  // 🏫 School Options (no filtering needed)
-  const schoolOptions = useMemo(() => {
-    if (!schoolData) return [];
-    return schoolData.map((s: any) => ({
-      value: s._id,
-      label: s.schoolName,
-    }));
-  }, [schoolData]);
+  const schoolOptions = useMemo(
+    () =>
+      schoolData?.map((s: any) => ({
+        value: s._id,
+        label: s.schoolName,
+      })) || [],
+    [schoolData]
+  );
 
-  // 🏢 Branch Options (filter by selected school)
   const branchOptions = useMemo(() => {
     if (!branchData) return [];
-    // Only show branches belonging to the selected school
-    const filteredBranches = formData.schoolId
+    const filtered = formData.schoolId
       ? branchData.filter((b: any) => b.schoolId._id === formData.schoolId)
       : branchData;
-
-    return filteredBranches.map((b: any) => ({
+    return filtered.map((b: any) => ({
       value: b._id,
       label: b.branchName,
     }));
   }, [branchData, formData.schoolId]);
 
-  // 🛣️ Route Options (filter by selected branch)
   const routeOptions = useMemo(() => {
     if (!routeData) return [];
-    // Only show routes belonging to the selected branch
-    const filteredRoutes = formData.branchId
-      ? routeData.data.filter(
-          (r: any) => r?.branchId?._id === formData.branchId
-        )
+    const filtered = formData.branchId
+      ? routeData.data.filter((r: any) => r.branchId?._id === formData.branchId)
       : routeData.data;
-
-    return filteredRoutes.map((r: any) => ({
+    return filtered.map((r: any) => ({
       value: r._id,
       label: r.routeNumber,
     }));
   }, [routeData, formData.branchId]);
 
+  // ======================
+  // 🔹 Handlers
+  // ======================
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const transformForOldApi = (data: any) => {
-    return { name: data.name, uniqueId: data.uniqueId, model: data.model, category: data.category ,phone: sim };
-  };
+  // Transform data for old API (minimal fields)
+  const transformForOldApi = (data: any) => ({
+    name: data.name,
+    uniqueId: data.uniqueId,
+    model: data.model,
+    category: data.category,
+    phone: data.sim, // old API expects phone instead of sim
+  });
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
 
-    const newPayload = formData;
+  try {
+    // 1️⃣ Prepare payloads
     const oldPayload = transformForOldApi(formData);
 
-    console.log("Submitting New:", newPayload);
-    console.log("Submitting Old:", oldPayload);
+    // 2️⃣ Create in old system FIRST
+    const oldResult = await addDeviceMutationOld.mutateAsync(oldPayload);
 
-    try {
-      // Run both at the same time
-      const [newResult, oldResult] = await Promise.allSettled([
-        addDeviceMutationNew.mutateAsync(newPayload),
-        addDeviceMutationOld.mutateAsync(oldPayload),
-      ]);
-
-      // 🟢 Check results separately
-      if (
-        newResult.status === "fulfilled" &&
-        oldResult.status === "fulfilled"
-      ) {
-        toast.success("✅ Device added to both systems!");
-      } else if (newResult.status === "fulfilled") {
-        toast.warning("⚠️ Added to new system, but old system failed.");
-        console.error("Old API error:", oldResult);
-      } else if (oldResult.status === "fulfilled") {
-        toast.warning("⚠️ Added to old system, but new system failed.");
-        console.error("New API error:", newResult);
-      } else {
-        toast.error("❌ Both API requests failed.");
-      }
-
-      setOpen(false);
-    } catch (error: any) {
-      toast.error(
-        error?.response?.data?.message || "Unexpected error occurred"
-      );
+    // Check if old system responded with valid ID
+    if (!oldResult?.id) {
+      throw new Error("Old system failed to return device ID");
     }
-  };
 
+    // 3️⃣ Create in new system using old ID
+    const newPayload = {
+      ...formData,
+      deviceId: oldResult.id, // 🔗 Link old + new
+    };
+
+    const newResult = await addDeviceMutationNew.mutateAsync(newPayload);
+
+    // 4️⃣ Show success toast
+    toast.success("✅ Device added successfully to both systems!");
+
+    setOpen(false);
+  } catch (error: any) {
+    console.error("Error adding device:", error);
+    toast.error(error?.response?.data?.message || "❌ Failed to add device in both systems");
+  }
+};
+
+
+  // ======================
+  // 🔹 Render
+  // ======================
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
@@ -179,6 +187,7 @@ export const AddDeviceForm = () => {
           onSubmit={handleSubmit}
           className="grid grid-cols-1 md:grid-cols-2 gap-6"
         >
+          {/* Device Name */}
           <div className="grid gap-2">
             <Label htmlFor="name">Device Name</Label>
             <Input
@@ -191,6 +200,7 @@ export const AddDeviceForm = () => {
             />
           </div>
 
+          {/* IMEI */}
           <div className="grid gap-2">
             <Label htmlFor="uniqueId">IMEI No.</Label>
             <Input
@@ -203,6 +213,7 @@ export const AddDeviceForm = () => {
             />
           </div>
 
+          {/* SIM */}
           <div className="grid gap-2">
             <Label htmlFor="sim">SIM No.</Label>
             <Input
@@ -216,6 +227,7 @@ export const AddDeviceForm = () => {
             />
           </div>
 
+          {/* Speed */}
           <div className="grid gap-2">
             <Label htmlFor="speed">Speed Limit</Label>
             <Input
@@ -229,6 +241,7 @@ export const AddDeviceForm = () => {
             />
           </div>
 
+          {/* Average */}
           <div className="grid gap-2">
             <Label htmlFor="average">Average</Label>
             <Input
@@ -242,6 +255,7 @@ export const AddDeviceForm = () => {
             />
           </div>
 
+          {/* Driver */}
           <div className="grid gap-2">
             <Label htmlFor="driver">Driver</Label>
             <Combobox
@@ -253,11 +267,11 @@ export const AddDeviceForm = () => {
               placeholder="Select driver..."
               searchPlaceholder="Search driver..."
               emptyMessage="No driver found."
-              width="w-full"
               disabled={driverLoading}
             />
           </div>
 
+          {/* Model */}
           <div className="grid gap-2">
             <Label htmlFor="model">Model</Label>
             <Input
@@ -270,6 +284,7 @@ export const AddDeviceForm = () => {
             />
           </div>
 
+          {/* Category */}
           <div className="grid gap-2">
             <Label htmlFor="category">Category</Label>
             <Input
@@ -282,6 +297,7 @@ export const AddDeviceForm = () => {
             />
           </div>
 
+          {/* School */}
           <div className="grid gap-2">
             <Label htmlFor="schoolId">School</Label>
             <Combobox
@@ -293,11 +309,11 @@ export const AddDeviceForm = () => {
               placeholder="Select school..."
               searchPlaceholder="Search school..."
               emptyMessage="No school found."
-              width="w-full"
               disabled={schoolLoading}
             />
           </div>
 
+          {/* Branch */}
           <div className="grid gap-2">
             <Label htmlFor="branch">Branch</Label>
             <Combobox
@@ -309,11 +325,11 @@ export const AddDeviceForm = () => {
               placeholder="Select branch..."
               searchPlaceholder="Search branch..."
               emptyMessage="No branch found."
-              width="w-full"
               disabled={!formData.schoolId}
             />
           </div>
 
+          {/* Route */}
           <div className="grid gap-2">
             <Label htmlFor="routeNo">Route No.</Label>
             <Combobox
@@ -322,28 +338,24 @@ export const AddDeviceForm = () => {
               onValueChange={(value) =>
                 setFormData((prev) => ({ ...prev, routeNo: value }))
               }
-              placeholder="Select route no..."
-              searchPlaceholder="Search route no..."
-              emptyMessage="No route no found."
-              width="w-full"
+              placeholder="Select route..."
+              searchPlaceholder="Search route..."
+              emptyMessage="No route found."
               disabled={!formData.branchId}
             />
           </div>
 
+          {/* Footer */}
           <DialogFooter className="col-span-full mt-4 flex justify-end gap-2">
             <DialogClose asChild>
-              <Button
-                variant="outline"
-                type="button"
-                className="cursor-pointer"
-              >
+              <Button variant="outline" type="button" className="cursor-pointer">
                 Cancel
               </Button>
             </DialogClose>
             <Button
               type="submit"
-              className="cursor-pointer"
               disabled={addDeviceMutationNew.isPending}
+              className="cursor-pointer"
             >
               {addDeviceMutationNew.isPending ? "Saving..." : "Save Device"}
             </Button>

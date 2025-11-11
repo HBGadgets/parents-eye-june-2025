@@ -54,6 +54,7 @@ const iconMap: Record<string, React.ElementType> = {
   "Student Details": GraduationCap,
   Geofence: MapPin,
   "Pickup And Drop": Route,
+  Routes: Route,
   Absent: UserX,
   Present: UserCheck,
   "Leave Request": FileText,
@@ -80,6 +81,7 @@ const iconMap: Record<string, React.ElementType> = {
   "Idle Report": Clock,
   "Alerts/Events": Bell,
   "Geofence Report": Map,
+  "Route Report": Route,
 };
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
@@ -114,16 +116,29 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         case "Master":
           if (role === "superAdmin") {
             return [
+              { title: "Add Device", url: "/dashboard/users/add-device" },
+              { title: "School Master", url: "/dashboard/users/school-master" },
+              { title: "Branch Master", url: "/dashboard/users/branch-master" },
               { title: "User Access", url: "/dashboard/users/user-access" },
               {
                 title: "Student Details",
                 url: "/dashboard/school/student-details",
               },
               {
-                title: "Student Approve",
-                url: "/dashboard/users/student-approve",
+                title: "Parents Master",
+                url: "/dashboard/users/parents-master",
               },
-              { title: "Add Device", url: "/dashboard/users/add-device" },
+              { title: "Routes", url: "/dashboard/master/route" },
+              {
+                title: "Geofence",
+                url: "/dashboard/reports/geofence-report",
+              },
+              { title: "Notification", url: "/dashboard/users/notification" },
+
+              // {
+              //   title: "Student Approve",
+              //   url: "/dashboard/users/student-approve",
+              // },
             ];
           } else {
             return [
@@ -143,42 +158,42 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             // },
             // { title: "Geofence", url: "/dashboard/school/geofence" },
             { title: "Pickup And Drop", url: "/dashboard/school/pickup-drop" },
-            { title: "Absent", url: "/dashboard/school/absent" },
-            { title: "Present", url: "/dashboard/school/present" },
+            // { title: "Absent", url: "/dashboard/school/absent" },
+            // { title: "Present", url: "/dashboard/school/present" },
             { title: "Leave Request", url: "/dashboard/school/leave-request" },
-            { title: "Status", url: "/dashboard/school/status" },
-            {
-              title: "Approved Request",
-              url: "/dashboard/school/approved-request",
-            },
-            {
-              title: "Denied Request",
-              url: "/dashboard/school/denied-request",
-            },
+            // { title: "Status", url: "/dashboard/school/status" },
+            // {
+            //   title: "Approved Request",
+            //   url: "/dashboard/school/approved-request",
+            // },
+            // {
+            //   title: "Denied Request",
+            //   url: "/dashboard/school/denied-request",
+            // },
           ];
         case "Users":
           if (role === "superAdmin") {
             return [
-              { title: "School Master", url: "/dashboard/users/school-master" },
-              { title: "Branch Master", url: "/dashboard/users/branch-master" },
-              {
-                title: "Parents Master",
-                url: "/dashboard/users/parents-master",
-              },
+              // { title: "School Master", url: "/dashboard/users/school-master" },
+              // { title: "Branch Master", url: "/dashboard/users/branch-master" },
+              // {
+              //   title: "Parents Master",
+              //   url: "/dashboard/users/parents-master",
+              // },
               {
                 title: "Driver Approve",
                 url: "/dashboard/users/driver-approve",
               },
-              {
-                title: "Student Approve",
-                url: "/dashboard/users/student-approve",
-              },
+              // {
+              //   title: "Student Approve",
+              //   url: "/dashboard/users/student-approve",
+              // },
               {
                 title: "Supervisor Approve",
                 url: "/dashboard/users/supervisor-approve",
               },
               // { title: "Add Device", url: "/dashboard/users/add-device" },
-              { title: "Devices", url: "/dashboard/users/read-device" },
+              // { title: "Devices", url: "/dashboard/users/read-device" },
               // { title: "User Access", url: "/dashboard/users/user-access" },
               // { title: "Notification", url: "/dashboard/users/notification" },
             ];
@@ -240,13 +255,17 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               title: "Geofence Report",
               url: "/dashboard/reports/geofence-report",
             },
+            {
+              title: "Route Report",
+              url: "/dashboard/reports/route-report",
+            },
           ];
         case "Support":
           return [
-            { title: "FAQ", url: "/dashboard/support/faq" },
+            { title: "Contact Us", url: "/dashboard/support/contact-us" },
             { title: "Raise Ticket", url: "/dashboard/support/raise-ticket" },
             { title: "Answer Ticket", url: "/dashboard/support/answer-ticket" },
-            { title: "Contact Us", url: "/dashboard/support/contact-us" },
+            { title: "FAQ", url: "/dashboard/support/faq" },
           ];
         default:
           return [];
@@ -327,6 +346,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                       height={150}
                       src="/logo.svg"
                       alt="Logo"
+                      priority
                       className="relative left-10 -top-2.5"
                     />
                   </div>
