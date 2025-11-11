@@ -10,7 +10,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { CustomTable, CellContent } from "@/components/ui/CustomTable";
+import { CustomTableServerSidePagination } from "@/components/ui/customTable(serverSidePagination)";
 import SearchComponent from "@/components/ui/SearchOnlydata";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -23,6 +23,8 @@ import {
   useReactTable,
   VisibilityState,
   type ColumnDef,
+  PaginationState,
+  SortingState,
 } from "@tanstack/react-table";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/services/apiService";
@@ -45,6 +47,11 @@ declare module "@tanstack/react-table" {
     flex?: number;
     minWidth?: number;
     maxWidth?: number;
+    wrapConfig?: {
+      wrap?: "wrap" | "nowrap" | "ellipsis" | "break-word" | "break-all";
+      maxWidth?: string;
+      minWidth?: string;
+    };
   }
 }
 
@@ -91,32 +98,59 @@ const extractData = (data: any, fallbackKeys: string[] = []): any[] => {
   return [];
 };
 
-const fetchAllSupervisors = async (filters?: { schoolId?: string; branchId?: string }): Promise<Supervisor[]> => {
-  let allSupervisors: Supervisor[] = [];
-  let currentPage = 1;
-  let totalPages = 1;
-
-  do {
-    let url = `/supervisor?page=${currentPage}&limit=100`;
-    if (filters?.schoolId) url += `&schoolId=${filters.schoolId}`;
-    if (filters?.branchId) url += `&branchId=${filters.branchId}`;
-
-    const response = await api.get<SupervisorResponse>(url);
-    const data = response;
-    
-    if (data.supervisors?.length > 0) {
-      allSupervisors = [...allSupervisors, ...data.supervisors];
+// Helper function to safely get device name
+const getDeviceName = (supervisor: Supervisor): string => {
+  // First try to get device from supervisor's deviceObjId
+  if (supervisor.deviceObjId) {
+    if (typeof supervisor.deviceObjId === 'object' && supervisor.deviceObjId !== null) {
+      return supervisor.deviceObjId.name || "--";
     }
-    
-    totalPages = data.totalPages;
-    currentPage++;
-    
-    if (currentPage <= totalPages) {
-      await new Promise(resolve => setTimeout(resolve, 100));
+  }
+  
+  // Then try to get device from route's deviceObjId
+  if (supervisor.routeObjId && typeof supervisor.routeObjId === 'object' && supervisor.routeObjId !== null) {
+    const routeDeviceObj = supervisor.routeObjId.deviceObjId;
+    if (routeDeviceObj && typeof routeDeviceObj === 'object' && routeDeviceObj !== null) {
+      return routeDeviceObj.name || "--";
     }
-  } while (currentPage <= totalPages);
+  }
+  
+  return "--";
+};
 
-  return allSupervisors;
+// UPDATED: Proper paginated API call
+const useSupervisorsData = ({ 
+  enabled = true, 
+  schoolId, 
+  branchId,
+  page = 1,
+  limit = 10
+}: { 
+  enabled?: boolean; 
+  schoolId?: string | null; 
+  branchId?: string | null;
+  page?: number;
+  limit?: number;
+}) => {
+  return useQuery({
+    queryKey: ["supervisors", schoolId, branchId, page, limit],
+    queryFn: async () => {
+      let url = `/supervisor?page=${page}&limit=${limit}`;
+      if (schoolId) url += `&schoolId=${schoolId}`;
+      if (branchId) url += `&branchId=${branchId}`;
+      
+      const response = await api.get<SupervisorResponse>(url);
+      return {
+        supervisors: response.supervisors || [],
+        total: response.total || 0,
+        page: response.page || 1,
+        totalPages: response.totalPages || 1
+      };
+    },
+    enabled: enabled,
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
 };
 
 // Custom hooks
@@ -131,6 +165,7 @@ const useRouteData = ({ branchId, search, enabled = true }: { branchId?: string;
     },
     enabled: enabled,
     staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 };
 
@@ -217,7 +252,7 @@ const useSupervisorForm = (initialData?: Supervisor, role?: string, isSuperAdmin
   };
 };
 
-// Status Dropdown Component
+// Status Dropdown Component - FIXED VERSION
 const StatusDropdown = ({ 
   currentStatus, 
   onStatusChange, 
@@ -251,6 +286,7 @@ const StatusDropdown = ({
     setIsOpen(false);
   };
 
+  // Improved click outside handler
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
@@ -258,13 +294,33 @@ const StatusDropdown = ({
       }
     };
 
-    document.addEventListener('mousedown', handleClickOutside);
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    } else {
+      document.removeEventListener('mousedown', handleClickOutside);
+    }
+
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, []);
+  }, [isOpen]);
 
-  // Use React Portal to render dropdown outside the table container
+  // Close dropdown when scrolling
+  useEffect(() => {
+    const handleScroll = () => {
+      setIsOpen(false);
+    };
+
+    if (isOpen) {
+      window.addEventListener('scroll', handleScroll, true);
+    }
+
+    return () => {
+      window.removeEventListener('scroll', handleScroll, true);
+    };
+  }, [isOpen]);
+
+  // Render dropdown with better positioning
   const renderDropdown = () => {
     if (!isOpen || disabled || !buttonRef.current) return null;
 
@@ -272,18 +328,19 @@ const StatusDropdown = ({
     
     return ReactDOM.createPortal(
       <div 
-        className="fixed bg-white border border-gray-200 rounded-md shadow-lg z-[9999] min-w-[120px]"
+        ref={dropdownRef}
+        className="fixed bg-white border border-gray-200 rounded-md shadow-lg z-[9999] min-w-[120px] py-1"
         style={{
-          left: buttonRect.left + (buttonRect.width / 2) - 60, // Center the dropdown
-          top: buttonRect.top - 10, // Position above the button
+          left: buttonRect.left,
+          top: buttonRect.bottom + 4,
         }}
       >
         {statusOptions.map((option) => (
           <button
             key={option.value}
             type="button"
-            className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-100 ${
-              currentStatus === option.value ? 'bg-blue-50 text-blue-600' : ''
+            className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-100 transition-colors ${
+              currentStatus === option.value ? 'bg-blue-50 text-blue-600 font-medium' : 'text-gray-700'
             }`}
             onClick={() => handleStatusSelect(option.value)}
           >
@@ -300,7 +357,7 @@ const StatusDropdown = ({
       <button
         ref={buttonRef}
         type="button"
-        className={`px-3 py-1 border rounded-full text-sm font-medium ${getStatusColor(currentStatus)} ${
+        className={`px-3 py-1 border rounded-full text-sm font-medium transition-colors ${getStatusColor(currentStatus)} ${
           disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:opacity-80'
         }`}
         onClick={() => !disabled && setIsOpen(!isOpen)}
@@ -676,7 +733,6 @@ const EditSupervisorDialog = ({
   });
   const [usernameError, setUsernameError] = useState("");
 
-  // Initialize form data when editTarget changes - FIXED: Pre-fetch device data
   useEffect(() => {
     if (editTarget) {
       setFormData({
@@ -687,21 +743,18 @@ const EditSupervisorDialog = ({
         email: editTarget.email || "",
       });
 
-      // Pre-fill the device if it exists in editTarget
       if (editTarget.deviceObjId) {
         const deviceId = typeof editTarget.deviceObjId === 'object' 
           ? editTarget.deviceObjId._id 
           : editTarget.deviceObjId;
         
         if (deviceId) {
-          // Use setTimeout to ensure the form state is updated after the current render cycle
           setTimeout(() => {
             editForm.setDevice(deviceId);
           }, 0);
         }
       }
 
-      // Also pre-fill route device if no specific device is assigned
       if (!editTarget.deviceObjId && editTarget.routeObjId) {
         const routeDeviceId = typeof editTarget.routeObjId === 'object' && 
                              typeof editTarget.routeObjId.deviceObjId === 'object'
@@ -838,6 +891,14 @@ export default function SupervisorApprove() {
   const [role, setRole] = useState<string | null>(null);
   const [userSchoolId, setUserSchoolId] = useState<string | null>(null);
   const [userBranchId, setUserBranchId] = useState<string | null>(null);
+  
+  // UPDATED: Enhanced pagination state for server-side pagination
+  const [pagination, setPagination] = useState<PaginationState>({
+    pageIndex: 0,
+    pageSize: 10,
+  });
+  const [sorting, setSorting] = useState<SortingState>([]);
+  const [totalRecords, setTotalRecords] = useState(0);
 
   // Role checks
   const normalizedRole = useMemo(() => {
@@ -881,18 +942,22 @@ export default function SupervisorApprove() {
   const addForm = useSupervisorForm(undefined, normalizedRole, isSuperAdmin, isSchoolRole, isBranchRole, userBranchId);
   const editForm = useSupervisorForm(editTarget || undefined, normalizedRole, isSuperAdmin, isSchoolRole, isBranchRole, userBranchId);
 
-  // Supervisors data
-  const { data: supervisors, isLoading } = useQuery<Supervisor[]>({
-    queryKey: ["supervisors", normalizedRole, userSchoolId, userBranchId],
-    queryFn: () => {
-      const filters: { schoolId?: string; branchId?: string } = {};
-      if (isSchoolRole && userSchoolId) filters.schoolId = userSchoolId;
-      if (isBranchRole && userBranchId) filters.branchId = userBranchId;
-      return fetchAllSupervisors(filters);
-    },
+  // UPDATED: Paginated API call for supervisors
+  const { data: supervisorsData, isLoading } = useSupervisorsData({
     enabled: !!normalizedRole,
-    staleTime: 5 * 60 * 1000,
+    schoolId: isSchoolRole ? userSchoolId : isBranchRole ? userSchoolId : undefined,
+    branchId: isBranchRole ? userBranchId : undefined,
+    page: pagination.pageIndex + 1, // Convert to 1-based for backend
+    limit: pagination.pageSize,
   });
+
+  // UPDATED: Set filtered data and pagination info
+  useEffect(() => {
+    if (supervisorsData) {
+      setFilteredData(supervisorsData.supervisors);
+      setTotalRecords(supervisorsData.total);
+    }
+  }, [supervisorsData]);
 
   // Set initial values for forms based on role
   useEffect(() => {
@@ -909,27 +974,26 @@ export default function SupervisorApprove() {
     return null;
   }, [isBranchRole, userBranchId, branchData]);
 
-  // Helper functions - MOVED BEFORE useCallbacks that depend on them
-  const getId = useCallback((obj: any): string => {
+  // Helper functions
+  const getIdHelper = useCallback((obj: any): string => {
     if (!obj) return "";
     if (typeof obj === "string") return obj;
     return obj._id || "";
   }, []);
 
-  // Get route device IDs - UPDATED: Return assigned device for ALL roles
+  // Get route device IDs
   const getRouteDeviceIds = useCallback((routeData: any, routeId: string): string[] => {
     if (!routeData || !routeId) return [];
     const routes = extractData(routeData, ["routes", "data"]);
     const selectedRoute = routes.find((r: Route) => r._id === routeId);
     
-    // For ALL roles, return the assigned device of the route
     if (selectedRoute?.deviceObjId) {
-      const deviceId = getId(selectedRoute.deviceObjId);
+      const deviceId = getIdHelper(selectedRoute.deviceObjId);
       return deviceId ? [deviceId] : [];
     }
     
     return [];
-  }, [getId]);
+  }, [getIdHelper]);
 
   // Route data queries
   const addRouteQuery = useRouteData({ 
@@ -944,7 +1008,7 @@ export default function SupervisorApprove() {
     enabled: isBranchRole ? !!userBranchId : !!editForm.branch
   });
 
-  // Device data queries - UPDATED: Enable for ALL roles to show route-assigned devices
+  // Device data queries
   const addDeviceQuery = useInfiniteDeviceData({
     role: normalizedRole as any,
     schoolId: isSuperAdmin ? addForm.school || undefined : userSchoolId || undefined,
@@ -952,7 +1016,6 @@ export default function SupervisorApprove() {
     deviceObjId: getRouteDeviceIds(addRouteQuery.data, addForm.route),
     search: addForm.deviceSearch,
     limit: 20,
-    // Enable device query for ALL roles to show available devices
     enabled: !!addForm.route
   });
 
@@ -963,7 +1026,6 @@ export default function SupervisorApprove() {
     deviceObjId: getRouteDeviceIds(editRouteQuery.data, editForm.route),
     search: editForm.deviceSearch,
     limit: 20,
-    // Enable device query for ALL roles to show available devices
     enabled: !!editForm.route
   });
 
@@ -981,23 +1043,23 @@ export default function SupervisorApprove() {
     return Array.from(new Map(filteredSchools.filter(s => s._id && s.schoolName).map(s => [s._id, { label: s.schoolName, value: s._id }])).values());
   }, [schoolData, isSchoolRole, isBranchRole, userSchoolId, userSchoolIdForBranch]);
 
-  // Branch options - FIXED: Remove auto-selection for School role
+  // Branch options
   const getFilteredBranchOptions = useCallback((schoolId: string) => {
     if (!branchData) return [];
     let filteredBranches = branchData;
     
     if (isSchoolRole && userSchoolId) {
-      filteredBranches = branchData.filter(branch => getId(branch.schoolId) === userSchoolId);
+      filteredBranches = branchData.filter(branch => getIdHelper(branch.schoolId) === userSchoolId);
     } else if (isBranchRole && userBranchId) {
       filteredBranches = branchData.filter(branch => branch._id === userBranchId);
     } else if (isSuperAdmin && schoolId) {
-      filteredBranches = branchData.filter(branch => getId(branch.schoolId) === schoolId);
+      filteredBranches = branchData.filter(branch => getIdHelper(branch.schoolId) === schoolId);
     }
     
     return filteredBranches.filter(branch => branch._id && branch.branchName).map(branch => ({
       label: branch.branchName, value: branch._id
     }));
-  }, [branchData, isSuperAdmin, isSchoolRole, isBranchRole, userSchoolId, userBranchId, getId]);
+  }, [branchData, isSuperAdmin, isSchoolRole, isBranchRole, userSchoolId, userBranchId, getIdHelper]);
 
   const addBranchOptions = useMemo(() => 
     getFilteredBranchOptions(addForm.school), 
@@ -1030,15 +1092,14 @@ export default function SupervisorApprove() {
       }));
   }, []);
 
-  // Device items - UPDATED: Show only route assigned device for ALL roles
+  // Device items
   const getDeviceItems = useCallback((deviceData: any, routeData: any, routeId: string) => {
-    // For ALL roles, only show the device assigned to the route
     if (routeData && routeId) {
       const routes = extractData(routeData, ["routes", "data"]);
       const selectedRoute = routes.find((r: Route) => r._id === routeId);
       
       if (selectedRoute?.deviceObjId) {
-        const deviceId = getId(selectedRoute.deviceObjId);
+        const deviceId = getIdHelper(selectedRoute.deviceObjId);
         const deviceName = typeof selectedRoute.deviceObjId === 'object' 
           ? selectedRoute.deviceObjId.name 
           : 'Assigned Device';
@@ -1051,14 +1112,7 @@ export default function SupervisorApprove() {
     }
     
     return [];
-  }, [getId]);
-
-  // Set filtered data
-  useEffect(() => {
-    if (supervisors) setFilteredData(supervisors);
-  }, [supervisors]);
-
-  // REMOVED: Auto-select branch for school role - now it will show normal branch selection
+  }, [getIdHelper]);
 
   // Mutations
   const approveMutation = useMutation({
@@ -1066,15 +1120,19 @@ export default function SupervisorApprove() {
       await api.post(`/supervisor/approve/${supervisor._id}`, { status: supervisor.status }),
     onMutate: async (variables) => {
       await queryClient.cancelQueries({ queryKey: ["supervisors"] });
-      const previousSupervisors = queryClient.getQueryData<Supervisor[]>(["supervisors"]);
+      const previousSupervisors = queryClient.getQueryData<any>(["supervisors"]);
 
-      queryClient.setQueryData<Supervisor[]>(["supervisors"], (old) =>
-        old?.map(s => 
-          s._id === variables._id 
-            ? { ...s, status: variables.status }
-            : s
-        ) || []
-      );
+      queryClient.setQueryData<any>(["supervisors"], (old) => {
+        if (!old) return old;
+        return {
+          ...old,
+          supervisors: old.supervisors?.map((s: Supervisor) => 
+            s._id === variables._id 
+              ? { ...s, status: variables.status }
+              : s
+          ) || []
+        };
+      });
 
       setFilteredData(prev => 
         prev.map(s => 
@@ -1089,7 +1147,7 @@ export default function SupervisorApprove() {
     onError: (err, variables, context) => {
       if (context?.previousSupervisors) {
         queryClient.setQueryData(["supervisors"], context.previousSupervisors);
-        setFilteredData(context.previousSupervisors);
+        setFilteredData(context.previousSupervisors?.supervisors || []);
       }
       alert("Failed to update supervisor status.");
     },
@@ -1120,13 +1178,17 @@ export default function SupervisorApprove() {
       return await api.put(`/supervisor/${supervisorId}`, data);
     },
     onSuccess: (updatedSupervisor, variables) => {
-      queryClient.setQueryData<Supervisor[]>(["supervisors"], (old) =>
-        old?.map(s => 
-          s._id === variables.supervisorId 
-            ? { ...s, ...variables.data }
-            : s
-        ) || []
-      );
+      queryClient.setQueryData<any>(["supervisors"], (old) => {
+        if (!old) return old;
+        return {
+          ...old,
+          supervisors: old.supervisors?.map((s: Supervisor) => 
+            s._id === variables.supervisorId 
+              ? { ...s, ...variables.data }
+              : s
+          ) || []
+        };
+      });
       setFilteredData(prev => 
         prev.map(s => 
           s._id === variables.supervisorId 
@@ -1191,122 +1253,179 @@ export default function SupervisorApprove() {
     updateSupervisorMutation.mutate({ supervisorId: editTarget._id, data: changedFields });
   }, [editTarget, updateSupervisorMutation]);
 
-  // Table columns
-  const columns: ColumnDef<Supervisor, CellContent>[] = useMemo(() => [
+  // UPDATED: Handle pagination change for server-side
+  const handlePaginationChange = useCallback((newPagination: PaginationState) => {
+    setPagination(newPagination);
+  }, []);
+
+  // UPDATED: Handle sorting change
+  const handleSortingChange = useCallback((newSorting: SortingState) => {
+    setSorting(newSorting);
+    // You can implement server-side sorting here if needed
+  }, []);
+
+  // Table columns with FIXED device name accessor
+  const columns: ColumnDef<Supervisor>[] = useMemo(() => [
     {
       header: "Supervisor Name",
-      accessorFn: (row) => ({ type: "text", value: row.supervisorName ?? "" }),
-      meta: { flex: 1, minWidth: 200, maxWidth: 300 },
+      accessorFn: (row) => row.supervisorName ?? "",
+      meta: { 
+        flex: 1, 
+        minWidth: 200, 
+        maxWidth: 300,
+        wrapConfig: { wrap: "ellipsis" }
+      },
       enableHiding: true,
     },
     ...(isSuperAdmin ? [{
       header: "School Name",
-      accessorFn: (row) => ({ type: "text", value: row.schoolId?.schoolName ?? "--" }),
-      meta: { flex: 1, minWidth: 200, maxWidth: 300 },
+      accessorFn: (row) => row.schoolId?.schoolName ?? "--",
+      meta: { 
+        flex: 1, 
+        minWidth: 200, 
+        maxWidth: 300,
+        wrapConfig: { wrap: "ellipsis" }
+      },
       enableHiding: true,
     }] : []),
     ...((isSuperAdmin || isSchoolRole) ? [{
       header: "Branch Name",
-      accessorFn: (row) => ({ type: "text", value: row.branchId?.branchName ?? "--" }),
-      meta: { flex: 1, minWidth: 200, maxWidth: 300 },
+      accessorFn: (row) => row.branchId?.branchName ?? "--",
+      meta: { 
+        flex: 1, 
+        minWidth: 200, 
+        maxWidth: 300,
+        wrapConfig: { wrap: "ellipsis" }
+      },
       enableHiding: true,
     }] : []),
     {
       header: "Route Number",
-      accessorFn: (row) => ({ type: "text", value: row.routeObjId?.routeNumber ?? "--" }),
-      meta: { flex: 1, minWidth: 150, maxWidth: 200 },
+      accessorFn: (row) => row.routeObjId?.routeNumber ?? "--",
+      meta: { 
+        flex: 1, 
+        minWidth: 150, 
+        maxWidth: 200,
+        wrapConfig: { wrap: "nowrap" }
+      },
       enableHiding: true,
     },
     {
       header: "Assigned Device",
-      accessorFn: (row) => { 
-        const deviceName = typeof row.deviceObjId === 'object' ? row.deviceObjId?.name : "--";
-        const routeDeviceName = typeof row.routeObjId === 'object' && typeof row.routeObjId.deviceObjId === 'object' 
-          ? row.routeObjId.deviceObjId.name 
-          : "--";
-        const displayName = deviceName !== "--" ? deviceName : routeDeviceName;
-        return { type: "text", value: displayName };
+      accessorFn: (row) => getDeviceName(row),
+      meta: { 
+        flex: 1, 
+        minWidth: 150, 
+        maxWidth: 200,
+        wrapConfig: { wrap: "ellipsis" }
       },
-      meta: { flex: 1, minWidth: 150, maxWidth: 200 },
       enableHiding: true,
     },
     {
       header: "Mobile",
-      accessorFn: (row) => ({ type: "text", value: row.mobileNo ?? "" }),
-      meta: { flex: 1, minWidth: 150, maxWidth: 300 },
+      accessorFn: (row) => row.mobileNo ?? "",
+      meta: { 
+        flex: 1, 
+        minWidth: 150, 
+        maxWidth: 300,
+        wrapConfig: { wrap: "nowrap" }
+      },
       enableHiding: true,
     },
     {
       header: "Username",
-      accessorFn: (row) => ({ type: "text", value: row.username ?? "" }),
-      meta: { flex: 1, minWidth: 150, maxWidth: 300 },
+      accessorFn: (row) => row.username ?? "",
+      meta: { 
+        flex: 1, 
+        minWidth: 150, 
+        maxWidth: 300,
+        wrapConfig: { wrap: "ellipsis" }
+      },
       enableHiding: true,
     },
     {
       header: "Password",
-      accessorFn: (row) => ({ type: "text", value: row.password ?? "" }),
-      meta: { flex: 1, minWidth: 150, maxWidth: 300 },
+      accessorFn: (row) => row.password ?? "",
+      meta: { 
+        flex: 1, 
+        minWidth: 150, 
+        maxWidth: 300,
+        wrapConfig: { wrap: "ellipsis" }
+      },
       enableHiding: true,
     },
     {
       header: "Registration Date",
-      accessorFn: (row) => ({ type: "text", value: formatDate(row.createdAt) ?? "" }),
-      meta: { flex: 1, minWidth: 200 },
+      accessorFn: (row) => formatDate(row.createdAt) ?? "",
+      meta: { 
+        flex: 1, 
+        minWidth: 200,
+        wrapConfig: { wrap: "nowrap" }
+      },
       enableHiding: true,
     },
     {
       header: "Status",
-      accessorFn: (row) => ({ 
-        type: "text", 
-        value: row.status ?? "Pending",
-        className: row.status === "Approved" ? "text-green-600 font-semibold" : 
-                  row.status === "Rejected" ? "text-red-600 font-semibold" : 
-                  "text-yellow-600 font-semibold"
-      }),
-      meta: { flex: 1, minWidth: 120, maxWidth: 150 },
+      accessorFn: (row) => row.status ?? "Pending",
+      meta: { 
+        flex: 1, 
+        minWidth: 120, 
+        maxWidth: 150,
+        wrapConfig: { wrap: "nowrap" }
+      },
       enableHiding: true,
     },
     {
       header: "Approve/Reject",
-      accessorFn: (row) => ({
-        type: "custom",
-        render: () => (
-          <StatusDropdown
-            currentStatus={row.status || "Pending"}
-            onStatusChange={(status) => handleStatusChange(row, status)}
-            disabled={approveMutation.isPending}
-          />
-        ),
-      }),
-      meta: { flex: 1, minWidth: 150, maxWidth: 200 },
+      accessorFn: (row) => row,
+      cell: ({ row }) => (
+        <StatusDropdown
+          currentStatus={row.original.status || "Pending"}
+          onStatusChange={(status) => handleStatusChange(row.original, status)}
+          disabled={approveMutation.isPending}
+        />
+      ),
+      meta: { 
+        flex: 1, 
+        minWidth: 150, 
+        maxWidth: 200,
+        wrapConfig: { wrap: "nowrap" }
+      },
       enableSorting: false,
       enableHiding: true,
     },
     {
       header: "Action",
-      accessorFn: (row) => ({
-        type: "group",
-        items: [
-          {
-            type: "button",
-            label: "Edit",
-            onClick: () => {
-              setEditTarget(row);
+      accessorFn: (row) => row,
+      cell: ({ row }) => (
+        <div className="flex space-x-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setEditTarget(row.original);
               setEditDialogOpen(true);
-            },
-            className: "cursor-pointer",
-            disabled: updateSupervisorMutation.isPending,
-          },
-          {
-            type: "button",
-            label: "Delete",
-            onClick: () => setDeleteTarget(row),
-            className: "text-red-600 cursor-pointer",
-            disabled: deleteSupervisorMutation.isPending,
-          },
-        ],
-      }),
-      meta: { flex: 1.5, minWidth: 150, maxWidth: 200 },
+            }}
+            disabled={updateSupervisorMutation.isPending}
+          >
+            Edit
+          </Button>
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={() => setDeleteTarget(row.original)}
+            disabled={deleteSupervisorMutation.isPending}
+          >
+            Delete
+          </Button>
+        </div>
+      ),
+      meta: { 
+        flex: 1.5, 
+        minWidth: 150, 
+        maxWidth: 200,
+        wrapConfig: { wrap: "nowrap" }
+      },
       enableSorting: false,
       enableHiding: true,
     },
@@ -1325,12 +1444,40 @@ export default function SupervisorApprove() {
     { key: "createdAt", header: "Registration Date" },
   ], [isSuperAdmin, isSchoolRole]);
 
-  const table = useReactTable({
+  // FIX: Create a proper table instance for ColumnVisibilitySelector
+  const tableForVisibility = useReactTable({
     data: filteredData,
     columns,
-    state: { columnVisibility },
+    state: {
+      columnVisibility,
+    },
     onColumnVisibilityChange: setColumnVisibility,
     getCoreRowModel: getCoreRowModel(),
+  });
+
+  // FIX: Use the CustomTableServerSidePagination component properly
+  const { tableElement } = CustomTableServerSidePagination({
+    data: filteredData,
+    columns,
+    pagination,
+    totalCount: totalRecords,
+    loading: isLoading,
+    onPaginationChange: handlePaginationChange,
+    onSortingChange: handleSortingChange,
+    sorting,
+    emptyMessage: "No supervisors found",
+    pageSizeOptions: [10, 20, 50, 100],
+    enableSorting: true,
+    manualSorting: true,
+    manualPagination: true,
+    showSerialNumber: true,
+    serialNumberHeader: "SN",
+    maxHeight: "600px",
+    columnVisibility,
+    onColumnVisibilityChange: setColumnVisibility,
+    enableRowClick: false,
+    defaultTextWrap: "nowrap",
+    enableColumnWrapping: true,
   });
 
   return (
@@ -1340,18 +1487,18 @@ export default function SupervisorApprove() {
       <header className="flex items-center justify-between mb-4">
         <section className="flex space-x-4">
           <SearchComponent
-            data={supervisors || []}
+            data={supervisorsData?.supervisors || []}
             displayKey={["supervisorName", "username", "email", "mobileNo"]}
             onResults={setFilteredData}
             className="w-[300px] mb-4"
           />
           <DateRangeFilter
             onDateRangeChange={(start, end) => {
-              if (!supervisors || (!start && !end)) {
-                setFilteredData(supervisors || []);
+              if (!supervisorsData?.supervisors || (!start && !end)) {
+                setFilteredData(supervisorsData?.supervisors || []);
                 return;
               }
-              const filtered = supervisors.filter(s => {
+              const filtered = supervisorsData.supervisors.filter(s => {
                 if (!s.createdAt) return false;
                 const date = new Date(s.createdAt);
                 return (!start || date >= start) && (!end || date <= end);
@@ -1362,13 +1509,14 @@ export default function SupervisorApprove() {
           />
           <CustomFilter
             data={filteredData}
-            originalData={supervisors}
+            originalData={supervisorsData?.supervisors}
             filterFields={["status"]}
             onFilter={setFilteredData}
             placeholder="Filter by Status"
             valueFormatter={(v) => v ? v.toString().charAt(0).toUpperCase() + v.toString().slice(1).toLowerCase() : ""}
           />
-          <ColumnVisibilitySelector columns={table.getAllColumns()} />
+          {/* FIX: Pass table columns instead of raw column definitions */}
+          <ColumnVisibilitySelector columns={tableForVisibility.getAllLeafColumns()} />
         </section>
 
         <section>
@@ -1394,18 +1542,8 @@ export default function SupervisorApprove() {
       </header>
 
       <section className="mb-4">
-        <CustomTable
-          data={filteredData}
-          columns={columns}
-          columnVisibility={columnVisibility}
-          onColumnVisibilityChange={setColumnVisibility}
-          pageSizeArray={[10, 20, 50, 100]}
-          maxHeight={600}
-          minHeight={200}
-          showSerialNumber={true}
-          noDataMessage="No supervisors found"
-          isLoading={isLoading}
-        />
+        {/* FIX: Render only the tableElement, not the entire object */}
+        {tableElement}
       </section>
 
       {deleteTarget && (
@@ -1419,7 +1557,7 @@ export default function SupervisorApprove() {
           target={deleteTarget}
           setTarget={setDeleteTarget}
           butttonText="Delete"
-          className="max-w-md w-full" // Add this line
+          className="max-w-md w-full"
         />
       )}
 

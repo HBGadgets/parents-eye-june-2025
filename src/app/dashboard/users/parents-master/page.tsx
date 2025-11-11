@@ -794,7 +794,7 @@ export default function ParentsMaster() {
                         type="checkbox"
                         id="isActive"
                         name="isActive"
-                        className="h-5 w-5"
+                        className="h-3 w-3"
                         defaultChecked
                       />
                       <Label htmlFor="isActive">Active Status</Label>

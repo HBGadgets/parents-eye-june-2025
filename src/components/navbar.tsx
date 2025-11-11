@@ -30,9 +30,9 @@ export function Navbar() {
   const handleNavClick = React.useCallback(
     (section: string) => {
       if (
-        section !== "Dashboard" &&
-        section !== "Notifications" &&
-        section !== "Geofence"
+        section !== "Dashboard"
+        // section !== "Notifications" &&
+        // section !== "Geofence"
       ) {
         setActiveSection(section);
         // Open sidebar based on device type
@@ -71,9 +71,7 @@ export function Navbar() {
                 "School",
                 "Users",
                 "Reports",
-                "Geofence",
                 "Support",
-                "Notifications",
                 "Maintenance",
               ].map((section) => (
                 <NavigationMenuItem key={section}>

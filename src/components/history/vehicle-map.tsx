@@ -530,34 +530,28 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
 
     const map = mapRef.current;
 
-    // Create custom vehicle icon
+    // --- Vehicle Icon ---
     const vehicleIcon = L.divIcon({
       className: "vehicle-marker",
       html: `
-        <div style="
-          transform: rotate(${currentPoint.course}deg); 
-          width: 32px; 
-          height: 32px; 
-          display: flex; 
-          align-items: center; 
-          justify-content: center;
-          z-index: 1000;
-        ">
-          <img src="/Top Y.svg" />
-        </div>
-      `,
+      <div style="
+        transform: rotate(${currentPoint.course}deg); 
+        width: 32px; 
+        height: 32px; 
+        display: flex; 
+        align-items: center; 
+        justify-content: center;
+        z-index: 1000;
+      ">
+        <img src="/Top Y.svg" width="32" height="32" />
+      </div>
+    `,
       iconSize: [32, 32],
       iconAnchor: [16, 16],
     });
 
-    // Update or create marker
-    if (markerRef.current) {
-      markerRef.current.setLatLng([
-        currentPoint.latitude,
-        currentPoint.longitude,
-      ]);
-      markerRef.current.setIcon(vehicleIcon);
-    } else {
+    // Create marker if not already present
+    if (!markerRef.current) {
       markerRef.current = L.marker(
         [currentPoint.latitude, currentPoint.longitude],
         {
@@ -565,11 +559,58 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
           zIndexOffset: 1000,
         }
       ).addTo(map);
+      return;
     }
 
-    // Optionally center map on current position
-    map.setView([currentPoint.latitude, currentPoint.longitude], map.getZoom());
-  }, [currentPoint, currentIndex, isRouteDrawn]);
+    const marker = markerRef.current;
+    const startLatLng = marker.getLatLng();
+    const endLatLng = L.latLng(currentPoint.latitude, currentPoint.longitude);
+
+    // --- Animation Config ---
+    const duration = 1000; // ms (time to move between points)
+    const startTime = performance.now();
+
+    // Linear interpolation (no easing)
+    const linear = (t: number) => t;
+
+    // Capture current camera position
+    const startCenter = map.getCenter();
+
+    let animationFrame: number;
+
+    const animate = (time: number) => {
+      const elapsed = time - startTime;
+      const t = Math.min(elapsed / duration, 1); // Normalize 0 → 1
+      const progress = linear(t);
+
+      // Interpolate marker position (constant speed)
+      const nextLat =
+        startLatLng.lat + (endLatLng.lat - startLatLng.lat) * progress;
+      const nextLng =
+        startLatLng.lng + (endLatLng.lng - startLatLng.lng) * progress;
+      marker.setLatLng([nextLat, nextLng]);
+
+      // Move camera continuously with marker
+      const nextCenterLat =
+        startCenter.lat + (endLatLng.lat - startCenter.lat) * progress;
+      const nextCenterLng =
+        startCenter.lng + (endLatLng.lng - startCenter.lng) * progress;
+      map.panTo([nextCenterLat, nextCenterLng], { animate: false });
+
+      if (t < 1) {
+        animationFrame = requestAnimationFrame(animate);
+      } else {
+        // Finish cleanly without pause
+        marker.setLatLng(endLatLng);
+        marker.setIcon(vehicleIcon);
+        map.panTo(endLatLng, { animate: false });
+      }
+    };
+
+    animationFrame = requestAnimationFrame(animate);
+
+    return () => cancelAnimationFrame(animationFrame);
+  }, [currentPoint, isRouteDrawn]);
 
   // Enhanced resize handler
   useEffect(() => {

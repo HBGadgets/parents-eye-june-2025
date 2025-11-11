@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useState, useRef, useMemo } from "react";
 import { Dialog, DialogClose, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { CustomTable, CellContent } from "@/components/ui/CustomTable";
+import { CustomTableServerSidePagination } from "@/components/ui/customTable(serverSidePagination)";
 import SearchComponent from "@/components/ui/SearchOnlydata";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Combobox } from "@/components/ui/combobox";
 import DateRangeFilter from "@/components/ui/DateRangeFilter";
 import { FloatingMenu } from "@/components/floatingMenu";
-import { getCoreRowModel, useReactTable, VisibilityState, type ColumnDef } from "@tanstack/react-table";
+import { getCoreRowModel, useReactTable, VisibilityState, type ColumnDef, PaginationState, SortingState } from "@tanstack/react-table";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/services/apiService";
 import { useExport } from "@/hooks/useExport";
@@ -27,11 +27,32 @@ import Cookies from "js-cookie";
 import { getDecodedToken } from "@/lib/jwt";
 import ReactDOM from 'react-dom';
 
+declare module "@tanstack/react-table" {
+  interface ColumnMeta<TData, TValue> {
+    flex?: number;
+    minWidth?: number;
+    maxWidth?: number;
+    wrapConfig?: {
+      wrap?: "wrap" | "nowrap" | "ellipsis" | "break-word" | "break-all";
+      maxWidth?: string;
+      minWidth?: string;
+    };
+  }
+}
+
+interface DriverResponse {
+  total: number;
+  page: number;
+  totalPages: number;
+  drivers: Driver[];
+}
+
 interface SelectOption {
   label: string;
   value: string;
 }
-// Status Dropdown Component
+
+// Status Dropdown Component - FIXED VERSION
 const StatusDropdown = ({ 
   currentStatus, 
   onStatusChange, 
@@ -65,6 +86,7 @@ const StatusDropdown = ({
     setIsOpen(false);
   };
 
+  // Improved click outside handler
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
@@ -72,13 +94,33 @@ const StatusDropdown = ({
       }
     };
 
-    document.addEventListener('mousedown', handleClickOutside);
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    } else {
+      document.removeEventListener('mousedown', handleClickOutside);
+    }
+
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, []);
+  }, [isOpen]);
 
-  // Use React Portal to render dropdown outside the table container
+  // Close dropdown when scrolling
+  useEffect(() => {
+    const handleScroll = () => {
+      setIsOpen(false);
+    };
+
+    if (isOpen) {
+      window.addEventListener('scroll', handleScroll, true);
+    }
+
+    return () => {
+      window.removeEventListener('scroll', handleScroll, true);
+    };
+  }, [isOpen]);
+
+  // Render dropdown with better positioning
   const renderDropdown = () => {
     if (!isOpen || disabled || !buttonRef.current) return null;
 
@@ -86,18 +128,19 @@ const StatusDropdown = ({
     
     return ReactDOM.createPortal(
       <div 
-        className="fixed bg-white border border-gray-200 rounded-md shadow-lg z-[9999] min-w-[120px]"
+        ref={dropdownRef}
+        className="fixed bg-white border border-gray-200 rounded-md shadow-lg z-[9999] min-w-[120px] py-1"
         style={{
-          left: buttonRect.left + (buttonRect.width / 2) - 60, // Center the dropdown
-          top: buttonRect.top - 10, // Position above the button
+          left: buttonRect.left,
+          top: buttonRect.bottom + 4,
         }}
       >
         {statusOptions.map((option) => (
           <button
             key={option.value}
             type="button"
-            className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-100 ${
-              currentStatus === option.value ? 'bg-blue-50 text-blue-600' : ''
+            className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-100 transition-colors ${
+              currentStatus === option.value ? 'bg-blue-50 text-blue-600 font-medium' : 'text-gray-700'
             }`}
             onClick={() => handleStatusSelect(option.value)}
           >
@@ -114,7 +157,7 @@ const StatusDropdown = ({
       <button
         ref={buttonRef}
         type="button"
-        className={`px-3 py-1 border rounded-full text-sm font-medium ${getStatusColor(currentStatus)} ${
+        className={`px-3 py-1 border rounded-full text-sm font-medium transition-colors ${getStatusColor(currentStatus)} ${
           disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:opacity-80'
         }`}
         onClick={() => !disabled && setIsOpen(!isOpen)}
@@ -126,6 +169,129 @@ const StatusDropdown = ({
       {renderDropdown()}
     </div>
   );
+};
+// Helper functions
+const getId = (obj: any): string => {
+  if (!obj) return "";
+  if (typeof obj === "string") return obj;
+  return obj._id || "";
+};
+
+// UPDATED: Proper paginated API call for drivers - FIXED to match actual backend response
+const useDriversData = ({ 
+  enabled = true, 
+  schoolId, 
+  branchId,
+  page = 1,
+  limit = 10
+}: { 
+  enabled?: boolean; 
+  schoolId?: string | null; 
+  branchId?: string | null;
+  page?: number;
+  limit?: number;
+}) => {
+  return useQuery({
+    queryKey: ["drivers", schoolId, branchId, page, limit],
+    queryFn: async () => {
+      let url = `/driver?page=${page}&limit=${limit}`;
+      if (schoolId) url += `&schoolId=${schoolId}`;
+      if (branchId) url += `&branchId=${branchId}`;
+      
+      console.log("Fetching drivers from:", url);
+      
+      // FIX: The backend returns a simple array, not the paginated response structure
+      const response = await api.get<Driver[]>(url);
+      
+      // FIX: Transform the array response to match the expected paginated structure
+      // Since your backend returns a simple array, we'll create a paginated structure
+      const startIndex = (page - 1) * limit;
+      const endIndex = startIndex + limit;
+      const paginatedDrivers = Array.isArray(response) ? response.slice(startIndex, endIndex) : response;
+      
+      return {
+        drivers: Array.isArray(paginatedDrivers) ? paginatedDrivers : [],
+        total: Array.isArray(response) ? response.length : 0,
+        page: page,
+        totalPages: Array.isArray(response) ? Math.ceil(response.length / limit) : 1
+      };
+    },
+    enabled: enabled,
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
+};
+
+// Custom hook for form state management
+const useDriverForm = (initialData?: Driver, role?: string, isSuperAdmin?: boolean, isSchoolRole?: boolean, isBranchRole?: boolean, userBranchId?: string) => {
+  const [school, setSchool] = useState("");
+  const [schoolSearch, setSchoolSearch] = useState("");
+  const [branch, setBranch] = useState("");
+  const [branchSearch, setBranchSearch] = useState("");
+  const [device, setDevice] = useState("");
+  const [deviceSearch, setDeviceSearch] = useState("");
+
+  useEffect(() => {
+    if (initialData) {
+      if (isSuperAdmin) {
+        setSchool(initialData.schoolId?._id || initialData.schoolId || "");
+      }
+      if (isSuperAdmin || isSchoolRole) {
+        setBranch(initialData.branchId?._id || initialData.branchId || "");
+      }
+      if (isBranchRole && userBranchId) {
+        setBranch(userBranchId);
+      }
+      setDevice(initialData.deviceObjId?._id || initialData.deviceObjId || "");
+    }
+  }, [initialData, isSuperAdmin, isSchoolRole, isBranchRole, userBranchId]);
+
+  const resetForm = () => {
+    if (isSuperAdmin) {
+      setSchool("");
+      setSchoolSearch("");
+    }
+    if (isSuperAdmin || isSchoolRole) {
+      setBranch("");
+      setBranchSearch("");
+    }
+    setDevice("");
+    setDeviceSearch("");
+  };
+
+  const handleSchoolChange = useCallback((newSchool: string) => {
+    const prevSchool = school;
+    setSchool(newSchool);
+    if (newSchool !== prevSchool && prevSchool !== "") {
+      setBranch("");
+      setBranchSearch("");
+    }
+  }, [school]);
+
+  const handleBranchChange = useCallback((newBranch: string) => {
+    const prevBranch = branch;
+    setBranch(newBranch);
+    if (newBranch !== prevBranch && prevBranch !== "") {
+      setDevice("");
+      setDeviceSearch("");
+    }
+  }, [branch]);
+
+  return {
+    school,
+    setSchool: isSuperAdmin ? handleSchoolChange : () => {},
+    schoolSearch,
+    setSchoolSearch: isSuperAdmin ? setSchoolSearch : () => {},
+    branch,
+    setBranch: (isSuperAdmin || isSchoolRole) ? handleBranchChange : () => {},
+    branchSearch,
+    setBranchSearch: (isSuperAdmin || isSchoolRole) ? setBranchSearch : () => {},
+    device,
+    setDevice,
+    deviceSearch,
+    setDeviceSearch,
+    resetForm
+  };
 };
 
 // Reusable Form Component
@@ -152,12 +318,9 @@ const DriverForm = ({
   isFetchingNextPage,
   isFetching,
   usernameError,
-  role,
   isSuperAdmin,
   isSchoolRole,
   isBranchRole,
-  userSchoolId,
-  userBranchId,
 }: any) => (
   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
     <div className="grid gap-2">
@@ -314,75 +477,6 @@ const DriverForm = ({
   </div>
 );
 
-// Custom hook for form state management
-const useDriverForm = (initialData?: Driver, role?: string, isSuperAdmin?: boolean, isSchoolRole?: boolean) => {
-  const [school, setSchool] = useState("");
-  const [schoolSearch, setSchoolSearch] = useState("");
-  const [branch, setBranch] = useState("");
-  const [branchSearch, setBranchSearch] = useState("");
-  const [device, setDevice] = useState("");
-  const [deviceSearch, setDeviceSearch] = useState("");
-
-  useEffect(() => {
-    if (initialData) {
-      if (isSuperAdmin) {
-        setSchool(initialData.schoolId?._id || initialData.schoolId || "");
-      }
-      if (isSuperAdmin || isSchoolRole) {
-        setBranch(initialData.branchId?._id || initialData.branchId || "");
-      }
-      setDevice(initialData.deviceObjId?._id || initialData.deviceObjId || "");
-    }
-  }, [initialData, isSuperAdmin, isSchoolRole]);
-
-  const resetForm = () => {
-    if (isSuperAdmin) {
-      setSchool("");
-      setSchoolSearch("");
-    }
-    if (isSuperAdmin || isSchoolRole) {
-      setBranch("");
-      setBranchSearch("");
-    }
-    setDevice("");
-    setDeviceSearch("");
-  };
-
-  const handleSchoolChange = useCallback((newSchool: string) => {
-    const prevSchool = school;
-    setSchool(newSchool);
-    if (newSchool !== prevSchool && prevSchool !== "") {
-      setBranch("");
-      setBranchSearch("");
-    }
-  }, [school]);
-
-  const handleBranchChange = useCallback((newBranch: string) => {
-    const prevBranch = branch;
-    setBranch(newBranch);
-    if (newBranch !== prevBranch && prevBranch !== "") {
-      setDevice("");
-      setDeviceSearch("");
-    }
-  }, [branch]);
-
-  return {
-    school,
-    setSchool: isSuperAdmin ? handleSchoolChange : () => {},
-    schoolSearch,
-    setSchoolSearch: isSuperAdmin ? setSchoolSearch : () => {},
-    branch,
-    setBranch: (isSuperAdmin || isSchoolRole) ? handleBranchChange : () => {},
-    branchSearch,
-    setBranchSearch: (isSuperAdmin || isSchoolRole) ? setBranchSearch : () => {},
-    device,
-    setDevice,
-    deviceSearch,
-    setDeviceSearch,
-    resetForm
-  };
-};
-
 // Edit Driver Dialog Component
 const EditDriverDialog = ({ 
   editTarget, 
@@ -475,7 +569,7 @@ const EditDriverDialog = ({
 
   return (
     <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-      <DialogContent className="sm:max-w-[600px]">
+      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
         <form onSubmit={handleSubmit} className="space-y-4">
           <DialogHeader>
             <DialogTitle>Edit Driver</DialogTitle>
@@ -503,12 +597,9 @@ const EditDriverDialog = ({
             isFetchingNextPage={editDeviceQuery.isFetchingNextPage}
             isFetching={editDeviceQuery.isFetching}
             usernameError={usernameError}
-            role=""
             isSuperAdmin={isSuperAdmin}
             isSchoolRole={isSchoolRole}
             isBranchRole={isBranchRole}
-            userSchoolId={userSchoolId}
-            userBranchId={userBranchId}
           />
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => {
@@ -542,7 +633,6 @@ const AddDriverDialog = ({
   isBranchRole,
   userSchoolId,
   userBranchId,
-  handleSubmit,
   getDeviceItems,
   closeButtonRef
 }: any) => {
@@ -607,7 +697,7 @@ const AddDriverDialog = ({
       <DialogTrigger asChild>
         <Button variant="default">Add Driver</Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[600px]">
+      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
         <form onSubmit={handleFormSubmit} className="space-y-4">
           <DialogHeader>
             <DialogTitle>Add Driver</DialogTitle>
@@ -635,12 +725,9 @@ const AddDriverDialog = ({
             isFetchingNextPage={addDeviceQuery.isFetchingNextPage}
             isFetching={addDeviceQuery.isFetching}
             usernameError=""
-            role=""
             isSuperAdmin={isSuperAdmin}
             isSchoolRole={isSchoolRole}
             isBranchRole={isBranchRole}
-            userSchoolId={userSchoolId}
-            userBranchId={userBranchId}
           />
           <DialogFooter>
             <DialogClose asChild>
@@ -680,10 +767,14 @@ export default function DriverApprove() {
   const [role, setRole] = useState<string | null>(null);
   const [userSchoolId, setUserSchoolId] = useState<string | null>(null);
   const [userBranchId, setUserBranchId] = useState<string | null>(null);
-  const [userSchoolName, setUserSchoolName] = useState<string | null>(null);
-
-  // State to track current page for table
-  const [currentPage, setCurrentPage] = useState(0);
+  
+  // UPDATED: Enhanced pagination state for server-side pagination
+  const [pagination, setPagination] = useState<PaginationState>({
+    pageIndex: 0,
+    pageSize: 10,
+  });
+  const [sorting, setSorting] = useState<SortingState>([]);
+  const [totalRecords, setTotalRecords] = useState(0);
 
   // Role checks
   const normalizedRole = useMemo(() => {
@@ -703,52 +794,92 @@ export default function DriverApprove() {
     const token = Cookies.get("token");
     if (token) {
       const decoded = getDecodedToken(token);
-      console.log("[Decoded Token]: ", decoded);
-      
-      const role = (decoded?.role || "").toLowerCase();
-      setRole(role);
+      setRole(decoded?.role || "");
 
-      // Handle schoolId based on role
-      if (role === "school" || role === "schooladmin") {
+      if (["school", "schooladmin"].includes((decoded?.role || "").toLowerCase())) {
         setUserSchoolId(decoded?.id || null);
-        console.log("[School Role] Using schoolId from 'id' field:", decoded?.id);
-      } else if (role === "branch" || role === "branchadmin") {
-        setUserSchoolId(decoded?.schoolId || null);
-        console.log("[Branch Role] Using schoolId from 'schoolId' field:", decoded?.schoolId);
       } else {
         setUserSchoolId(decoded?.schoolId || null);
-        console.log("[Other Role] Using schoolId from 'schoolId' field:", decoded?.schoolId);
       }
 
-      // Handle branchId - for branch role, use 'id' field as branchId
-      if (role === "branch" || role === "branchadmin") {
+      if (["branch", "branchadmin"].includes((decoded?.role || "").toLowerCase())) {
         setUserBranchId(decoded?.id || null);
-        console.log("[Branch Role] Using branchId from 'id' field:", decoded?.id);
       } else {
         setUserBranchId(decoded?.branchId || null);
-        console.log("[Other Role] Using branchId from 'branchId' field:", decoded?.branchId);
       }
-      
-      setUserSchoolName(decoded?.schoolName || null);
-
-      console.log("[Final User Info]:", {
-        role,
-        userSchoolId,
-        userBranchId,
-        userSchoolName
-      });
     }
   }, []);
 
   // Data hooks
-  const { data: schoolData } = useSchoolData({
-    enabled: isSuperAdmin
-  });
-
+  const { data: schoolData } = useSchoolData({ enabled: isSuperAdmin });
   const { data: branchData, isLoading: branchLoading } = useBranchData();
 
+  // Form hooks
+  const addForm = useDriverForm(undefined, normalizedRole, isSuperAdmin, isSchoolRole, isBranchRole, userBranchId);
+  const editForm = useDriverForm(editTarget || undefined, normalizedRole, isSuperAdmin, isSchoolRole, isBranchRole, userBranchId);
+
+  // FIXED: Use a simpler approach for drivers data since backend returns array
+  const { data: driversData, isLoading } = useQuery({
+    queryKey: ["drivers", normalizedRole, userSchoolId, userBranchId, pagination.pageIndex, pagination.pageSize],
+    queryFn: async () => {
+      let url = "/driver";
+      const params = new URLSearchParams();
+      
+      if (isSchoolRole && userSchoolId) {
+        params.append("schoolId", userSchoolId);
+      } else if (isBranchRole && userBranchId) {
+        params.append("branchId", userBranchId);
+      }
+      
+      if (params.toString()) {
+        url += `?${params.toString()}`;
+      }
+      
+      console.log("Fetching drivers from:", url);
+      const response = await api.get<Driver[]>(url);
+      
+      // Client-side pagination since backend returns full array
+      const startIndex = pagination.pageIndex * pagination.pageSize;
+      const endIndex = startIndex + pagination.pageSize;
+      const paginatedData = Array.isArray(response) ? response.slice(startIndex, endIndex) : [];
+      
+      return {
+        drivers: paginatedData,
+        total: Array.isArray(response) ? response.length : 0,
+        page: pagination.pageIndex + 1,
+        totalPages: Array.isArray(response) ? Math.ceil(response.length / pagination.pageSize) : 1
+      };
+    },
+    enabled: !!normalizedRole,
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
+
+  // UPDATED: Set filtered data and pagination info
+  useEffect(() => {
+    if (driversData) {
+      setFilteredData(driversData.drivers);
+      setTotalRecords(driversData.total);
+    }
+  }, [driversData]);
+
+  // Set initial values for forms based on role
+  useEffect(() => {
+    if (isSchoolRole && userSchoolId) addForm.setSchool(userSchoolId);
+    if (isBranchRole && userBranchId) addForm.setBranch(userBranchId);
+  }, [isSchoolRole, isBranchRole, userSchoolId, userBranchId, addForm]);
+
+  // Get schoolId for branch role from branchData
+  const userSchoolIdForBranch = useMemo(() => {
+    if (isBranchRole && userBranchId && branchData) {
+      const userBranch = branchData.find(b => b._id === userBranchId);
+      return userBranch?.schoolId?._id || userBranch?.schoolId || null;
+    }
+    return null;
+  }, [isBranchRole, userBranchId, branchData]);
+
   // Helper function to get ID from object or string
-  const getId = useCallback((obj: any): string => {
+  const getIdHelper = useCallback((obj: any): string => {
     if (!obj) return "";
     if (typeof obj === "string") return obj;
     return obj._id || "";
@@ -761,36 +892,31 @@ export default function DriverApprove() {
     
     if (isSchoolRole && userSchoolId) {
       filteredSchools = schoolData.filter(s => s._id === userSchoolId);
-    } else if (isBranchRole && userSchoolId) {
-      filteredSchools = schoolData.filter(s => s._id === userSchoolId);
+    } else if (isBranchRole && userSchoolIdForBranch) {
+      filteredSchools = schoolData.filter(s => s._id === userSchoolIdForBranch);
     }
     
     return Array.from(new Map(filteredSchools.filter(s => s._id && s.schoolName).map(s => [s._id, { label: s.schoolName, value: s._id }])).values());
-  }, [schoolData, isSchoolRole, isBranchRole, userSchoolId]);
+  }, [schoolData, isSchoolRole, isBranchRole, userSchoolId, userSchoolIdForBranch]);
 
-  // Branch options for all roles
+  // Branch options
   const getFilteredBranchOptions = useCallback((schoolId: string) => {
     if (!branchData) return [];
     let filteredBranches = branchData;
     
     if (isSchoolRole && userSchoolId) {
-      filteredBranches = branchData.filter(branch => getId(branch.schoolId) === userSchoolId);
+      filteredBranches = branchData.filter(branch => getIdHelper(branch.schoolId) === userSchoolId);
     } else if (isBranchRole && userBranchId) {
       filteredBranches = branchData.filter(branch => branch._id === userBranchId);
     } else if (isSuperAdmin && schoolId) {
-      filteredBranches = branchData.filter(branch => getId(branch.schoolId) === schoolId);
+      filteredBranches = branchData.filter(branch => getIdHelper(branch.schoolId) === schoolId);
     }
     
     return filteredBranches.filter(branch => branch._id && branch.branchName).map(branch => ({
       label: branch.branchName, value: branch._id
     }));
-  }, [branchData, isSuperAdmin, isSchoolRole, isBranchRole, userSchoolId, userBranchId, getId]);
+  }, [branchData, isSuperAdmin, isSchoolRole, isBranchRole, userSchoolId, userBranchId, getIdHelper]);
 
-  // Form hooks - MOVED AFTER branch options functions
-  const addForm = useDriverForm(undefined, normalizedRole, isSuperAdmin, isSchoolRole);
-  const editForm = useDriverForm(editTarget || undefined, normalizedRole, isSuperAdmin, isSchoolRole);
-
-  // Memoized branch options - MOVED AFTER form hooks
   const addBranchOptions = useMemo(() => 
     getFilteredBranchOptions(addForm.school), 
     [getFilteredBranchOptions, addForm.school]
@@ -800,33 +926,6 @@ export default function DriverApprove() {
     getFilteredBranchOptions(editForm.school), 
     [getFilteredBranchOptions, editForm.school]
   );
-
-  // Get drivers based on role
-  const { data: drivers, isLoading } = useQuery<Driver[]>({
-    queryKey: ["drivers", normalizedRole, userSchoolId, userBranchId, currentPage],
-    queryFn: async () => {
-      let url = "/driver";
-      if (isSchoolRole && userSchoolId) {
-        url += `?schoolId=${userSchoolId}`;
-      } else if (isBranchRole && userBranchId) {
-        url += `?branchId=${userBranchId}`;
-      }
-      return await api.get<Driver[]>(url);
-    },
-    enabled: !!normalizedRole,
-  });
-
-  // Set initial values for forms based on role - FIXED: Using useEffect to handle auto-selection
-  useEffect(() => {
-    if (isSchoolRole && userSchoolId) {
-      // Set school for school role
-      addForm.setSchool(userSchoolId);
-      
-    }
-    if (isBranchRole && userBranchId) {
-      addForm.setBranch(userBranchId);
-    }
-  }, [isSchoolRole, isBranchRole, userSchoolId, userBranchId, addForm, addBranchOptions]);
 
   // Device data for add dialog
   const addDeviceQuery = useInfiniteDeviceData({
@@ -878,28 +977,25 @@ export default function DriverApprove() {
     });
   }, []);
 
-  // Set filtered data
-  useEffect(() => {
-    if (drivers) {
-      setFilteredData(drivers);
-    }
-  }, [drivers]);
-
-  // Approve/reject mutation
+  // Mutations
   const approveMutation = useMutation({
     mutationFn: async (driver: { _id: string; isApproved: "Approved" | "Rejected" }) => 
       await api.post(`/driver/approve/${driver._id}`, { isApproved: driver.isApproved }),
     onMutate: async (variables) => {
       await queryClient.cancelQueries({ queryKey: ["drivers"] });
-      const previousDrivers = queryClient.getQueryData<Driver[]>(["drivers"]);
+      const previousDrivers = queryClient.getQueryData<any>(["drivers"]);
 
-      queryClient.setQueryData<Driver[]>(["drivers"], (old) =>
-        old?.map(d => 
-          d._id === variables._id 
-            ? { ...d, isApproved: variables.isApproved }
-            : d
-        ) || []
-      );
+      queryClient.setQueryData<any>(["drivers"], (old) => {
+        if (!old) return old;
+        return {
+          ...old,
+          drivers: old.drivers?.map((d: Driver) => 
+            d._id === variables._id 
+              ? { ...d, isApproved: variables.isApproved }
+              : d
+          ) || []
+        };
+      });
 
       setFilteredData(prev => 
         prev.map(d => 
@@ -914,16 +1010,16 @@ export default function DriverApprove() {
     onError: (err, variables, context) => {
       if (context?.previousDrivers) {
         queryClient.setQueryData(["drivers"], context.previousDrivers);
-        setFilteredData(context.previousDrivers);
+        setFilteredData(context.previousDrivers?.drivers || []);
       }
       alert("Failed to update driver status.");
     },
     onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["drivers"] });
       alert(`Driver ${variables.isApproved.toLowerCase()} successfully.`);
     },
   });
 
-  // Mutations
   const addDriverMutation = useMutation({
     mutationFn: async (newDriver: any) => await api.post("/driver", newDriver),
     onSuccess: () => {
@@ -948,13 +1044,17 @@ export default function DriverApprove() {
       return await api.put(`/driver/${driverId}`, data);
     },
     onSuccess: (updatedDriver, variables) => {
-      queryClient.setQueryData<Driver[]>(["drivers"], (old) =>
-        old?.map(d => 
-          d._id === variables.driverId 
-            ? { ...d, ...variables.data }
-            : d
-        ) || []
-      );
+      queryClient.setQueryData<any>(["drivers"], (old) => {
+        if (!old) return old;
+        return {
+          ...old,
+          drivers: old.drivers?.map((d: Driver) => 
+            d._id === variables.driverId 
+              ? { ...d, ...variables.data }
+              : d
+          ) || []
+        };
+      });
       setFilteredData(prev => 
         prev.map(d => 
           d._id === variables.driverId 
@@ -984,17 +1084,15 @@ export default function DriverApprove() {
     onError: () => alert("Failed to delete driver."),
   });
 
-  // Handle status change with dropdown
+  // Event handlers
   const handleStatusChange = useCallback((driver: Driver, newStatus: "Approved" | "Rejected") => {
     if (!driver._id) return;
-    
     approveMutation.mutate({ 
       _id: driver._id, 
       isApproved: newStatus 
     });
   }, [approveMutation]);
 
-  // Handle edit save
   const handleEditSave = useCallback((updatedData: Partial<Driver>) => {
     if (!editTarget) return;
 
@@ -1023,114 +1121,168 @@ export default function DriverApprove() {
     updateDriverMutation.mutate({ driverId: editTarget._id, data: changedFields });
   }, [editTarget, updateDriverMutation]);
 
-  // Handle form submission
-  const handleSubmit = useCallback(async (data: any) => {
-    await addDriverMutation.mutateAsync(data);
-  }, [addDriverMutation]);
+  // UPDATED: Handle pagination change for server-side
+  const handlePaginationChange = useCallback((newPagination: PaginationState) => {
+    setPagination(newPagination);
+  }, []);
 
-  // Table columns with proper cell rendering
-  const columns: ColumnDef<Driver, CellContent>[] = useMemo(() => [
+  // UPDATED: Handle sorting change
+  const handleSortingChange = useCallback((newSorting: SortingState) => {
+    setSorting(newSorting);
+    // You can implement server-side sorting here if needed
+  }, []);
+
+  // Table columns - UPDATED to match supervisor pattern
+  const columns: ColumnDef<Driver>[] = useMemo(() => [
     {
       header: "Driver Name",
-      accessorFn: (row) => ({ type: "text", value: row.driverName ?? "" }),
-      meta: { flex: 1, minWidth: 200, maxWidth: 300 },
+      accessorFn: (row) => row.driverName ?? "",
+      meta: { 
+        flex: 1, 
+        minWidth: 200, 
+        maxWidth: 300,
+        wrapConfig: { wrap: "ellipsis" }
+      },
       enableHiding: true,
     },
     ...(isSuperAdmin ? [{
       header: "School Name",
-      accessorFn: (row) => ({ type: "text", value: row.schoolId?.schoolName ?? "--" }),
-      meta: { flex: 1, minWidth: 200, maxWidth: 300 },
+      accessorFn: (row) => row.schoolId?.schoolName ?? "--",
+      meta: { 
+        flex: 1, 
+        minWidth: 200, 
+        maxWidth: 300,
+        wrapConfig: { wrap: "ellipsis" }
+      },
       enableHiding: true,
     }] : []),
     ...((isSuperAdmin || isSchoolRole) ? [{
       header: "Branch Name",
-      accessorFn: (row) => ({ type: "text", value: row.branchId?.branchName ?? "--" }),
-      meta: { flex: 1, minWidth: 200, maxWidth: 300 },
+      accessorFn: (row) => row.branchId?.branchName ?? "--",
+      meta: { 
+        flex: 1, 
+        minWidth: 200, 
+        maxWidth: 300,
+        wrapConfig: { wrap: "ellipsis" }
+      },
       enableHiding: true,
     }] : []),
     {
       header: "Device Name",
-      accessorFn: (row) => ({ type: "text", value: row.deviceObjId?.name ?? "--" }),
-      meta: { flex: 1, minWidth: 200, maxWidth: 300 },
+      accessorFn: (row) => row.deviceObjId?.name ?? "--",
+      meta: { 
+        flex: 1, 
+        minWidth: 200, 
+        maxWidth: 300,
+        wrapConfig: { wrap: "ellipsis" }
+      },
       enableHiding: true,
     },
     {
       header: "Mobile",
-      accessorFn: (row) => ({ type: "text", value: row.mobileNo ?? "" }),
-      meta: { flex: 1, minWidth: 150, maxWidth: 300 },
+      accessorFn: (row) => row.mobileNo ?? "",
+      meta: { 
+        flex: 1, 
+        minWidth: 150, 
+        maxWidth: 300,
+        wrapConfig: { wrap: "nowrap" }
+      },
       enableHiding: true,
     },
     {
       header: "Username",
-      accessorFn: (row) => ({ type: "text", value: row.username ?? "" }),
-      meta: { flex: 1, minWidth: 150, maxWidth: 300 },
+      accessorFn: (row) => row.username ?? "",
+      meta: { 
+        flex: 1, 
+        minWidth: 150, 
+        maxWidth: 300,
+        wrapConfig: { wrap: "ellipsis" }
+      },
       enableHiding: true,
     },
     {
       header: "Password",
-      accessorFn: (row) => ({ type: "text", value: row.password ?? "" }),
-      meta: { flex: 1, minWidth: 150, maxWidth: 300 },
+      accessorFn: (row) => row.password ?? "",
+      meta: { 
+        flex: 1, 
+        minWidth: 150, 
+        maxWidth: 300,
+        wrapConfig: { wrap: "ellipsis" }
+      },
       enableHiding: true,
     },
     {
       header: "Registration Date",
-      accessorFn: (row) => ({ type: "text", value: formatDate(row.createdAt) ?? "" }),
-      meta: { flex: 1, minWidth: 200 },
+      accessorFn: (row) => formatDate(row.createdAt) ?? "",
+      meta: { 
+        flex: 1, 
+        minWidth: 200,
+        wrapConfig: { wrap: "nowrap" }
+      },
       enableHiding: true,
     },
     {
       header: "Status",
-      accessorFn: (row) => ({ 
-        type: "text", 
-        value: row.isApproved ?? "Pending",
-        className: row.isApproved === "Approved" ? "text-green-600 font-semibold" : 
-                  row.isApproved === "Rejected" ? "text-red-600 font-semibold" : 
-                  "text-yellow-600 font-semibold"
-      }),
-      meta: { flex: 1, minWidth: 120, maxWidth: 150 },
+      accessorFn: (row) => row.isApproved ?? "Pending",
+      meta: { 
+        flex: 1, 
+        minWidth: 120, 
+        maxWidth: 150,
+        wrapConfig: { wrap: "nowrap" }
+      },
       enableHiding: true,
     },
     {
       header: "Approve/Reject",
-      accessorFn: (row) => ({
-        type: "custom",
-        render: () => (
-          <StatusDropdown
-            currentStatus={row.isApproved || "Pending"}
-            onStatusChange={(status) => handleStatusChange(row, status)}
-            disabled={approveMutation.isPending}
-          />
-        ),
-      }),
-      meta: { flex: 1, minWidth: 150, maxWidth: 200 },
+      accessorFn: (row) => row,
+      cell: ({ row }) => (
+        <StatusDropdown
+          currentStatus={row.original.isApproved || "Pending"}
+          onStatusChange={(status) => handleStatusChange(row.original, status)}
+          disabled={approveMutation.isPending}
+        />
+      ),
+      meta: { 
+        flex: 1, 
+        minWidth: 150, 
+        maxWidth: 200,
+        wrapConfig: { wrap: "nowrap" }
+      },
       enableSorting: false,
       enableHiding: true,
     },
     {
       header: "Action",
-      accessorFn: (row) => ({
-        type: "group",
-        items: [
-          {
-            type: "button",
-            label: "Edit",
-            onClick: () => {
-              setEditTarget(row);
+      accessorFn: (row) => row,
+      cell: ({ row }) => (
+        <div className="flex space-x-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setEditTarget(row.original);
               setEditDialogOpen(true);
-            },
-            className: "cursor-pointer",
-            disabled: updateDriverMutation.isPending,
-          },
-          {
-            type: "button",
-            label: "Delete",
-            onClick: () => setDeleteTarget(row),
-            className: "text-red-600 cursor-pointer",
-            disabled: deleteDriverMutation.isPending,
-          },
-        ],
-      }),
-      meta: { flex: 1.5, minWidth: 150, maxWidth: 200 },
+            }}
+            disabled={updateDriverMutation.isPending}
+          >
+            Edit
+          </Button>
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={() => setDeleteTarget(row.original)}
+            disabled={deleteDriverMutation.isPending}
+          >
+            Delete
+          </Button>
+        </div>
+      ),
+      meta: { 
+        flex: 1.5, 
+        minWidth: 150, 
+        maxWidth: 200,
+        wrapConfig: { wrap: "nowrap" }
+      },
       enableSorting: false,
       enableHiding: true,
     },
@@ -1148,12 +1300,40 @@ export default function DriverApprove() {
     { key: "createdAt", header: "Registration Date" },
   ], [isSuperAdmin, isSchoolRole]);
 
-  const table = useReactTable({
+  // FIX: Create a proper table instance for ColumnVisibilitySelector
+  const tableForVisibility = useReactTable({
     data: filteredData,
     columns,
-    state: { columnVisibility },
+    state: {
+      columnVisibility,
+    },
     onColumnVisibilityChange: setColumnVisibility,
     getCoreRowModel: getCoreRowModel(),
+  });
+
+  // UPDATED: Use the CustomTableServerSidePagination component properly
+  const { tableElement } = CustomTableServerSidePagination({
+    data: filteredData,
+    columns,
+    pagination,
+    totalCount: totalRecords,
+    loading: isLoading,
+    onPaginationChange: handlePaginationChange,
+    onSortingChange: handleSortingChange,
+    sorting,
+    emptyMessage: "No drivers found",
+    pageSizeOptions: [10, 20, 50, 100],
+    enableSorting: true,
+    manualSorting: true,
+    manualPagination: true,
+    showSerialNumber: true,
+    serialNumberHeader: "SN",
+    maxHeight: "600px",
+    columnVisibility,
+    onColumnVisibilityChange: setColumnVisibility,
+    enableRowClick: false,
+    defaultTextWrap: "nowrap",
+    enableColumnWrapping: true,
   });
 
   return (
@@ -1163,18 +1343,18 @@ export default function DriverApprove() {
       <header className="flex items-center justify-between mb-4">
         <section className="flex space-x-4">
           <SearchComponent
-            data={drivers || []}
+            data={driversData?.drivers || []}
             displayKey={["driverName", "username", "email", "mobileNo"]}
             onResults={setFilteredData}
             className="w-[300px] mb-4"
           />
           <DateRangeFilter
             onDateRangeChange={(start, end) => {
-              if (!drivers || (!start && !end)) {
-                setFilteredData(drivers || []);
+              if (!driversData?.drivers || (!start && !end)) {
+                setFilteredData(driversData?.drivers || []);
                 return;
               }
-              const filtered = drivers.filter(d => {
+              const filtered = driversData.drivers.filter(d => {
                 if (!d.createdAt) return false;
                 const date = new Date(d.createdAt);
                 return (!start || date >= start) && (!end || date <= end);
@@ -1185,13 +1365,14 @@ export default function DriverApprove() {
           />
           <CustomFilter
             data={filteredData}
-            originalData={drivers}
+            originalData={driversData?.drivers}
             filterFields={["isApproved"]}
             onFilter={setFilteredData}
             placeholder="Filter by Approval"
             valueFormatter={(v) => v ? v.toString().charAt(0).toUpperCase() + v.toString().slice(1).toLowerCase() : ""}
           />
-          <ColumnVisibilitySelector columns={table.getAllColumns()} />
+          {/* FIX: Pass table columns instead of raw column definitions */}
+          <ColumnVisibilitySelector columns={tableForVisibility.getAllLeafColumns()} />
         </section>
 
         <section>
@@ -1208,7 +1389,6 @@ export default function DriverApprove() {
             isBranchRole={isBranchRole}
             userSchoolId={userSchoolId}
             userBranchId={userBranchId}
-            handleSubmit={handleSubmit}
             getDeviceItems={getDeviceItems}
             closeButtonRef={closeButtonRef}
           />
@@ -1216,19 +1396,8 @@ export default function DriverApprove() {
       </header>
 
       <section className="mb-4">
-        <CustomTable
-          data={filteredData}
-          columns={columns}
-          columnVisibility={columnVisibility}
-          onColumnVisibilityChange={setColumnVisibility}
-          pageSizeArray={[10, 20, 50]}
-          maxHeight={600}
-          minHeight={200}
-          showSerialNumber={true}
-          noDataMessage="No drivers found"
-          isLoading={isLoading}
-          onPageChange={setCurrentPage}
-        />
+        {/* FIX: Render only the tableElement, not the entire object */}
+        {tableElement}
       </section>
 
       {deleteTarget && (
@@ -1242,6 +1411,7 @@ export default function DriverApprove() {
           target={deleteTarget}
           setTarget={setDeleteTarget}
           butttonText="Delete"
+          className="max-w-md w-full"
         />
       )}
 

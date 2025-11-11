@@ -43,6 +43,7 @@ export const AddDeviceForm = () => {
   const [formData, setFormData] = useState({
     name: "",
     uniqueId: "",
+    deviceId: "",
     sim: "",
     speed: "",
     average: "",
@@ -59,6 +60,7 @@ export const AddDeviceForm = () => {
     if (!open) {
       setFormData({
         name: "",
+        deviceId: "",
         uniqueId: "",
         sim: "",
         speed: "",
@@ -133,37 +135,39 @@ export const AddDeviceForm = () => {
     phone: data.sim, // old API expects phone instead of sim
   });
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
 
-    const newPayload = formData;
+  try {
+    // 1️⃣ Prepare payloads
     const oldPayload = transformForOldApi(formData);
 
-    try {
-      // Run both requests in parallel
-      const [newResult, oldResult] = await Promise.allSettled([
-        addDeviceMutationNew.mutateAsync(newPayload),
-        addDeviceMutationOld.mutateAsync(oldPayload),
-      ]);
+    // 2️⃣ Create in old system FIRST
+    const oldResult = await addDeviceMutationOld.mutateAsync(oldPayload);
 
-      // Evaluate results
-      if (newResult.status === "fulfilled" && oldResult.status === "fulfilled") {
-        toast.success("✅ Device added to both systems!");
-      } else if (newResult.status === "fulfilled") {
-        toast.warning("⚠️ Added to new system, but old system failed.");
-        console.error("Old API error:", oldResult);
-      } else if (oldResult.status === "fulfilled") {
-        toast.warning("⚠️ Added to old system, but new system failed.");
-        console.error("New API error:", newResult);
-      } else {
-        toast.error("❌ Both API requests failed.");
-      }
-
-      setOpen(false);
-    } catch (error: any) {
-      toast.error(error?.response?.data?.message || "Unexpected error occurred");
+    // Check if old system responded with valid ID
+    if (!oldResult?.id) {
+      throw new Error("Old system failed to return device ID");
     }
-  };
+
+    // 3️⃣ Create in new system using old ID
+    const newPayload = {
+      ...formData,
+      deviceId: oldResult.id, // 🔗 Link old + new
+    };
+
+    const newResult = await addDeviceMutationNew.mutateAsync(newPayload);
+
+    // 4️⃣ Show success toast
+    toast.success("✅ Device added successfully to both systems!");
+
+    setOpen(false);
+  } catch (error: any) {
+    console.error("Error adding device:", error);
+    toast.error(error?.response?.data?.message || "❌ Failed to add device in both systems");
+  }
+};
+
 
   // ======================
   // 🔹 Render
@@ -344,7 +348,7 @@ export const AddDeviceForm = () => {
           {/* Footer */}
           <DialogFooter className="col-span-full mt-4 flex justify-end gap-2">
             <DialogClose asChild>
-              <Button variant="outline" type="button">
+              <Button variant="outline" type="button" className="cursor-pointer">
                 Cancel
               </Button>
             </DialogClose>

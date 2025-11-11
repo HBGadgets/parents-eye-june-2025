@@ -240,7 +240,7 @@ export default function BranchMaster() {
         type: "text",
         value: row.branchName ?? "",
       }),
-      meta: { flex: 1, minWidth: 200, maxWidth: 300 },
+      meta: { flex: 1, minWidth: 200, maxWidth: 320 },
       enableHiding: true,
     },
     ...(isSuperAdmin ? [{
@@ -317,7 +317,7 @@ export default function BranchMaster() {
           },
         ],
       }),
-      meta: { flex: 1.5, minWidth: 150, maxWidth: 200 },
+      meta: { flex: 1.5, minWidth: 230},
       enableSorting: false,
       enableHiding: true,
     }] : []),
@@ -329,24 +329,32 @@ export default function BranchMaster() {
           {
             type: "button",
             label: "Edit",
+            className:
+              "bg-yellow-400 hover:bg-yellow-500 text-[#733e0a] font-semibold py-1 px-3 rounded-md cursor-pointer transition-colors duration-200",
             onClick: () => {
               setEditTarget(row);
               setEditDialogOpen(true);
             },
             disabled: accessMutation.isPending,
           },
-          ...((isSuperAdmin || isSchoolRole) ? [{
-            type: "button",
-            label: "Delete",
-            onClick: () => setDeleteTarget(row),
-            disabled: deletebranchMutation.isPending,
-          }] : []),
+          ...((isSuperAdmin || isSchoolRole)
+            ? [
+                {
+                  type: "button",
+                  label: "Delete",
+                  className:
+                    "bg-yellow-400 hover:bg-yellow-500 text-red-600 font-semibold py-1 px-3 rounded-md cursor-pointer transition-colors duration-200",
+                  onClick: () => setDeleteTarget(row),
+                  disabled: deletebranchMutation.isPending,
+                },
+              ]
+            : []),
         ],
       }),
       meta: { flex: 1.5, minWidth: 150, maxWidth: 200 },
       enableSorting: false,
       enableHiding: true,
-    },
+    }
   ];
 
   // Columns for export
@@ -736,7 +744,7 @@ export default function BranchMaster() {
                       />
                     </div>
                     
-                    {/* DatePicker for Expiration Date */}
+                    {/* DatePicker for Expiration Date - Available for all roles that can add branches */}
                     <div className="grid gap-2">
                       <Label htmlFor="expirationDate">Expiration Date</Label>
                       <DatePicker
@@ -806,6 +814,7 @@ export default function BranchMaster() {
               target={accessTarget}
               setTarget={setAccessTarget}
               butttonText="Confirm"
+              dialogClassName="max-w-sm" // Reduced width
             />
           )}
         </div>
@@ -822,6 +831,7 @@ export default function BranchMaster() {
               target={deleteTarget}
               setTarget={setDeleteTarget}
               butttonText="Delete"
+              dialogClassName="max-w-sm" // Reduced width
             />
           )}
         </div>
