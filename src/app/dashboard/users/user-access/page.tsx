@@ -368,11 +368,16 @@ export default function UserAccessPage() {
     }
 
     setFilteredData(filtered);
+    
+    // Reset to first page when filters change
+    setPagination(prev => ({ ...prev, pageIndex: 0 }));
   }, [allData, dateRange, globalFilter]);
 
   // Handle search results - now works with date range
   const handleSearchResults = useCallback((results: BranchGroupAccess[]) => {
     setFilteredData(results);
+    // Reset to first page when search results change
+    setPagination(prev => ({ ...prev, pageIndex: 0 }));
   }, []);
 
   // Handle search input change
@@ -384,6 +389,13 @@ export default function UserAccessPage() {
   const handleDateRangeChange = useCallback((start: Date | null, end: Date | null) => {
     setDateRange({ start, end });
   }, []);
+
+  // Get paginated data for the table
+  const getPaginatedData = useMemo(() => {
+    const startIndex = pagination.pageIndex * pagination.pageSize;
+    const endIndex = startIndex + pagination.pageSize;
+    return filteredData.slice(startIndex, endIndex);
+  }, [filteredData, pagination.pageIndex, pagination.pageSize]);
 
   // Mutations
   const createMutation = useMutation({
@@ -532,7 +544,14 @@ export default function UserAccessPage() {
 
   // Columns with branches assign column
   const columns: ColumnDef<BranchGroupAccess>[] = useMemo(() => [
-    { id: "sno", header: "S.No.", cell: ({ row }) => row.index + 1 },
+    { 
+      id: "sno", 
+      header: "S.No.", 
+      cell: ({ row }) => {
+        const globalIndex = pagination.pageIndex * pagination.pageSize + row.index + 1;
+        return globalIndex;
+      }
+    },
     { id: "username", header: "User Name", accessorFn: (row) => row.username || "N/A" },
     { id: "branchGroupName", header: "Group Name", accessorFn: (row) => row.branchGroupName || "N/A" },
     { id: "password", header: "Password", accessorFn: (row) => row.password || "N/A" },
@@ -576,7 +595,7 @@ export default function UserAccessPage() {
         </div>
       ),
     },
-  ], [branchOptions, handleTableBranchesUpdate]);
+  ], [branchOptions, handleTableBranchesUpdate, pagination.pageIndex, pagination.pageSize]);
 
   const columnsForExport = useMemo(() => [
     { key: "username", header: "User Name" },
@@ -598,7 +617,7 @@ export default function UserAccessPage() {
   ], []);
 
   const { table, tableElement } = CustomTableServerSidePagination({
-    data: filteredData || [],
+    data: getPaginatedData || [],
     columns,
     pagination,
     totalCount: filteredData.length || 0,
@@ -609,7 +628,7 @@ export default function UserAccessPage() {
     columnVisibility,
     onColumnVisibilityChange: setColumnVisibility,
     emptyMessage: error || "No branch groups found",
-    pageSizeOptions: [10],
+    pageSizeOptions: [10, 20, 30, 40, 50],
     enableSorting: true,
     showSerialNumber: false,
   });
