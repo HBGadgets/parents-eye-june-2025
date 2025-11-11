@@ -10,7 +10,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { CustomTableServerSidePagination } from "@/components/ui/customTable(serverSidePagination)";
+import { CustomTable, CellContent } from "@/components/ui/CustomTable";
 import { DynamicEditDialog, FieldConfig } from "@/components/ui/EditModal";
 import SearchComponent from "@/components/ui/SearchOnlydata";
 import { Button } from "@/components/ui/button";
@@ -20,10 +20,10 @@ import { Combobox } from "@/components/ui/combobox";
 import DateRangeFilter from "@/components/ui/DateRangeFilter";
 import { FloatingMenu } from "@/components/floatingMenu";
 import {
-  type ColumnDef,
-  PaginationState,
-  SortingState,
+  getCoreRowModel,
+  useReactTable,
   VisibilityState,
+  type ColumnDef,
 } from "@tanstack/react-table";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/services/apiService";
@@ -94,7 +94,8 @@ export default function BranchMaster() {
   const [deleteTarget, setDeleteTarget] = useState<branch | null>(null);
   const [editTarget, setEditTarget] = useState<branch | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
+  const [columnVisibility, setColumnVisibility] =
+    React.useState<VisibilityState>({});
   const { exportToPDF, exportToExcel } = useExport();
   const { data: schoolData } = useSchoolData();
   const [school, setSchool] = useState<string>("");
@@ -108,14 +109,6 @@ export default function BranchMaster() {
   const [userBranchId, setUserBranchId] = useState<string | null>(null);
   const [userSchoolName, setUserSchoolName] = useState<string | null>(null);
 
-  // Server-side pagination state
-  const [pagination, setPagination] = useState<PaginationState>({
-    pageIndex: 0,
-    pageSize: 10,
-  });
-  const [sorting, setSorting] = useState<SortingState>([]);
-  const [totalCount, setTotalCount] = useState(0);
-
   // Get user info from token
   useEffect(() => {
     const token = getAuthToken();
@@ -128,21 +121,37 @@ export default function BranchMaster() {
 
       // Handle schoolId based on role
       if (role === "school" || role === "schooladmin") {
+        // For school role, use 'id' field from token
         setUserSchoolId(decoded?.id || null);
+        console.log("[School Role] Using schoolId from 'id' field:", decoded?.id);
       } else if (role === "branch" || role === "branchadmin") {
+        // For branch role, use 'schoolId' field from token
         setUserSchoolId(decoded?.schoolId || null);
+        console.log("[Branch Role] Using schoolId from 'schoolId' field:", decoded?.schoolId);
       } else {
+        // For superadmin or other roles, use schoolId if available
         setUserSchoolId(decoded?.schoolId || null);
+        console.log("[Other Role] Using schoolId from 'schoolId' field:", decoded?.schoolId);
       }
 
       // Handle branchId - for branch role, use 'id' field as branchId
       if (role === "branch" || role === "branchadmin") {
         setUserBranchId(decoded?.id || null);
+        console.log("[Branch Role] Using branchId from 'id' field:", decoded?.id);
       } else {
         setUserBranchId(decoded?.branchId || null);
+        console.log("[Other Role] Using branchId from 'branchId' field:", decoded?.branchId);
       }
       
+      // Handle schoolName
       setUserSchoolName(decoded?.schoolName || null);
+
+      console.log("[Branch Master - Final User Info]:", {
+        role,
+        userSchoolId,
+        userBranchId,
+        userSchoolName
+      });
     }
   }, []);
 
@@ -159,112 +168,32 @@ export default function BranchMaster() {
   const isSchoolRole = normalizedRole === "school";
   const isBranchRole = normalizedRole === "branch";
 
-  // Fetch ALL branch data first (since backend doesn't support pagination)
+  // Fetch branch data with role-based filtering
   const {
-    data: allBranches,
+    data: branchs,
     isLoading,
     isError,
     error,
-  } = useQuery({
-    queryKey: ["branchs", userSchoolId, userBranchId],
+  } = useQuery<branch[]>({
+    queryKey: ["branchs"],
     queryFn: async () => {
-      // Build query parameters for role-based filtering
-      const params = new URLSearchParams();
-
-      // For school and branch roles, add filter parameters
-      if (isSchoolRole && userSchoolId) {
-        params.append('schoolId', userSchoolId);
-      } else if (isBranchRole && userBranchId) {
-        params.append('branchId', userBranchId);
-      }
-
-      const queryString = params.toString();
-      const url = queryString ? `/branch?${queryString}` : '/branch';
-      
-      const res = await api.get(url);
-      
-      // Handle different API response structures
-      if (res && typeof res === 'object') {
-        // If response has branches property
-        if (res.branches && Array.isArray(res.branches)) {
-          return res.branches;
-        }
-        // If response is directly an array
-        else if (Array.isArray(res)) {
-          return res;
-        }
-        // If response has data property
-        else if (res.data && Array.isArray(res.data)) {
-          return res.data;
-        }
-      }
-      
-      // Fallback: return empty array
-      return [];
+      const res = await api.get<branch[]>("/branch");
+      return res;
     },
-    enabled: !((isSchoolRole && !userSchoolId) || (isBranchRole && !userBranchId)),
   });
 
-  // Apply client-side pagination to the fetched data
-  const paginatedData = useMemo(() => {
-    if (!allBranches) return [];
+  // Filter branches based on user role
+  const filteredBranches = useMemo(() => {
+    if (!branchs) return [];
     
-    const startIndex = pagination.pageIndex * pagination.pageSize;
-    const endIndex = startIndex + pagination.pageSize;
-    
-    return allBranches.slice(startIndex, endIndex);
-  }, [allBranches, pagination.pageIndex, pagination.pageSize]);
-
-  // Apply client-side sorting
-  const sortedAndPaginatedData = useMemo(() => {
-    if (!paginatedData.length) return [];
-
-    if (sorting.length > 0) {
-      const sort = sorting[0];
-      const sorted = [...paginatedData].sort((a, b) => {
-        let aValue: any = a;
-        let bValue: any = b;
-        
-        // Handle nested properties like schoolId.schoolName
-        if (sort.id.includes('.')) {
-          const keys = sort.id.split('.');
-          aValue = keys.reduce((obj, key) => obj?.[key], a);
-          bValue = keys.reduce((obj, key) => obj?.[key], b);
-        } else {
-          aValue = a[sort.id as keyof branch];
-          bValue = b[sort.id as keyof branch];
-        }
-
-        // Handle null/undefined values
-        if (aValue == null) return sort.desc ? 1 : -1;
-        if (bValue == null) return sort.desc ? -1 : 1;
-
-        // Compare values
-        if (aValue < bValue) return sort.desc ? 1 : -1;
-        if (aValue > bValue) return sort.desc ? -1 : 1;
-        return 0;
-      });
-      
-      return sorted;
+    if (isSchoolRole && userSchoolId) {
+      return branchs.filter((branch) => branch.schoolId._id === userSchoolId);
+    } else if (isBranchRole && userBranchId) {
+      // For branch role, they should only see their own branch
+      return branchs.filter((branch) => branch._id === userBranchId);
     }
-    
-    return paginatedData;
-  }, [paginatedData, sorting]);
-
-  // Update filtered data when branches change
-  useEffect(() => {
-    if (allBranches) {
-      setTotalCount(allBranches.length);
-      setFilterResults(allBranches);
-      
-      // Initially show paginated data
-      setFilteredData(sortedAndPaginatedData);
-    } else {
-      setFilteredData([]);
-      setFilterResults([]);
-      setTotalCount(0);
-    }
-  }, [allBranches, sortedAndPaginatedData]);
+    return branchs;
+  }, [branchs, isSchoolRole, isBranchRole, userSchoolId, userBranchId]);
 
   // School data - Convert to Combobox format with role-based filtering
   const schoolOptions = useMemo(() => {
@@ -293,108 +222,139 @@ export default function BranchMaster() {
     }
   }, [isSchoolRole, isBranchRole, userSchoolId, school]);
 
+  useEffect(() => {
+    if (filteredBranches && filteredBranches.length > 0) {
+      setFilteredData(filteredBranches);
+      setFilterResults(filteredBranches);
+    } else {
+      setFilteredData([]);
+      setFilterResults([]);
+    }
+  }, [filteredBranches]);
+
   // Define the columns for the table
-  const columns: ColumnDef<branch>[] = [
+  const columns: ColumnDef<branch, CellContent>[] = [
     {
       header: "Branch Name",
-      accessorKey: "branchName",
-      cell: ({ row }) => row.original.branchName ?? "",
-      meta: { flex: 1, minWidth: 200, maxWidth: 300 },
+      accessorFn: (row) => ({
+        type: "text",
+        value: row.branchName ?? "",
+      }),
+      meta: { flex: 1, minWidth: 200, maxWidth: 320 },
       enableHiding: true,
     },
     ...(isSuperAdmin ? [{
       header: "School Name",
-      accessorKey: "schoolId.schoolName",
-      cell: ({ row }) => row.original.schoolId?.schoolName ?? "",
+      accessorFn: (row) => ({
+        type: "text",
+        value: row.schoolId.schoolName ?? "",
+      }),
       meta: { flex: 1, minWidth: 200, maxWidth: 300 },
       enableHiding: true,
     }] : []),
     {
       header: "Mobile",
-      accessorKey: "mobileNo",
-      cell: ({ row }) => row.original.mobileNo ?? "",
+      accessorFn: (row) => ({
+        type: "text",
+        value: row.mobileNo ?? "",
+      }),
       meta: { flex: 1, minWidth: 150, maxWidth: 300 },
       enableHiding: true,
     },
     {
       header: "Username",
-      accessorKey: "username",
-      cell: ({ row }) => row.original.username ?? "",
+      accessorFn: (row) => ({
+        type: "text",
+        value: row.username ?? "",
+      }),
       meta: { flex: 1, minWidth: 150, maxWidth: 300 },
       enableHiding: true,
     },
     {
       header: "Password",
-      accessorKey: "password",
-      cell: ({ row }) => row.original.password ?? "",
+      accessorFn: (row) => ({
+        type: "text",
+        value: row.password ?? "",
+      }),
       meta: { flex: 1, minWidth: 150, maxWidth: 300 },
       enableHiding: true,
     },
     {
       header: "Registration Date",
-      accessorKey: "createdAt",
-      cell: ({ row }) => formatDate(row.original.createdAt) ?? "",
+      accessorFn: (row) => ({
+        type: "text",
+        value: formatDate(row.createdAt) ?? "",
+      }),
       meta: { flex: 1, minWidth: 150, maxWidth: 300 },
       enableHiding: true,
     },
     {
       header: "Expiration Date",
-      accessorKey: "subscriptionExpirationDate",
-      cell: ({ row }) => 
-        row.original.subscriptionExpirationDate
-          ? formatDate(row.original.subscriptionExpirationDate)
+      accessorFn: (row) => ({
+        type: "text",
+        value: row.subscriptionExpirationDate
+          ? formatDate(row.subscriptionExpirationDate)
           : "---",
+      }),
       meta: { flex: 1, minWidth: 150, maxWidth: 300 },
       enableHiding: true,
     },
     ...((isSuperAdmin || isSchoolRole) ? [{
       header: "Access",
-      id: "access",
-      cell: ({ row }) => (
-        <button
-          onClick={() => setAccessTarget(row.original)}
-          disabled={accessMutation.isPending}
-          className={`w-38 text-center text-sm bg-yellow-400 hover:bg-yellow-500 font-semibold rounded-full px-4 py-2 ${
-            row.original.fullAccess ? "text-red-600" : "text-emerald-600"
-          }`}
-        >
-          {row.original.fullAccess ? "Grant Limited Access" : "Grant Full Access"}
-        </button>
-      ),
-      meta: { flex: 1.5, minWidth: 150, maxWidth: 200 },
+      accessorFn: (row) => ({
+        type: "group",
+        items: [
+          {
+            type: "button",
+            label: row.fullAccess
+              ? "Grant Limited Access"
+              : "Grant Full Access",
+            onClick: () => setAccessTarget(row),
+            disabled: accessMutation.isPending,
+            className: `w-38 text-center text-sm bg-yellow-400 hover:bg-yellow-500 font-semibold rounded-full px-4 py-2 ${
+              row.fullAccess ? "text-red-600" : "text-emerald-600"
+            }`,
+          },
+        ],
+      }),
+      meta: { flex: 1.5, minWidth: 230},
       enableSorting: false,
       enableHiding: true,
     }] : []),
     {
       header: "Action",
-      id: "actions",
-      cell: ({ row }) => (
-        <div className="flex space-x-2">
-          <button
-            onClick={() => {
-              setEditTarget(row.original);
+      accessorFn: (row) => ({
+        type: "group",
+        items: [
+          {
+            type: "button",
+            label: "Edit",
+            className:
+              "bg-yellow-400 hover:bg-yellow-500 text-[#733e0a] font-semibold py-1 px-3 rounded-md cursor-pointer transition-colors duration-200",
+            onClick: () => {
+              setEditTarget(row);
               setEditDialogOpen(true);
-            }}
-            disabled={accessMutation.isPending}
-            className="px-3 py-1 bg-yellow-400 text-black rounded hover:bg-yellow-500"
-          >
-            Edit
-          </button>
-          {((isSuperAdmin || isSchoolRole)) && (
-            <button
-              onClick={() => setDeleteTarget(row.original)}
-              disabled={deletebranchMutation.isPending}
-              className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600"
-            >
-              Delete
-            </button>
-          )}
-        </div>
-      ),
+            },
+            disabled: accessMutation.isPending,
+          },
+          ...((isSuperAdmin || isSchoolRole)
+            ? [
+                {
+                  type: "button",
+                  label: "Delete",
+                  className:
+                    "bg-yellow-400 hover:bg-yellow-500 text-red-600 font-semibold py-1 px-3 rounded-md cursor-pointer transition-colors duration-200",
+                  onClick: () => setDeleteTarget(row),
+                  disabled: deletebranchMutation.isPending,
+                },
+              ]
+            : []),
+        ],
+      }),
       meta: { flex: 1.5, minWidth: 150, maxWidth: 200 },
       enableSorting: false,
       enableHiding: true,
-    },
+    }
   ];
 
   // Columns for export
@@ -403,8 +363,8 @@ export default function BranchMaster() {
     ...(isSuperAdmin ? [{ key: "schoolId.schoolName", header: "School Name" }] : []),
     { key: "mobileNo", header: "Mobile" },
     { key: "email", header: "Email" },
-    { key: "username", header: "Branch Username" },
-    { key: "password", header: "Branch Password" },
+    { key: "username", header: "branch Username" },
+    { key: "password", header: "branch Password" },
     { key: "subscriptionExpirationDate", header: "Expiration Date" },
     { key: "createdAt", header: "Registration Date" },
     ...((isSuperAdmin || isSchoolRole) ? [{
@@ -453,7 +413,7 @@ export default function BranchMaster() {
       key: "subscriptionExpirationDate",
       type: "date",
       isProtected: true,
-      disabled: false,
+      disabled: false, // Changed from !isVerified to false to make it always clickable
       onFocus: () => {
         if (!isVerified) {
           setCurrentProtectedField("subscriptionExpirationDate");
@@ -474,8 +434,20 @@ export default function BranchMaster() {
       const branch = await api.post("/branch", newbranch);
       return branch.branch;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["branchs"] });
+    onSuccess: (createdbranch, variables) => {
+      const school = schoolData?.find(s => s._id === variables.schoolId);
+      const newBranchWithSchool: branch = {
+        ...createdbranch,
+        password: variables.password,
+        schoolId: {
+          _id: createdbranch.schoolId,
+          schoolName: school?.schoolName || "Unknown School"
+        }
+      };
+
+      queryClient.setQueryData<branch[]>(["branchs"], (oldbranchs = []) => {
+        return [...oldbranchs, newBranchWithSchool];
+      });
     },
   });
 
@@ -486,8 +458,14 @@ export default function BranchMaster() {
         fullAccess: branch.fullAccess,
       });
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["branchs"] });
+    onSuccess: (updated, variables) => {
+      queryClient.setQueryData<branch[]>(["branchs"], (oldData) =>
+        oldData?.map((branch) =>
+          branch._id === variables._id
+            ? { ...branch, fullAccess: variables.fullAccess }
+            : branch
+        )
+      );
       alert("Access updated successfully.");
     },
     onError: (err) => {
@@ -510,8 +488,8 @@ export default function BranchMaster() {
       queryClient.invalidateQueries({ queryKey: ['branchs'] });
       setEditDialogOpen(false);
       setEditTarget(null);
-      setIsVerified(false);
-      alert("Branch updated successfully.");
+      setIsVerified(false); // Reset verification state
+      alert("branch updated successfully.");
     },
     onError: (err) => {
       alert("Failed to update branch.\nerror: " + err);
@@ -523,12 +501,14 @@ export default function BranchMaster() {
     mutationFn: async (branchId: string) => {
       return await api.delete(`/branch/${branchId}`);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["branchs"] });
-      alert("Branch deleted successfully.");
+    onSuccess: (_, deletedId) => {
+      queryClient.setQueryData<branch[]>(["branchs"], (oldData) =>
+        oldData?.filter((branch) => branch._id !== deletedId)
+      );
+      alert("branch deleted successfully.");
     },
     onError: (err) => {
-      alert("Failed to delete branch.\nerror: " + err);
+      alert("Failed to delete student.\nerror: " + err);
     },
   });
 
@@ -614,61 +594,33 @@ export default function BranchMaster() {
 
   const handleDateFilter = useCallback(
     (start: Date | null, end: Date | null) => {
-      if (!allBranches || (!start && !end)) {
-        setFilteredData(sortedAndPaginatedData);
+      if (!filteredBranches || (!start && !end)) {
+        setFilteredData(filteredBranches || []);
         return;
       }
 
-      const filtered = allBranches.filter((branch) => {
+      const filtered = filteredBranches.filter((branch) => {
         if (!branch.createdAt) return false;
 
         const createdDate = new Date(branch.createdAt);
         return (!start || createdDate >= start) && (!end || createdDate <= end);
       });
 
-      // Apply pagination to filtered results
-      const startIndex = pagination.pageIndex * pagination.pageSize;
-      const endIndex = startIndex + pagination.pageSize;
-      const paginatedFiltered = filtered.slice(startIndex, endIndex);
-      
-      setFilteredData(paginatedFiltered);
+      setFilteredData(filtered);
     },
-    [allBranches, sortedAndPaginatedData, pagination]
+    [filteredBranches]
   );
 
   const handleCustomFilter = useCallback((filtered: branch[]) => {
     setFilteredData(filtered);
   }, []);
 
-  // Handle pagination change
-  const handlePaginationChange = useCallback((newPagination: PaginationState) => {
-    setPagination(newPagination);
-  }, []);
-
-  // Handle sorting change
-  const handleSortingChange = useCallback((newSorting: SortingState) => {
-    setSorting(newSorting);
-  }, []);
-
-  // Use the tableElement from the component
-  const { tableElement } = CustomTableServerSidePagination({
+  const table = useReactTable({
     data: filteredData,
     columns,
-    pagination,
-    totalCount,
-    loading: isLoading,
-    onPaginationChange: handlePaginationChange,
-    onSortingChange: handleSortingChange,
-    sorting,
-    pageSizeOptions: [10, 20, 50],
-    maxHeight: "600px",
-    showSerialNumber: true,
-    emptyMessage: "No branches found",
-    enableSorting: true,
-    manualSorting: true,
-    manualPagination: true,
-    columnVisibility,
+    state: { columnVisibility },
     onColumnVisibilityChange: setColumnVisibility,
+    getCoreRowModel: getCoreRowModel(),
   });
 
   return (
@@ -679,7 +631,7 @@ export default function BranchMaster() {
         <section className="flex space-x-4">
           <SearchComponent
             data={filterResults}
-            displayKey={["branchName", "username", "email", "mobileNo"]}
+            displayKey={["branchName", "username", "email", "branchMobile"]}
             onResults={handleSearchResults}
             className="w-[300px] mb-4"
           />
@@ -704,7 +656,7 @@ export default function BranchMaster() {
             />
           )}
           <ColumnVisibilitySelector
-            columns={[]}
+            columns={table.getAllColumns()}
             buttonVariant="outline"
             buttonSize="default"
           />
@@ -714,16 +666,16 @@ export default function BranchMaster() {
           {(isSuperAdmin || isSchoolRole) && (
             <Dialog>
               <DialogTrigger asChild>
-                <Button variant="default">Add Branch</Button>
+                <Button variant="default">Add branch</Button>
               </DialogTrigger>
               <DialogContent className="sm:max-w-[600px]">
                 <form onSubmit={handleSubmit} className="space-y-4">
                   <DialogHeader>
-                    <DialogTitle>Add Branch</DialogTitle>
+                    <DialogTitle>Add branch</DialogTitle>
                   </DialogHeader>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="grid gap-2">
-                      <Label htmlFor="branchName">Branch Name</Label>
+                      <Label htmlFor="branchName">branch Name</Label>
                       <Input
                         id="branchName"
                         name="branchName"
@@ -792,7 +744,7 @@ export default function BranchMaster() {
                       />
                     </div>
                     
-                    {/* DatePicker for Expiration Date */}
+                    {/* DatePicker for Expiration Date - Available for all roles that can add branches */}
                     <div className="grid gap-2">
                       <Label htmlFor="expirationDate">Expiration Date</Label>
                       <DatePicker
@@ -820,7 +772,7 @@ export default function BranchMaster() {
                       </Button>
                     </DialogClose>
                     <Button type="submit" disabled={addbranchMutation.isPending}>
-                      {addbranchMutation.isPending ? "Saving..." : "Save Branch"}
+                      {addbranchMutation.isPending ? "Saving..." : "Save branch"}
                     </Button>
                   </DialogFooter>
                 </form>
@@ -831,7 +783,18 @@ export default function BranchMaster() {
       </header>
 
       <section className="mb-4">
-        {tableElement}
+        <CustomTable
+          data={filteredData || []}
+          columns={columns}
+          columnVisibility={columnVisibility}
+          onColumnVisibilityChange={setColumnVisibility}
+          pageSizeArray={[10, 20, 50]}
+          maxHeight={600}
+          minHeight={200}
+          showSerialNumber={true}
+          noDataMessage="No branchs found"
+          isLoading={isLoading}
+        />
       </section>
 
       <section>
@@ -851,7 +814,7 @@ export default function BranchMaster() {
               target={accessTarget}
               setTarget={setAccessTarget}
               butttonText="Confirm"
-              dialogClassName="max-w-sm"
+              dialogClassName="max-w-sm" // Reduced width
             />
           )}
         </div>
@@ -868,7 +831,7 @@ export default function BranchMaster() {
               target={deleteTarget}
               setTarget={setDeleteTarget}
               butttonText="Delete"
-              dialogClassName="max-w-sm"
+              dialogClassName="max-w-sm" // Reduced width
             />
           )}
         </div>
@@ -902,20 +865,20 @@ export default function BranchMaster() {
       <section>
         <FloatingMenu
           onExportPdf={() => {
-            exportToPDF(filterResults, columnsForExport, {
-              title: "Branch Master Report",
+            exportToPDF(filteredData, columnsForExport, {
+              title: "branch Master Report",
               companyName: "Parents Eye",
               metadata: {
-                Total: `${filterResults.length} branches`,
+                Total: `${filteredData.length} branchs`,
               },
             });
           }}
           onExportExcel={() => {
-            exportToExcel(filterResults, columnsForExport, {
-              title: "Branch Master Report",
+            exportToExcel(filteredData, columnsForExport, {
+              title: "branch Master Report",
               companyName: "Parents Eye",
               metadata: {
-                Total: `${filterResults.length} branches`,
+                Total: `${filteredData.length} branchs`,
               },
             });
           }}
