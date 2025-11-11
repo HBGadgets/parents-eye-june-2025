@@ -317,16 +317,16 @@ function HistoryReportContent() {
       const history = response.deviceHistory || [];
 
       // 🔹 Filter out duplicate lat/lng points
-      const filteredData = history.filter((point, index, arr) => {
-        if (index === 0) return true; // Always keep the first point
-        const prev = arr[index - 1];
-        return (
-          point.latitude !== prev.latitude || point.longitude !== prev.longitude
-        );
-      });
+      // const filteredData = history.filter((point, index, arr) => {
+      //   if (index === 0) return true; // Always keep the first point
+      //   const prev = arr[index - 1];
+      //   return (
+      //     point.latitude !== prev.latitude || point.longitude !== prev.longitude
+      //   );
+      // });
 
       // 🔹 Update state with filtered (non-repetitive) data
-      setData(filteredData);
+      setData(history);
     } catch (error) {
       console.error("Error fetching history data:", error);
       alert("Failed to fetch data. Please try again.");
