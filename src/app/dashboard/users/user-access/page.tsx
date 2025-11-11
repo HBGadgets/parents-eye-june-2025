@@ -27,7 +27,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { type ColumnDef, SortingState, VisibilityState } from "@tanstack/react-table";
 import { ChevronDown, X } from "lucide-react";
 import SearchComponent from "@/components/ui/SearchOnlydata";
-import { Combobox } from "@/components/ui/combobox"; // Import the Combobox component
+import { Combobox } from "@/components/ui/combobox";
 
 interface BranchGroupAccess {
   _id: string;
@@ -40,7 +40,10 @@ interface BranchGroupAccess {
   createdAt?: string;
 }
 
-interface SelectOption { label: string; value: string; }
+interface SelectOption {
+  label: string;
+  value: string;
+}
 
 // Table Branch Dropdown Component
 const TableBranchDropdown: React.FC<{
@@ -54,10 +57,11 @@ const TableBranchDropdown: React.FC<{
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    setSelectedBranches(assignedBranches.map(b => b._id));
+    setSelectedBranches(assignedBranches.map((b) => b._id));
   }, [assignedBranches]);
 
-  const allSelected = selectedBranches.length === branchOptions.length && branchOptions.length > 0;
+  const allSelected =
+    selectedBranches.length === branchOptions.length && branchOptions.length > 0;
   const selectedCount = selectedBranches.length;
 
   useEffect(() => {
@@ -72,14 +76,16 @@ const TableBranchDropdown: React.FC<{
 
   const handleBranchToggle = (branchId: string) => {
     const newSelectedBranches = selectedBranches.includes(branchId)
-      ? selectedBranches.filter(id => id !== branchId)
+      ? selectedBranches.filter((id) => id !== branchId)
       : [...selectedBranches, branchId];
     setSelectedBranches(newSelectedBranches);
     onBranchesUpdate(newSelectedBranches);
   };
 
   const handleSelectAll = () => {
-    const newSelectedBranches = allSelected ? [] : branchOptions.map(branch => branch.value);
+    const newSelectedBranches = allSelected
+      ? []
+      : branchOptions.map((branch) => branch.value);
     setSelectedBranches(newSelectedBranches);
     onBranchesUpdate(newSelectedBranches);
   };
@@ -92,22 +98,33 @@ const TableBranchDropdown: React.FC<{
         className="w-full border border-gray-300 rounded px-3 py-2 text-left bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 text-sm min-h-[42px] flex items-center justify-between"
       >
         <span className="text-gray-700">Assign Branches</span>
-        <ChevronDown className={`h-4 w-4 text-gray-500 transition-transform flex-shrink-0 ${isOpen ? 'rotate-180' : ''}`} />
+        <ChevronDown
+          className={`h-4 w-4 text-gray-500 transition-transform flex-shrink-0 ${
+            isOpen ? "rotate-180" : ""
+          }`}
+        />
       </button>
 
       {isOpen && (
         <div className="absolute z-50 left-0 mt-1 w-60 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-hidden">
           <div className="px-3 py-2 border-b border-gray-200 bg-yellow-50 flex items-center justify-between">
             <span className="text-sm font-medium text-gray-700">Assign Branches</span>
-            <button type="button" onClick={handleSelectAll} className="text-xs text-yellow-700 hover:text-yellow-900 font-medium">
-              {allSelected ? 'Deselect All' : 'Select All'}
+            <button
+              type="button"
+              onClick={handleSelectAll}
+              className="text-xs text-yellow-700 hover:text-yellow-900 font-medium"
+            >
+              {allSelected ? "Deselect All" : "Select All"}
             </button>
           </div>
 
           <div className="max-h-48 overflow-y-auto">
             {branchOptions.length > 0 ? (
               branchOptions.map((branch) => (
-                <label key={branch.value} className="flex items-center px-3 py-2 hover:bg-yellow-50 cursor-pointer">
+                <label
+                  key={branch.value}
+                  className="flex items-center px-3 py-2 hover:bg-yellow-50 cursor-pointer"
+                >
                   <input
                     type="checkbox"
                     checked={selectedBranches.includes(branch.value)}
@@ -118,13 +135,19 @@ const TableBranchDropdown: React.FC<{
                 </label>
               ))
             ) : (
-              <div className="px-3 py-3 text-center text-sm text-gray-500">No branches available</div>
+              <div className="px-3 py-3 text-center text-sm text-gray-500">
+                No branches available
+              </div>
             )}
           </div>
 
           <div className="px-3 py-2 border-t border-gray-200 bg-yellow-50 flex justify-between items-center text-xs text-gray-600">
             <span>{selectedCount} branch(es) selected</span>
-            <button type="button" onClick={() => setIsOpen(false)} className="text-yellow-700 hover:text-yellow-900 font-medium">
+            <button
+              type="button"
+              onClick={() => setIsOpen(false)}
+              className="text-yellow-700 hover:text-yellow-900 font-medium"
+            >
               Done
             </button>
           </div>
@@ -133,7 +156,6 @@ const TableBranchDropdown: React.FC<{
     </div>
   );
 };
-
 
 // Form Branch Dropdown Component
 const BranchDropdown: React.FC<{
@@ -144,7 +166,8 @@ const BranchDropdown: React.FC<{
 }> = ({ selectedBranches, branchOptions, onBranchToggle, onSelectAll }) => {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const allSelected = selectedBranches.length === branchOptions.length && branchOptions.length > 0;
+  const allSelected =
+    selectedBranches.length === branchOptions.length && branchOptions.length > 0;
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -171,13 +194,16 @@ const BranchDropdown: React.FC<{
         <div className="flex flex-wrap gap-1 flex-1">
           {selectedBranches.length > 0 ? (
             selectedBranches.slice(0, 3).map((branchId) => {
-              const branch = branchOptions.find(b => b.value === branchId);
+              const branch = branchOptions.find((b) => b.value === branchId);
               return branch ? (
-                <span key={branchId} className="inline-flex items-center gap-1 bg-yellow-100 text-yellow-800 text-xs px-2 py-1 rounded-full">
+                <span
+                  key={branchId}
+                  className="inline-flex items-center gap-1 bg-yellow-100 text-yellow-800 text-xs px-2 py-1 rounded-full"
+                >
                   {branch.label}
-                  <X 
-                    className="h-3 w-3 cursor-pointer hover:text-yellow-900 transition-colors" 
-                    onClick={(e) => removeBranch(branchId, e)} 
+                  <X
+                    className="h-3 w-3 cursor-pointer hover:text-yellow-900 transition-colors"
+                    onClick={(e) => removeBranch(branchId, e)}
                   />
                 </span>
               ) : null;
@@ -191,7 +217,11 @@ const BranchDropdown: React.FC<{
             </span>
           )}
         </div>
-        <ChevronDown className={`h-4 w-4 text-gray-500 transition-transform flex-shrink-0 ${isOpen ? 'rotate-180' : ''}`} />
+        <ChevronDown
+          className={`h-4 w-4 text-gray-500 transition-transform flex-shrink-0 ${
+            isOpen ? "rotate-180" : ""
+          }`}
+        />
       </button>
 
       {isOpen && (
@@ -204,7 +234,7 @@ const BranchDropdown: React.FC<{
                 onClick={onSelectAll}
                 className="text-xs text-yellow-700 hover:text-yellow-900 font-medium"
               >
-                {allSelected ? 'Deselect All' : 'Select All'}
+                {allSelected ? "Deselect All" : "Select All"}
               </button>
             </div>
           </div>
@@ -244,11 +274,17 @@ export default function UserAccessPage() {
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 10 });
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState("");
-  const [dateRange, setDateRange] = useState<{ start: Date | null; end: Date | null }>({ start: null, end: null });
+  const [dateRange, setDateRange] = useState<{ start: Date | null; end: Date | null }>({
+    start: null,
+    end: null,
+  });
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
-  const [branchGroupsData, setBranchGroupsData] = useState<{ data: BranchGroupAccess[], total: number }>({ data: [], total: 0 });
+  const [branchGroupsData, setBranchGroupsData] = useState<{
+    data: BranchGroupAccess[];
+    total: number;
+  }>({ data: [], total: 0 });
   const [filteredData, setFilteredData] = useState<BranchGroupAccess[]>([]);
-  const [filterResults, setFilterResults] = useState<BranchGroupAccess[]>([]);
+  const [allData, setAllData] = useState<BranchGroupAccess[]>([]); // Store all data for client-side filtering
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -257,61 +293,97 @@ export default function UserAccessPage() {
   const [deleteTarget, setDeleteTarget] = useState<BranchGroupAccess | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editSelectedBranches, setEditSelectedBranches] = useState<string[]>([]);
-  
-  // School selection state
   const [selectedSchool, setSelectedSchool] = useState<string | null>(null);
   const [editSelectedSchool, setEditSelectedSchool] = useState<string | null>(null);
 
   const { exportToPDF, exportToExcel } = useExport();
   const { data: schoolData } = useSchoolData();
   const { data: branchDataFromHook } = useBranchData();
-  const branchData = branchDataFromHook && branchDataFromHook.length > 0 ? branchDataFromHook : [];
+  const branchData =
+    branchDataFromHook && branchDataFromHook.length > 0 ? branchDataFromHook : [];
 
-  const schoolOptions: SelectOption[] = schoolData?.map((s) => ({ label: s.schoolName, value: s._id })) || [];
-  const branchOptions: SelectOption[] = branchData?.map((b) => ({ label: b.branchName, value: b._id })) || [];
+  const schoolOptions: SelectOption[] =
+    schoolData?.map((s) => ({ label: s.schoolName, value: s._id })) || [];
+  const branchOptions: SelectOption[] =
+    branchData?.map((b) => ({ label: b.branchName, value: b._id })) || [];
 
-  // Data fetching
+  // ✅ Modified fetch logic - fetch all data without filters initially
   const fetchBranchGroups = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     try {
-      const sort = sorting.map(s => `${s.id}:${s.desc ? 'desc' : 'asc'}`).join(',');
-      const params = new URLSearchParams({
-        page: `${pagination.pageIndex + 1}`,
-        limit: `${pagination.pageSize}`,
-        ...(globalFilter && { search: globalFilter }),
-        ...(sort && { sort }),
-        ...(dateRange.start && { startDate: dateRange.start.toISOString() }),
-        ...(dateRange.end && { endDate: dateRange.end.toISOString() }),
-      });
-      
-      const response = await api.get<BranchGroupAccess[]>(`/branchGroup?${params}`);
+      const response = await api.get<BranchGroupAccess[]>(`/branchGroup`);
       setBranchGroupsData({ data: response, total: response.length });
-      setFilteredData(response);
-      setFilterResults(response);
+      setAllData(response); // Store all data
+      setFilteredData(response); // Initialize filtered data with all data
     } catch (err) {
       setError("Failed to load user data.");
       setBranchGroupsData({ data: [], total: 0 });
+      setAllData([]);
       setFilteredData([]);
-      setFilterResults([]);
     } finally {
       setIsLoading(false);
     }
-  }, [pagination, globalFilter, sorting, dateRange]);
+  }, []);
 
-  useEffect(() => { fetchBranchGroups(); }, [fetchBranchGroups]);
+  useEffect(() => {
+    fetchBranchGroups();
+  }, [fetchBranchGroups]);
 
-  // Handle search results
+  // ✅ Apply date range and search filters client-side
+  useEffect(() => {
+    let filtered = [...allData];
+
+    // Apply date range filter
+    if (dateRange.start || dateRange.end) {
+      filtered = filtered.filter(item => {
+        if (!item.createdAt) return false;
+        
+        const itemDate = new Date(item.createdAt);
+        let startMatch = true;
+        let endMatch = true;
+
+        if (dateRange.start) {
+          startMatch = itemDate >= new Date(dateRange.start.setHours(0, 0, 0, 0));
+        }
+
+        if (dateRange.end) {
+          const endOfDay = new Date(dateRange.end.setHours(23, 59, 59, 999));
+          endMatch = itemDate <= endOfDay;
+        }
+
+        return startMatch && endMatch;
+      });
+    }
+
+    // Apply search filter
+    if (globalFilter.trim()) {
+      const searchTerm = globalFilter.toLowerCase();
+      filtered = filtered.filter(item => 
+        item.username?.toLowerCase().includes(searchTerm) ||
+        item.branchGroupName?.toLowerCase().includes(searchTerm) ||
+        item.mobileNo?.toLowerCase().includes(searchTerm) ||
+        item.schoolId?.schoolName?.toLowerCase().includes(searchTerm)
+      );
+    }
+
+    setFilteredData(filtered);
+  }, [allData, dateRange, globalFilter]);
+
+  // Handle search results - now works with date range
   const handleSearchResults = useCallback((results: BranchGroupAccess[]) => {
     setFilteredData(results);
   }, []);
 
-  // Handle notification state sync
-  useEffect(() => {
-    if (filterResults && filterResults.length > 0) {
-      setFilteredData(filterResults);
-    }
-  }, [filterResults]);
+  // Handle search input change
+  const handleSearchChange = useCallback((searchTerm: string) => {
+    setGlobalFilter(searchTerm);
+  }, []);
+
+  // Handle date range change
+  const handleDateRangeChange = useCallback((start: Date | null, end: Date | null) => {
+    setDateRange({ start, end });
+  }, []);
 
   // Mutations
   const createMutation = useMutation({
@@ -460,7 +532,7 @@ export default function UserAccessPage() {
 
   // Columns with branches assign column
   const columns: ColumnDef<BranchGroupAccess>[] = useMemo(() => [
-    { id: "sno", header: "S.No.", cell: ({ row }) => row.index + 1 + pagination.pageIndex * pagination.pageSize },
+    { id: "sno", header: "S.No.", cell: ({ row }) => row.index + 1 },
     { id: "username", header: "User Name", accessorFn: (row) => row.username || "N/A" },
     { id: "branchGroupName", header: "Group Name", accessorFn: (row) => row.branchGroupName || "N/A" },
     { id: "password", header: "Password", accessorFn: (row) => row.password || "N/A" },
@@ -504,7 +576,7 @@ export default function UserAccessPage() {
         </div>
       ),
     },
-  ], [pagination.pageIndex, pagination.pageSize, branchOptions, handleTableBranchesUpdate]);
+  ], [branchOptions, handleTableBranchesUpdate]);
 
   const columnsForExport = useMemo(() => [
     { key: "username", header: "User Name" },
@@ -529,7 +601,7 @@ export default function UserAccessPage() {
     data: filteredData || [],
     columns,
     pagination,
-    totalCount: branchGroupsData.total || 0,
+    totalCount: filteredData.length || 0,
     loading: isLoading,
     onPaginationChange: setPagination,
     onSortingChange: setSorting,
@@ -537,7 +609,7 @@ export default function UserAccessPage() {
     columnVisibility,
     onColumnVisibilityChange: setColumnVisibility,
     emptyMessage: error || "No branch groups found",
-    pageSizeOptions: [5, 10, 20, 30, 50],
+    pageSizeOptions: [10],
     enableSorting: true,
     showSerialNumber: false,
   });
@@ -550,12 +622,16 @@ export default function UserAccessPage() {
       <header className="flex items-center justify-between mb-4">
         <section className="flex space-x-4">
           <SearchComponent
-            data={filterResults}
+            data={allData} 
             displayKey={["username", "branchGroupName", "mobileNo", "schoolId.schoolName"]}
             onResults={handleSearchResults}
+            onSearchChange={handleSearchChange} 
             className="w-[300px] mb-4"
           />
-          <DateRangeFilter onDateRangeChange={(s, e) => setDateRange({ start: s, end: e })} title="Search by Registration Date" />
+          <DateRangeFilter 
+            onDateRangeChange={handleDateRangeChange} 
+            title="Search by Registration Date" 
+          />
           <ColumnVisibilitySelector columns={table?.getAllColumns() || []} buttonVariant="outline" buttonSize="default" />
         </section>
 

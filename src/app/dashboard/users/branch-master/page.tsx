@@ -736,7 +736,7 @@ export default function BranchMaster() {
                       />
                     </div>
                     
-                    {/* DatePicker for Expiration Date */}
+                    {/* DatePicker for Expiration Date - Available for all roles that can add branches */}
                     <div className="grid gap-2">
                       <Label htmlFor="expirationDate">Expiration Date</Label>
                       <DatePicker
@@ -806,6 +806,7 @@ export default function BranchMaster() {
               target={accessTarget}
               setTarget={setAccessTarget}
               butttonText="Confirm"
+              dialogClassName="max-w-sm" // Reduced width
             />
           )}
         </div>
@@ -822,6 +823,7 @@ export default function BranchMaster() {
               target={deleteTarget}
               setTarget={setDeleteTarget}
               butttonText="Delete"
+              dialogClassName="max-w-sm" // Reduced width
             />
           )}
         </div>
