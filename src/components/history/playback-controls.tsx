@@ -249,8 +249,8 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({
           <div className="flex items-center gap-2">
             <Slider
               value={[playbackSpeed]}
-              max={200}
-              min={4}
+              max={100}
+              min={2}
               step={0.5}
               onValueChange={(value) => onSpeedChange(value[0])}
               className="w-32 cursor-pointer"

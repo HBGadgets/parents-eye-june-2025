@@ -134,104 +134,68 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 url: "/dashboard/reports/geofence-report",
               },
               { title: "Notification", url: "/dashboard/users/notification" },
-
-              // {
-              //   title: "Student Approve",
-              //   url: "/dashboard/users/student-approve",
-              // },
             ];
-          } else {
+          } else if (role === "school" || role === "branchGroup") {
             return [
+              { title: "Add Device", url: "/dashboard/users/add-device" },
+              {
+                title: "Branch Master",
+                url: "/dashboard/users/branch-master",
+              },
               {
                 title: "Student Details",
                 url: "/dashboard/school/student-details",
               },
-              { title: "Add Device", url: "/dashboard/users/add-device" },
-            ];
-          }
-
-        case "School":
-          return [
-            // {
-            //   title: "Student Details",
-            //   url: "/dashboard/school/student-details",
-            // },
-            // { title: "Geofence", url: "/dashboard/school/geofence" },
-            { title: "Pickup And Drop", url: "/dashboard/school/pickup-drop" },
-            // { title: "Absent", url: "/dashboard/school/absent" },
-            // { title: "Present", url: "/dashboard/school/present" },
-            { title: "Leave Request", url: "/dashboard/school/leave-request" },
-            // { title: "Status", url: "/dashboard/school/status" },
-            // {
-            //   title: "Approved Request",
-            //   url: "/dashboard/school/approved-request",
-            // },
-            // {
-            //   title: "Denied Request",
-            //   url: "/dashboard/school/denied-request",
-            // },
-          ];
-        case "Users":
-          if (role === "superAdmin") {
-            return [
-              // { title: "School Master", url: "/dashboard/users/school-master" },
-              // { title: "Branch Master", url: "/dashboard/users/branch-master" },
-              // {
-              //   title: "Parents Master",
-              //   url: "/dashboard/users/parents-master",
-              // },
-              {
-                title: "Driver Approve",
-                url: "/dashboard/users/driver-approve",
-              },
-              // {
-              //   title: "Student Approve",
-              //   url: "/dashboard/users/student-approve",
-              // },
-              {
-                title: "Supervisor Approve",
-                url: "/dashboard/users/supervisor-approve",
-              },
-              // { title: "Add Device", url: "/dashboard/users/add-device" },
-              // { title: "Devices", url: "/dashboard/users/read-device" },
-              // { title: "User Access", url: "/dashboard/users/user-access" },
-              // { title: "Notification", url: "/dashboard/users/notification" },
-            ];
-          } else if (role === "school" || role === "branchGroup") {
-            return [
-              { title: "Branch Master", url: "/dashboard/users/branch-master" },
               {
                 title: "Parents Master",
                 url: "/dashboard/users/parents-master",
               },
               {
-                title: "Driver Approve",
-                url: "/dashboard/users/driver-approve",
+                title: "Routes",
+                url: "/dashboard/master/route",
               },
-
               {
-                title: "Supervisor Approve",
-                url: "/dashboard/users/supervisor-approve",
+                title: "Geofence",
+                url: "/dashboard/school/geofence",
               },
-              { title: "Read Device", url: "/dashboard/users/read-device" },
             ];
           } else {
             return [
+              { title: "Add Device", url: "/dashboard/users/add-device" },
               {
-                title: "Driver Approve",
-                url: "/dashboard/users/driver-approve",
+                title: "Student Details",
+                url: "/dashboard/school/student-details",
               },
               {
-                title: "Student Approve",
-                url: "/dashboard/users/student-approve",
+                title: "Parents Master",
+                url: "/dashboard/users/parents-master",
               },
               {
-                title: "Supervisor Approve",
-                url: "/dashboard/users/supervisor-approve",
+                title: "Routes",
+                url: "/dashboard/master/route",
               },
-              { title: "Read Device", url: "/dashboard/users/read-device" },
+              {
+                title: "Geofence",
+                url: "/dashboard/school/geofence",
+              },
             ];
           }
+        case "School":
+          return [
+            { title: "Pickup And Drop", url: "/dashboard/school/pickup-drop" },
+            { title: "Leave Request", url: "/dashboard/school/leave-request" },
+          ];
+        case "Users":
+          return [
+            {
+              title: "Driver Approve",
+              url: "/dashboard/users/driver-approve",
+            },
+            {
+              title: "Supervisor Approve",
+              url: "/dashboard/users/supervisor-approve",
+            },
+          ];
         case "Reports":
           return [
             { title: "Status Report", url: "/dashboard/reports/status-report" },
