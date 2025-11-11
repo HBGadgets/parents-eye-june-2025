@@ -13,7 +13,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { CustomTableServerSidePagination } from "@/components/ui/customTable(serverSidePagination)";
+import { CustomTable, CellContent } from "@/components/ui/CustomTable";
 import { ColumnVisibilitySelector } from "@/components/column-visibility-selector";
 import { FloatingMenu } from "@/components/floatingMenu";
 import ResponseLoader from "@/components/ResponseLoader";
@@ -24,10 +24,12 @@ import { useBranchData } from "@/hooks/useBranchData";
 import { useExport } from "@/hooks/useExport";
 import { api } from "@/services/apiService";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { type ColumnDef, SortingState, VisibilityState } from "@tanstack/react-table";
-import { ChevronDown, X } from "lucide-react";
+import { type ColumnDef, VisibilityState, useReactTable, getCoreRowModel } from "@tanstack/react-table";
+import { ChevronDown, X, Edit, Trash2 } from "lucide-react";
 import SearchComponent from "@/components/ui/SearchOnlydata";
 import { Combobox } from "@/components/ui/combobox";
+import { createPortal } from "react-dom";
+
 
 interface BranchGroupAccess {
   _id: string;
@@ -45,7 +47,15 @@ interface SelectOption {
   value: string;
 }
 
-// Table Branch Dropdown Component
+declare module "@tanstack/react-table" {
+  interface ColumnMeta<TData, TValue> {
+    flex?: number;
+    minWidth?: number;
+    maxWidth?: number;
+  }
+}
+
+// Table Branch Dropdown Component - FIXED VERSION with proper positioning
 const TableBranchDropdown: React.FC<{
   assignedBranches: { _id: string; branchName: string }[];
   branchOptions: SelectOption[];
@@ -55,18 +65,23 @@ const TableBranchDropdown: React.FC<{
   const [isOpen, setIsOpen] = useState(false);
   const [selectedBranches, setSelectedBranches] = useState<string[]>([]);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const portalRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setSelectedBranches(assignedBranches.map((b) => b._id));
   }, [assignedBranches]);
 
-  const allSelected =
-    selectedBranches.length === branchOptions.length && branchOptions.length > 0;
+  const allSelected = selectedBranches.length === branchOptions.length && branchOptions.length > 0;
   const selectedCount = selectedBranches.length;
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+      if (
+        dropdownRef.current && 
+        !dropdownRef.current.contains(event.target as Node) &&
+        portalRef.current && 
+        !portalRef.current.contains(event.target as Node)
+      ) {
         setIsOpen(false);
       }
     };
@@ -90,69 +105,120 @@ const TableBranchDropdown: React.FC<{
     onBranchesUpdate(newSelectedBranches);
   };
 
+  const getDropdownPosition = () => {
+    if (!dropdownRef.current) return { top: 0, left: 0 };
+    
+    const rect = dropdownRef.current.getBoundingClientRect();
+    const viewportHeight = window.innerHeight;
+    
+    // Calculate available space below and above
+    const spaceBelow = viewportHeight - rect.bottom;
+    const spaceAbove = rect.top;
+    
+    // Default: position below
+    let top = rect.bottom + window.scrollY;
+    let maxHeight = 240; // 60 * 4 items
+    
+    // If not enough space below, position above
+    if (spaceBelow < 200 && spaceAbove > 200) {
+      top = rect.top + window.scrollY - Math.min(240, spaceAbove - 20);
+      maxHeight = Math.min(240, spaceAbove - 20);
+    } else if (spaceBelow < 240) {
+      maxHeight = Math.min(240, spaceBelow - 20);
+    }
+    
+    return {
+      top,
+      left: rect.left + window.scrollX,
+      width: rect.width,
+      maxHeight
+    };
+  };
+
+  const dropdownPosition = getDropdownPosition();
+
   return (
-    <div className="relative w-full" ref={dropdownRef}>
+    <div className="relative w-full min-w-[250px]" ref={dropdownRef}>
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full border border-gray-300 rounded px-3 py-2 text-left bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 text-sm min-h-[42px] flex items-center justify-between"
+        className="w-full border border-gray-300 rounded px-3 py-2 text-left bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 text-sm min-h-[38px] flex items-center justify-between"
       >
-        <span className="text-gray-700">Assign Branches</span>
+        <span className="text-gray-700 truncate">
+          {assignedBranches.length > 0 
+            ? `${assignedBranches.length} branch(es)` 
+            : "Assign Branches"
+          }
+        </span>
         <ChevronDown
-          className={`h-4 w-4 text-gray-500 transition-transform flex-shrink-0 ${
+          className={`h-4 w-4 text-gray-500 transition-transform flex-shrink-0 ml-2 ${
             isOpen ? "rotate-180" : ""
           }`}
         />
       </button>
 
-      {isOpen && (
-        <div className="absolute z-50 left-0 mt-1 w-60 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-hidden">
-          <div className="px-3 py-2 border-b border-gray-200 bg-yellow-50 flex items-center justify-between">
-            <span className="text-sm font-medium text-gray-700">Assign Branches</span>
-            <button
-              type="button"
-              onClick={handleSelectAll}
-              className="text-xs text-yellow-700 hover:text-yellow-900 font-medium"
-            >
-              {allSelected ? "Deselect All" : "Select All"}
-            </button>
-          </div>
+      {isOpen &&
+        createPortal(
+          <div
+            ref={portalRef}
+            className="fixed z-[9999] bg-white border border-gray-300 rounded-md shadow-lg overflow-hidden"
+            style={{
+              top: dropdownPosition.top,
+              left: dropdownPosition.left,
+              width: dropdownPosition.width,
+              maxHeight: dropdownPosition.maxHeight,
+            }}
+          >
+            <div className="px-3 py-2 border-b border-gray-200 bg-yellow-50 flex items-center justify-between">
+              <span className="text-sm font-medium text-gray-700">Assign Branches</span>
+              <button
+                type="button"
+                onClick={handleSelectAll}
+                className="text-xs text-yellow-700 hover:text-yellow-900 font-medium"
+              >
+                {allSelected ? "Deselect All" : "Select All"}
+              </button>
+            </div>
 
-          <div className="max-h-48 overflow-y-auto">
-            {branchOptions.length > 0 ? (
-              branchOptions.map((branch) => (
-                <label
-                  key={branch.value}
-                  className="flex items-center px-3 py-2 hover:bg-yellow-50 cursor-pointer"
-                >
-                  <input
-                    type="checkbox"
-                    checked={selectedBranches.includes(branch.value)}
-                    onChange={() => handleBranchToggle(branch.value)}
-                    className="h-4 w-4 rounded border-gray-300 text-yellow-600 focus:ring-yellow-500"
-                  />
-                  <span className="ml-3 text-sm text-gray-700">{branch.label}</span>
-                </label>
-              ))
-            ) : (
-              <div className="px-3 py-3 text-center text-sm text-gray-500">
-                No branches available
-              </div>
-            )}
-          </div>
-
-          <div className="px-3 py-2 border-t border-gray-200 bg-yellow-50 flex justify-between items-center text-xs text-gray-600">
-            <span>{selectedCount} branch(es) selected</span>
-            <button
-              type="button"
-              onClick={() => setIsOpen(false)}
-              className="text-yellow-700 hover:text-yellow-900 font-medium"
+            <div 
+              className="overflow-y-auto"
+              style={{ maxHeight: dropdownPosition.maxHeight - 80 }} // Subtract header and footer height
             >
-              Done
-            </button>
-          </div>
-        </div>
-      )}
+              {branchOptions.length > 0 ? (
+                branchOptions.map((branch) => (
+                  <label
+                    key={branch.value}
+                    className="flex items-center px-3 py-2 hover:bg-yellow-50 cursor-pointer border-b border-gray-100 last:border-b-0"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedBranches.includes(branch.value)}
+                      onChange={() => handleBranchToggle(branch.value)}
+                      className="h-4 w-4 rounded border-gray-300 text-yellow-600 focus:ring-yellow-500 flex-shrink-0"
+                    />
+                    <span className="ml-3 text-sm text-gray-700 truncate flex-1">{branch.label}</span>
+                  </label>
+                ))
+              ) : (
+                <div className="px-3 py-3 text-center text-sm text-gray-500">
+                  No branches available
+                </div>
+              )}
+            </div>
+
+            <div className="px-3 py-2 border-t border-gray-200 bg-yellow-50 flex justify-between items-center text-xs text-gray-600">
+              <span>{selectedCount} branch(es) selected</span>
+              <button
+                type="button"
+                onClick={() => setIsOpen(false)}
+                className="text-yellow-700 hover:text-yellow-900 font-medium"
+              >
+                Done
+              </button>
+            </div>
+          </div>,
+          document.body
+        )}
     </div>
   );
 };
@@ -166,8 +232,7 @@ const BranchDropdown: React.FC<{
 }> = ({ selectedBranches, branchOptions, onBranchToggle, onSelectAll }) => {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const allSelected =
-    selectedBranches.length === branchOptions.length && branchOptions.length > 0;
+  const allSelected = selectedBranches.length === branchOptions.length && branchOptions.length > 0;
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -271,20 +336,9 @@ const BranchDropdown: React.FC<{
 
 export default function UserAccessPage() {
   const queryClient = useQueryClient();
-  const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 10 });
-  const [sorting, setSorting] = useState<SortingState>([]);
-  const [globalFilter, setGlobalFilter] = useState("");
-  const [dateRange, setDateRange] = useState<{ start: Date | null; end: Date | null }>({
-    start: null,
-    end: null,
-  });
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
-  const [branchGroupsData, setBranchGroupsData] = useState<{
-    data: BranchGroupAccess[];
-    total: number;
-  }>({ data: [], total: 0 });
+  const [branchGroupsData, setBranchGroupsData] = useState<BranchGroupAccess[]>([]);
   const [filteredData, setFilteredData] = useState<BranchGroupAccess[]>([]);
-  const [allData, setAllData] = useState<BranchGroupAccess[]>([]); // Store all data for client-side filtering
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -295,31 +349,30 @@ export default function UserAccessPage() {
   const [editSelectedBranches, setEditSelectedBranches] = useState<string[]>([]);
   const [selectedSchool, setSelectedSchool] = useState<string | null>(null);
   const [editSelectedSchool, setEditSelectedSchool] = useState<string | null>(null);
+  const [dateRange, setDateRange] = useState<{ start: Date | null; end: Date | null }>({
+    start: null,
+    end: null,
+  });
+  const [globalFilter, setGlobalFilter] = useState("");
 
   const { exportToPDF, exportToExcel } = useExport();
   const { data: schoolData } = useSchoolData();
   const { data: branchDataFromHook } = useBranchData();
-  const branchData =
-    branchDataFromHook && branchDataFromHook.length > 0 ? branchDataFromHook : [];
 
-  const schoolOptions: SelectOption[] =
-    schoolData?.map((s) => ({ label: s.schoolName, value: s._id })) || [];
-  const branchOptions: SelectOption[] =
-    branchData?.map((b) => ({ label: b.branchName, value: b._id })) || [];
+  const schoolOptions: SelectOption[] = schoolData?.map((s) => ({ label: s.schoolName, value: s._id })) || [];
+  const branchOptions: SelectOption[] = branchDataFromHook?.map((b) => ({ label: b.branchName, value: b._id })) || [];
 
-  // ✅ Modified fetch logic - fetch all data without filters initially
+  // Fetch all data
   const fetchBranchGroups = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     try {
       const response = await api.get<BranchGroupAccess[]>(`/branchGroup`);
-      setBranchGroupsData({ data: response, total: response.length });
-      setAllData(response); // Store all data
-      setFilteredData(response); // Initialize filtered data with all data
+      setBranchGroupsData(response);
+      setFilteredData(response);
     } catch (err) {
       setError("Failed to load user data.");
-      setBranchGroupsData({ data: [], total: 0 });
-      setAllData([]);
+      setBranchGroupsData([]);
       setFilteredData([]);
     } finally {
       setIsLoading(false);
@@ -330,25 +383,27 @@ export default function UserAccessPage() {
     fetchBranchGroups();
   }, [fetchBranchGroups]);
 
-  // ✅ Apply date range and search filters client-side
+  // Apply filters
   useEffect(() => {
-    let filtered = [...allData];
+    let filtered = [...branchGroupsData];
 
     // Apply date range filter
     if (dateRange.start || dateRange.end) {
       filtered = filtered.filter(item => {
         if (!item.createdAt) return false;
-        
         const itemDate = new Date(item.createdAt);
         let startMatch = true;
         let endMatch = true;
 
         if (dateRange.start) {
-          startMatch = itemDate >= new Date(dateRange.start.setHours(0, 0, 0, 0));
+          const startOfDay = new Date(dateRange.start);
+          startOfDay.setHours(0, 0, 0, 0);
+          startMatch = itemDate >= startOfDay;
         }
 
         if (dateRange.end) {
-          const endOfDay = new Date(dateRange.end.setHours(23, 59, 59, 999));
+          const endOfDay = new Date(dateRange.end);
+          endOfDay.setHours(23, 59, 59, 999);
           endMatch = itemDate <= endOfDay;
         }
 
@@ -368,34 +423,20 @@ export default function UserAccessPage() {
     }
 
     setFilteredData(filtered);
-    
-    // Reset to first page when filters change
-    setPagination(prev => ({ ...prev, pageIndex: 0 }));
-  }, [allData, dateRange, globalFilter]);
+  }, [branchGroupsData, dateRange, globalFilter]);
 
-  // Handle search results - now works with date range
+  // Handle search
   const handleSearchResults = useCallback((results: BranchGroupAccess[]) => {
     setFilteredData(results);
-    // Reset to first page when search results change
-    setPagination(prev => ({ ...prev, pageIndex: 0 }));
   }, []);
 
-  // Handle search input change
   const handleSearchChange = useCallback((searchTerm: string) => {
     setGlobalFilter(searchTerm);
   }, []);
 
-  // Handle date range change
   const handleDateRangeChange = useCallback((start: Date | null, end: Date | null) => {
     setDateRange({ start, end });
   }, []);
-
-  // Get paginated data for the table
-  const getPaginatedData = useMemo(() => {
-    const startIndex = pagination.pageIndex * pagination.pageSize;
-    const endIndex = startIndex + pagination.pageSize;
-    return filteredData.slice(startIndex, endIndex);
-  }, [filteredData, pagination.pageIndex, pagination.pageSize]);
 
   // Mutations
   const createMutation = useMutation({
@@ -472,13 +513,11 @@ export default function UserAccessPage() {
 
   const handleSchoolChange = (schoolId: string | null) => {
     setSelectedSchool(schoolId);
-    // Reset branches when school changes
     setSelectedBranches([]);
   };
 
   const handleEditSchoolChange = (schoolId: string | null) => {
     setEditSelectedSchool(schoolId);
-    // Reset branches when school changes
     setEditSelectedBranches([]);
   };
 
@@ -513,7 +552,7 @@ export default function UserAccessPage() {
 
   const handleDelete = () => deleteTarget && deleteMutation.mutate(deleteTarget._id);
 
-  // Reset form when dialog closes
+  // Reset forms
   useEffect(() => {
     if (!isAddDialogOpen) {
       setSelectedBranches([]);
@@ -521,19 +560,13 @@ export default function UserAccessPage() {
     }
   }, [isAddDialogOpen]);
 
-  // Setup edit data when edit target changes
   useEffect(() => {
     if (editTarget && isEditDialogOpen) {
-      setEditSelectedBranches(
-        editTarget.AssignedBranch 
-          ? editTarget.AssignedBranch.map(b => b._id)
-          : []
-      );
+      setEditSelectedBranches(editTarget.AssignedBranch ? editTarget.AssignedBranch.map(b => b._id) : []);
       setEditSelectedSchool(editTarget.schoolId?._id || null);
     }
   }, [editTarget, isEditDialogOpen]);
 
-  // Reset edit state when dialog closes
   useEffect(() => {
     if (!isEditDialogOpen) {
       setEditSelectedBranches([]);
@@ -542,60 +575,131 @@ export default function UserAccessPage() {
     }
   }, [isEditDialogOpen]);
 
-  // Columns with branches assign column
-  const columns: ColumnDef<BranchGroupAccess>[] = useMemo(() => [
-    { 
-      id: "sno", 
-      header: "S.No.", 
-      cell: ({ row }) => {
-        const globalIndex = pagination.pageIndex * pagination.pageSize + row.index + 1;
-        return globalIndex;
-      }
-    },
-    { id: "username", header: "User Name", accessorFn: (row) => row.username || "N/A" },
-    { id: "branchGroupName", header: "Group Name", accessorFn: (row) => row.branchGroupName || "N/A" },
-    { id: "password", header: "Password", accessorFn: (row) => row.password || "N/A" },
-    { id: "mobileNo", header: "Mobile No", accessorFn: (row) => row.mobileNo || "N/A" },
-    { id: "schoolName", header: "School Name", accessorFn: (row) => row.schoolId?.schoolName || "N/A" },
-    { id: "createdAt", header: "Registration Date", accessorFn: (row) => row.createdAt ? new Date(row.createdAt).toLocaleDateString("en-GB") : "N/A" },
-    {
-      id: "assignedBranches", 
-      header: "Assigned Branches",
-      cell: ({ row }) => {
-        const branches = row.original.AssignedBranch || [];
-        return (
-          <div className="min-w-[200px]">
-            <TableBranchDropdown
-              assignedBranches={branches}
-              branchOptions={branchOptions}
-              onBranchesUpdate={(branchIds) => 
-                handleTableBranchesUpdate(row.original._id, branchIds)
-              }
-              userId={row.original._id}
-            />
-          </div>
-        );
-      },
-      size: 300,
-    },
-    {
-      id: "action", header: "Action", cell: ({ row }) => (
+  // Main columns for CustomTable
+  const columns: ColumnDef<BranchGroupAccess, CellContent>[] = useMemo(() => [
+  {
+    header: "User Name",
+    accessorFn: (row) => ({
+      type: "text",
+      value: row.username || "N/A",
+      render: () => row.username || "N/A",
+    }),
+    meta: { flex: 1, minWidth: 180, maxWidth: 250 },
+  },
+  {
+    header: "Group Name",
+    accessorFn: (row) => ({
+      type: "text",
+      value: row.branchGroupName || "N/A",
+      render: () => row.branchGroupName || "N/A",
+    }),
+    meta: { flex: 1, minWidth: 180, maxWidth: 250 },
+  },
+  {
+    header: "Password",
+    accessorFn: (row) => ({
+      type: "text",
+      value: row.password || "N/A",
+      render: () => row.password || "N/A",
+    }),
+    meta: { flex: 1, minWidth: 150, maxWidth: 200 },
+  },
+  {
+    header: "Mobile No",
+    accessorFn: (row) => ({
+      type: "text",
+      value: row.mobileNo || "N/A",
+      render: () => row.mobileNo || "N/A",
+    }),
+    meta: { flex: 1, minWidth: 150, maxWidth: 200 },
+  },
+  {
+    header: "School Name",
+    accessorFn: (row) => ({
+      type: "text",
+      value: row.schoolId?.schoolName || "N/A",
+      render: () => row.schoolId?.schoolName || "N/A",
+    }),
+    meta: { flex: 1, minWidth: 200, maxWidth: 300 },
+  },
+  {
+    header: "Registration Date",
+    accessorFn: (row) => ({
+      type: "text",
+      value: row.createdAt ? new Date(row.createdAt).toLocaleDateString("en-GB") : "N/A",
+      render: () => row.createdAt ? new Date(row.createdAt).toLocaleDateString("en-GB") : "N/A",
+    }),
+    meta: { flex: 1, minWidth: 180, maxWidth: 220 },
+  },
+  {
+    header: "Assigned Branches",
+    accessorFn: (row) => ({
+      type: "custom",
+      value: (
+        <TableBranchDropdown
+          assignedBranches={row.AssignedBranch || []}
+          branchOptions={branchOptions}
+          onBranchesUpdate={(branchIds) => handleTableBranchesUpdate(row._id, branchIds)}
+          userId={row._id}
+        />
+      ),
+      render: () => (
+        <TableBranchDropdown
+          assignedBranches={row.AssignedBranch || []}
+          branchOptions={branchOptions}
+          onBranchesUpdate={(branchIds) => handleTableBranchesUpdate(row._id, branchIds)}
+          userId={row._id}
+        />
+      ),
+    }),
+    meta: { flex: 1, minWidth: 280 },
+  },
+  {
+    header: "Action",
+    accessorFn: (row) => ({
+      type: "group",
+      items: [
+        {
+          type: "button",
+          label: "Edit",
+          onClick: () => {
+            setEditTarget(row);
+            setIsEditDialogOpen(true);
+          },
+          className:
+            "cursor-pointer flex items-center gap-1 bg-yellow-400 hover:bg-yellow-500 text-[#733e0a] font-semibold py-1 px-3 rounded-md text-sm transition-colors",
+        },
+        {
+          type: "button",
+          label: "Delete",
+          onClick: () => setDeleteTarget(row),
+          className:
+            "text-red-600 cursor-pointer flex items-center gap-1 bg-red-500 hover:bg-red-600 text-white font-semibold py-1 px-3 rounded-md text-sm transition-colors",
+        },
+      ],
+      render: () => (
         <div className="flex gap-2">
-          <button className="bg-yellow-400 hover:bg-yellow-500 text-[#733e0a] font-semibold py-1 px-3 rounded-md text-sm"
-            onClick={() => { 
-              setEditTarget(row.original); 
-              setIsEditDialogOpen(true); 
-            }}>
+          <button
+            onClick={() => {
+              setEditTarget(row);
+              setIsEditDialogOpen(true);
+            }}
+            className="cursor-pointer bg-yellow-400 hover:bg-yellow-500 text-[#733e0a] font-semibold py-1 px-3 rounded-md text-sm"
+          >
             Edit
           </button>
-          <button className="bg-red-500 hover:bg-red-600 text-white font-semibold py-1 px-3 rounded-md text-sm"
-            onClick={() => setDeleteTarget(row.original)}>
+          <button
+            onClick={() => setDeleteTarget(row)}
+            className="cursor-pointer bg-red-500 hover:bg-red-600 text-white font-semibold py-1 px-3 rounded-md text-sm"
+          >
             Delete
           </button>
         </div>
       ),
-    },
-  ], [branchOptions, handleTableBranchesUpdate, pagination.pageIndex, pagination.pageSize]);
+    }),
+    meta: { flex: 1.5, minWidth: 220 },
+  },
+], [branchOptions, handleTableBranchesUpdate]);
 
   const columnsForExport = useMemo(() => [
     { key: "username", header: "User Name" },
@@ -616,49 +720,51 @@ export default function UserAccessPage() {
     },
   ], []);
 
-  const { table, tableElement } = CustomTableServerSidePagination({
-    data: getPaginatedData || [],
-    columns,
-    pagination,
-    totalCount: filteredData.length || 0,
-    loading: isLoading,
-    onPaginationChange: setPagination,
-    onSortingChange: setSorting,
-    sorting,
-    columnVisibility,
+  // Create table instance for column visibility
+  const table = useReactTable({
+    data: filteredData.slice(0, 1), // Just for column structure
+    columns: columns,
+    getCoreRowModel: getCoreRowModel(),
+    state: { columnVisibility },
     onColumnVisibilityChange: setColumnVisibility,
-    emptyMessage: error || "No branch groups found",
-    pageSizeOptions: [10, 20, 30, 40, 50],
-    enableSorting: true,
-    showSerialNumber: false,
   });
 
   return (
-    <main>
+    <main className="p-4">
       <ResponseLoader isLoading={isLoading || createMutation.isPending || updateMutation.isPending || deleteMutation.isPending || updateBranchesMutation.isPending} />
       {error && <div className="text-red-600 p-2 border border-red-300 bg-red-50 mb-4 rounded">{error}</div>}
 
       <header className="flex items-center justify-between mb-4">
         <section className="flex space-x-4">
           <SearchComponent
-            data={allData} 
+            data={branchGroupsData} 
             displayKey={["username", "branchGroupName", "mobileNo", "schoolId.schoolName"]}
             onResults={handleSearchResults}
             onSearchChange={handleSearchChange} 
-            className="w-[300px] mb-4"
+            className="w-[300px]"
           />
           <DateRangeFilter 
             onDateRangeChange={handleDateRangeChange} 
             title="Search by Registration Date" 
           />
-          <ColumnVisibilitySelector columns={table?.getAllColumns() || []} buttonVariant="outline" buttonSize="default" />
+          <ColumnVisibilitySelector 
+            columns={table.getAllColumns()} 
+            columnVisibility={columnVisibility}
+            onColumnVisibilityChange={setColumnVisibility}
+            buttonVariant="outline" 
+            buttonSize="default" 
+          />
         </section>
 
         <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-          <DialogTrigger asChild><Button variant="default">Add Branch Group</Button></DialogTrigger>
+          <DialogTrigger asChild>
+            <Button variant="default">Add Branch Group</Button>
+          </DialogTrigger>
           <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
             <form onSubmit={handleAddUser} className="space-y-4">
-              <DialogHeader><DialogTitle>Add Branch Group</DialogTitle></DialogHeader>
+              <DialogHeader>
+                <DialogTitle>Add Branch Group</DialogTitle>
+              </DialogHeader>
               <div className="grid gap-3">
                 <Label htmlFor="username">User Name</Label>
                 <Input id="username" name="username" placeholder="Enter username" required />
@@ -694,22 +800,44 @@ export default function UserAccessPage() {
                 )}
               </div>
               <DialogFooter>
-                <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
-                <Button type="submit" disabled={createMutation.isPending}>{createMutation.isPending ? "Saving..." : "Save Group"}</Button>
+                <DialogClose asChild>
+                  <Button variant="outline">Cancel</Button>
+                </DialogClose>
+                <Button type="submit" disabled={createMutation.isPending}>
+                  {createMutation.isPending ? "Saving..." : "Save Group"}
+                </Button>
               </DialogFooter>
             </form>
           </DialogContent>
         </Dialog>
       </header>
       
-      <div className="w-full">{tableElement}</div>
+      {/* Table Wrapper - Remove overflow constraints that might cut off dropdowns */}
+      <div className="mb-4 relative">
+        <div className="custom-table-container">
+          <CustomTable
+            data={filteredData || []}
+            columns={columns}
+            columnVisibility={columnVisibility}
+            onColumnVisibilityChange={setColumnVisibility}
+            pageSizeArray={[10, 20, 30]}
+            maxHeight={600}
+            minHeight={200}
+            showSerialNumber={true}
+            noDataMessage={error || "No branch groups found"}
+            isLoading={isLoading}
+          />
+        </div>
+      </div>
 
       {/* Edit Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
           {editTarget && (
             <form onSubmit={handleEditUser} className="space-y-4">
-              <DialogHeader><DialogTitle>Edit Branch Group</DialogTitle></DialogHeader>
+              <DialogHeader>
+                <DialogTitle>Edit Branch Group</DialogTitle>
+              </DialogHeader>
               <div className="grid gap-3">
                 <Label htmlFor="edit-username">User Name</Label>
                 <Input id="edit-username" name="username" defaultValue={editTarget.username} required />
@@ -745,8 +873,12 @@ export default function UserAccessPage() {
                 )}
               </div>
               <DialogFooter>
-                <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>Cancel</Button>
-                <Button type="submit" disabled={updateMutation.isPending}>{updateMutation.isPending ? "Updating..." : "Update Group"}</Button>
+                <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={updateMutation.isPending}>
+                  {updateMutation.isPending ? "Updating..." : "Update Group"}
+                </Button>
               </DialogFooter>
             </form>
           )}
