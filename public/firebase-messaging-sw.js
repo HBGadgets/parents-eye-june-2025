@@ -23,8 +23,6 @@ messaging.onBackgroundMessage((payload) => {
   const title = payload?.notification?.title || "Notification";
   const options = {
     body: payload?.notification?.body || "",
-    // icon: "/icon.png", // optional
-    // badge: "/badge-icon.png", // optional
   };
 
   self.registration.showNotification(title, options);
