@@ -6,6 +6,7 @@ import { Messaging } from "firebase/messaging";
 import { toast } from "sonner";
 import authAxios from "@/lib/authAxios";
 import Cookies from "js-cookie";
+import { time } from "console";
 
 const vapidKey = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY!;
 
@@ -78,7 +79,21 @@ export default function FCMHandler(): null {
         onMessage(messaging as Messaging, (payload) => {
           const title = payload.notification?.title ?? "New Notification";
           const body = payload.notification?.body ?? "";
+          const ping = payload.data?.ping ?? 0;
           const type = title.toLowerCase();
+          const timeStamp = new Date(Number(payload.data?.timeStamp));
+          const date = new Date(timeStamp);
+          const formattedTime = date.toLocaleString("en-IN", {
+            timeStyle: "short",
+            dateStyle: "medium",
+          });
+
+          if (ping && Number(ping) === 1) {
+            // console.log(
+            //   "⏩ Ping message detected — skipping notification and sound."
+            // );
+            return;
+          }
 
           notificationSound.play().catch((err) => {
             console.warn("Sound blocked:", err);
@@ -97,12 +112,25 @@ export default function FCMHandler(): null {
           const className =
             styles[type] ?? "bg-white text-black border-l-4 border-blue-500";
 
-          toast(title, {
-            description: body,
-            duration: 6000,
-            className,
-            descriptionClassName: "text-sm text-gray-600 mt-1",
-          });
+          toast.custom(() => (
+            <div className="flex flex-col gap-1 p-4 rounded-2xl shadow-lg bg-white border border-gray-200 w-80">
+              {/* Title */}
+              <div className="text-base font-semibold text-gray-900">
+                {title}
+              </div>
+
+              {/* Body */}
+              <div className="text-sm text-gray-700 leading-snug">{body}</div>
+
+              {/* Divider */}
+              <div className="border-t border-gray-100 my-2"></div>
+
+              {/* Timestamp */}
+              <div className="text-xs text-gray-500 flex items-center justify-end">
+                {formattedTime}
+              </div>
+            </div>
+          ));
         });
       } catch (err) {
         // console.error("FCM Init Error:", err);

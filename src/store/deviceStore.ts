@@ -164,7 +164,7 @@ export const useDeviceStore = create<DeviceState>()(
 
             // ========== AUTH SUCCESS - EXTRACT USERID FROM JWT ==========
             onAuthSuccess: (authData?: AuthData) => {
-              console.log("[DeviceStore] Auth success:", authData);
+              // console.log("[DeviceStore] Auth success:", authData);
 
               set({
                 isAuthenticated: true,
@@ -178,10 +178,10 @@ export const useDeviceStore = create<DeviceState>()(
               if (authData?.userId) {
                 chatStore.setCurrentUserId(authData.userId);
                 localStorage.setItem("userId", authData.userId);
-                console.log(
-                  "[DeviceStore] ✅ Set currentUserId from auth:",
-                  authData.userId
-                );
+                // console.log(
+                //   "[DeviceStore] ✅ Set currentUserId from auth:",
+                //   authData.userId
+                // );
               } else {
                 // Fallback: Decode JWT token to extract userId
                 const token = Cookies.get("token");
@@ -203,7 +203,7 @@ export const useDeviceStore = create<DeviceState>()(
                     );
 
                     const payload = JSON.parse(jsonPayload);
-                    console.log("[DeviceStore] Decoded JWT payload:", payload);
+                    // console.log("[DeviceStore] Decoded JWT payload:", payload);
 
                     // Try common JWT field names
                     const userId =
@@ -215,10 +215,10 @@ export const useDeviceStore = create<DeviceState>()(
                     if (userId) {
                       chatStore.setCurrentUserId(userId);
                       localStorage.setItem("userId", userId);
-                      console.log(
-                        "[DeviceStore] ✅ Set currentUserId from JWT:",
-                        userId
-                      );
+                      // console.log(
+                      //   "[DeviceStore] ✅ Set currentUserId from JWT:",
+                      //   userId
+                      // );
                     } else {
                       // console.error(
                       //   "[DeviceStore] ❌ No userId found in JWT. Keys:",
@@ -295,18 +295,18 @@ export const useDeviceStore = create<DeviceState>()(
             // ========== CHAT CALLBACKS WITH WORKAROUNDS ==========
 
             onChatListReceived: (contacts) => {
-              console.log("[DeviceStore] Chat list received:", contacts.length);
+              // console.log("[DeviceStore] Chat list received:", contacts.length);
 
               // ✅ WORKAROUND: Inject chatIds from our map
               const enhancedContacts = contacts.map((contact) => {
                 const storedChatId = userChatIdMap.get(contact._id);
                 if (storedChatId && !contact.chatId) {
-                  console.log(
-                    "[DeviceStore] 🔧 Adding chatId to contact:",
-                    contact.name,
-                    "→",
-                    storedChatId
-                  );
+                  // console.log(
+                  //   "[DeviceStore] 🔧 Adding chatId to contact:",
+                  //   contact.name,
+                  //   "→",
+                  //   storedChatId
+                  // );
                   return { ...contact, chatId: storedChatId };
                 }
                 return contact;
@@ -318,10 +318,10 @@ export const useDeviceStore = create<DeviceState>()(
             },
 
             onChatHistoryReceived: (messages) => {
-              console.log("[DeviceStore] Chat history received:", {
-                count: messages.length,
-                chatId: messages[0]?.chatId,
-              });
+              // console.log("[DeviceStore] Chat history received:", {
+              //   count: messages.length,
+              //   chatId: messages[0]?.chatId,
+              // });
 
               const chatStore = useChatStore.getState();
               const chatId = messages[0]?.chatId;
@@ -332,19 +332,19 @@ export const useDeviceStore = create<DeviceState>()(
                 messages.forEach((msg) => {
                   if (msg.sender.userId !== currentUserId) {
                     userChatIdMap.set(msg.sender.userId, chatId);
-                    console.log(
-                      "[DeviceStore] 📝 Stored mapping:",
-                      msg.sender.userId,
-                      "→",
-                      chatId
-                    );
+                    // console.log(
+                    //   "[DeviceStore] 📝 Stored mapping:",
+                    //   msg.sender.userId,
+                    //   "→",
+                    //   chatId
+                    // );
                   }
                 });
 
-                console.log(
-                  "[DeviceStore] Setting chat history for chatId:",
-                  chatId
-                );
+                // console.log(
+                //   "[DeviceStore] Setting chat history for chatId:",
+                //   chatId
+                // );
                 chatStore.setChatHistory(chatId, messages);
 
                 // ✅ WORKAROUND: Fix activeChatId if it's wrong/null
@@ -352,10 +352,10 @@ export const useDeviceStore = create<DeviceState>()(
                   const currentActiveChatId = chatStore.activeChatId;
 
                   if (!currentActiveChatId || currentActiveChatId !== chatId) {
-                    console.log("[DeviceStore] 🔧 Fixing activeChatId:", {
-                      before: currentActiveChatId,
-                      after: chatId,
-                    });
+                    // console.log("[DeviceStore] 🔧 Fixing activeChatId:", {
+                    //   before: currentActiveChatId,
+                    //   after: chatId,
+                    // });
 
                     chatStore.setActiveChat({
                       ...chatStore.activeContact,
@@ -370,11 +370,11 @@ export const useDeviceStore = create<DeviceState>()(
             },
 
             onNewMessage: (message) => {
-              console.log("[DeviceStore] New message received:", {
-                _id: message._id,
-                chatId: message.chatId,
-                sender: message.sender.userId,
-              });
+              // console.log("[DeviceStore] New message received:", {
+              //   _id: message._id,
+              //   chatId: message.chatId,
+              //   sender: message.sender.userId,
+              // });
 
               const chatStore = useChatStore.getState();
 
@@ -382,12 +382,12 @@ export const useDeviceStore = create<DeviceState>()(
               const currentUserId = chatStore.currentUserId;
               if (message.sender.userId !== currentUserId) {
                 userChatIdMap.set(message.sender.userId, message.chatId);
-                console.log(
-                  "[DeviceStore] 📝 Stored mapping from newMessage:",
-                  message.sender.userId,
-                  "→",
-                  message.chatId
-                );
+                // console.log(
+                //   "[DeviceStore] 📝 Stored mapping from newMessage:",
+                //   message.sender.userId,
+                //   "→",
+                //   message.chatId
+                // );
               }
 
               chatStore.addMessage(message);
@@ -396,15 +396,15 @@ export const useDeviceStore = create<DeviceState>()(
             // ========== OPTIONAL CHAT CALLBACKS ==========
 
             onChatJoined: (data) => {
-              console.log("[DeviceStore] Chat joined:", data.chatId);
+              // console.log("[DeviceStore] Chat joined:", data.chatId);
             },
 
             onUserTyping: (data) => {
-              console.log(
-                "[DeviceStore] User typing:",
-                data.userId,
-                data.isTyping
-              );
+              // console.log(
+              //   "[DeviceStore] User typing:",
+              //   data.userId,
+              //   data.isTyping
+              // );
 
               const chatStore = useChatStore.getState();
               const contact = chatStore.contacts.find(
@@ -422,16 +422,16 @@ export const useDeviceStore = create<DeviceState>()(
             },
 
             onMessagesRead: (data) => {
-              console.log(
-                "[DeviceStore] Messages read:",
-                data.messageIds.length
-              );
+              // console.log(
+              //   "[DeviceStore] Messages read:",
+              //   data.messageIds.length
+              // );
               const chatStore = useChatStore.getState();
               chatStore.updateMessageReadStatus(data.messageIds, data.readBy);
             },
 
             onDeliveryUpdate: (data) => {
-              console.log("[DeviceStore] Delivery update:", data.messageId);
+              // console.log("[DeviceStore] Delivery update:", data.messageId);
               const chatStore = useChatStore.getState();
               chatStore.updateMessageDelivery(data.messageId, data.deliveredTo);
             },
@@ -446,7 +446,7 @@ export const useDeviceStore = create<DeviceState>()(
       },
 
       disconnect: () => {
-        console.log("[DeviceStore] Disconnecting");
+        // console.log("[DeviceStore] Disconnecting");
 
         const deviceService = DeviceService.getInstance();
         deviceService.disconnect();

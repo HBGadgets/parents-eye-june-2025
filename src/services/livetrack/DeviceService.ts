@@ -129,7 +129,7 @@ class DeviceService {
     this.callbacks = callbacks;
 
     if (this.socket) {
-      console.log("[DeviceService] Socket instance already exists");
+      // console.log("[DeviceService] Socket instance already exists");
       return;
     }
 
@@ -147,7 +147,7 @@ class DeviceService {
       this.setupEventListeners(callbacks);
       this.socket.connect();
     } catch (error) {
-      console.error("[DeviceService] Failed to connect to socket:", error);
+      // console.error("[DeviceService] Failed to connect to socket:", error);
       callbacks.onError("Failed to connect to server");
     }
   }
@@ -157,7 +157,7 @@ class DeviceService {
 
     // Connection events
     this.socket.on("connect", () => {
-      console.log("[DeviceService] Socket connected");
+      // console.log("[DeviceService] Socket connected");
       this.isConnected = true;
       this.reconnectAttempts = 0;
       callbacks.onConnectionChange(true);
@@ -165,7 +165,7 @@ class DeviceService {
     });
 
     this.socket.on("disconnect", (reason) => {
-      console.log("[DeviceService] Socket disconnected:", reason);
+      // console.log("[DeviceService] Socket disconnected:", reason);
       this.isConnected = false;
       this.isAuthenticated = false;
       this.streamingMode = null;
@@ -176,7 +176,7 @@ class DeviceService {
     });
 
     this.socket.on("connect_error", (error) => {
-      console.error("[DeviceService] Socket connection error:", error);
+      // console.error("[DeviceService] Socket connection error:", error);
       this.reconnectAttempts++;
       if (this.reconnectAttempts >= this.maxReconnectAttempts) {
         callbacks.onError("Failed to connect after multiple attempts");
@@ -185,20 +185,20 @@ class DeviceService {
     });
 
     this.socket.on("reconnect", (attemptNumber) => {
-      console.log(
-        "[DeviceService] Socket reconnected after",
-        attemptNumber,
-        "attempts"
-      );
+      // console.log(
+      //   "[DeviceService] Socket reconnected after",
+      //   attemptNumber,
+      //   "attempts"
+      // );
       this.restoreActiveStreams();
     });
 
     // Authentication events
     this.socket.on("auth-success", (authData) => {
-      console.log(
-        "[DeviceService] Authentication successful:",
-        authData?.role || "Unknown role"
-      );
+      // console.log(
+      //   "[DeviceService] Authentication successful:",
+      //   authData?.role || "Unknown role"
+      // );
       this.isAuthenticated = true;
       callbacks.onAuthSuccess(authData);
     });
@@ -207,7 +207,7 @@ class DeviceService {
     this.socket.on("all-device-data", (data: AllDeviceResponse) => {
       if (this.streamingMode !== "all") {
         this.streamingMode = "all";
-        console.log("[DeviceService] Switched to all device streaming mode");
+        // console.log("[DeviceService] Switched to all device streaming mode");
       }
       callbacks.onDataReceived(data);
     });
@@ -215,14 +215,14 @@ class DeviceService {
     // Single device data events
     this.socket.on("single-device-data", (data: SingleDeviceData) => {
       const deviceKey = this.getDeviceKey(data);
-      console.log(
-        "[DeviceService] Received single device data:",
-        data.uniqueId || data.imei
-      );
+      // console.log(
+      //   "[DeviceService] Received single device data:",
+      //   data.uniqueId || data.imei
+      // );
       if (this.streamingMode !== "single") {
         this.streamingMode = "single";
         this.activeDeviceId = deviceKey;
-        console.log("[DeviceService] Switched to single device streaming mode");
+        // console.log("[DeviceService] Switched to single device streaming mode");
       }
       callbacks.onSingleDeviceDataReceived(data);
     });
@@ -231,35 +231,35 @@ class DeviceService {
 
     // Receive contact list
     this.socket.on("chatList", (contacts: ChatContact[]) => {
-      console.log(
-        "[DeviceService] Received chat list:",
-        contacts.length,
-        "contacts"
-      );
+      // console.log(
+      //   "[DeviceService] Received chat list:",
+      //   contacts.length,
+      //   "contacts"
+      // );
       this.callbacks?.onChatListReceived?.(contacts);
     });
 
     // Receive chat history after joining
     this.socket.on("chatHistory", (messages: ServerMessage[]) => {
-      console.log(
-        "[DeviceService] Received chat history:",
-        messages.length,
-        "messages"
-      );
+      // console.log(
+      //   "[DeviceService] Received chat history:",
+      //   messages.length,
+      //   "messages"
+      // );
       // Infer chatId from first message if not set
       if (!this.currentChatId && messages[0]?.chatId) {
         this.currentChatId = messages[0].chatId;
-        console.log(
-          "[DeviceService] Inferred chatId from history:",
-          this.currentChatId
-        );
+        // console.log(
+        //   "[DeviceService] Inferred chatId from history:",
+        //   this.currentChatId
+        // );
       }
       this.callbacks?.onChatHistoryReceived?.(messages);
     });
 
     // Receive new message (real-time)
     this.socket.on("newMessage", (message: ServerMessage) => {
-      console.log("[DeviceService] Received new message:", message._id);
+      // console.log("[DeviceService] Received new message:", message._id);
       this.callbacks?.onNewMessage?.(message);
     });
 
@@ -267,7 +267,7 @@ class DeviceService {
     this.socket.on(
       "chatJoined",
       (data: { chatId: string; receiverId: string; receiverRole: string }) => {
-        console.log("[DeviceService] Chat joined confirmed:", data.chatId);
+        // console.log("[DeviceService] Chat joined confirmed:", data.chatId);
         this.currentChatId = data.chatId;
         this.callbacks?.onChatJoined?.(data);
       }
@@ -277,7 +277,7 @@ class DeviceService {
     this.socket.on(
       "userTyping",
       (data: { userId: string; userRole: string; isTyping: boolean }) => {
-        console.log("[DeviceService] User typing:", data.userId, data.isTyping);
+        // console.log("[DeviceService] User typing:", data.userId, data.isTyping);
         this.callbacks?.onUserTyping?.(data);
       }
     );
@@ -286,7 +286,7 @@ class DeviceService {
     this.socket.on(
       "messagesRead",
       (data: { chatId: string; messageIds: string[]; readBy: string }) => {
-        console.log("[DeviceService] Messages read:", data.messageIds.length);
+        // console.log("[DeviceService] Messages read:", data.messageIds.length);
         this.callbacks?.onMessagesRead?.(data);
       }
     );
@@ -295,7 +295,7 @@ class DeviceService {
     this.socket.on(
       "deliveryUpdate",
       (data: { messageId: string; deliveredTo: string[] }) => {
-        console.log("[DeviceService] Delivery update:", data.messageId);
+        // console.log("[DeviceService] Delivery update:", data.messageId);
         this.callbacks?.onDeliveryUpdate?.(data);
       }
     );
@@ -304,7 +304,7 @@ class DeviceService {
     this.socket.on(
       "error",
       (errorData: { message: string; details?: string }) => {
-        console.error("[DeviceService] Server error:", errorData);
+        // console.error("[DeviceService] Server error:", errorData);
         callbacks.onError(errorData.message);
 
         // Handle authentication errors
@@ -344,10 +344,10 @@ class DeviceService {
 
     // Restore active chat if exists
     if (this.activeContactInfo) {
-      console.log(
-        "[DeviceService] Restoring chat with:",
-        this.activeContactInfo
-      );
+      // console.log(
+      //   "[DeviceService] Restoring chat with:",
+      //   this.activeContactInfo
+      // );
       this.joinChatWithContact(
         this.activeContactInfo.userId,
         this.activeContactInfo.userRole
@@ -360,10 +360,10 @@ class DeviceService {
   private performStreamRestore(): void {
     // Restore single device streams after reconnection
     if (this.activeSingleDeviceStreams.size > 0) {
-      console.log(
-        "[DeviceService] Restoring single device streams:",
-        Array.from(this.activeSingleDeviceStreams)
-      );
+      // console.log(
+      //   "[DeviceService] Restoring single device streams:",
+      //   Array.from(this.activeSingleDeviceStreams)
+      // );
       for (const uniqueId of this.activeSingleDeviceStreams) {
         this.requestSingleDeviceData(uniqueId, false); // Don't add to set again
       }
@@ -377,13 +377,13 @@ class DeviceService {
    */
   public fetchChatList(): void {
     if (!this.socket?.connected || !this.isAuthenticated) {
-      console.warn(
-        "[DeviceService] Cannot fetch chat list: Not connected or authenticated"
-      );
+      // console.warn(
+      //   "[DeviceService] Cannot fetch chat list: Not connected or authenticated"
+      // );
       return;
     }
 
-    console.log("[DeviceService] Fetching chat list");
+    // console.log("[DeviceService] Fetching chat list");
     this.socket.emit("fetchChatList");
   }
 
@@ -393,18 +393,18 @@ class DeviceService {
    */
   public joinChatWithContact(userId: string, userRole: string): void {
     if (!this.socket?.connected || !this.isAuthenticated) {
-      console.warn(
-        "[DeviceService] Cannot join chat: Not connected or authenticated"
-      );
+      // console.warn(
+      //   "[DeviceService] Cannot join chat: Not connected or authenticated"
+      // );
       return;
     }
 
     if (!userId?.trim() || !userRole?.trim()) {
-      console.error("[DeviceService] Invalid userId or userRole provided");
+      // console.error("[DeviceService] Invalid userId or userRole provided");
       return;
     }
 
-    console.log(`[DeviceService] Joining chat with ${userRole}: ${userId}`);
+    // console.log(`[DeviceService] Joining chat with ${userRole}: ${userId}`);
     this.socket.emit("joinChat", userId, userRole);
 
     // Store for reconnection
@@ -422,18 +422,18 @@ class DeviceService {
     media?: { url?: string; type?: string }
   ): void {
     if (!this.socket?.connected || !this.isAuthenticated) {
-      console.warn(
-        "[DeviceService] Cannot send message: Not connected or authenticated"
-      );
+      // console.warn(
+      //   "[DeviceService] Cannot send message: Not connected or authenticated"
+      // );
       return;
     }
 
     if (!text?.trim()) {
-      console.error("[DeviceService] Cannot send empty message");
+      // console.error("[DeviceService] Cannot send empty message");
       return;
     }
 
-    console.log(`[DeviceService] Sending message to ${userRole}: ${userId}`);
+    // console.log(`[DeviceService] Sending message to ${userRole}: ${userId}`);
     this.socket.emit("sendMessage", {
       chatUserId: userId,
       chatUserRole: userRole,
@@ -447,7 +447,7 @@ class DeviceService {
    * Leave the current chat
    */
   public leaveChat(): void {
-    console.log("[DeviceService] Leaving current chat");
+    // console.log("[DeviceService] Leaving current chat");
     this.currentChatId = null;
     this.activeContactInfo = null;
   }
@@ -465,17 +465,17 @@ class DeviceService {
     isTyping: boolean
   ): void {
     if (!this.socket?.connected || !this.authenticated) {
-      console.warn(
-        "[DeviceService] Cannot emit typing: Not connected/authenticated"
-      );
+      // console.warn(
+      //   "[DeviceService] Cannot emit typing: Not connected/authenticated"
+      // );
       return;
     }
 
-    console.log("[DeviceService] Emitting typing:", {
-      chatUserId,
-      chatUserRole,
-      isTyping,
-    });
+    // console.log("[DeviceService] Emitting typing:", {
+    //   chatUserId,
+    //   chatUserRole,
+    //   isTyping,
+    // });
 
     this.socket.emit("typing", {
       chatUserId,
@@ -517,19 +517,19 @@ class DeviceService {
 
   public authenticate(token: string): void {
     if (!this.socket?.connected) {
-      console.warn("[DeviceService] Cannot authenticate: Socket not connected");
+      // console.warn("[DeviceService] Cannot authenticate: Socket not connected");
       return;
     }
 
-    console.log("[DeviceService] Sending authentication credentials");
+    // console.log("[DeviceService] Sending authentication credentials");
     this.socket.emit("credentials", token);
   }
 
   public requestDeviceData(filters: DeviceFilters): void {
     if (!this.socket?.connected || !this.isAuthenticated) {
-      console.warn(
-        "[DeviceService] Cannot request data: Not connected or authenticated"
-      );
+      // console.warn(
+      //   "[DeviceService] Cannot request data: Not connected or authenticated"
+      // );
       return;
     }
 
@@ -538,10 +538,10 @@ class DeviceService {
       this.stopAllSingleDeviceStreams();
     }
 
-    console.log(
-      "[DeviceService] Requesting all device data with filters:",
-      filters
-    );
+    // console.log(
+    //   "[DeviceService] Requesting all device data with filters:",
+    //   filters
+    // );
     this.socket.emit("request-all-device-data", filters);
   }
 
@@ -550,16 +550,16 @@ class DeviceService {
     addToActiveSet: boolean = true
   ): void {
     if (!this.socket?.connected || !this.isAuthenticated) {
-      console.warn(
-        "[DeviceService] Cannot request single device data: Not connected or authenticated"
-      );
+      // console.warn(
+      //   "[DeviceService] Cannot request single device data: Not connected or authenticated"
+      // );
       return;
     }
 
     const deviceKey = String(uniqueId).trim();
 
     if (!deviceKey) {
-      console.error("[DeviceService] Invalid uniqueId provided");
+      // console.error("[DeviceService] Invalid uniqueId provided");
       this.callbacks?.onError("Device ID is required");
       return;
     }
@@ -568,30 +568,30 @@ class DeviceService {
       this.stopAllDeviceData();
     }
 
-    console.log(
-      "[DeviceService] Requesting single device data for:",
-      deviceKey
-    );
+    // console.log(
+    //   "[DeviceService] Requesting single device data for:",
+    //   deviceKey
+    // );
     this.socket.emit("request-single-device-data", deviceKey);
 
     if (addToActiveSet) {
       this.activeSingleDeviceStreams.add(deviceKey);
-      console.log(
-        "[DeviceService] Active streams:",
-        Array.from(this.activeSingleDeviceStreams)
-      );
+      // console.log(
+      //   "[DeviceService] Active streams:",
+      //   Array.from(this.activeSingleDeviceStreams)
+      // );
     }
   }
 
   public stopAllDeviceData(): void {
     if (!this.socket?.connected || !this.isAuthenticated) {
-      console.warn(
-        "[DeviceService] Cannot stop all device data: Not connected or authenticated"
-      );
+      // console.warn(
+      //   "[DeviceService] Cannot stop all device data: Not connected or authenticated"
+      // );
       return;
     }
 
-    console.log("[DeviceService] Stopping all device data streaming");
+    // console.log("[DeviceService] Stopping all device data streaming");
     this.socket.emit("stop-all-device-data");
     this.streamingMode = null;
   }
@@ -599,7 +599,7 @@ class DeviceService {
   public stopSingleDeviceStream(uniqueId: string): void {
     if (this.activeSingleDeviceStreams.has(uniqueId)) {
       this.activeSingleDeviceStreams.delete(uniqueId);
-      console.log("[DeviceService] Removed single device stream:", uniqueId);
+      // console.log("[DeviceService] Removed single device stream:", uniqueId);
 
       if (this.activeSingleDeviceStreams.size === 0) {
         this.streamingMode = null;
@@ -609,14 +609,14 @@ class DeviceService {
   }
 
   public stopAllSingleDeviceStreams(): void {
-    console.log("[DeviceService] Stopping all single device streams");
+    // console.log("[DeviceService] Stopping all single device streams");
     this.activeSingleDeviceStreams.clear();
     this.streamingMode = null;
     this.activeDeviceId = null;
   }
 
   public disconnect(): void {
-    console.log("[DeviceService] Disconnecting socket");
+    // console.log("[DeviceService] Disconnecting socket");
 
     if (this.socket) {
       this.socket.disconnect();
