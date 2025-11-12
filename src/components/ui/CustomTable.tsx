@@ -139,9 +139,9 @@ export function CustomTable<TData extends RowData>({
   }, []);
 
   const finalData = data;
-  useEffect(() => {
-    setPagination((prev) => ({ ...prev, pageIndex: 0 }));
-  }, [data]);
+  // useEffect(() => {
+  //   setPagination((prev) => ({ ...prev, pageIndex: 0 }));
+  // }, [data]);
   const pageCount = Math.ceil(finalData.length / pagination.pageSize);
   const paginatedData = finalData.slice(
     pagination.pageIndex * pagination.pageSize,

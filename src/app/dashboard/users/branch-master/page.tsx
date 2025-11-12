@@ -85,6 +85,181 @@ const getAuthToken = (): string | null => {
   return null;
 };
 
+// Custom Branch Edit Dialog Component
+const BranchEditDialog = ({ 
+  data, 
+  isOpen, 
+  onClose, 
+  onSave, 
+  schoolOptions,
+  isVerified,
+  onVerificationRequired,
+  isSuperAdmin,
+  isSchoolRole,
+  updatebranchMutation
+}: {
+  data: any;
+  isOpen: boolean;
+  onClose: () => void;
+  onSave: (data: any) => void;
+  schoolOptions: { label: string; value: string }[];
+  isVerified: boolean;
+  onVerificationRequired: (field: string) => void;
+  isSuperAdmin: boolean;
+  isSchoolRole: boolean;
+  updatebranchMutation: any;
+}) => {
+  const [formData, setFormData] = useState(data);
+  const [expirationDate, setExpirationDate] = useState<Date | null>(
+    data.subscriptionExpirationDate ? new Date(data.subscriptionExpirationDate) : null
+  );
+
+  useEffect(() => {
+    setFormData(data);
+    setExpirationDate(data.subscriptionExpirationDate ? new Date(data.subscriptionExpirationDate) : null);
+  }, [data]);
+
+  const handleSave = () => {
+    const updatedData = {
+      ...formData,
+      subscriptionExpirationDate: expirationDate ? expirationDate.toISOString().split('T')[0] : null
+    };
+    onSave(updatedData);
+  };
+
+  const handleFieldChange = (key: string, value: any) => {
+    setFormData((prev: any) => ({ ...prev, [key]: value }));
+  };
+
+  const handleDateFocus = () => {
+    if (!isVerified) {
+      onVerificationRequired("subscriptionExpirationDate");
+    }
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-[600px]">
+        <DialogHeader>
+          <DialogTitle>Edit Branch</DialogTitle>
+        </DialogHeader>
+        
+        <div className="space-y-4 py-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Branch Name */}
+            <div className="grid gap-2">
+              <Label htmlFor="edit-branchName">Branch Name *</Label>
+              <Input
+                id="edit-branchName"
+                value={formData.branchName || ""}
+                onChange={(e) => handleFieldChange("branchName", e.target.value)}
+                required
+              />
+            </div>
+
+            {/* School Name (for superadmin only) */}
+            {isSuperAdmin && (
+              <div className="grid gap-2">
+                <Label htmlFor="edit-schoolId">School *</Label>
+                <Combobox 
+                  items={schoolOptions} 
+                  value={formData.schoolId} 
+                  onValueChange={(value) => handleFieldChange("schoolId", value)}
+                  placeholder="Select school..." 
+                  width="w-full"
+                />
+              </div>
+            )}
+
+            {/* Mobile Number */}
+            <div className="grid gap-2">
+              <Label htmlFor="edit-mobileNo">Mobile Number *</Label>
+              <Input
+                id="edit-mobileNo"
+                value={formData.mobileNo || ""}
+                onChange={(e) => handleFieldChange("mobileNo", e.target.value)}
+                required
+              />
+            </div>
+
+            {/* Email */}
+            <div className="grid gap-2">
+              <Label htmlFor="edit-email">Email *</Label>
+              <Input
+                id="edit-email"
+                type="email"
+                value={formData.email || ""}
+                onChange={(e) => handleFieldChange("email", e.target.value)}
+                required
+              />
+            </div>
+
+            {/* Username */}
+            <div className="grid gap-2">
+              <Label htmlFor="edit-username">Username *</Label>
+              <Input
+                id="edit-username"
+                value={formData.username || ""}
+                onChange={(e) => handleFieldChange("username", e.target.value)}
+                required
+              />
+            </div>
+
+            {/* Password */}
+            <div className="grid gap-2">
+              <Label htmlFor="edit-password">Password *</Label>
+              <Input
+                id="edit-password"
+                value={formData.password || ""}
+                onChange={(e) => handleFieldChange("password", e.target.value)}
+                required
+              />
+            </div>
+
+            {/* Expiration Date */}
+            {(isSuperAdmin || isSchoolRole) && (
+              <div className="grid gap-2">
+                <Label htmlFor="edit-expirationDate">Expiration Date</Label>
+                <DatePicker
+                  selected={expirationDate}
+                  onChange={setExpirationDate}
+                  onFocus={handleDateFocus}
+                  placeholderText="Select expiration date"
+                  className="w-full"
+                  disabled={!isVerified}
+                />
+              </div>
+            )}
+
+            {/* Full Access Checkbox */}
+            {(isSuperAdmin || isSchoolRole) && (
+              <div className="flex items-center gap-3 mt-2">
+                <input
+                  type="checkbox"
+                  id="edit-fullAccess"
+                  checked={formData.fullAccess || false}
+                  onChange={(e) => handleFieldChange("fullAccess", e.target.checked)}
+                  className="h-5 w-5"
+                />
+                <Label htmlFor="edit-fullAccess">Full Access</Label>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button onClick={handleSave} disabled={updatebranchMutation.isPending}>
+            {updatebranchMutation.isPending ? "Saving..." : "Save Changes"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
 export default function BranchMaster() {
   const queryClient = useQueryClient();
   const closeButtonRef = useRef<HTMLButtonElement>(null);
@@ -371,55 +546,6 @@ export default function BranchMaster() {
       key: "fullAccess",
       header: "Access Level",
       formatter: (val: boolean) => (val ? "Full Access" : "Limited Access"),
-    }] : []),
-  ];
-
-  // Define the fields for the edit dialog
-  const getBranchFieldConfigs = (schoolOptions: { label: string; value: string }[]): FieldConfig[] => [
-    {
-      label: "Branch Name",
-      key: "branchName",
-      type: "text",
-      required: true,
-    },
-    ...(isSuperAdmin ? [{
-      label: "School Name",
-      key: "schoolId",
-      type: "select",
-      required: true,
-      options: schoolOptions,
-    }] : []),
-    {
-      label: "Mobile Number",
-      key: "mobileNo",
-      type: "text",
-      required: true,
-      transformInput: (value) => String(value),
-    },
-    {
-      label: "Username",
-      key: "username",
-      type: "text",
-      required: true,
-    },
-    {
-      label: "Password",
-      key: "password",
-      type: "text",
-      required: true,
-    },
-    ...((isSuperAdmin || isSchoolRole) ? [{
-      label: "Expiration Date",
-      key: "subscriptionExpirationDate",
-      type: "date",
-      isProtected: true,
-      disabled: false, // Changed from !isVerified to false to make it always clickable
-      onFocus: () => {
-        if (!isVerified) {
-          setCurrentProtectedField("subscriptionExpirationDate");
-          setIsVerificationDialogOpen(true);
-        }
-      }
     }] : []),
   ];
 
@@ -839,7 +965,7 @@ export default function BranchMaster() {
       
       <section>
         {editTarget && (
-          <DynamicEditDialog
+          <BranchEditDialog
             data={{
               ...editTarget,
               schoolId: editTarget.schoolId._id,
@@ -848,16 +974,18 @@ export default function BranchMaster() {
             onClose={() => {
               setEditDialogOpen(false);
               setEditTarget(null);
-              setIsVerified(false)
+              setIsVerified(false);
             }}
             onSave={handleSave}
-            fields={getBranchFieldConfigs(schoolOptions)}
-            title="Edit Branch"
-            description="Update the branch information below. Fields marked with * are required."
-            avatarConfig={{
-              imageKey: "logo",
-              nameKeys: ["branchName"],
+            schoolOptions={schoolOptions}
+            isVerified={isVerified}
+            onVerificationRequired={(field) => {
+              setCurrentProtectedField(field);
+              setIsVerificationDialogOpen(true);
             }}
+            isSuperAdmin={isSuperAdmin}
+            isSchoolRole={isSchoolRole}
+            updatebranchMutation={updatebranchMutation}
           />
         )}
       </section>

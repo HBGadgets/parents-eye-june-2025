@@ -196,7 +196,9 @@ export default function LeaveRequestMaster() {
                   {preview}
                 </span>
               </TooltipTrigger>
-              <TooltipContent side="front">
+
+              {/* Updated TooltipContent styling */}
+              <TooltipContent className="bg-black/80 text-white px-2 py-1 rounded-md shadow-md">
                 <p>{fullReason}</p>
               </TooltipContent>
             </Tooltip>

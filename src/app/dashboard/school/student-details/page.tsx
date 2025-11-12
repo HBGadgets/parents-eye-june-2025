@@ -156,24 +156,52 @@ export default function StudentDetails() {
     const token = Cookies.get("token");
     if (!token) return;
     
-    const decoded = getDecodedToken(token);
-    const userRole = (decoded?.role || "").toLowerCase();
-    setRole(userRole);
-    
-    if (userRole === "school") {
-      setUserSchoolId(decoded?.schoolId || null);
-      setSelectedSchool(decoded?.schoolId || "");
-      setFilters(prev => ({ ...prev, school: decoded?.schoolId || "" }));
-    } else if (userRole === "branch") {
-      setUserBranchId(decoded?.branchId || null);
-      setSelectedBranch(decoded?.branchId || "");
-      setFilters(prev => ({ ...prev, branch: decoded?.branchId || "" }));
+    try {
+      const decoded = getDecodedToken(token);
+      console.log("Decoded Token:", decoded); // For debugging
       
-      if (decoded?.schoolId) {
-        setUserSchoolId(decoded.schoolId);
-        setSelectedSchool(decoded.schoolId);
-        setFilters(prev => ({ ...prev, school: decoded.schoolId }));
+      const userRole = (decoded?.role || "").toLowerCase();
+      setRole(userRole);
+      
+      // Extract schoolId and branchId based on role and token structure
+      let schoolId = null;
+      let branchId = null;
+
+      if (userRole === "school" || userRole === "schooladmin") {
+        // For school role, schoolId might be in different fields
+        schoolId = decoded?.schoolId || decoded?.id || decoded?.schoolID || decoded?._id;
+        branchId = decoded?.branchId || null;
+        
+        if (schoolId) {
+          setUserSchoolId(schoolId);
+          setSelectedSchool(schoolId);
+          setFilters(prev => ({ ...prev, school: schoolId }));
+        }
+      } else if (userRole === "branch" || userRole === "branchadmin") {
+        // For branch role, branchId might be in different fields
+        branchId = decoded?.branchId || decoded?.id || decoded?.branchID || decoded?._id;
+        schoolId = decoded?.schoolId || decoded?.schoolID;
+        
+        if (branchId) {
+          setUserBranchId(branchId);
+          setSelectedBranch(branchId);
+          setFilters(prev => ({ ...prev, branch: branchId }));
+        }
+        if (schoolId) {
+          setUserSchoolId(schoolId);
+          setSelectedSchool(schoolId);
+          setFilters(prev => ({ ...prev, school: schoolId }));
+        }
+      } else if (["admin", "superadmin", "super_admin", "root"].includes(userRole)) {
+        // For super admin, no automatic school/branch selection
+        schoolId = decoded?.schoolId || null;
+        branchId = decoded?.branchId || null;
       }
+
+      console.log(`Role: ${userRole}, SchoolId: ${schoolId}, BranchId: ${branchId}`); // Debug log
+      
+    } catch (error) {
+      console.error("Error decoding token:", error);
     }
   }, []);
 
@@ -275,7 +303,7 @@ export default function StudentDetails() {
     return routes.map(r => ({ label: r.routeNumber || `Route ${r.routeName || r._id}`, value: r._id }));
   }, [routes, selectedBranch, isBranchRole, userBranchId]);
 
- // ✅ FIXED: Define parentOptions - Only show parent name
+  // ✅ FIXED: Define parentOptions - Only show parent name
   const parentOptions = useMemo(() => {
     let filteredParents = parents;
     
@@ -338,9 +366,26 @@ export default function StudentDetails() {
   }, [selectedRoute, geofenceOptions]);
 
   const addParentBranchOptions = useMemo(() => {
-    if (!addParentSchool) return [];
-    return branches.filter(b => getId(b.schoolId) === addParentSchool).map(b => ({ label: b.branchName, value: b._id }));
-  }, [branches, addParentSchool]);
+    // For school role, show branches from the user's school
+    if (isSchoolRole && userSchoolId) {
+      return branches.filter(b => getId(b.schoolId) === userSchoolId)
+        .map(b => ({ label: b.branchName, value: b._id }));
+    }
+    
+    // For super admin, show branches based on selected school
+    if (isSuperAdmin && addParentSchool) {
+      return branches.filter(b => getId(b.schoolId) === addParentSchool)
+        .map(b => ({ label: b.branchName, value: b._id }));
+    }
+    
+    // For branch role, this shouldn't be shown but just in case
+    if (isBranchRole && userBranchId) {
+      const userBranch = branches.find(b => b._id === userBranchId);
+      return userBranch ? [{ label: userBranch.branchName, value: userBranch._id }] : [];
+    }
+    
+    return [];
+  }, [branches, addParentSchool, isSchoolRole, userSchoolId, isSuperAdmin, isBranchRole, userBranchId]);
 
   const editFilteredBranches = useMemo(() => 
     editSelectedSchool ? branches.filter(b => getId(b.schoolId) === editSelectedSchool) : [], 
@@ -468,9 +513,6 @@ export default function StudentDetails() {
     if (isSchoolRole && userSchoolId && branches.length > 0) {
       setSelectedSchool(userSchoolId);
       const schoolBranches = branches.filter(b => getId(b.schoolId) === userSchoolId);
-      if (schoolBranches.length > 0) {
-        setSelectedBranch(schoolBranches[0]._id);
-      }
     }
     if (isBranchRole && userBranchId) {
       setSelectedBranch(userBranchId);
@@ -658,11 +700,28 @@ export default function StudentDetails() {
     e.preventDefault();
     const form = e.currentTarget as any;
     
-    const schoolIdToUse = isSchoolRole ? userSchoolId : (isBranchRole ? userSchoolId : addParentSchool);
-    const branchIdToUse = isBranchRole ? userBranchId : addParentBranch;
+    // Get school and branch IDs based on role
+    const schoolIdToUse = isSchoolRole ? userSchoolId : 
+                        (isBranchRole ? userSchoolId : addParentSchool);
+    const branchIdToUse = isBranchRole ? userBranchId : 
+                        (isSchoolRole ? addParentBranch : addParentBranch);
 
-    if (!schoolIdToUse) { alert("Please select a school."); return; }
-    if (!branchIdToUse) { alert("Please select a branch."); return; }
+    // Validation for school and branch
+    if (!schoolIdToUse) { 
+      alert("School information is missing. Please contact administrator."); 
+      return; 
+    }
+    
+    if (!branchIdToUse) { 
+      if (isBranchRole) {
+        alert("Branch information is missing. Please contact administrator.");
+      } else if (isSchoolRole) {
+        alert("Please select a branch.");
+      } else {
+        alert("Please select a branch.");
+      }
+      return; 
+    }
 
     const data = {
       parentName: form.parentName.value.trim(),
@@ -678,11 +737,19 @@ export default function StudentDetails() {
     try {
       await addParentMutation.mutateAsync(data);
       form.reset();
+      
+      // Reset school/branch selection for super admin and school roles
+      if (isSuperAdmin) {
+        setAddParentSchool("");
+        setAddParentBranch("");
+      }
+      if (isSchoolRole) {
+        setAddParentBranch("");
+      }
     } catch (err) {
       console.error("Failed to add parent:", err);
     }
   };
-
   const handleChildFormChange = (field: string, value: string) => {
     setChildForm(prev => ({ ...prev, [field]: value }));
   };
@@ -1289,6 +1356,7 @@ export default function StudentDetails() {
             <DialogHeader>
               <DialogTitle>Add Parent</DialogTitle>
             </DialogHeader>
+            
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {PARENT_FORM_FIELDS.map(({ id, label, type, ...props }) => (
                 <div key={id} className="grid gap-2">
@@ -1315,24 +1383,22 @@ export default function StudentDetails() {
                 </div>
               )}
               
-              {/* Branch selector in add parent - show for super admin and school role */}
+              {/* Branch selector in add parent - show for super admin and school roles */}
               {(isSuperAdmin || isSchoolRole) && (
                 <div className="grid gap-2">
                   <Label>Branch *</Label>
                   <Combobox 
-                    items={isSuperAdmin ? addParentBranchOptions : branchOptions} 
+                    items={addParentBranchOptions} 
                     value={addParentBranch} 
                     onValueChange={setAddParentBranch}
                     placeholder={
-                      isSuperAdmin && !addParentSchool ? "Select school first" : 
-                      isSchoolRole ? "Search branch..." : 
-                      "Search branch..."
+                      isSchoolRole ? "Select branch..." :
+                      !addParentSchool ? "Select school first" : "Search branch..."
                     }
                     searchPlaceholder="Search branches..." 
                     emptyMessage={
-                      isSuperAdmin && !addParentSchool ? "Please select a school first" : 
-                      isSchoolRole && branchOptions.length === 0 ? "No branches found for your school" : 
-                      "No branches match your search"
+                      isSchoolRole ? "No branches found for your school" :
+                      !addParentSchool ? "Please select a school first" : "No branches match your search"
                     }
                     width="w-full" 
                     disabled={isSuperAdmin && !addParentSchool}
@@ -1342,10 +1408,12 @@ export default function StudentDetails() {
                 </div>
               )}
             </div>
+            
             <div className="flex items-center gap-3 mt-2">
               <input type="checkbox" id="isActive" name="isActive" className="h-5 w-5" defaultChecked />
               <Label htmlFor="isActive">Active Status</Label>
             </div>
+            
             <DialogFooter>
               <DialogClose asChild>
                 <Button ref={addParentCloseRef} variant="outline">Cancel</Button>
@@ -1362,17 +1430,19 @@ export default function StudentDetails() {
         <section>{tableElement}</section>
         
         {deleteTarget && (
-          <Alert<Student> 
-            title="Are you absolutely sure?" 
-            description={`This will permanently delete ${deleteTarget?.childName || "this student"} and all associated data.`}
-            actionButton={(target) => deleteStudentMutation.mutate(target._id)} 
-            target={deleteTarget} 
-            setTarget={setDeleteTarget} 
-            butttonText="Delete"
-            className="sm:max-w-[425px]"
-          />
+          <div className="flex justify-center items-center">
+            <div className="w-[350px] max-w-[350px]">
+              <Alert<Student> 
+                title="Are you absolutely sure?" 
+                description={`This will permanently delete ${deleteTarget?.childName || "this student"} and all associated data.`}
+                actionButton={(target) => deleteStudentMutation.mutate(target._id)} 
+                target={deleteTarget} 
+                setTarget={setDeleteTarget} 
+                butttonText="Delete"
+              />
+            </div>
+          </div>
         )}
-
         {editTarget && editData && (
           <DynamicEditDialog 
             data={editData} 
@@ -1381,28 +1451,44 @@ export default function StudentDetails() {
             onSave={handleSave} 
             onFieldChange={handleEditFieldChange} 
             fields={EDIT_FIELDS.map(f => {
-              if (f.key === "schoolId") return { 
-                ...f, 
-                options: schoolOptions,
-                disabled: isSchoolRole || isBranchRole
-              };
-              if (f.key === "branchId") return { 
-                ...f, 
-                options: editFilteredBranches.map(b => ({ label: b.branchName || `Branch ${b._id}`, value: b._id })), 
-                disabled: !editSelectedSchool || isBranchRole
-              };
+              // Hide school field for school and branch roles
+              if (f.key === "schoolId") {
+                if (isSchoolRole || isBranchRole) {
+                  return null; // Hide the field completely
+                }
+                return { 
+                  ...f, 
+                  options: schoolOptions,
+                  disabled: isSchoolRole || isBranchRole
+                };
+              }
+              
+              // Hide branch field for branch role
+              if (f.key === "branchId") {
+                if (isBranchRole) {
+                  return null; // Hide the field completely
+                }
+                return { 
+                  ...f, 
+                  options: editFilteredBranches.map(b => ({ label: b.branchName || `Branch ${b._id}`, value: b._id })), 
+                  disabled: !editSelectedSchool || isBranchRole
+                };
+              }
+              
               if (f.key === "routeObjId") return { 
                 ...f, 
                 options: editFilteredRoutes.map(r => ({ label: r.routeNumber || `Route ${r.routeName || r._id}`, value: r._id })), 
                 disabled: !editSelectedBranch 
               };
+              
               if (f.key === "pickupGeoId" || f.key === "dropGeoId") return { 
                 ...f, 
                 options: geofenceOptions,
                 disabled: false // Allow selection without route dependency
               };
+              
               return f;
-            })} 
+            }).filter(Boolean)} // Remove null fields
             title="Edit Student" 
             description="Update the student information below." 
             loading={updateStudentMutation.isPending} 
