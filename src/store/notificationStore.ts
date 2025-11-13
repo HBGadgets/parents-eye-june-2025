@@ -4,7 +4,7 @@ export interface NotificationItem {
   title: string;
   body: string;
   type?: string;
-  timestamp: number;
+  timestamp: string;
   ping?: boolean;
 }
 

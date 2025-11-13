@@ -7,11 +7,15 @@ import { toast } from "sonner";
 import authAxios from "@/lib/authAxios";
 import Cookies from "js-cookie";
 import { time } from "console";
+import { useNotificationStore } from "@/store/notificationStore";
 
 const vapidKey = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY!;
 
 export default function FCMHandler(): null {
   const hasInitialized = useRef(false);
+  const addNotification = useNotificationStore(
+    (state) => state.addNotification
+  );
 
   useEffect(() => {
     if (hasInitialized.current) return;
@@ -94,6 +98,13 @@ export default function FCMHandler(): null {
             // );
             return;
           }
+
+          // save to zustand store
+          addNotification({
+            title,
+            body,
+            timestamp: formattedTime,
+          });
 
           notificationSound.play().catch((err) => {
             console.warn("Sound blocked:", err);
