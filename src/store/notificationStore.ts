@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { persist } from "zustand/middleware";
 
 export interface NotificationItem {
   title: string;
@@ -14,13 +15,22 @@ interface NotificationStore {
   clearNotifications: () => void;
 }
 
-export const useNotificationStore = create<NotificationStore>((set) => ({
-  notifications: [],
+export const useNotificationStore = create<NotificationStore>()(
+  persist(
+    (set) => ({
+      notifications: [],
 
-  addNotification: (notification) =>
-    set((state) => ({
-      notifications: [notification, ...state.notifications],
-    })),
+      addNotification: (notification) =>
+        set((state) => ({
+          notifications: [notification, ...state.notifications],
+        })),
 
-  clearNotifications: () => set({ notifications: [] }),
-}));
+      clearNotifications: () => set({ notifications: [] }),
+    }),
+
+    {
+      name: "ct-notifications",
+      partialize: (state) => ({ notifications: state.notifications }), // only persist notifications
+    }
+  )
+);

@@ -35,7 +35,7 @@ export const NotificationSheet = () => {
     <Sheet>
       <SheetTrigger asChild>
         <div className="cursor-pointer relative">
-          <Bell className="w-5 h-5 text-white cursor-pointer" />
+          <Bell className="w-5 h-5 text-black cursor-pointer" />
           {notifications.length > 0 && (
             <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-semibold rounded-full px-1.5">
               {notifications.length}

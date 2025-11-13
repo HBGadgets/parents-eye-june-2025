@@ -26,23 +26,31 @@ export default function FCMHandler(): null {
 
     const initFCM = async () => {
       try {
-        // Get messaging instance asynchronously
+        // -----------------------------
+        // 1️⃣ Get Messaging Instance
+        // -----------------------------
         const messaging = await getMessagingInstance();
-
         if (!messaging) {
           console.warn("Firebase messaging not available");
           return;
         }
 
+        // -----------------------------
+        // 2️⃣ Request Notification Permission
+        // -----------------------------
         const permission = await Notification.requestPermission();
         if (permission !== "granted") {
           console.warn("❌ Notification permission denied");
           return;
         }
-        let storedToken;
-        if (typeof window !== "undefined") {
-          storedToken = localStorage.getItem("fcm_token");
-        }
+
+        // -----------------------------
+        // 3️⃣ Get / Store FCM Token
+        // -----------------------------
+        let storedToken =
+          typeof window !== "undefined"
+            ? localStorage.getItem("fcm_token")
+            : null;
 
         if (!storedToken) {
           try {
@@ -67,84 +75,97 @@ export default function FCMHandler(): null {
           }
         }
 
-        // Register service worker
+        // -----------------------------
+        // 4️⃣ Register Service Worker
+        // -----------------------------
         if ("serviceWorker" in navigator) {
-          navigator.serviceWorker
-            .register("/firebase-messaging-sw.js")
-            .then((registration) => {
-              // console.log("Service Worker registered:", registration.scope);
-            })
-            .catch((err) => {
-              // console.error("Service Worker registration failed:", err);
-            });
+          try {
+            await navigator.serviceWorker.register("/firebase-messaging-sw.js");
+          } catch (err) {
+            console.error("Service Worker registration failed:", err);
+          }
         }
 
-        // Set up foreground message listener
+        // -----------------------------
+        // 5️⃣ Foreground FCM Listener
+        // -----------------------------
         onMessage(messaging as Messaging, (payload) => {
           const title = payload.notification?.title ?? "New Notification";
           const body = payload.notification?.body ?? "";
           const ping = payload.data?.ping ?? 0;
-          const type = title.toLowerCase();
-          const timeStamp = new Date(Number(payload.data?.timeStamp));
-          const date = new Date(timeStamp);
-          const formattedTime = date.toLocaleString("en-IN", {
+
+          if (ping && Number(ping) === 1) return; // ignore pings
+
+          const timeStamp = payload.data?.timeStamp
+            ? new Date(Number(payload.data?.timeStamp))
+            : new Date();
+
+          const formattedTime = timeStamp.toLocaleString("en-IN", {
             timeStyle: "short",
             dateStyle: "medium",
           });
 
-          if (ping && Number(ping) === 1) {
-            // console.log(
-            //   "⏩ Ping message detected — skipping notification and sound."
-            // );
-            return;
-          }
-
-          // save to zustand store
+          // 💾 Save to Zustand
           addNotification({
             title,
             body,
             timestamp: formattedTime,
           });
 
-          notificationSound.play().catch((err) => {
-            console.warn("Sound blocked:", err);
-          });
+          // 🔔 Play sound
+          notificationSound.play().catch(() => {});
 
-          const styles: Record<string, string> = {
-            overspeed: "bg-red-50 text-red-800 border-l-4 border-red-600",
-            running: "bg-green-50 text-green-800 border-l-4 border-green-600",
-            stop: "bg-gray-100 text-gray-800 border-l-4 border-gray-500",
-            geofence_enter:
-              "bg-blue-50 text-blue-800 border-l-4 border-blue-600",
-            geofence_exit:
-              "bg-yellow-50 text-yellow-800 border-l-4 border-yellow-600",
-          };
-
-          const className =
-            styles[type] ?? "bg-white text-black border-l-4 border-blue-500";
-
+          // 🪟 Show toast
           toast.custom(() => (
             <div className="flex flex-col gap-1 p-4 rounded-2xl shadow-lg bg-white border border-gray-200 w-80">
-              {/* Title */}
               <div className="text-base font-semibold text-gray-900">
                 {title}
               </div>
-
-              {/* Body */}
               <div className="text-sm text-gray-700 leading-snug">{body}</div>
-
-              {/* Divider */}
               <div className="border-t border-gray-100 my-2"></div>
-
-              {/* Timestamp */}
               <div className="text-xs text-gray-500 flex items-center justify-end">
                 {formattedTime}
               </div>
             </div>
           ));
         });
+
+        // -----------------------------
+        // 6️⃣ Background Messages → Zustand
+        // -----------------------------
+        if (navigator.serviceWorker) {
+          navigator.serviceWorker.addEventListener("message", (event) => {
+            if (event.data?.source !== "fcm-background") return;
+
+            const payload = event.data.payload;
+
+            const title = payload.notification?.title ?? "New Notification";
+            const body = payload.notification?.body ?? "";
+            const ping = payload.data?.ping ?? 0;
+
+            if (ping && Number(ping) === 1) return;
+
+            const timeStamp = payload.data?.timeStamp
+              ? new Date(Number(payload.data?.timeStamp))
+              : new Date();
+
+            const formattedTime = timeStamp.toLocaleString("en-IN", {
+              timeStyle: "short",
+              dateStyle: "medium",
+            });
+
+            // 💾 Save to Zustand from background
+            addNotification({
+              title,
+              body,
+              timestamp: formattedTime,
+            });
+
+            console.log("📥 Background notification stored:", payload);
+          });
+        }
       } catch (err) {
-        // console.error("FCM Init Error:", err);
+        console.error("FCM Init Error:", err);
       }
     };
 
