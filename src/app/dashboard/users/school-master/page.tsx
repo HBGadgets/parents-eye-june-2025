@@ -93,7 +93,7 @@ export default function SchoolMaster() {
       header: "Mobile",
       accessorFn: (row) => ({
         type: "text",
-        value: row.schoolMobile ?? "",
+        value: row.mobileNo ?? "",
       }),
       meta: { flex: 1, minWidth: 150, maxWidth: 300 },
       enableHiding: true,
@@ -160,7 +160,7 @@ export default function SchoolMaster() {
   // columns for export
   const columnsForExport = [
     { key: "schoolName", header: "School Name" },
-    { key: "schoolMobile", header: "Mobile" },
+    { key: "mobileNo", header: "Mobile" },
     { key: "username", header: "School Username" },
     { key: "password", header: "School Password" },
     { key: "createdAt", header: "Registration Date" },
@@ -176,7 +176,7 @@ export default function SchoolMaster() {
     },
     {
       label: "Mobile Number",
-      key: "schoolMobile",
+      key: "mobileNo",
       type: "text",
       required: true,
     },
@@ -306,7 +306,7 @@ export default function SchoolMaster() {
       password: (form.elements.namedItem("password") as HTMLInputElement)
         ?.value,
       email: (form.elements.namedItem("email") as HTMLInputElement)?.value,
-      schoolMobile: (form.elements.namedItem("schoolMobile") as HTMLInputElement)
+      mobileNo: (form.elements.namedItem("mobileNo") as HTMLInputElement)
         ?.value,
       fullAccess: fullAccessEl ? !!fullAccessEl.checked : false,
     };
@@ -356,7 +356,7 @@ export default function SchoolMaster() {
         <section className="flex space-x-4">
           <SearchComponent
             data={filterResults}
-            displayKey={["schoolName", "username", "email", "schoolMobile"]}
+            displayKey={["schoolName", "username", "email", "mobileNo"]}
             onResults={handleSearchResults}
             className="w-[300px] mb-4"
           />
@@ -406,10 +406,10 @@ export default function SchoolMaster() {
                   </div>
 
                   <div className="grid gap-2">
-                    <Label htmlFor="schoolMobile">Mobile No</Label>
+                    <Label htmlFor="mobileNo">Mobile No</Label>
                     <Input
-                      id="schoolMobile"
-                      name="schoolMobile"
+                      id="mobileNo"
+                      name="mobileNo"
                       type="tel"
                       placeholder="Enter school mobile number"
                       pattern="[0-9]{10}"

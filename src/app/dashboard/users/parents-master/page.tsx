@@ -388,34 +388,34 @@ export default function ParentsMaster() {
       enableSorting: true,
     },
     {
-      id: "actions",
-      header: "Actions",
-      cell: ({ row }) => (
-        <div className="flex items-center justify-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              setEditTarget(row.original);
-              setEditDialogOpen(true);
-            }}
-            className="cursor-pointer bg-[#f3c623] hover:bg-[#D3A80C]"
+    id: "actions",
+    header: "Actions",
+    cell: ({ row }) => (
+      <div className="flex items-center justify-center gap-3 py-2">
+        {/* Edit Button */}
+        <button
+          onClick={() => {
+            setEditTarget(row.original);
+            setEditDialogOpen(true);
+          }}
+          className="cursor-pointer bg-yellow-400 hover:bg-yellow-500 text-[#733e0a] font-semibold py-1.5 px-4 rounded-md text-sm transition-colors duration-200"
+        >
+          Edit
+        </button>
+
+        {/* Delete Button */}
+        {(isSuperAdmin || isSchoolRole) && (
+          <button
+            onClick={() => setDeleteTarget(row.original)}
+            className="cursor-pointer bg-yellow-400 hover:bg-yellow-500 text-red-600 font-semibold py-1.5 px-4 rounded-md text-sm transition-colors duration-200"
           >
-            Edit
-          </Button>
-          {(isSuperAdmin || isSchoolRole) && (
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={() => setDeleteTarget(row.original)}
-              className="cursor-pointer hover:bg-red-700"
-            >
-              Delete
-            </Button>
-          )}
-        </div>
-      ),
-    },
+            Delete
+          </button>
+        )}
+      </div>
+    ),
+  },
+
   ];
 
   // Columns for export with role-based visibility
@@ -439,34 +439,50 @@ export default function ParentsMaster() {
     },
   ];
 
+
   // Define the fields for the edit dialog with role-based configuration
-  const getParentFieldConfigs = (schoolOptions: selectOption[], branchOptions: selectOption[]): FieldConfig[] => [
-    { label: "Parent Name", key: "parentName", type: "text", required: true },
-    ...(isSuperAdmin ? [{
-      label: "School Name",
-      key: "schoolId",
-      type: "select",
-      required: true,
-      options: schoolOptions,
-    }] : []),
-    {
-      label: "Branch Name",
-      key: "branchId",
-      type: "select",
-      required: true,
-      options: branchOptions,
-      ...((isSchoolRole && userSchoolId) && { 
-        filterBy: "schoolId", 
-        filterValue: userSchoolId 
-      }),
-      ...(isBranchRole && { disabled: true }),
-    },
-    { label: "Mobile Number", key: "mobileNo", type: "text", required: true },
-    { label: "Email", key: "email", type: "email", required: true },
-    { label: "Username", key: "username", type: "text", required: true },
-    { label: "Password", key: "password", type: "text", required: true },
-    { label: "Active Status", key: "isActive", type: "checkbox" },
-  ];
+  const getParentFieldConfigs = (schoolOptions: selectOption[], branchOptions: selectOption[]): FieldConfig[] => {
+    const baseFields: FieldConfig[] = [
+      { label: "Parent Name", key: "parentName", type: "text", required: true },
+    ];
+
+    // Only show school field for super admin
+    if (isSuperAdmin) {
+      baseFields.push({
+        label: "School Name",
+        key: "schoolId",
+        type: "select",
+        required: true,
+        options: schoolOptions,
+      });
+    }
+
+    // Only show branch field for super admin and school roles (hide for branch role)
+    if (isSuperAdmin || isSchoolRole) {
+      baseFields.push({
+        label: "Branch Name",
+        key: "branchId",
+        type: "select",
+        required: true,
+        options: branchOptions,
+        ...((isSchoolRole && userSchoolId) && { 
+          filterBy: "schoolId", 
+          filterValue: userSchoolId 
+        }),
+      });
+    }
+
+    // Add the remaining fields
+    baseFields.push(
+      { label: "Mobile Number", key: "mobileNo", type: "text", required: true },
+      { label: "Email", key: "email", type: "email", required: true },
+      { label: "Username", key: "username", type: "text", required: true },
+      { label: "Password", key: "password", type: "text", required: true },
+      { label: "Active Status", key: "isActive", type: "checkbox", className: "h-3 w-3" },
+    );
+
+    return baseFields;
+  };
 
   // Mutation to add a new parent
   const addParentMutation = useMutation({
@@ -556,9 +572,17 @@ export default function ParentsMaster() {
       const newValue = updatedData[key as keyof Parent];
       const oldValue = editTarget[key as keyof Parent];
 
+      // Skip branchDisplay field as it's just for display
+      if (key === 'branchDisplay') continue;
+
       if (newValue !== undefined && newValue !== oldValue) {
         changedFields[key as keyof Parent] = newValue;
       }
+    }
+
+    // For branch role, ensure branchId is not changed and use the one from token
+    if (isBranchRole && userBranchId) {
+      changedFields.branchId = userBranchId;
     }
 
     if (Object.keys(changedFields).length === 0) {
@@ -585,7 +609,7 @@ export default function ParentsMaster() {
       selectedSchool = userSchoolId || "";
     }
     if (isBranchRole) {
-      selectedBranch = userBranchId || "";
+      selectedBranch = userBranchId || ""; // Always use branch ID from token for branch role
     }
 
     if (!selectedSchool) {
@@ -603,7 +627,7 @@ export default function ParentsMaster() {
       username: formData.get("username") as string,
       password: formData.get("password") as string,
       schoolId: selectedSchool,
-      branchId: selectedBranch,
+      branchId: selectedBranch, // This will be userBranchId for branch role
       isActive: formData.get("isActive") === "on",
     };
 
@@ -714,33 +738,35 @@ export default function ParentsMaster() {
                       </div>
                     )}
 
-                    <div className="grid gap-2">
-                      <Label htmlFor="branchId">Branch *</Label>
-                      <Combobox 
-                        items={filteredBranchOptions} 
-                        value={branch} 
-                        onValueChange={setBranch}
-                        placeholder={
-                          !school && isSuperAdmin
-                            ? "Select school first"
-                            : filteredBranchOptions.length
-                            ? "Search branch..." 
-                            : "No branches available"
-                        }
-                        searchPlaceholder="Search branches..." 
-                        emptyMessage={
-                          !school && isSuperAdmin
-                            ? "Please select a school first" 
-                            : filteredBranchOptions.length === 0 
-                              ? "No branches found for this school" 
-                              : "No branches match your search"
-                        }
-                        width="w-full" 
-                        disabled={(!school && isSuperAdmin) || isBranchRole}
-                        onSearchChange={setBranchSearch} 
-                        searchValue={branchSearch} 
-                      />
-                    </div>
+                    {(isSuperAdmin || isSchoolRole) && (
+                      <div className="grid gap-2">
+                        <Label htmlFor="branchId">Branch *</Label>
+                        <Combobox 
+                          items={filteredBranchOptions} 
+                          value={branch} 
+                          onValueChange={setBranch}
+                          placeholder={
+                            !school && isSuperAdmin
+                              ? "Select school first"
+                              : filteredBranchOptions.length
+                              ? "Search branch..." 
+                              : "No branches available"
+                          }
+                          searchPlaceholder="Search branches..." 
+                          emptyMessage={
+                            !school && isSuperAdmin
+                              ? "Please select a school first" 
+                              : filteredBranchOptions.length === 0 
+                                ? "No branches found for this school" 
+                                : "No branches match your search"
+                          }
+                          width="w-full" 
+                          disabled={!school && isSuperAdmin}
+                          onSearchChange={setBranchSearch} 
+                          searchValue={branchSearch} 
+                        />
+                      </div>
+                    )}
 
                     <div className="grid gap-2">
                       <Label htmlFor="parentEmail">Email</Label>
@@ -837,6 +863,9 @@ export default function ParentsMaster() {
               target={deleteTarget}
               setTarget={setDeleteTarget}
               butttonText="Delete"
+              // Add these props to decrease the width
+              className="max-w-md mx-auto" // or any specific width you prefer
+              contentClassName="w-full"
             />
           )}
         </div>

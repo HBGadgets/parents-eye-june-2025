@@ -13,12 +13,19 @@ import {
 import { ProfileDropdown } from "@/components/ProfileDropdown";
 import Image from "next/image";
 import { Bell } from "lucide-react";
+import { useNotificationStore } from "@/store/notificationStore";
+import { NotificationSheet } from "./NotificationDropdown";
 
 export function Navbar() {
   const setActiveSection = useNavigationStore(
     (state) => state.setActiveSection
   );
   const { setOpen, setOpenMobile, isMobile } = useSidebar();
+  const { notifications, clearNotifications } = useNotificationStore();
+
+  React.useEffect(() => {
+    console.log("Notifications: ", notifications);
+  }, [notifications]);
 
   const navigationMap = {
     Dashboard: "/dashboard",
@@ -61,7 +68,7 @@ export function Navbar() {
       </div> */}
 
       {/* Centered nav links with responsive spacing */}
-      <div className="flex-1 flex justify-center items-center relative z-30">
+      <div className="flex-1 flex justify-center items-center relative z-[9999]">
         <div className="max-w-[calc(100%-80px)] sm:max-w-none">
           <NavigationMenu>
             <NavigationMenuList className="flex-wrap justify-center gap-1 sm:gap-2">
@@ -96,9 +103,11 @@ export function Navbar() {
 
       {/* Right: Profile dropdown positioned at the right edge */}
       <div className="absolute right-2 sm:right-4 top-1/2 transform -translate-y-1/2 flex-shrink-0 z-[9999] h-full flex items-center gap-4">
-        <div className="cursor-pointer">
+        {/* <div className="cursor-pointer">
           <Bell />
-        </div>
+        </div> */}
+        <NotificationSheet />
+
         <ProfileDropdown />
       </div>
     </div>
