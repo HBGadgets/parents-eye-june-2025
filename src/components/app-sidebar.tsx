@@ -131,7 +131,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               { title: "Routes", url: "/dashboard/master/route" },
               {
                 title: "Geofence",
-                url: "/dashboard/reports/geofence-report",
+                url: "/dashboard/school/geofence",
               },
               { title: "Notification", url: "/dashboard/users/notification" },
             ];
