@@ -55,7 +55,6 @@ declare module "@tanstack/react-table" {
   }
 }
 
-// Table Branch Dropdown Component - FIXED VERSION with proper positioning
 const TableBranchDropdown: React.FC<{
   assignedBranches: { _id: string; branchName: string }[];
   branchOptions: SelectOption[];
@@ -63,23 +62,30 @@ const TableBranchDropdown: React.FC<{
   userId: string;
 }> = ({ assignedBranches, branchOptions, onBranchesUpdate }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [selectedBranches, setSelectedBranches] = useState<string[]>([]);
+
+  // LOCAL STATE (no API on toggle)
+  const [localSelectedBranches, setLocalSelectedBranches] = useState<string[]>([]);
+
   const dropdownRef = useRef<HTMLDivElement>(null);
   const portalRef = useRef<HTMLDivElement>(null);
 
+  // Sync assignedBranches → local state
   useEffect(() => {
-    setSelectedBranches(assignedBranches.map((b) => b._id));
+    setLocalSelectedBranches(assignedBranches.map((b) => b._id));
   }, [assignedBranches]);
 
-  const allSelected = selectedBranches.length === branchOptions.length && branchOptions.length > 0;
-  const selectedCount = selectedBranches.length;
+  const allSelected =
+    localSelectedBranches.length === branchOptions.length && branchOptions.length > 0;
 
+  const selectedCount = localSelectedBranches.length;
+
+  // Close on outside click
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (
-        dropdownRef.current && 
+        dropdownRef.current &&
         !dropdownRef.current.contains(event.target as Node) &&
-        portalRef.current && 
+        portalRef.current &&
         !portalRef.current.contains(event.target as Node)
       ) {
         setIsOpen(false);
@@ -89,49 +95,53 @@ const TableBranchDropdown: React.FC<{
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  // TOGGLE WITHOUT API CALL
   const handleBranchToggle = (branchId: string) => {
-    const newSelectedBranches = selectedBranches.includes(branchId)
-      ? selectedBranches.filter((id) => id !== branchId)
-      : [...selectedBranches, branchId];
-    setSelectedBranches(newSelectedBranches);
-    onBranchesUpdate(newSelectedBranches);
+    setLocalSelectedBranches((prev) =>
+      prev.includes(branchId)
+        ? prev.filter((id) => id !== branchId)
+        : [...prev, branchId]
+    );
   };
 
+  // SELECT ALL WITHOUT API CALL
   const handleSelectAll = () => {
-    const newSelectedBranches = allSelected
-      ? []
-      : branchOptions.map((branch) => branch.value);
-    setSelectedBranches(newSelectedBranches);
-    onBranchesUpdate(newSelectedBranches);
+    setLocalSelectedBranches(
+      allSelected ? [] : branchOptions.map((b) => b.value)
+    );
   };
 
+  // SAVE API ONLY ON DONE CLICK
+  const handleSave = () => {
+    onBranchesUpdate(localSelectedBranches);
+    setIsOpen(false);
+  };
+
+  // Dropdown positioning
   const getDropdownPosition = () => {
     if (!dropdownRef.current) return { top: 0, left: 0 };
-    
+
     const rect = dropdownRef.current.getBoundingClientRect();
     const viewportHeight = window.innerHeight;
-    
-    // Calculate available space below and above
+
     const spaceBelow = viewportHeight - rect.bottom;
     const spaceAbove = rect.top;
-    
-    // Default: position below
+
     let top = rect.bottom + window.scrollY;
-    let maxHeight = 240; // 60 * 4 items
-    
-    // If not enough space below, position above
+    let maxHeight = 240;
+
     if (spaceBelow < 200 && spaceAbove > 200) {
       top = rect.top + window.scrollY - Math.min(240, spaceAbove - 20);
       maxHeight = Math.min(240, spaceAbove - 20);
     } else if (spaceBelow < 240) {
       maxHeight = Math.min(240, spaceBelow - 20);
     }
-    
+
     return {
       top,
       left: rect.left + window.scrollX,
       width: rect.width,
-      maxHeight
+      maxHeight,
     };
   };
 
@@ -145,10 +155,9 @@ const TableBranchDropdown: React.FC<{
         className="w-full border border-gray-300 rounded px-3 py-2 text-left bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 text-sm min-h-[38px] flex items-center justify-between"
       >
         <span className="text-gray-700 truncate">
-          {assignedBranches.length > 0 
-            ? `${assignedBranches.length} branch(es)` 
-            : "Assign Branches"
-          }
+          {assignedBranches.length > 0
+            ? `${assignedBranches.length} branch(es)`
+            : "Assign Branches"}
         </span>
         <ChevronDown
           className={`h-4 w-4 text-gray-500 transition-transform flex-shrink-0 ml-2 ${
@@ -170,7 +179,9 @@ const TableBranchDropdown: React.FC<{
             }}
           >
             <div className="px-3 py-2 border-b border-gray-200 bg-yellow-50 flex items-center justify-between">
-              <span className="text-sm font-medium text-gray-700">Assign Branches</span>
+              <span className="text-sm font-medium text-gray-700">
+                Assign Branches
+              </span>
               <button
                 type="button"
                 onClick={handleSelectAll}
@@ -180,9 +191,9 @@ const TableBranchDropdown: React.FC<{
               </button>
             </div>
 
-            <div 
+            <div
               className="overflow-y-auto"
-              style={{ maxHeight: dropdownPosition.maxHeight - 80 }} // Subtract header and footer height
+              style={{ maxHeight: dropdownPosition.maxHeight - 80 }}
             >
               {branchOptions.length > 0 ? (
                 branchOptions.map((branch) => (
@@ -192,11 +203,13 @@ const TableBranchDropdown: React.FC<{
                   >
                     <input
                       type="checkbox"
-                      checked={selectedBranches.includes(branch.value)}
+                      checked={localSelectedBranches.includes(branch.value)}
                       onChange={() => handleBranchToggle(branch.value)}
                       className="h-4 w-4 rounded border-gray-300 text-yellow-600 focus:ring-yellow-500 flex-shrink-0"
                     />
-                    <span className="ml-3 text-sm text-gray-700 truncate flex-1">{branch.label}</span>
+                    <span className="ml-3 text-sm text-gray-700 truncate flex-1">
+                      {branch.label}
+                    </span>
                   </label>
                 ))
               ) : (
@@ -208,9 +221,11 @@ const TableBranchDropdown: React.FC<{
 
             <div className="px-3 py-2 border-t border-gray-200 bg-yellow-50 flex justify-between items-center text-xs text-gray-600">
               <span>{selectedCount} branch(es) selected</span>
+
+              {/* SAVE BUTTON (API CALL HERE) */}
               <button
                 type="button"
-                onClick={() => setIsOpen(false)}
+                onClick={handleSave}
                 className="text-yellow-700 hover:text-yellow-900 font-medium"
               >
                 Done
