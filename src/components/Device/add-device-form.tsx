@@ -80,7 +80,7 @@ export const AddDeviceForm = () => {
   // ======================
   const driverOptions = useMemo(
     () =>
-      driverData?.map((driver: any) => ({
+      driverData?.drivers?.map((driver: any) => ({
         value: driver._id,
         label: driver.driverName,
       })) || [],
@@ -135,39 +135,41 @@ export const AddDeviceForm = () => {
     phone: data.sim, // old API expects phone instead of sim
   });
 
-const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
 
-  try {
-    // 1️⃣ Prepare payloads
-    const oldPayload = transformForOldApi(formData);
+    try {
+      // 1️⃣ Prepare payloads
+      const oldPayload = transformForOldApi(formData);
 
-    // 2️⃣ Create in old system FIRST
-    const oldResult = await addDeviceMutationOld.mutateAsync(oldPayload);
+      // 2️⃣ Create in old system FIRST
+      const oldResult = await addDeviceMutationOld.mutateAsync(oldPayload);
 
-    // Check if old system responded with valid ID
-    if (!oldResult?.id) {
-      throw new Error("Old system failed to return device ID");
+      // Check if old system responded with valid ID
+      if (!oldResult?.id) {
+        throw new Error("Old system failed to return device ID");
+      }
+
+      // 3️⃣ Create in new system using old ID
+      const newPayload = {
+        ...formData,
+        deviceId: oldResult.id, // 🔗 Link old + new
+      };
+
+      const newResult = await addDeviceMutationNew.mutateAsync(newPayload);
+
+      // 4️⃣ Show success toast
+      toast.success("✅ Device added successfully to both systems!");
+
+      setOpen(false);
+    } catch (error: any) {
+      console.error("Error adding device:", error);
+      toast.error(
+        error?.response?.data?.message ||
+          "❌ Failed to add device in both systems"
+      );
     }
-
-    // 3️⃣ Create in new system using old ID
-    const newPayload = {
-      ...formData,
-      deviceId: oldResult.id, // 🔗 Link old + new
-    };
-
-    const newResult = await addDeviceMutationNew.mutateAsync(newPayload);
-
-    // 4️⃣ Show success toast
-    toast.success("✅ Device added successfully to both systems!");
-
-    setOpen(false);
-  } catch (error: any) {
-    console.error("Error adding device:", error);
-    toast.error(error?.response?.data?.message || "❌ Failed to add device in both systems");
-  }
-};
-
+  };
 
   // ======================
   // 🔹 Render
@@ -348,7 +350,11 @@ const handleSubmit = async (e: React.FormEvent) => {
           {/* Footer */}
           <DialogFooter className="col-span-full mt-4 flex justify-end gap-2">
             <DialogClose asChild>
-              <Button variant="outline" type="button" className="cursor-pointer">
+              <Button
+                variant="outline"
+                type="button"
+                className="cursor-pointer"
+              >
                 Cancel
               </Button>
             </DialogClose>
