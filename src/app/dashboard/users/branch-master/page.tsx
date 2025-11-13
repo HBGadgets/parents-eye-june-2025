@@ -284,6 +284,7 @@ export default function BranchMaster() {
   const [userBranchId, setUserBranchId] = useState<string | null>(null);
   const [userSchoolName, setUserSchoolName] = useState<string | null>(null);
 
+
   // Get user info from token
   useEffect(() => {
     const token = getAuthToken();
@@ -294,11 +295,11 @@ export default function BranchMaster() {
       const role = (decoded?.role || "").toLowerCase();
       setRole(role);
 
-      // Handle schoolId based on role
-      if (role === "school" || role === "schooladmin") {
-        // For school role, use 'id' field from token
+      // Handle schoolId based on role 
+      if (role === "school" || role === "schooladmin" /* || role === "branchgroup" */) {
+        // For school and branchGroup roles, use 'id' field from token as schoolId
         setUserSchoolId(decoded?.id || null);
-        console.log("[School Role] Using schoolId from 'id' field:", decoded?.id);
+        console.log(`[${role} Role] Using schoolId from 'id' field:`, decoded?.id);
       } else if (role === "branch" || role === "branchadmin") {
         // For branch role, use 'schoolId' field from token
         setUserSchoolId(decoded?.schoolId || null);
@@ -323,26 +324,26 @@ export default function BranchMaster() {
 
       console.log("[Branch Master - Final User Info]:", {
         role,
-        userSchoolId,
+        userSchoolId: decoded?.id || decoded?.schoolId,
         userBranchId,
         userSchoolName
       });
     }
   }, []);
 
-  // Role checks
   const normalizedRole = useMemo(() => {
     const r = (role || "").toLowerCase();
     if (["superadmin", "super_admin", "admin", "root"].includes(r)) return "superAdmin";
     if (["school", "schooladmin"].includes(r)) return "school";
     if (["branch", "branchadmin"].includes(r)) return "branch";
+    // if (["branchgroup"].includes(r)) return "branchGroup"; 
     return undefined;
   }, [role]);
 
   const isSuperAdmin = normalizedRole === "superAdmin";
   const isSchoolRole = normalizedRole === "school";
   const isBranchRole = normalizedRole === "branch";
-
+  // const isBranchGroup = normalizedRole === "branchGroup"; 
   // Fetch branch data with role-based filtering
   const {
     data: branchs,
@@ -377,7 +378,7 @@ export default function BranchMaster() {
     let filteredSchools = schoolData;
     
     // Filter schools based on role
-    if (isSchoolRole && userSchoolId) {
+    if ((isSchoolRole /* || isBranchGroup */) && userSchoolId) {
       filteredSchools = schoolData.filter(s => s._id === userSchoolId);
     } else if (isBranchRole && userSchoolId) {
       filteredSchools = schoolData.filter(s => s._id === userSchoolId);
@@ -388,14 +389,19 @@ export default function BranchMaster() {
         label: s.schoolName, 
         value: s._id 
       }));
-  }, [schoolData, isSchoolRole, isBranchRole, userSchoolId]);
+  }, [schoolData, isSchoolRole, isBranchRole, /* isBranchGroup, */ userSchoolId]);
 
-  // Set default school for school and branch roles
+  // Set default school for school, branch, and branch group roles
   useEffect(() => {
-    if ((isSchoolRole || isBranchRole) && userSchoolId && !school) {
+    if ((isSchoolRole || isBranchRole /* || isBranchGroup */) && userSchoolId && !school) {
       setSchool(userSchoolId);
+      console.log("[Branch Master - Setting Default School]:", {
+        role: normalizedRole,
+        userSchoolId,
+        // isBranchGroup
+      });
     }
-  }, [isSchoolRole, isBranchRole, userSchoolId, school]);
+  }, [isSchoolRole, isBranchRole, /* isBranchGroup, */ userSchoolId, school]);
 
   useEffect(() => {
     if (filteredBranches && filteredBranches.length > 0) {
@@ -526,7 +532,12 @@ export default function BranchMaster() {
             : []),
         ],
       }),
-      meta: { flex: 1.5, minWidth: 150, maxWidth: 200 },
+      meta: { 
+        flex: 1.5, 
+        minWidth: 200,  // ← Set fixed min width
+        maxWidth: 200,  // ← Set fixed max width
+        width: 200      // ← Add explicit width
+      },
       enableSorting: false,
       enableHiding: true,
     }
@@ -677,15 +688,36 @@ export default function BranchMaster() {
     e.preventDefault();
     const form = e.currentTarget;
     
-    // Role-based school selection
-    let selectedSchool = school;
-    if (isSchoolRole || isBranchRole) {
-      selectedSchool = userSchoolId || "";
-    }
+    // Role-based school selection - FIXED for branchGroup
+    // let selectedSchool = school;
     
+    // if (isSchoolRole || isBranchRole || isBranchGroup) {
+    //   selectedSchool = userSchoolId || "";
+    //   console.log("[Branch Master - School Selection]:", {
+    //     role: normalizedRole,
+    //     userSchoolId,
+    //     selectedSchool,
+    //     isBranchGroup
+    //   });
+    // }
+    
+    // Validate school selection with better error info
     if (!selectedSchool) {
-      alert("Please select a school");
-      return;
+      console.error("[Branch Master - School Selection Error]:", {
+        role: normalizedRole,
+        userSchoolId,
+        // isBranchGroup,
+        school,
+        token: getAuthToken() ? 'present' : 'missing'
+      });
+      
+      if (isSuperAdmin) {
+        alert("Please select a school");
+        return;
+      } else {
+        alert(`School information not found for ${normalizedRole} role. Please contact administrator.`);
+        return;
+      }
     }
 
     const formattedDate = selectedDate
@@ -700,8 +732,16 @@ export default function BranchMaster() {
       password: form.password.value,
       email: form.email.value,
       subscriptionExpirationDate: formattedDate,
-      fullAccess: form.fullAccess.checked,
+      fullAccess: isSuperAdmin || isSchoolRole ? form.fullAccess?.checked : false,
     };
+
+    console.log("[Branch Master - Submitting Branch Data]:", {
+      data,
+      role: normalizedRole,
+      userSchoolId,
+      // isBranchGroup,
+      selectedSchool
+    });
 
     try {
       await addbranchMutation.mutateAsync(data);
@@ -717,7 +757,6 @@ export default function BranchMaster() {
       alert(`Failed to add branch: ${err.response?.data?.message || err.message}`);
     }
   };
-
   const handleDateFilter = useCallback(
     (start: Date | null, end: Date | null) => {
       if (!filteredBranches || (!start && !end)) {
@@ -789,7 +828,7 @@ export default function BranchMaster() {
         </section>
 
         <section>
-          {(isSuperAdmin || isSchoolRole) && (
+          {(isSuperAdmin || isSchoolRole /* || isBranchGroup */) && (
             <Dialog>
               <DialogTrigger asChild>
                 <Button variant="default">Add branch</Button>
@@ -801,7 +840,7 @@ export default function BranchMaster() {
                   </DialogHeader>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="grid gap-2">
-                      <Label htmlFor="branchName">branch Name</Label>
+                      <Label htmlFor="branchName">Branch Name *</Label>
                       <Input
                         id="branchName"
                         name="branchName"
@@ -809,6 +848,7 @@ export default function BranchMaster() {
                         required
                       />
                     </div>
+                    
                     {/* Show School field only for superadmin */}
                     {isSuperAdmin && (
                       <div className="grid gap-2">
@@ -826,8 +866,31 @@ export default function BranchMaster() {
                         />
                       </div>
                     )}
+                    
+                    {/* Show school info for non-superadmin roles */}
+                    {(isSchoolRole /* || isBranchGroup */) && userSchoolName && (
+                      <div className="grid gap-2">
+                        <Label htmlFor="schoolInfo">School</Label>
+                        <Input
+                          id="schoolInfo"
+                          value={userSchoolName}
+                          disabled
+                          className="bg-gray-100"
+                          placeholder="Your assigned school"
+                        />
+                        <input 
+                          type="hidden" 
+                          name="schoolId" 
+                          value={userSchoolId || ""} 
+                        />
+                        <p className="text-xs text-gray-500">
+                          School is automatically assigned to your account
+                        </p>
+                      </div>
+                    )}
+
                     <div className="grid gap-2">
-                      <Label htmlFor="email">Email</Label>
+                      <Label htmlFor="email">Email *</Label>
                       <Input
                         id="email"
                         name="email"
@@ -836,8 +899,9 @@ export default function BranchMaster() {
                         required
                       />
                     </div>
+                    
                     <div className="grid gap-2">
-                      <Label htmlFor="branchMobile">Mobile No</Label>
+                      <Label htmlFor="branchMobile">Mobile No *</Label>
                       <Input
                         id="branchMobile"
                         name="branchMobile"
@@ -849,8 +913,9 @@ export default function BranchMaster() {
                         required
                       />
                     </div>
+                    
                     <div className="grid gap-2">
-                      <Label htmlFor="username">Username</Label>
+                      <Label htmlFor="username">Username *</Label>
                       <Input
                         id="username"
                         name="username"
@@ -859,8 +924,9 @@ export default function BranchMaster() {
                         required
                       />
                     </div>
+                    
                     <div className="grid gap-2">
-                      <Label htmlFor="password">Password</Label>
+                      <Label htmlFor="password">Password *</Label>
                       <Input
                         id="password"
                         name="password"
@@ -870,7 +936,7 @@ export default function BranchMaster() {
                       />
                     </div>
                     
-                    {/* DatePicker for Expiration Date - Available for all roles that can add branches */}
+                    {/* DatePicker for Expiration Date */}
                     <div className="grid gap-2">
                       <Label htmlFor="expirationDate">Expiration Date</Label>
                       <DatePicker
@@ -881,16 +947,20 @@ export default function BranchMaster() {
                       />
                     </div>
 
-                    <div className="flex items-center gap-3 mt-6">
-                      <input
-                        type="checkbox"
-                        id="fullAccess"
-                        name="fullAccess"
-                        className="h-5 w-5"
-                      />
-                      <Label htmlFor="fullAccess">Full Access</Label>
-                    </div>
+                    {/* Full Access checkbox - only for superadmin and school roles */}
+                    {(isSuperAdmin || isSchoolRole) && (
+                      <div className="flex items-center gap-3 mt-6">
+                        <input
+                          type="checkbox"
+                          id="fullAccess"
+                          name="fullAccess"
+                          className="h-5 w-5"
+                        />
+                        <Label htmlFor="fullAccess">Full Access</Label>
+                      </div>
+                    )}
                   </div>
+                  
                   <DialogFooter>
                     <DialogClose asChild>
                       <Button ref={closeButtonRef} variant="outline">
@@ -946,21 +1016,21 @@ export default function BranchMaster() {
         </div>
 
         <div>
-          {deleteTarget && (
-            <Alert<branch>
-              title="Are you absolutely sure?"
-              description={`This will permanently delete ${deleteTarget?.branchName} and all associated data.`}
-              actionButton={(target) => {
-                deletebranchMutation.mutate(target._id);
-                setDeleteTarget(null);
-              }}
-              target={deleteTarget}
-              setTarget={setDeleteTarget}
-              butttonText="Delete"
-              dialogClassName="max-w-sm" // Reduced width
-            />
-          )}
-        </div>
+            {deleteTarget && (
+              <Alert<branch>
+                title="Are you absolutely sure?"
+                description={`This will permanently delete ${deleteTarget?.branchName} and all associated data.`}
+                actionButton={(target) => {
+                  deletebranchMutation.mutate(target._id);
+                  setDeleteTarget(null);
+                }}
+                target={deleteTarget}
+                setTarget={setDeleteTarget}
+                butttonText="Delete"
+                dialogClassName="w-80" // Fixed width of 320px
+              />
+            )}
+          </div>
       </section>
       
       <section>

@@ -674,7 +674,7 @@ export default function UserAccessPage() {
           label: "Delete",
           onClick: () => setDeleteTarget(row),
           className:
-            "text-red-600 cursor-pointer flex items-center gap-1 bg-red-500 hover:bg-red-600 text-white font-semibold py-1 px-3 rounded-md text-sm transition-colors",
+             "bg-yellow-400 hover:bg-yellow-500 text-red-600 font-semibold py-1 px-3 rounded-md cursor-pointer transition-colors duration-200",
         },
       ],
       render: () => (
