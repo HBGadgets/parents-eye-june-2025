@@ -17,12 +17,27 @@ firebase.initializeApp({
 
 const messaging = firebase.messaging();
 
-messaging.onBackgroundMessage((payload) => {
+messaging.onBackgroundMessage(async (payload) => {
   console.log("📥 Background message received:", payload);
+
+  const ping = payload?.data?.ping ?? 0;
+  if (ping && Number(ping) === 1) return;
+
+  clients
+    .matchAll({ includeUncontrolled: true, type: "window" })
+    .then((clientList) => {
+      clientList.forEach((client) => {
+        client.postMessage({
+          source: "fcm-background",
+          payload,
+        });
+      });
+    });
 
   const title = payload?.notification?.title || "Notification";
   const options = {
     body: payload?.notification?.body || "",
+    icon: "/icon.png",
   };
 
   self.registration.showNotification(title, options);
