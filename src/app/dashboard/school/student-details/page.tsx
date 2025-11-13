@@ -1327,7 +1327,7 @@ export default function StudentDetails() {
               Edit
             </button>
             <button
-              className="bg-red-500 hover:bg-red-600 text-white font-semibold py-1 px-3 rounded-md"
+              className= "bg-yellow-400 hover:bg-yellow-500 text-red-600 font-semibold py-1 px-3 rounded-md cursor-pointer transition-colors duration-200"
               onClick={() => setDeleteTarget(row.original)}
             >
               Delete
