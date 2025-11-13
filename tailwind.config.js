@@ -68,12 +68,17 @@ module.exports = {
           "0%": { opacity: "0" },
           "100%": { opacity: "1" },
         },
+        fadeOutUp: {
+          "0%": { opacity: "1", transform: "translateY(0)" },
+          "100%": { opacity: "0", transform: "translateY(-10px)" },
+        },
       },
       animation: {
         stepProgress: "stepProgress 2.5s ease-in-out forwards",
         in: "in 0.3s ease-out",
         "slide-in": "slide-in 0.3s ease-out",
         "fade-in": "fade-in 0.3s ease-out",
+        fadeOutUp: "fadeOutUp 0.3s ease forwards",
       },
     },
   },
