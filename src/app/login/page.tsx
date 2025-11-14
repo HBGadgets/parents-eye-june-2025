@@ -25,6 +25,12 @@ export default function LoginPage() {
     }
   }, [isAuthenticated, router]);
 
+  useEffect(() => {
+    if (localStorage.getItem("token")) {
+      router.replace("/dashboard");
+    }
+  });
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true); // ✅ Set loading to true
