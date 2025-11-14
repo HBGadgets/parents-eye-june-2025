@@ -29,7 +29,7 @@ export default function LoginPage() {
     if (localStorage.getItem("token")) {
       router.replace("/dashboard");
     }
-  });
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
