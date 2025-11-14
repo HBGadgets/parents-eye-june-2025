@@ -16,7 +16,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { CustomTable, CellContent } from "@/components/ui/CustomTable";
 import { DynamicEditDialog, FieldConfig } from "@/components/ui/EditModal";
 import SearchComponent from "@/components/ui/SearchOnlydata";
 import { Button } from "@/components/ui/button";
