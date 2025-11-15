@@ -1,14 +1,6 @@
-// Fixed version - search only from search bar, no background filtering
-
 "use client";
 
-import React, {
-  useCallback,
-  useEffect,
-  useState,
-  useRef,
-  useMemo,
-} from "react";
+import React, { useCallback, useEffect, useState, useRef, useMemo } from "react";
 import {
   Dialog,
   DialogClose,
@@ -19,20 +11,17 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { DynamicEditDialog, FieldConfig } from "@/components/ui/EditModal";
-import SearchComponent from "@/components/ui/SearchOnlydata";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Combobox } from "@/components/ui/combobox";
 import { FloatingMenu } from "@/components/floatingMenu";
+import { Badge } from "@/components/ui/badge";
+import { XCircle } from "lucide-react";
 import { useSchoolData } from "@/hooks/useSchoolData";
 import { useBranchData } from "@/hooks/useBranchData";
 import { useInfiniteDeviceData } from "@/hooks/useInfiniteDeviceData";
-import {
-  type ColumnDef,
-  SortingState,
-  VisibilityState,
-} from "@tanstack/react-table";
+import { type ColumnDef, SortingState, VisibilityState } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/services/apiService";
 import { useExport } from "@/hooks/useExport";
@@ -40,6 +29,7 @@ import { Alert } from "@/components/Alert";
 import ResponseLoader from "@/components/ResponseLoader";
 import { ColumnVisibilitySelector } from "@/components/column-visibility-selector";
 import { CustomTableServerSidePagination } from "@/components/ui/customTable(serverSidePagination)";
+import { SearchBar } from "@/components/search-bar/SearchBarPagination";
 import Cookies from "js-cookie";
 
 interface Route {
@@ -48,7 +38,6 @@ interface Route {
   deviceObjId?: any;
   schoolId?: any;
   branchId?: any;
-  isActive?: boolean;
   createdAt: string;
 }
 
@@ -64,7 +53,6 @@ interface DecodedToken {
   branchId?: string;
   schoolName?: string;
   AssignedBranch?: Array<{ _id: string; branchName: string }>;
-  [key: string]: any;
 }
 
 const getDecodedToken = (token: string): DecodedToken | null => {
@@ -90,31 +78,34 @@ const getAuthToken = () => {
   return null;
 };
 
+const FilterBadge = ({ label, value, onRemove }: { label: string; value: string; onRemove: () => void }) => (
+  <Badge variant="secondary" className="flex items-center gap-1 bg-blue-100 text-blue-800 border-blue-200">
+    <span className="text-xs">{label}: {value}</span>
+    <button onClick={onRemove} className="ml-1 rounded-full hover:bg-blue-200 p-0.5" type="button">
+      <XCircle className="w-3 h-3" />
+    </button>
+  </Badge>
+);
+
 export default function RoutesMaster() {
   const queryClient = useQueryClient();
   const closeButtonRef = useRef<HTMLButtonElement>(null);
 
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 10 });
-  const [sorting, setSorting] = useState<SortingState>([]);
-  const [globalFilter, setGlobalFilter] = useState<string>("");
-  const [dateRange, setDateRange] = useState<{ start: Date | null; end: Date | null }>({ start: null, end: null });
-
+  const [sorting, setSorting] = useState<SortingState>([{ id: "createdAt", desc: false }]);
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
+  const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
+  const [filters, setFilters] = useState({ school: "", branch: "" });
   const [deleteTarget, setDeleteTarget] = useState<Route | null>(null);
   const [editTarget, setEditTarget] = useState<Route | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
-
-  const [school, setSchool] = useState(""), [schoolSearch, setSchoolSearch] = useState("");
-  const { data: schoolData } = useSchoolData();
-
-  const [branch, setBranch] = useState(""), [branchSearch, setBranchSearch] = useState("");
-  const { data: branchData } = useBranchData();
-
-  const [device, setDevice] = useState(""), [deviceSearch, setDeviceSearch] = useState("");
-
-  const [filteredData, setFilteredData] = useState<Route[]>([]);
-  const [allRoutesData, setAllRoutesData] = useState<Route[]>([]); // Store all data for client-side filtering
-
+  const [school, setSchool] = useState("");
+  const [schoolSearch, setSchoolSearch] = useState("");
+  const [branch, setBranch] = useState("");
+  const [branchSearch, setBranchSearch] = useState("");
+  const [device, setDevice] = useState("");
+  const [deviceSearch, setDeviceSearch] = useState("");
   const [role, setRole] = useState<string | null>(null);
   const [userSchoolId, setUserSchoolId] = useState<string | null>(null);
   const [userBranchId, setUserBranchId] = useState<string | null>(null);
@@ -122,7 +113,37 @@ export default function RoutesMaster() {
 
   const { exportToPDF, exportToExcel } = useExport();
 
-  // Get normalized role for device hook
+  useEffect(() => {
+    const token = getAuthToken();
+    if (!token) return;
+
+    const decoded = getDecodedToken(token);
+    const r = decoded?.role?.toLowerCase() || "";
+    setRole(r);
+    setUserSchoolName(decoded?.schoolName || null);
+
+    if (["school", "schooladmin"].includes(r)) {
+      const schoolId = decoded?.id || decoded?.schoolId || null;
+      setUserSchoolId(schoolId);
+      if (schoolId) setFilters(prev => ({ ...prev, school: schoolId }));
+    } else {
+      setUserSchoolId(decoded?.schoolId || null);
+    }
+
+    if (["branch", "branchadmin"].includes(r)) {
+      const branchId = decoded?.id || decoded?.branchId || null;
+      setUserBranchId(branchId);
+      if (branchId) setFilters(prev => ({ ...prev, branch: branchId }));
+    } else {
+      setUserBranchId(decoded?.branchId || null);
+    }
+
+    if (r === "branchgroup" && decoded?.AssignedBranch?.length) {
+      setUserBranchId(decoded.AssignedBranch[0]._id);
+      setFilters(prev => ({ ...prev, branch: decoded.AssignedBranch[0]._id }));
+    }
+  }, []);
+
   const normalizedRole = useMemo(() => {
     const r = (role || "").toLowerCase();
     if (["superadmin", "super_admin", "admin", "root"].includes(r)) return "superAdmin";
@@ -132,7 +153,14 @@ export default function RoutesMaster() {
     return undefined;
   }, [role]);
 
-  // Use infinite device data hook
+  const isSuperAdmin = normalizedRole === "superAdmin";
+  const isSchoolRole = normalizedRole === "school";
+  const isBranchRole = normalizedRole === "branch";
+  const isBranchGroupRole = normalizedRole === "branchGroup";
+
+  const { data: schoolData } = useSchoolData();
+  const { data: branchData } = useBranchData();
+
   const {
     data: deviceData,
     fetchNextPage,
@@ -146,63 +174,165 @@ export default function RoutesMaster() {
     limit: 20,
   });
 
-  // Device items memoized
+  const routeFilters = useMemo(
+    () => ({
+      ...(debouncedSearchTerm && { search: debouncedSearchTerm.trim() }),
+      ...(filters.school && { schoolId: filters.school }),
+      ...(filters.branch && { branchId: filters.branch }),
+    }),
+    [debouncedSearchTerm, filters]
+  );
+
+  const { data: routesData, isLoading, isFetching } = useQuery({
+    queryKey: ["routes", pagination.pageIndex, pagination.pageSize, sorting, routeFilters],
+    queryFn: async () => {
+      const params: any = {
+        page: pagination.pageIndex + 1,
+        limit: pagination.pageSize,
+        ...(sorting.length > 0 && {
+          sortBy: sorting[0].id,
+          sortOrder: sorting[0].desc ? "desc" : "asc",
+        }),
+        ...routeFilters,
+      };
+
+      const res = await api.get("/route", params);
+      return res?.data 
+        ? { data: res.data, total: res.total || res.data.length } 
+        : { data: [], total: 0 };
+    },
+  });
+
+  const routes = routesData?.data || [];
+  const totalCount = routesData?.total || 0;
+
   const deviceItems = useMemo(() => {
     if (!deviceData?.pages?.length) return [];
     return deviceData.pages.flatMap((pg: any) => {
       const list = pg.devices ?? pg.data ?? [];
-      return list.map((d: any) => ({ 
-        label: d.deviceName || d.name || "Device", 
-        value: d._id 
+      return list.map((d: any) => ({
+        label: d.deviceName || d.name || "Device",
+        value: d._id,
       }));
     });
   }, [deviceData]);
 
-  // Get device name for display in table
+  const enrichedDeviceItems = useMemo(() => {
+    if (!editTarget) return deviceItems;
+    const deviceId = typeof editTarget.deviceObjId === "object" ? editTarget.deviceObjId?._id : editTarget.deviceObjId;
+    if (deviceItems.some((d) => d.value === deviceId)) return deviceItems;
+
+    return [
+      {
+        label: (typeof editTarget.deviceObjId === "object" && (editTarget.deviceObjId.deviceName || editTarget.deviceObjId.name)) || "Device",
+        value: deviceId,
+      },
+      ...deviceItems,
+    ];
+  }, [deviceItems, editTarget]);
+
   const getDeviceName = useCallback((route: Route) => {
     if (!route.deviceObjId) return "N/A";
-    
     if (typeof route.deviceObjId === "object") {
       return route.deviceObjId.deviceName || route.deviceObjId.name || "Device";
     }
-    
-    // Find device in the infinite device data
     for (const page of deviceData?.pages || []) {
       const list = page.devices ?? page.data ?? [];
       const found = list.find((d: any) => d._id === route.deviceObjId);
-      if (found) {
-        return found.deviceName || found.name || "Device";
-      }
+      if (found) return found.deviceName || found.name || "Device";
     }
-    
     return "Device Not Found";
   }, [deviceData]);
 
-  // Debounce device search
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      // The search is handled by the hook, we just need to ensure it triggers
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [deviceSearch]);
+  const schoolOptions = useMemo(() => {
+    if (!schoolData) return [];
+    return schoolData.map((s: any) => ({ label: s.schoolName || `School ${s._id}`, value: s._id }));
+  }, [schoolData]);
 
-  // Handle infinite scroll for devices
+  const filterBranchOptions = useMemo(() => {
+    if (!branchData) return [];
+    if (isBranchRole && userBranchId) {
+      const userBranch = branchData.find((b: any) => b._id === userBranchId);
+      return userBranch ? [{ label: userBranch.branchName, value: userBranch._id }] : [];
+    }
+    if (filters.school) {
+      return branchData
+        .filter((b: any) => {
+          const schoolId = typeof b.schoolId === "object" ? b.schoolId?._id : b.schoolId;
+          return schoolId === filters.school;
+        })
+        .map((b: any) => ({ label: b.branchName, value: b._id }));
+    }
+    if (isSchoolRole && userSchoolId) {
+      return branchData
+        .filter((b: any) => {
+          const schoolId = typeof b.schoolId === "object" ? b.schoolId?._id : b.schoolId;
+          return schoolId === userSchoolId;
+        })
+        .map((b: any) => ({ label: b.branchName, value: b._id }));
+    }
+    return branchData.map((b: any) => ({ label: b.branchName, value: b._id }));
+  }, [branchData, filters.school, isSchoolRole, userSchoolId, isBranchRole, userBranchId]);
+
+  const addFormBranchOptions = useMemo(() => {
+    if (!branchData) return [];
+    if (isBranchRole && userBranchId) {
+      const userBranch = branchData.find((b: any) => b._id === userBranchId);
+      return userBranch ? [{ label: userBranch.branchName, value: userBranch._id }] : [];
+    }
+    if (school) {
+      return branchData
+        .filter((b: any) => {
+          const schoolId = typeof b.schoolId === "object" ? b.schoolId?._id : b.schoolId;
+          return schoolId === school;
+        })
+        .map((b: any) => ({ label: b.branchName, value: b._id }));
+    }
+    if ((isSchoolRole || isBranchGroupRole) && userSchoolId) {
+      return branchData
+        .filter((b: any) => {
+          const schoolId = typeof b.schoolId === "object" ? b.schoolId?._id : b.schoolId;
+          return schoolId === userSchoolId;
+        })
+        .map((b: any) => ({ label: b.branchName, value: b._id }));
+    }
+    return branchData.map((b: any) => ({ label: b.branchName, value: b._id }));
+  }, [branchData, school, isSchoolRole, userSchoolId, isBranchRole, userBranchId, isBranchGroupRole]);
+
+  const activeFilters = useMemo(() => {
+    const active: Array<{ key: string; label: string; value: string }> = [];
+    if (filters.school && isSuperAdmin) {
+      const schoolObj = schoolOptions.find((s) => s.value === filters.school);
+      active.push({ key: "school", label: "School", value: schoolObj?.label || filters.school });
+    }
+    if (filters.branch && !isBranchRole) {
+      const branchObj = filterBranchOptions.find((b) => b.value === filters.branch);
+      active.push({ key: "branch", label: "Branch", value: branchObj?.label || filters.branch });
+    }
+    return active;
+  }, [filters, schoolOptions, filterBranchOptions, isSuperAdmin, isBranchRole]);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+      setPagination((p) => ({ ...p, pageIndex: 0 }));
+    }, 500);
+    return () => clearTimeout(handler);
+  }, [searchTerm]);
+
+  useEffect(() => {
+    setPagination((p) => ({ ...p, pageIndex: 0 }));
+  }, [filters.school, filters.branch]);
+
   const handleDeviceReachEnd = useCallback(() => {
     if (hasNextPage && !isFetchingNextPage && !isFetchingDevices && branch) {
       fetchNextPage();
     }
   }, [hasNextPage, isFetchingNextPage, isFetchingDevices, branch, fetchNextPage]);
 
-  // Prefetch more devices when needed
   useEffect(() => {
     const timer = setTimeout(() => {
-      if (
-        deviceItems.length > 0 &&
-        deviceItems.length < 20 &&
-        hasNextPage &&
-        !isFetchingNextPage &&
-        branch
-      ) {
+      if (deviceItems.length > 0 && deviceItems.length < 20 && hasNextPage && !isFetchingNextPage && branch) {
         fetchNextPage();
       }
     }, 100);
@@ -210,117 +340,16 @@ export default function RoutesMaster() {
   }, [deviceItems.length, hasNextPage, isFetchingNextPage, branch, fetchNextPage]);
 
   useEffect(() => {
-    const token = getAuthToken();
-    if (!token) return;
-
-    const decoded = getDecodedToken(token);
-    const r = decoded?.role?.toLowerCase() || "";
-
-    setRole(r);
-    setUserSchoolName(decoded?.schoolName || null);
-
-    if (["school", "schooladmin"].includes(r)) setUserSchoolId(decoded?.id || null);
-    else setUserSchoolId(decoded?.schoolId || null);
-
-    if (["branch", "branchadmin"].includes(r)) setUserBranchId(decoded?.id || null);
-    else setUserBranchId(decoded?.branchId || null);
-
-    if (r === "branchgroup" && decoded?.AssignedBranch?.length)
-      setUserBranchId(decoded.AssignedBranch[0]._id);
-  }, []);
-
-  const isSuperAdmin = normalizedRole === "superAdmin";
-  const isSchoolRole = normalizedRole === "school";
-  const isBranchRole = normalizedRole === "branch";
-  const isBranchGroupRole = normalizedRole === "branchGroup";
-
-  // Fetch all data once without filters for client-side search
-  const { data: routesData, isLoading, isFetching } = useQuery({
-    queryKey: [
-      "routes",
-      "all", // Remove filters from query key to fetch all data once
-    ],
-    queryFn: async () => {
-      const params: any = {
-        page: 1,
-        limit: 10, // Fetch all data at once for client-side filtering
-      };
-
-      const res = await api.get("/route", params);
-      return res?.data ? { data: res.data, total: res.total || res.data.length } : { data: [], total: 0 };
-    },
-  });
-
-  // Store all data and initialize filtered data
-  useEffect(() => {
-    if (routesData?.data) {
-      setAllRoutesData(routesData.data);
-      setFilteredData(routesData.data);
-    }
-  }, [routesData?.data]);
-
-  const schoolOptions = useMemo(() => {
-    if (!schoolData) return [];
-
-    let list = schoolData;
-
-    if ((isSchoolRole || isBranchGroupRole || isBranchRole) && userSchoolId)
-      list = list.filter((s) => s._id === userSchoolId);
-
-    return list.map((s) => ({ label: s.schoolName, value: s._id }));
-  }, [schoolData, userSchoolId, isSchoolRole, isBranchRole, isBranchGroupRole]);
-
-  const branchOptions = useMemo(() => {
-    if (!branchData) return [];
-
-    let list = branchData;
-
-    if (userSchoolId) {
-      if (isBranchGroupRole) {
-        list = list.filter((b) => b.schoolId?._id === userSchoolId);
-      } else if (isSchoolRole) {
-        list = list.filter((b) => b.schoolId?._id === userSchoolId);
-      }
-    }
-    
-    if (isBranchRole && userBranchId) {
-      list = list.filter((b) => b._id === userBranchId);
-    }
-
-    return list.map((b) => ({ label: b.branchName, value: b._id }));
-  }, [branchData, userSchoolId, userBranchId, isBranchRole, isSchoolRole, isBranchGroupRole]);
-
-  const filteredBranchOptions = useMemo(() => {
-    if (!branchData) return [];
-
-    let list = branchData;
-
-    let schoolIdToUse = school;
-    
-    if (isBranchGroupRole && !school && userSchoolId) {
-      schoolIdToUse = userSchoolId;
-    }
-
-    if (schoolIdToUse) {
-      list = list.filter((b) => b.schoolId?._id === schoolIdToUse);
-    }
-
-    if (isBranchRole && userBranchId) {
-      list = list.filter((b) => b._id === userBranchId);
-    }
-
-    return list.map((b) => ({ label: b.branchName, value: b._id }));
-  }, [school, branchData, isBranchRole, userBranchId, isBranchGroupRole, userSchoolId]);
-
-  useEffect(() => {
-    if ((isSchoolRole || isBranchGroupRole) && userSchoolId && !school)
+    if ((isSchoolRole || isBranchGroupRole) && userSchoolId && !school) {
       setSchool(userSchoolId);
-  }, [isSchoolRole, isBranchGroupRole, userSchoolId]);
+    }
+  }, [isSchoolRole, isBranchGroupRole, userSchoolId, school]);
 
   useEffect(() => {
-    if ((isBranchRole || isBranchGroupRole) && userBranchId && !branch)
+    if ((isBranchRole || isBranchGroupRole) && userBranchId && !branch) {
       setBranch(userBranchId);
-  }, [isBranchRole, isBranchGroupRole, userBranchId]);
+    }
+  }, [isBranchRole, isBranchGroupRole, userBranchId, branch]);
 
   useEffect(() => {
     if (school && (isSchoolRole || isBranchGroupRole)) {
@@ -330,24 +359,42 @@ export default function RoutesMaster() {
   }, [school, isSchoolRole, isBranchGroupRole]);
 
   useEffect(() => {
-    if (isBranchGroupRole && userSchoolId && !school) {
-      setSchool(userSchoolId);
-    }
-  }, [isBranchGroupRole, userSchoolId, school]);
-
-  useEffect(() => {
-    if ((isBranchRole || isBranchGroupRole) && userBranchId && !branch) {
-      setBranch(userBranchId);
-    }
-  }, [isBranchRole, isBranchGroupRole, userBranchId, branch]);
-
-  // Reset device when branch changes
-  useEffect(() => {
     setDevice("");
     setDeviceSearch("");
   }, [branch]);
 
-  const columns: ColumnDef<Route>[] = [
+  const handleFilterChange = (key: string, value: string) => {
+    setFilters((prev) => {
+      const newFilters = { ...prev, [key]: value };
+      if (key === "school") newFilters.branch = "";
+      return newFilters;
+    });
+  };
+
+  const clearFilter = (filterKey: string) => {
+    setFilters((prev) => {
+      const newFilters = { ...prev };
+      if (filterKey === "school") {
+        newFilters.school = isSchoolRole && userSchoolId ? userSchoolId : "";
+        newFilters.branch = "";
+      } else if (filterKey === "branch") {
+        newFilters.branch = isBranchRole && userBranchId ? userBranchId : "";
+      }
+      return newFilters;
+    });
+  };
+
+  const clearFilters = () => {
+    const newFilters = { school: "", branch: "" };
+    if (isSchoolRole && userSchoolId) newFilters.school = userSchoolId;
+    if (isBranchRole && userBranchId) newFilters.branch = userBranchId;
+    setFilters(newFilters);
+  };
+
+  const isSearchActive = searchTerm.trim() !== "";
+  const isFilterActive = Object.values(filters).some(Boolean);
+
+  const columns: ColumnDef<Route>[] = useMemo(() => [
     {
       id: "routeNumber",
       header: "Route Number",
@@ -360,26 +407,24 @@ export default function RoutesMaster() {
       accessorFn: (row) => getDeviceName(row),
       enableSorting: true,
     },
-    ...(isSuperAdmin
-      ? [
-          {
-            id: "schoolName",
-            header: "School Name",
-            accessorFn: (row) => row.schoolId?.schoolName || "N/A",
-            enableSorting: true,
-          },
-        ]
-      : []),
+    ...(isSuperAdmin ? [{
+      id: "schoolName",
+      header: "School Name",
+      accessorFn: (row: Route) => {
+        if (row.schoolId && typeof row.schoolId === "object") return row.schoolId.schoolName || "N/A";
+        const s = schoolData?.find((sc: any) => sc._id === row.schoolId);
+        return s ? s.schoolName : "N/A";
+      },
+      enableSorting: true,
+    }] : []),
     {
       id: "branchName",
       header: "Branch Name",
-      accessorFn: (row) => row.branchId?.branchName || "N/A",
-      enableSorting: true,
-    },
-    {
-      id: "status",
-      header: "Status",
-      accessorFn: (row) => (row.isActive ? "Active" : "Inactive"),
+      accessorFn: (row) => {
+        if (row.branchId && typeof row.branchId === "object") return row.branchId.branchName || "N/A";
+        const b = branchData?.find((br: any) => br._id === row.branchId);
+        return b ? b.branchName : "N/A";
+      },
       enableSorting: true,
     },
     {
@@ -402,7 +447,6 @@ export default function RoutesMaster() {
           >
             Edit
           </button>
-
           {(isSuperAdmin || isSchoolRole || isBranchRole || isBranchGroupRole) && (
             <button
               onClick={() => setDeleteTarget(row.original)}
@@ -414,39 +458,22 @@ export default function RoutesMaster() {
         </div>
       ),
     },
-  ];
+  ], [isSuperAdmin, schoolData, branchData, getDeviceName, isSchoolRole, isBranchRole, isBranchGroupRole]);
 
   const columnsForExport = [
     { key: "routeNumber", header: "Route Number" },
-    {
-      key: "deviceName",
-      header: "Device Name",
-      accessor: (row: Route) => getDeviceName(row),
-    },
-    ...(isSuperAdmin
-      ? [
-          {
-            key: "schoolName",
-            header: "School Name",
-            accessor: (row: Route) => row.schoolId?.schoolName || "N/A",
-          },
-        ]
-      : []),
+    { key: "deviceName", header: "Device Name", accessor: (row: Route) => getDeviceName(row) },
+    ...(isSuperAdmin ? [{
+      key: "schoolName",
+      header: "School Name",
+      accessor: (row: Route) => row.schoolId && typeof row.schoolId === "object" ? row.schoolId.schoolName || "N/A" : "N/A",
+    }] : []),
     {
       key: "branchName",
       header: "Branch Name",
-      accessor: (row: Route) => row.branchId?.branchName || "N/A",
+      accessor: (row: Route) => row.branchId && typeof row.branchId === "object" ? row.branchId.branchName || "N/A" : "N/A",
     },
-    {
-      key: "isActive",
-      header: "Status",
-      formatter: (v: boolean) => (v ? "Active" : "Inactive"),
-    },
-    {
-      key: "createdAt",
-      header: "Created At",
-      formatter: (v: string) => new Date(v).toLocaleDateString("en-GB"),
-    },
+    { key: "createdAt", header: "Created At", formatter: (v: string) => new Date(v).toLocaleDateString("en-GB") },
   ];
 
   const getRouteFieldConfigs = (
@@ -457,20 +484,9 @@ export default function RoutesMaster() {
     const fields: FieldConfig[] = [
       { label: "Route Number", key: "routeNumber", type: "text", required: true },
     ];
-
-    if (isSuperAdmin) {
-      fields.push({ label: "School Name", key: "schoolId", type: "select", required: true, options: schoolOptions });
-    }
-
-    if (isSuperAdmin || isSchoolRole || isBranchGroupRole) {
-      fields.push({ label: "Branch Name", key: "branchId", type: "select", required: true, options: branchOptions });
-    }
-
-    fields.push(
-      { label: "Device", key: "deviceObjId", type: "select", required: true, options: deviceOptions },
-      { label: "Active Status", key: "isActive", type: "checkbox", className: "h-3 w-3" }
-    );
-
+    if (isSuperAdmin) fields.push({ label: "School Name", key: "schoolId", type: "select", required: true, options: schoolOptions });
+    if (isSuperAdmin || isSchoolRole || isBranchGroupRole) fields.push({ label: "Branch Name", key: "branchId", type: "select", required: true, options: branchOptions });
+    fields.push({ label: "Device", key: "deviceObjId", type: "select", required: true, options: deviceOptions });
     return fields;
   };
 
@@ -480,6 +496,7 @@ export default function RoutesMaster() {
       queryClient.invalidateQueries({ queryKey: ["routes"] });
       alert("Route added successfully.");
     },
+    onError: (err: any) => alert(`Failed to add route.\nError: ${err.message}`),
   });
 
   const updateRouteMutation = useMutation({
@@ -490,6 +507,7 @@ export default function RoutesMaster() {
       setEditTarget(null);
       alert("Route updated successfully.");
     },
+    onError: (err: any) => alert(`Failed to update route.\nError: ${err.message}`),
   });
 
   const deleteRouteMutation = useMutation({
@@ -499,70 +517,55 @@ export default function RoutesMaster() {
       setDeleteTarget(null);
       alert("Route deleted successfully!");
     },
+    onError: (err: any) => alert(`Failed to delete route.\nError: ${err.message}`),
   });
 
   const handleSave = (updatedData: Partial<Route>) => {
     if (!editTarget) return;
-
     const changed: any = {};
     for (const key in updatedData) {
-      if (updatedData[key as keyof Route] !== editTarget[key as keyof Route])
-        changed[key] = updatedData[key as keyof Route];
+      const newVal = updatedData[key as keyof Route];
+      let originalVal = editTarget[key as keyof Route];
+      if (key === "schoolId" || key === "branchId" || key === "deviceObjId") {
+        if (typeof originalVal === "object" && originalVal) originalVal = (originalVal as any)._id;
+        if (typeof newVal === "object" && newVal) {
+          const normalizedNewVal = (newVal as any)._id;
+          if (normalizedNewVal !== originalVal) changed[key] = normalizedNewVal;
+          continue;
+        }
+      }
+      if (newVal !== originalVal) changed[key] = newVal;
     }
-
-    if (isBranchRole && userBranchId) changed.branchId = userBranchId;
-    if ((isSchoolRole || isBranchGroupRole) && userSchoolId) changed.schoolId = userSchoolId;
-
     if (!Object.keys(changed).length) {
       alert("No changes detected.");
       return;
     }
-
     updateRouteMutation.mutate({ routeId: editTarget._id, data: changed });
   };
 
   const handleSubmit = async (e: any) => {
     e.preventDefault();
-
     const form = e.target;
     const data = new FormData(form);
+    const token = getAuthToken();
+    const decoded = token ? getDecodedToken(token) : null;
 
     let selectedSchool = school;
     let selectedBranch = branch;
 
-    const token = getAuthToken();
-    const decoded = token ? getDecodedToken(token) : null;
-    const currentRole = decoded?.role?.toLowerCase();
+    if (!isSuperAdmin) selectedSchool = decoded?.schoolId || userSchoolId || "";
+    if (isBranchRole) selectedBranch = decoded?.id || userBranchId || "";
+    else if (isBranchGroupRole) selectedBranch = branch || (decoded?.AssignedBranch?.length ? decoded.AssignedBranch[0]._id : "");
 
-    if (!isSuperAdmin) {
-      selectedSchool = decoded?.schoolId || userSchoolId || "";
-    }
-    
-    if (isBranchRole) {
-      selectedBranch = decoded?.id || userBranchId || "";
-    } else if (isBranchGroupRole) {
-      selectedBranch = branch || (decoded?.AssignedBranch?.length ? decoded.AssignedBranch[0]._id : "");
-    }
-
-    if (!selectedSchool) {
-      alert("School missing.");
-      return;
-    }
-    if (!selectedBranch) {
-      alert("Branch missing.");
-      return;
-    }
-    if (!device) {
-      alert("Device missing.");
-      return;
-    }
+    if (!selectedSchool) { alert("School missing."); return; }
+    if (!selectedBranch) { alert("Branch missing."); return; }
+    if (!device) { alert("Device missing."); return; }
 
     const payload = {
       routeNumber: data.get("routeNumber") as string,
       deviceObjId: device,
       schoolId: selectedSchool,
       branchId: selectedBranch,
-      isActive: data.get("isActive") === "on",
     };
 
     await addRouteMutation.mutateAsync(payload);
@@ -570,7 +573,6 @@ export default function RoutesMaster() {
     form.reset();
     setDevice("");
     setDeviceSearch("");
-
     if (isSuperAdmin) {
       setSchool("");
       setBranch("");
@@ -579,42 +581,48 @@ export default function RoutesMaster() {
     }
   };
 
-  // Search only from search bar - client side filtering
-  const handleSearch = useCallback((results: Route[]) => {
-    setFilteredData(results);
-    setPagination((p) => ({ ...p, pageIndex: 0 }));
-  }, []);
-
-  // Reset to all data when search is cleared
-  const handleSearchClear = useCallback(() => {
-    setFilteredData(allRoutesData);
-    setPagination((p) => ({ ...p, pageIndex: 0 }));
-  }, [allRoutesData]);
-
-  const handlePaginationChange = useCallback((update: any) => {
-    setPagination((prev) => {
-      const newP = typeof update === "function" ? update(prev) : update;
-      return newP.pageSize !== prev.pageSize ? { ...newP, pageIndex: 0 } : newP;
+  const handleExportPdf = () => {
+    exportToPDF(routes, columnsForExport, {
+      title: "Routes Master Report",
+      companyName: "Parents Eye",
+      metadata: {
+        Total: `${totalCount} routes`,
+        Search: isSearchActive ? "Filtered results" : "All routes",
+        ...(searchTerm && { "Search Term": `"${searchTerm}"` }),
+        ...(filters.school && { School: schoolOptions.find((s) => s.value === filters.school)?.label || filters.school }),
+        ...(filters.branch && { Branch: filterBranchOptions.find((b) => b.value === filters.branch)?.label || filters.branch }),
+        Role: role || "Unknown",
+      },
     });
-  }, []);
+  };
 
-  const handleDateFilter = (start: Date | null, end: Date | null) => {
-    setDateRange({ start, end });
-    setPagination((p) => ({ ...p, pageIndex: 0 }));
+  const handleExportExcel = () => {
+    exportToExcel(routes, columnsForExport, {
+      title: "Routes Master Report",
+      companyName: "Parents Eye",
+      metadata: {
+        Total: `${totalCount} routes`,
+        Search: isSearchActive ? "Filtered results" : "All routes",
+        ...(searchTerm && { "Search Term": `"${searchTerm}"` }),
+        ...(filters.school && { School: schoolOptions.find((s) => s.value === filters.school)?.label || filters.school }),
+        ...(filters.branch && { Branch: filterBranchOptions.find((b) => b.value === filters.branch)?.label || filters.branch }),
+        Role: role || "Unknown",
+      },
+    });
   };
 
   const { table, tableElement } = CustomTableServerSidePagination({
-    data: filteredData || [],
+    data: routes,
     columns,
     pagination,
-    totalCount: filteredData.length, // Use filtered data length for pagination
+    totalCount,
     loading: isLoading || isFetching,
     onPaginationChange: setPagination,
     onSortingChange: setSorting,
     sorting,
     columnVisibility,
     onColumnVisibilityChange: setColumnVisibility,
-    emptyMessage: "No routes found",
+    emptyMessage: isSearchActive || isFilterActive ? "No routes found matching your search/filter criteria" : "No routes found",
     pageSizeOptions: [5, 10, 20, 30, 50],
     enableSorting: true,
     showSerialNumber: true,
@@ -624,126 +632,59 @@ export default function RoutesMaster() {
     <main>
       <ResponseLoader isLoading={isLoading || isFetching} />
 
-      <header className="flex items-center justify-between mb-4">
-        <section className="flex space-x-4">
-          <SearchComponent
-            data={allRoutesData} // Use all data for search
-            displayKey={["routeNumber", "deviceObjId.name", "schoolId.schoolName", "branchId.branchName"]}
-            onResults={handleSearch}
-            onClear={handleSearchClear} // Reset when search is cleared
-            className="w-[300px] mb-4"
-          />
-
-          <ColumnVisibilitySelector
-            columns={table.getAllColumns()}
-            buttonVariant="outline"
-            buttonSize="default"
-          />
+      <header className="flex items-center gap-4 mb-4 justify-between">
+        <section className="flex space-x-2 items-center">
+          <div className="relative">
+            <SearchBar value={searchTerm} onChange={setSearchTerm} placeholder="Search by route number..." width="w-[230px]" />
+          </div>
+          <ColumnVisibilitySelector columns={table?.getAllColumns() || []} buttonVariant="outline" />
+          <div className="flex items-center gap-2">
+            {isSuperAdmin && (
+              <div className="w-33">
+                <Combobox items={schoolOptions} value={filters.school} onValueChange={(v) => handleFilterChange("school", v)} placeholder="Select School" searchPlaceholder="Search schools..." emptyMessage="No school found." width="w-full" />
+              </div>
+            )}
+            {!isBranchRole && (
+              <div className="w-33">
+                <Combobox items={filterBranchOptions} value={filters.branch} onValueChange={(v) => handleFilterChange("branch", v)} placeholder={!isSchoolRole && isSuperAdmin && !filters.school ? "Select School First" : "Select Branch"} searchPlaceholder="Search branches..." emptyMessage="No branch found." width="w-full" disabled={isSuperAdmin && !filters.school} />
+              </div>
+            )}
+          </div>
         </section>
 
         {(isSuperAdmin || isSchoolRole || isBranchRole || isBranchGroupRole) && (
           <Dialog>
-            <DialogTrigger asChild>
-              <Button variant="default">Add Route</Button>
+            <DialogTrigger asChild onClick={() => { setDevice(""); setDeviceSearch(""); setSchool(""); setBranch(""); setSchoolSearch(""); setBranchSearch(""); setEditTarget(null); }}>
+              <Button variant="default" className="flex items-center gap-2 cursor-pointer">Add Route</Button>
             </DialogTrigger>
-
             <DialogContent className="sm:max-w-[600px]">
               <form onSubmit={handleSubmit} className="space-y-4">
-                <DialogHeader>
-                  <DialogTitle>Add Route</DialogTitle>
-                </DialogHeader>
-
+                <DialogHeader><DialogTitle>Add Route</DialogTitle></DialogHeader>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="grid gap-2">
-                    <Label htmlFor="routeNumber">Route Number</Label>
+                    <Label htmlFor="routeNumber">Route Number *</Label>
                     <Input id="routeNumber" name="routeNumber" placeholder="Enter route number" required />
                   </div>
-
                   {isSuperAdmin && (
                     <div className="grid gap-2">
                       <Label>School *</Label>
-                      <Combobox
-                        items={schoolOptions}
-                        value={school}
-                        onValueChange={setSchool}
-                        placeholder="Select school..."
-                        searchPlaceholder="Search schools..."
-                        emptyMessage="No school found"
-                        width="w-full"
-                        onSearchChange={setSchoolSearch}
-                        searchValue={schoolSearch}
-                      />
+                      <Combobox items={schoolOptions} value={school} onValueChange={(v) => { setSchool(v); setBranch(""); setBranchSearch(""); }} placeholder="Select school..." searchPlaceholder="Search schools..." emptyMessage="No school found" width="w-full" onSearchChange={setSchoolSearch} searchValue={schoolSearch} />
                     </div>
                   )}
-
                   {(isSuperAdmin || isSchoolRole || isBranchGroupRole) && (
                     <div className="grid gap-2">
                       <Label>Branch *</Label>
-                      <Combobox
-                        items={filteredBranchOptions}
-                        value={branch}
-                        onValueChange={setBranch}
-                        placeholder={
-                          filteredBranchOptions.length 
-                            ? "Select branch..." 
-                            : school 
-                              ? "No branches found for selected school"
-                              : isBranchGroupRole && userSchoolName 
-                                ? `No branches found for ${userSchoolName}`
-                                : "Select school first"
-                        }
-                        searchPlaceholder="Search branches..."
-                        emptyMessage={
-                          filteredBranchOptions.length 
-                            ? "No results" 
-                            : school
-                              ? "No branches found for selected school"
-                              : isBranchGroupRole && userSchoolName
-                                ? `No branches found for ${userSchoolName}`
-                                : "Select school first"
-                        }
-                        width="w-full"
-                        onSearchChange={setBranchSearch}
-                        searchValue={branchSearch}
-                        disabled={!school && !(isBranchGroupRole && userSchoolId)}
-                      />
+                      <Combobox items={addFormBranchOptions} value={branch} onValueChange={setBranch} placeholder={isSchoolRole || isBranchGroupRole ? "Select branch..." : !school ? "Select school first" : "Select branch..."} searchPlaceholder="Search branches..." emptyMessage={isSchoolRole || isBranchGroupRole ? addFormBranchOptions.length === 0 ? "No branches found for your school" : "No branch found" : !school ? "Please select a school first" : "No branches found for this school"} width="w-full" onSearchChange={setBranchSearch} searchValue={branchSearch} disabled={isSuperAdmin && !school} />
                     </div>
                   )}
-
                   <div className="grid gap-2">
                     <Label>Device *</Label>
-                    <Combobox
-                      items={deviceItems}
-                      value={device}
-                      onValueChange={setDevice}
-                      placeholder={!branch ? "Select branch first" : "Search device..."}
-                      searchPlaceholder="Search devices..."
-                      emptyMessage={
-                        !branch ? "Select a branch first" : "No device found"
-                      }
-                      width="w-full"
-                      onSearchChange={setDeviceSearch}
-                      searchValue={deviceSearch}
-                      onReachEnd={handleDeviceReachEnd}
-                      isLoadingMore={isFetchingNextPage}
-                      disabled={!branch}
-                    />
-                  </div>
-
-                  <div className="flex items-center gap-3 mt-6">
-                    <input type="checkbox" id="isActive" name="isActive" className="h-3 w-3" defaultChecked />
-                    <Label htmlFor="isActive">Active Status</Label>
+                    <Combobox items={deviceItems} value={device} onValueChange={setDevice} placeholder={!branch ? "Select branch first" : "Search device..."} searchPlaceholder="Search devices..." emptyMessage={!branch ? "Select a branch first" : "No device found"} width="w-full" onSearchChange={setDeviceSearch} searchValue={deviceSearch} onReachEnd={handleDeviceReachEnd} isLoadingMore={isFetchingNextPage} disabled={!branch} />
                   </div>
                 </div>
-
                 <DialogFooter>
-                  <DialogClose asChild>
-                    <Button ref={closeButtonRef} variant="outline">Cancel</Button>
-                  </DialogClose>
-
-                  <Button type="submit" disabled={addRouteMutation.isPending}>
-                    {addRouteMutation.isPending ? "Saving..." : "Save Route"}
-                  </Button>
+                  <DialogClose asChild><Button ref={closeButtonRef} variant="outline">Cancel</Button></DialogClose>
+                  <Button type="submit" disabled={addRouteMutation.isPending}>{addRouteMutation.isPending ? "Saving..." : "Save Route"}</Button>
                 </DialogFooter>
               </form>
             </DialogContent>
@@ -751,19 +692,24 @@ export default function RoutesMaster() {
         )}
       </header>
 
+      {activeFilters.length > 0 && (
+        <div className="mb-4 flex items-center gap-2 flex-wrap">
+          <span className="text-sm font-medium text-gray-700">Active Filters:</span>
+          {activeFilters.map((filter) => (
+            <FilterBadge key={filter.key} label={filter.label} value={filter.value} onRemove={() => clearFilter(filter.key)} />
+          ))}
+          <Button variant="ghost" size="sm" onClick={clearFilters} className="h-6 px-2 text-xs text-red-600 hover:text-red-800 hover:bg-red-50">Clear All</Button>
+        </div>
+      )}
+
       <section className="mb-4">{tableElement}</section>
 
       {deleteTarget && (
-        <Alert<Route>
-          title="Are you absolutely sure?"
-          description={`This will permanently delete route ${deleteTarget?.routeNumber}.`}
-          actionButton={(target) => deleteRouteMutation.mutate(target._id)}
-          target={deleteTarget}
-          setTarget={setDeleteTarget}
-          butttonText="Delete"
-          className="max-w-sm mx-auto"
-          contentClassName="w-full px-4"
-        />
+        <div className="flex justify-center items-center">
+          <div className="w-[350px] max-w-[350px]">
+            <Alert<Route> title="Are you absolutely sure?" description={`This will permanently delete route ${deleteTarget?.routeNumber || "this route"} and all associated data.`} actionButton={(target) => deleteRouteMutation.mutate(target._id)} target={deleteTarget} setTarget={setDeleteTarget} butttonText="Delete" />
+          </div>
+        </div>
       )}
 
       {editTarget && (
@@ -775,33 +721,20 @@ export default function RoutesMaster() {
             deviceObjId: typeof editTarget.deviceObjId === "object" ? editTarget.deviceObjId?._id : editTarget.deviceObjId,
           }}
           isOpen={editDialogOpen}
-          onClose={() => {
-            setEditDialogOpen(false);
-            setEditTarget(null);
-          }}
+          onClose={() => { setEditDialogOpen(false); setEditTarget(null); }}
           onSave={handleSave}
-          fields={getRouteFieldConfigs(schoolOptions, branchOptions, deviceItems)}
+          fields={getRouteFieldConfigs(schoolOptions, addFormBranchOptions, enrichedDeviceItems).filter((field) => {
+            if (field.key === "schoolId" && (isSchoolRole || isBranchRole)) return false;
+            if (field.key === "branchId" && isBranchRole) return false;
+            return true;
+          })}
           title="Edit Route"
           description="Update the route information below."
+          loading={updateRouteMutation.isPending}
         />
       )}
 
-      <FloatingMenu
-        onExportPdf={() =>
-          exportToPDF(filteredData, columnsForExport, {
-            title: "Routes Master Report",
-            companyName: "Parents Eye",
-            metadata: { Total: `${filteredData.length} routes` },
-          })
-        }
-        onExportExcel={() =>
-          exportToExcel(filteredData, columnsForExport, {
-            title: "Routes Master Report",
-            companyName: "Parents Eye",
-            metadata: { Total: `${filteredData.length} routes` },
-          })
-        }
-      />
+      <FloatingMenu onExportPdf={handleExportPdf} onExportExcel={handleExportExcel} />
     </main>
   );
 }
