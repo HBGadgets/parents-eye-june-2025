@@ -18,10 +18,10 @@ import type { Branch, Geofence, Route, School } from "@/interface/modal";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/services/apiService";
 import { Alert } from "@/components/Alert";
-import { useBranchData } from "@/hooks/useBranchData"; 
+import { useBranchData } from "@/hooks/useBranchData";
 import { useInfiniteRouteData } from "@/hooks/useInfiniteRouteData";
 import { FloatingMenu } from "@/components/floatingMenu";
-import { useExport } from "@/hooks/useExport"; 
+import { useExport } from "@/hooks/useExport";
 import { useGeofences } from "@/hooks/useGeofence";
 
 export default function GeofenceClient() {
@@ -59,7 +59,7 @@ export default function GeofenceClient() {
   });
 
   const { data: branchData } = useBranchData();
-  const { data: routeData } = useInfiniteRouteData(); 
+  const { data: routeData } = useInfiniteRouteData();
 
   // Debounce Geofence name search input
   useEffect(() => {
@@ -86,7 +86,7 @@ export default function GeofenceClient() {
   });
 
   useEffect(() => {
-    console.log("Geofence data:", geofenceData);
+    // console.log("Geofence data:", geofenceData);
   }, [geofenceData]);
 
   const handleDialogChange = (isOpen: boolean) => {
@@ -172,7 +172,7 @@ export default function GeofenceClient() {
             size="sm"
             onClick={() => {
               const geofence = row.original;
-              console.log("🔧 Edit button clicked for geofence:", geofence._id);
+              // console.log("🔧 Edit button clicked for geofence:", geofence._id);
 
               setMode("edit");
               setGeofenceId(geofence._id);
@@ -203,7 +203,7 @@ export default function GeofenceClient() {
               setGeofenceRouteId(foundRoute);
 
               if (geofence.area?.center) {
-                console.log("📍 Geofence coordinates:", geofence.area.center);
+                // console.log("📍 Geofence coordinates:", geofence.area.center);
               }
 
               setOpen(true);
