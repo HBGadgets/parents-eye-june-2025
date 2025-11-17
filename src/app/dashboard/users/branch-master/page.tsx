@@ -284,7 +284,6 @@ export default function BranchMaster() {
   const [userBranchId, setUserBranchId] = useState<string | null>(null);
   const [userSchoolName, setUserSchoolName] = useState<string | null>(null);
 
-
   // Get user info from token
   useEffect(() => {
     const token = getAuthToken();
@@ -295,38 +294,43 @@ export default function BranchMaster() {
       const role = (decoded?.role || "").toLowerCase();
       setRole(role);
 
-      // Handle schoolId based on role 
-      if (role === "school" || role === "schooladmin" /* || role === "branchgroup" */) {
-        // For school and branchGroup roles, use 'id' field from token as schoolId
-        setUserSchoolId(decoded?.id || null);
+      // CORRECTED: Handle schoolId based on role - FIXED FOR BRANCHGROUP
+      let schoolIdToUse = null;
+      
+      if (role === "school" || role === "schooladmin") {
+        // For school roles, use 'id' field from token as schoolId
+        schoolIdToUse = decoded?.id || null;
         console.log(`[${role} Role] Using schoolId from 'id' field:`, decoded?.id);
-      } else if (role === "branch" || role === "branchadmin") {
-        // For branch role, use 'schoolId' field from token
-        setUserSchoolId(decoded?.schoolId || null);
-        console.log("[Branch Role] Using schoolId from 'schoolId' field:", decoded?.schoolId);
+      } else if (role === "branchgroup" || role === "branch" || role === "branchadmin") {
+        // For branchGroup, branch, and branchadmin roles, use 'schoolId' field from token
+        schoolIdToUse = decoded?.schoolId || null;
+        console.log(`[${role} Role] Using schoolId from 'schoolId' field:`, decoded?.schoolId);
       } else {
         // For superadmin or other roles, use schoolId if available
-        setUserSchoolId(decoded?.schoolId || null);
-        console.log("[Other Role] Using schoolId from 'schoolId' field:", decoded?.schoolId);
+        schoolIdToUse = decoded?.schoolId || null;
+        console.log(`[${role} Role] Using schoolId from 'schoolId' field:`, decoded?.schoolId);
       }
 
       // Handle branchId - for branch role, use 'id' field as branchId
+      let branchIdToUse = null;
       if (role === "branch" || role === "branchadmin") {
-        setUserBranchId(decoded?.id || null);
+        branchIdToUse = decoded?.id || null;
         console.log("[Branch Role] Using branchId from 'id' field:", decoded?.id);
       } else {
-        setUserBranchId(decoded?.branchId || null);
+        branchIdToUse = decoded?.branchId || null;
         console.log("[Other Role] Using branchId from 'branchId' field:", decoded?.branchId);
       }
       
-      // Handle schoolName
+      // Set all state at once to prevent multiple re-renders
+      setUserSchoolId(schoolIdToUse);
+      setUserBranchId(branchIdToUse);
       setUserSchoolName(decoded?.schoolName || null);
 
       console.log("[Branch Master - Final User Info]:", {
         role,
-        userSchoolId: decoded?.id || decoded?.schoolId,
-        userBranchId,
-        userSchoolName
+        userSchoolId: schoolIdToUse,
+        userBranchId: branchIdToUse,
+        userSchoolName: decoded?.schoolName
       });
     }
   }, []);
@@ -336,40 +340,84 @@ export default function BranchMaster() {
     if (["superadmin", "super_admin", "admin", "root"].includes(r)) return "superAdmin";
     if (["school", "schooladmin"].includes(r)) return "school";
     if (["branch", "branchadmin"].includes(r)) return "branch";
-    // if (["branchgroup"].includes(r)) return "branchGroup"; 
+    if (["branchgroup"].includes(r)) return "branchGroup"; 
     return undefined;
   }, [role]);
 
   const isSuperAdmin = normalizedRole === "superAdmin";
   const isSchoolRole = normalizedRole === "school";
   const isBranchRole = normalizedRole === "branch";
-  // const isBranchGroup = normalizedRole === "branchGroup"; 
-  // Fetch branch data with role-based filtering
+  const isBranchGroup = normalizedRole === "branchGroup"; 
+
+  // Fetch branch data with role-based filtering and schoolId parameter for branchGroup
   const {
     data: branchs,
     isLoading,
     isError,
     error,
   } = useQuery<branch[]>({
-    queryKey: ["branchs"],
+    queryKey: ["branchs", userSchoolId, normalizedRole],
     queryFn: async () => {
-      const res = await api.get<branch[]>("/branch");
-      return res;
+      // For all roles except superadmin, pass schoolId as parameter to get only relevant branches
+      if (!isSuperAdmin && userSchoolId) {
+        console.log("[Branch Master - Fetching with schoolId param]:", {
+          role: normalizedRole,
+          userSchoolId,
+          isBranchGroup
+        });
+        const res = await api.get<branch[]>(`/branch?schoolId=${userSchoolId}`);
+        return res;
+      } else {
+        // For superadmin, get all branches
+        const res = await api.get<branch[]>("/branch");
+        return res;
+      }
     },
+    enabled: !isSuperAdmin ? !!userSchoolId : true, // Only fetch when schoolId is available for non-superadmin roles
   });
 
-  // Filter branches based on user role
+  // Filter branches based on user role - FIXED for branchGroup
   const filteredBranches = useMemo(() => {
     if (!branchs) return [];
     
+    console.log("[Branch Master - Filtering Branches]:", {
+      totalBranches: branchs.length,
+      role: normalizedRole,
+      userSchoolId,
+      userBranchId,
+      isBranchGroup
+    });
+
     if (isSchoolRole && userSchoolId) {
-      return branchs.filter((branch) => branch.schoolId._id === userSchoolId);
+      const filtered = branchs.filter((branch) => branch.schoolId._id === userSchoolId);
+      console.log("[School Role Filtered]:", filtered.length);
+      return filtered;
     } else if (isBranchRole && userBranchId) {
       // For branch role, they should only see their own branch
-      return branchs.filter((branch) => branch._id === userBranchId);
+      const filtered = branchs.filter((branch) => branch._id === userBranchId);
+      console.log("[Branch Role Filtered]:", filtered.length);
+      return filtered;
+    } else if (isBranchGroup && userSchoolId) {
+      // For branchGroup role, show all branches for their school
+      const filtered = branchs.filter((branch) => {
+        // Handle both cases where schoolId might be an object or string
+        const branchSchoolId = typeof branch.schoolId === 'object' 
+          ? branch.schoolId._id 
+          : branch.schoolId;
+        return branchSchoolId === userSchoolId;
+      });
+      console.log("[BranchGroup Role Filtered]:", {
+        filteredCount: filtered.length,
+        userSchoolId,
+        branchSchoolIds: branchs.map(b => typeof b.schoolId === 'object' ? b.schoolId._id : b.schoolId)
+      });
+      return filtered;
     }
+    
+    // For superadmin, return all branches
+    console.log("[SuperAdmin - Returning all branches]:", branchs.length);
     return branchs;
-  }, [branchs, isSchoolRole, isBranchRole, userSchoolId, userBranchId]);
+  }, [branchs, isSchoolRole, isBranchRole, isBranchGroup, userSchoolId, userBranchId, isSuperAdmin, normalizedRole]);
 
   // School data - Convert to Combobox format with role-based filtering
   const schoolOptions = useMemo(() => {
@@ -378,7 +426,7 @@ export default function BranchMaster() {
     let filteredSchools = schoolData;
     
     // Filter schools based on role
-    if ((isSchoolRole /* || isBranchGroup */) && userSchoolId) {
+    if ((isSchoolRole || isBranchGroup) && userSchoolId) {
       filteredSchools = schoolData.filter(s => s._id === userSchoolId);
     } else if (isBranchRole && userSchoolId) {
       filteredSchools = schoolData.filter(s => s._id === userSchoolId);
@@ -389,19 +437,19 @@ export default function BranchMaster() {
         label: s.schoolName, 
         value: s._id 
       }));
-  }, [schoolData, isSchoolRole, isBranchRole, /* isBranchGroup, */ userSchoolId]);
+  }, [schoolData, isSchoolRole, isBranchRole, isBranchGroup, userSchoolId]);
 
   // Set default school for school, branch, and branch group roles
   useEffect(() => {
-    if ((isSchoolRole || isBranchRole /* || isBranchGroup */) && userSchoolId && !school) {
+    if ((isSchoolRole || isBranchRole || isBranchGroup) && userSchoolId && !school) {
       setSchool(userSchoolId);
       console.log("[Branch Master - Setting Default School]:", {
         role: normalizedRole,
         userSchoolId,
-        // isBranchGroup
+        isBranchGroup
       });
     }
-  }, [isSchoolRole, isBranchRole, /* isBranchGroup, */ userSchoolId, school]);
+  }, [isSchoolRole, isBranchRole, isBranchGroup, userSchoolId, school, normalizedRole]);
 
   useEffect(() => {
     if (filteredBranches && filteredBranches.length > 0) {
@@ -480,7 +528,7 @@ export default function BranchMaster() {
       meta: { flex: 1, minWidth: 150, maxWidth: 300 },
       enableHiding: true,
     },
-    ...((isSuperAdmin || isSchoolRole) ? [{
+    ...((isSuperAdmin || isSchoolRole || isBranchGroup) ? [{
       header: "Access",
       accessorFn: (row) => ({
         type: "group",
@@ -518,7 +566,7 @@ export default function BranchMaster() {
             },
             disabled: accessMutation.isPending,
           },
-          ...((isSuperAdmin || isSchoolRole)
+          ...((isSuperAdmin || isSchoolRole || isBranchGroup)
             ? [
                 {
                   type: "button",
@@ -553,7 +601,7 @@ export default function BranchMaster() {
     { key: "password", header: "branch Password" },
     { key: "subscriptionExpirationDate", header: "Expiration Date" },
     { key: "createdAt", header: "Registration Date" },
-    ...((isSuperAdmin || isSchoolRole) ? [{
+    ...((isSuperAdmin || isSchoolRole || isBranchGroup) ? [{
       key: "fullAccess",
       header: "Access Level",
       formatter: (val: boolean) => (val ? "Full Access" : "Limited Access"),
@@ -688,25 +736,25 @@ export default function BranchMaster() {
     e.preventDefault();
     const form = e.currentTarget;
     
-    // Role-based school selection - FIXED for branchGroup
-    // let selectedSchool = school;
+    // Role-based school selection
+    let selectedSchool = school;
     
-    // if (isSchoolRole || isBranchRole || isBranchGroup) {
-    //   selectedSchool = userSchoolId || "";
-    //   console.log("[Branch Master - School Selection]:", {
-    //     role: normalizedRole,
-    //     userSchoolId,
-    //     selectedSchool,
-    //     isBranchGroup
-    //   });
-    // }
+    if (isSchoolRole || isBranchRole || isBranchGroup) {
+      selectedSchool = userSchoolId || "";
+      console.log("[Branch Master - School Selection]:", {
+        role: normalizedRole,
+        userSchoolId,
+        selectedSchool,
+        isBranchGroup
+      });
+    }
     
     // Validate school selection with better error info
     if (!selectedSchool) {
       console.error("[Branch Master - School Selection Error]:", {
         role: normalizedRole,
         userSchoolId,
-        // isBranchGroup,
+        isBranchGroup,
         school,
         token: getAuthToken() ? 'present' : 'missing'
       });
@@ -732,14 +780,14 @@ export default function BranchMaster() {
       password: form.password.value,
       email: form.email.value,
       subscriptionExpirationDate: formattedDate,
-      fullAccess: isSuperAdmin || isSchoolRole ? form.fullAccess?.checked : false,
+      fullAccess: (isSuperAdmin || isSchoolRole || isBranchGroup) ? form.fullAccess?.checked : false,
     };
 
     console.log("[Branch Master - Submitting Branch Data]:", {
       data,
       role: normalizedRole,
       userSchoolId,
-      // isBranchGroup,
+      isBranchGroup,
       selectedSchool
     });
 
@@ -757,6 +805,7 @@ export default function BranchMaster() {
       alert(`Failed to add branch: ${err.response?.data?.message || err.message}`);
     }
   };
+
   const handleDateFilter = useCallback(
     (start: Date | null, end: Date | null) => {
       if (!filteredBranches || (!start && !end)) {
@@ -804,7 +853,7 @@ export default function BranchMaster() {
             onDateRangeChange={handleDateFilter}
             title="Search by Registration Date"
           />
-          {((isSuperAdmin || isSchoolRole)) && (
+          {((isSuperAdmin || isSchoolRole || isBranchGroup)) && (
             <CustomFilter
               data={filterResults}
               originalData={filterResults}
@@ -828,7 +877,7 @@ export default function BranchMaster() {
         </section>
 
         <section>
-          {(isSuperAdmin || isSchoolRole /* || isBranchGroup */) && (
+          {(isSuperAdmin || isSchoolRole || isBranchGroup) && (
             <Dialog>
               <DialogTrigger asChild>
                 <Button variant="default">Add branch</Button>
@@ -868,7 +917,7 @@ export default function BranchMaster() {
                     )}
                     
                     {/* Show school info for non-superadmin roles */}
-                    {(isSchoolRole /* || isBranchGroup */) && userSchoolName && (
+                    {(isSchoolRole || isBranchGroup) && userSchoolName && (
                       <div className="grid gap-2">
                         <Label htmlFor="schoolInfo">School</Label>
                         <Input
@@ -947,8 +996,8 @@ export default function BranchMaster() {
                       />
                     </div>
 
-                    {/* Full Access checkbox - only for superadmin and school roles */}
-                    {(isSuperAdmin || isSchoolRole) && (
+                    {/* Full Access checkbox - only for superadmin, school, and branchGroup roles */}
+                    {(isSuperAdmin || isSchoolRole || isBranchGroup) && (
                       <div className="flex items-center gap-3 mt-6">
                         <input
                           type="checkbox"
@@ -995,7 +1044,7 @@ export default function BranchMaster() {
 
       <section>
         <div>
-          {((isSuperAdmin || isSchoolRole)) && (
+          {((isSuperAdmin || isSchoolRole || isBranchGroup)) && (
             <Alert<branchAccess>
               title="Are you absolutely sure?"
               description={`You are about to give ${accessTarget?.branchName} ${
