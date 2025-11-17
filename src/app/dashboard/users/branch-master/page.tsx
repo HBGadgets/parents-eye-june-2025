@@ -56,6 +56,7 @@ interface DecodedToken {
   branchId?: string;
   id?: string;
   schoolName?: string;
+  AssignedBranch?: Array<{_id: string; username: string}>;
   [key: string]: any;
 }
 
@@ -279,12 +280,23 @@ export default function BranchMaster() {
   const [isVerificationDialogOpen, setIsVerificationDialogOpen] = useState(false);
   const [isVerified, setIsVerified] = useState(false);
   const [currentProtectedField, setCurrentProtectedField] = useState<string | null>(null);
-  const [role, setRole] = useState<string | null>(null);
-  const [userSchoolId, setUserSchoolId] = useState<string | null>(null);
-  const [userBranchId, setUserBranchId] = useState<string | null>(null);
-  const [userSchoolName, setUserSchoolName] = useState<string | null>(null);
+  
+  // FIXED: Combine all user info into a single state to avoid synchronization issues
+  const [userInfo, setUserInfo] = useState<{
+    role: string | null;
+    userSchoolId: string | null;
+    userBranchId: string | null;
+    userSchoolName: string | null;
+    assignedBranches: string[];
+  }>({
+    role: null,
+    userSchoolId: null,
+    userBranchId: null,
+    userSchoolName: null,
+    assignedBranches: []
+  });
 
-  // Get user info from token
+  // Get user info from token - FIXED: Single useEffect to set all user info
   useEffect(() => {
     const token = getAuthToken();
     if (token) {
@@ -292,48 +304,58 @@ export default function BranchMaster() {
       console.log("[Branch Master - Decoded Token]: ", decoded);
       
       const role = (decoded?.role || "").toLowerCase();
-      setRole(role);
 
-      // CORRECTED: Handle schoolId based on role - FIXED FOR BRANCHGROUP
+      // Handle schoolId based on role
       let schoolIdToUse = null;
       
       if (role === "school" || role === "schooladmin") {
-        // For school roles, use 'id' field from token as schoolId
         schoolIdToUse = decoded?.id || null;
-        console.log(`[${role} Role] Using schoolId from 'id' field:`, decoded?.id);
       } else if (role === "branchgroup" || role === "branch" || role === "branchadmin") {
-        // For branchGroup, branch, and branchadmin roles, use 'schoolId' field from token
         schoolIdToUse = decoded?.schoolId || null;
-        console.log(`[${role} Role] Using schoolId from 'schoolId' field:`, decoded?.schoolId);
       } else {
-        // For superadmin or other roles, use schoolId if available
         schoolIdToUse = decoded?.schoolId || null;
-        console.log(`[${role} Role] Using schoolId from 'schoolId' field:`, decoded?.schoolId);
       }
 
-      // Handle branchId - for branch role, use 'id' field as branchId
+      // Handle branchId
       let branchIdToUse = null;
       if (role === "branch" || role === "branchadmin") {
         branchIdToUse = decoded?.id || null;
-        console.log("[Branch Role] Using branchId from 'id' field:", decoded?.id);
       } else {
         branchIdToUse = decoded?.branchId || null;
-        console.log("[Other Role] Using branchId from 'branchId' field:", decoded?.branchId);
       }
       
-      // Set all state at once to prevent multiple re-renders
-      setUserSchoolId(schoolIdToUse);
-      setUserBranchId(branchIdToUse);
-      setUserSchoolName(decoded?.schoolName || null);
-
-      console.log("[Branch Master - Final User Info]:", {
+      // Handle assigned branches for branchGroup role
+      let assignedBranchIds: string[] = [];
+      if (role === "branchgroup" && decoded?.AssignedBranch) {
+        assignedBranchIds = decoded.AssignedBranch.map((branch: any) => branch._id);
+        console.log("[BranchGroup Role] Assigned Branches extracted:", {
+          assignedBranchIds,
+          rawAssignedBranches: decoded.AssignedBranch
+        });
+      }
+      
+      // FIXED: Set all user info in one state update
+      setUserInfo({
         role,
         userSchoolId: schoolIdToUse,
         userBranchId: branchIdToUse,
-        userSchoolName: decoded?.schoolName
+        userSchoolName: decoded?.schoolName || null,
+        assignedBranches: assignedBranchIds
+      });
+
+      console.log("[Branch Master - Final User Info SET]:", {
+        role,
+        userSchoolId: schoolIdToUse,
+        userBranchId: branchIdToUse,
+        userSchoolName: decoded?.schoolName,
+        assignedBranches: assignedBranchIds,
+        assignedBranchesCount: assignedBranchIds.length
       });
     }
   }, []);
+
+  // Destructure userInfo for easier access
+  const { role, userSchoolId, userBranchId, userSchoolName, assignedBranches } = userInfo;
 
   const normalizedRole = useMemo(() => {
     const r = (role || "").toLowerCase();
@@ -349,75 +371,138 @@ export default function BranchMaster() {
   const isBranchRole = normalizedRole === "branch";
   const isBranchGroup = normalizedRole === "branchGroup"; 
 
-  // Fetch branch data with role-based filtering and schoolId parameter for branchGroup
+  // FIXED: Fetch branch data with proper dependency tracking
   const {
-    data: branchs,
+    data: branches,
     isLoading,
     isError,
     error,
   } = useQuery<branch[]>({
-    queryKey: ["branchs", userSchoolId, normalizedRole],
+    queryKey: ["branches", userSchoolId, normalizedRole, assignedBranches],
     queryFn: async () => {
-      // For all roles except superadmin, pass schoolId as parameter to get only relevant branches
-      if (!isSuperAdmin && userSchoolId) {
+      console.log("[Branch Master - QueryFn Executing]:", {
+        isBranchGroup,
+        assignedBranches,
+        assignedBranchesCount: assignedBranches?.length || 0,
+        userSchoolId,
+        normalizedRole
+      });
+
+      // For branchGroup
+      if (isBranchGroup) {
+        console.log("[Branch Master - BranchGroup: Fetching ALL branches]:", {
+          assignedBranches,
+          assignedBranchesCount: assignedBranches.length
+        });
+        try {
+          const res = await api.get<branch[]>("/branch");
+          console.log("[Branch Master - BranchGroup API Response]:", {
+            url: "/branch",
+            totalBranches: res?.length,
+            assignedBranches,
+            responseBranches: res?.map(b => ({ id: b._id, name: b.branchName }))
+          });
+          return res || [];
+        } catch (error) {
+          console.error("[Branch Master - BranchGroup API Error]:", error);
+          return [];
+        }
+      }
+      // For school and branch roles, use schoolId parameter
+      else if (!isSuperAdmin && userSchoolId) {
         console.log("[Branch Master - Fetching with schoolId param]:", {
           role: normalizedRole,
-          userSchoolId,
-          isBranchGroup
+          userSchoolId
         });
-        const res = await api.get<branch[]>(`/branch?schoolId=${userSchoolId}`);
-        return res;
-      } else {
-        // For superadmin, get all branches
+        try {
+          const res = await api.get<branch[]>(`/branch?schoolId=${userSchoolId}`);
+          console.log("[Branch Master - API Response]:", {
+            url: `/branch?schoolId=${userSchoolId}`,
+            response: res,
+            responseLength: res?.length
+          });
+          return res || [];
+        } catch (error) {
+          console.error("[Branch Master - API Error]:", error);
+          return [];
+        }
+      } 
+      // For superadmin, get all branches
+      else {
         const res = await api.get<branch[]>("/branch");
-        return res;
+        return res || [];
       }
     },
-    enabled: !isSuperAdmin ? !!userSchoolId : true, // Only fetch when schoolId is available for non-superadmin roles
+    // FIXED: Simplified enabled condition
+    enabled: !!normalizedRole && (
+      isBranchGroup ? assignedBranches.length > 0 : 
+      (!isSuperAdmin ? !!userSchoolId : true)
+    ),
   });
 
-  // Filter branches based on user role - FIXED for branchGroup
+  // FIXED: Filter branches based on user role
   const filteredBranches = useMemo(() => {
-    if (!branchs) return [];
+    if (!branches) {
+      console.log("[Branch Master - No branches data]");
+      return [];
+    }
     
     console.log("[Branch Master - Filtering Branches]:", {
-      totalBranches: branchs.length,
+      totalBranches: branches.length,
       role: normalizedRole,
       userSchoolId,
       userBranchId,
-      isBranchGroup
+      isBranchGroup,
+      assignedBranches,
+      assignedBranchesCount: assignedBranches.length,
+      branches: branches.map(b => ({ 
+        id: b._id, 
+        name: b.branchName, 
+        schoolId: typeof b.schoolId === 'object' ? b.schoolId._id : b.schoolId 
+      }))
     });
 
     if (isSchoolRole && userSchoolId) {
-      const filtered = branchs.filter((branch) => branch.schoolId._id === userSchoolId);
-      console.log("[School Role Filtered]:", filtered.length);
-      return filtered;
-    } else if (isBranchRole && userBranchId) {
-      // For branch role, they should only see their own branch
-      const filtered = branchs.filter((branch) => branch._id === userBranchId);
-      console.log("[Branch Role Filtered]:", filtered.length);
-      return filtered;
-    } else if (isBranchGroup && userSchoolId) {
-      // For branchGroup role, show all branches for their school
-      const filtered = branchs.filter((branch) => {
-        // Handle both cases where schoolId might be an object or string
+      const filtered = branches.filter((branch) => {
         const branchSchoolId = typeof branch.schoolId === 'object' 
           ? branch.schoolId._id 
           : branch.schoolId;
         return branchSchoolId === userSchoolId;
       });
-      console.log("[BranchGroup Role Filtered]:", {
+      console.log("[School Role Filtered]:", filtered.length);
+      return filtered;
+    } else if (isBranchRole && userBranchId) {
+      const filtered = branches.filter((branch) => branch._id === userBranchId);
+      console.log("[Branch Role Filtered]:", filtered.length);
+      return filtered;
+    } else if (isBranchGroup && assignedBranches.length > 0) {
+      // FIXED: Filter branches that match assigned branch IDs
+      const filtered = branches.filter((branch) => {
+        const isInAssignedBranches = assignedBranches.includes(branch._id);
+        
+        if (isInAssignedBranches) {
+          console.log("[BranchGroup - Including Branch]:", {
+            branchId: branch._id,
+            branchName: branch.branchName
+          });
+        }
+        
+        return isInAssignedBranches;
+      });
+      
+      console.log("[BranchGroup Role Filtered - FINAL]:", {
         filteredCount: filtered.length,
-        userSchoolId,
-        branchSchoolIds: branchs.map(b => typeof b.schoolId === 'object' ? b.schoolId._id : b.schoolId)
+        assignedBranchesCount: assignedBranches.length,
+        assignedBranches,
+        filteredBranches: filtered.map(f => ({ id: f._id, name: f.branchName }))
       });
       return filtered;
     }
     
     // For superadmin, return all branches
-    console.log("[SuperAdmin - Returning all branches]:", branchs.length);
-    return branchs;
-  }, [branchs, isSchoolRole, isBranchRole, isBranchGroup, userSchoolId, userBranchId, isSuperAdmin, normalizedRole]);
+    console.log("[SuperAdmin - Returning all branches]:", branches.length);
+    return branches;
+  }, [branches, isSchoolRole, isBranchRole, isBranchGroup, userSchoolId, userBranchId, isSuperAdmin, normalizedRole, assignedBranches]);
 
   // School data - Convert to Combobox format with role-based filtering
   const schoolOptions = useMemo(() => {
@@ -460,6 +545,22 @@ export default function BranchMaster() {
       setFilterResults([]);
     }
   }, [filteredBranches]);
+
+  // Debug effect
+  useEffect(() => {
+    console.log("[Branch Master - Data Flow Debug]:", {
+      isLoading,
+      branchesCount: branches?.length,
+      filteredBranchesCount: filteredBranches?.length,
+      filteredDataCount: filteredData?.length,
+      filterResultsCount: filterResults?.length,
+      userSchoolId,
+      assignedBranches,
+      assignedBranchesCount: assignedBranches.length,
+      normalizedRole,
+      isBranchGroup
+    });
+  }, [isLoading, branches, filteredBranches, filteredData, filterResults, userSchoolId, assignedBranches, normalizedRole, isBranchGroup]);
 
   // Define the columns for the table
   const columns: ColumnDef<branch, CellContent>[] = [
@@ -582,9 +683,9 @@ export default function BranchMaster() {
       }),
       meta: { 
         flex: 1.5, 
-        minWidth: 200,  // ← Set fixed min width
-        maxWidth: 200,  // ← Set fixed max width
-        width: 200      // ← Add explicit width
+        minWidth: 200,
+        maxWidth: 200,
+        width: 200
       },
       enableSorting: false,
       enableHiding: true,
@@ -630,8 +731,8 @@ export default function BranchMaster() {
         }
       };
 
-      queryClient.setQueryData<branch[]>(["branchs"], (oldbranchs = []) => {
-        return [...oldbranchs, newBranchWithSchool];
+      queryClient.setQueryData<branch[]>(["branches"], (oldbranches = []) => {
+        return [...oldbranches, newBranchWithSchool];
       });
     },
   });
@@ -644,7 +745,7 @@ export default function BranchMaster() {
       });
     },
     onSuccess: (updated, variables) => {
-      queryClient.setQueryData<branch[]>(["branchs"], (oldData) =>
+      queryClient.setQueryData<branch[]>(["branches"], (oldData) =>
         oldData?.map((branch) =>
           branch._id === variables._id
             ? { ...branch, fullAccess: variables.fullAccess }
@@ -670,10 +771,10 @@ export default function BranchMaster() {
       return await api.put(`/branch/${branchId}`, data);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['branchs'] });
+      queryClient.invalidateQueries({ queryKey: ['branches'] });
       setEditDialogOpen(false);
       setEditTarget(null);
-      setIsVerified(false); // Reset verification state
+      setIsVerified(false);
       alert("branch updated successfully.");
     },
     onError: (err) => {
@@ -687,7 +788,7 @@ export default function BranchMaster() {
       return await api.delete(`/branch/${branchId}`);
     },
     onSuccess: (_, deletedId) => {
-      queryClient.setQueryData<branch[]>(["branchs"], (oldData) =>
+      queryClient.setQueryData<branch[]>(["branches"], (oldData) =>
         oldData?.filter((branch) => branch._id !== deletedId)
       );
       alert("branch deleted successfully.");
@@ -1037,7 +1138,7 @@ export default function BranchMaster() {
           maxHeight={600}
           minHeight={200}
           showSerialNumber={true}
-          noDataMessage="No branchs found"
+          noDataMessage="No branches found"
           isLoading={isLoading}
         />
       </section>
@@ -1116,7 +1217,7 @@ export default function BranchMaster() {
               title: "branch Master Report",
               companyName: "Parents Eye",
               metadata: {
-                Total: `${filteredData.length} branchs`,
+                Total: `${filteredData.length} branches`,
               },
             });
           }}
@@ -1125,7 +1226,7 @@ export default function BranchMaster() {
               title: "branch Master Report",
               companyName: "Parents Eye",
               metadata: {
-                Total: `${filteredData.length} branchs`,
+                Total: `${filteredData.length} branches`,
               },
             });
           }}
