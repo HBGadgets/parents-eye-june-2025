@@ -212,55 +212,48 @@ export default function StudentDetails() {
 
   const { exportToPDF, exportToExcel } = useExport();
 
-  // Get user role and permissions
   useEffect(() => {
     const token = Cookies.get("token");
     if (!token) return;
     
     try {
       const decoded = getDecodedToken(token);
-      console.log("Decoded Token:", decoded); // For debugging
       
       const userRole = (decoded?.role || "").toLowerCase();
       setRole(userRole);
       
-      // Extract schoolId and branchId based on role and token structure
       let schoolId = null;
       let branchId = null;
 
       if (userRole === "school" || userRole === "schooladmin") {
-        // For school role, schoolId might be in different fields
         schoolId = decoded?.schoolId || decoded?.id || decoded?.schoolID || decoded?._id;
         branchId = decoded?.branchId || null;
-        
-        if (schoolId) {
-          setUserSchoolId(schoolId);
-          setSelectedSchool(schoolId);
-          setFilters(prev => ({ ...prev, school: schoolId }));
-        }
       } else if (userRole === "branch" || userRole === "branchadmin") {
-        // For branch role, branchId might be in different fields
         branchId = decoded?.branchId || decoded?.id || decoded?.branchID || decoded?._id;
         schoolId = decoded?.schoolId || decoded?.schoolID;
+      } else if (userRole === "branchgroup") {
+        schoolId = decoded?.schoolId || decoded?.schoolID;
         
-        if (branchId) {
-          setUserBranchId(branchId);
-          setSelectedBranch(branchId);
-          setFilters(prev => ({ ...prev, branch: branchId }));
-        }
-        if (schoolId) {
-          setUserSchoolId(schoolId);
-          setSelectedSchool(schoolId);
-          setFilters(prev => ({ ...prev, school: schoolId }));
+        if (decoded?.AssignedBranch && Array.isArray(decoded.AssignedBranch) && decoded.AssignedBranch.length > 0) {
+          const firstBranch = decoded.AssignedBranch[0];
+          branchId = firstBranch._id;
         }
       } else if (["admin", "superadmin", "super_admin", "root"].includes(userRole)) {
-        // For super admin, no automatic school/branch selection
         schoolId = decoded?.schoolId || null;
         branchId = decoded?.branchId || null;
       }
-
-      console.log(`Role: ${userRole}, SchoolId: ${schoolId}, BranchId: ${branchId}`); // Debug log
       
+      if (schoolId) {
+        setUserSchoolId(schoolId);
+        setSelectedSchool(schoolId);
+        setFilters(prev => ({ ...prev, school: schoolId }));
+      }
+      if (branchId) {
+        setUserBranchId(branchId);
+        setSelectedBranch(branchId);
+        setFilters(prev => ({ ...prev, branch: branchId }));
+      }
+        
     } catch (error) {
       console.error("Error decoding token:", error);
     }
@@ -317,26 +310,60 @@ export default function StudentDetails() {
     queryFn: () => api.get<any[]>("/parent"),
   });
 
-  const studentFilters = useMemo(
-    () => ({
+  const studentFilters = useMemo(() => {
+    const filtersObj: any = {
       ...(debouncedSearchTerm && { search: debouncedSearchTerm.trim() }),
       ...(filters.school && { schoolId: filters.school }),
       ...(filters.branch && { branchId: filters.branch }),
       ...(filters.route && { routeObjId: filters.route }),
       ...(filters.pickupGeo && { pickupGeoId: filters.pickupGeo }),
       ...(filters.dropGeo && { dropGeoId: filters.dropGeo }),
-      ...(isSchoolRole && userSchoolId && { schoolId: userSchoolId }),
-      ...(isBranchRole && userBranchId && { branchId: userBranchId }),
-    }),
-    [
-      debouncedSearchTerm,
-      filters,
-      isSchoolRole,
-      userSchoolId,
-      isBranchRole,
-      userBranchId,
-    ]
-  );
+    };
+
+    if (isSchoolRole && userSchoolId) {
+      filtersObj.schoolId = userSchoolId;
+    }
+    
+    if (isBranchRole && userBranchId && role?.toLowerCase() !== "branchgroup") {
+      filtersObj.branchId = userBranchId;
+      if (userSchoolId) {
+        filtersObj.schoolId = userSchoolId;
+      }
+    }
+    
+    if (role?.toLowerCase() === "branchgroup" && userSchoolId) {
+      filtersObj.schoolId = userSchoolId;
+      
+      if (filters.branch) {
+        filtersObj.branchId = filters.branch;
+      } else {
+        const token = Cookies.get("token");
+        if (token) {
+          try {
+            const decoded = getDecodedToken(token);
+            if (decoded?.AssignedBranch && Array.isArray(decoded.AssignedBranch)) {
+              const branchIds = decoded.AssignedBranch.map((branch: any) => branch._id);
+              if (branchIds.length > 0) {
+                filtersObj.branchId = branchIds[0];
+              }
+            }
+          } catch (error) {
+            console.error("Error decoding token for branchGroup filters:", error);
+          }
+        }
+      }
+    }
+
+    return filtersObj;
+  }, [
+    debouncedSearchTerm,
+    filters,
+    isSchoolRole,
+    userSchoolId,
+    isBranchRole,
+    userBranchId,
+    role,
+  ]);
 
   const {
     data: studentsData,
@@ -359,7 +386,6 @@ export default function StudentDetails() {
     studentsData?.pagination?.total ??
     students.length;
 
-  // ✅ FIXED: Define schoolOptions
   const schoolOptions = useMemo(() => {
     return schools.map((s: School) => ({
       label: s.schoolName || `School ${s._id}`,
@@ -367,24 +393,86 @@ export default function StudentDetails() {
     }));
   }, [schools]);
 
-  // ✅ FIXED: Define branchOptions
   const branchOptions = useMemo(() => {
+    if (role?.toLowerCase() === "branchgroup" && userSchoolId) {
+      const token = Cookies.get("token");
+      if (token) {
+        try {
+          const decoded = getDecodedToken(token);
+          if (decoded?.AssignedBranch && Array.isArray(decoded.AssignedBranch)) {
+            return decoded.AssignedBranch.map((branch: any) => {
+              const fullBranchData = branches.find((b: Branch) => b._id === branch._id);
+              const branchName = fullBranchData?.branchName || branch.username || `Branch ${branch._id}`;
+              
+              return {
+                label: branchName,
+                value: branch._id,
+              };
+            });
+          }
+        } catch (error) {
+          console.error("Error decoding token for branch options:", error);
+        }
+      }
+      return branches
+        .filter((b) => getId(b.schoolId) === userSchoolId)
+        .map((b) => ({ 
+          label: b.branchName || b.username || `Branch ${b._id}`, 
+          value: b._id 
+        }));
+    }
+    
+    if ((isBranchRole && userBranchId) && role?.toLowerCase() !== "branchgroup") {
+      const userBranch = branches.find((b) => b._id === userBranchId);
+      return userBranch ? [{ label: userBranch.branchName, value: userBranch._id }] : [];
+    }
+    
     if (isSchoolRole && userSchoolId) {
       return branches
         .filter((b) => getId(b.schoolId) === userSchoolId)
         .map((b) => ({ label: b.branchName, value: b._id }));
     }
+    
     if (selectedSchool) {
       return branches
         .filter((b) => getId(b.schoolId) === selectedSchool)
         .map((b) => ({ label: b.branchName, value: b._id }));
     }
+    
     return branches.map((b) => ({ label: b.branchName, value: b._id }));
-  }, [branches, selectedSchool, isSchoolRole, userSchoolId]);
+  }, [branches, selectedSchool, isSchoolRole, userSchoolId, isBranchRole, userBranchId, role]);
 
-  // ✅ FIXED: Define routeOptions
   const routeOptions = useMemo(() => {
-    if (isBranchRole && userBranchId) {
+    if (role?.toLowerCase() === "branchgroup" && userSchoolId) {
+      const token = Cookies.get("token");
+      if (token) {
+        try {
+          const decoded = getDecodedToken(token);
+          if (decoded?.AssignedBranch && Array.isArray(decoded.AssignedBranch)) {
+            const assignedBranchIds = decoded.AssignedBranch.map((branch: any) => branch._id);
+            return routes
+              .filter((r) => assignedBranchIds.includes(getId(r.branchId)))
+              .map((r) => ({
+                label: r.routeNumber || `Route ${r.routeName || r._id}`,
+                value: r._id,
+              }));
+          }
+        } catch (error) {
+          console.error("Error decoding token for route options:", error);
+        }
+      }
+      const schoolBranches = branches
+        .filter((b) => getId(b.schoolId) === userSchoolId)
+        .map((b) => b._id);
+      return routes
+        .filter((r) => schoolBranches.includes(getId(r.branchId)))
+        .map((r) => ({
+          label: r.routeNumber || `Route ${r.routeName || r._id}`,
+          value: r._id,
+        }));
+    }
+    
+    if ((isBranchRole && userBranchId) && role?.toLowerCase() !== "branchgroup") {
       return routes
         .filter((r) => getId(r.branchId) === userBranchId)
         .map((r) => ({
@@ -392,6 +480,7 @@ export default function StudentDetails() {
           value: r._id,
         }));
     }
+    
     if (selectedBranch) {
       return routes
         .filter((r) => getId(r.branchId) === selectedBranch)
@@ -400,14 +489,13 @@ export default function StudentDetails() {
           value: r._id,
         }));
     }
+    
     return routes.map((r) => ({
       label: r.routeNumber || `Route ${r.routeName || r._id}`,
       value: r._id,
     }));
-  }, [routes, selectedBranch, isBranchRole, userBranchId]);
+  }, [routes, selectedBranch, isBranchRole, userBranchId, role, userSchoolId, branches]);
 
-  // ✅ FIXED: Define parentOptions - Only show parent name
-  // ✅ FIXED: Define parentOptions - Only show parent name
   const parentOptions = useMemo(() => {
     let filteredParents = parents;
 
@@ -415,7 +503,25 @@ export default function StudentDetails() {
       filteredParents = parents.filter(
         (p) => getId(p.schoolId) === userSchoolId
       );
-    } else if (isBranchRole && userBranchId) {
+    } else if (role?.toLowerCase() === "branchgroup" && userSchoolId) {
+      const token = Cookies.get("token");
+      if (token) {
+        try {
+          const decoded = getDecodedToken(token);
+          if (decoded?.AssignedBranch && Array.isArray(decoded.AssignedBranch)) {
+            const assignedBranchIds = decoded.AssignedBranch.map((branch: any) => branch._id);
+            filteredParents = parents.filter(
+              (p) => assignedBranchIds.includes(getId(p.branchId))
+            );
+          }
+        } catch (error) {
+          console.error("Error decoding token for parent options:", error);
+          filteredParents = parents.filter(
+            (p) => getId(p.schoolId) === userSchoolId
+          );
+        }
+      }
+    } else if ((isBranchRole && userBranchId) && role?.toLowerCase() !== "branchgroup") {
       filteredParents = parents.filter(
         (p) => getId(p.branchId) === userBranchId
       );
@@ -432,7 +538,7 @@ export default function StudentDetails() {
     }
 
     return filteredParents.map((p) => ({
-      label: p.parentName, // Only show parent name, removed mobile number
+      label: p.parentName,
       value: p._id,
     }));
   }, [
@@ -443,12 +549,12 @@ export default function StudentDetails() {
     userSchoolId,
     isBranchRole,
     userBranchId,
+    role
   ]);
-  // ✅ FIXED: More robust geofence name resolver
+
   const findGeofenceName = (geo: any) => {
     if (!geo) return "N/A";
 
-    // Case 1: It's an object
     if (typeof geo === "object") {
       if (geo.geofenceName) return geo.geofenceName;
       if (geo.name) return geo.name;
@@ -456,7 +562,6 @@ export default function StudentDetails() {
       return "N/A";
     }
 
-    // Case 2: It's an ID string — lookup in geofences list
     const found = geofences.find(
       (g: any) => g._id?.toString() === geo?.toString()
     );
@@ -465,7 +570,6 @@ export default function StudentDetails() {
       : "N/A";
   };
 
-  // Create geofence options and helper to resolve names (handles object or id)
   const geofenceOptions = useMemo(() => {
     return geofences.map((g: any) => ({
       label: g.geofenceName || `Geofence ${g._id}`,
@@ -473,39 +577,31 @@ export default function StudentDetails() {
     }));
   }, [geofences]);
 
-  // ✅ FIXED: Pickup and drop options for add student form - show ALL geofences when route is selected
   const routePickupOptions = useMemo(() => {
-    // When route is selected, show ALL geofences (not just route-specific ones)
     if (selectedRoute) {
       return geofenceOptions;
     }
-    // If no route selected, show empty options
     return [];
   }, [selectedRoute, geofenceOptions]);
 
   const routeDropOptions = useMemo(() => {
-    // When route is selected, show ALL geofences (not just route-specific ones)
     if (selectedRoute) {
       return geofenceOptions;
     }
-    // If no route selected, show empty options
     return [];
   }, [selectedRoute, geofenceOptions]);
 
   const addParentBranchOptions = useMemo(() => {
-    // For school role, show branches from the user's school
     if (isSchoolRole && userSchoolId) {
       return branches.filter(b => getId(b.schoolId) === userSchoolId)
         .map(b => ({ label: b.branchName, value: b._id }));
     }
     
-    // For super admin, show branches based on selected school
     if (isSuperAdmin && addParentSchool) {
       return branches.filter(b => getId(b.schoolId) === addParentSchool)
         .map(b => ({ label: b.branchName, value: b._id }));
     }
     
-    // For branch role, this shouldn't be shown but just in case
     if (isBranchRole && userBranchId) {
       const userBranch = branches.find(b => b._id === userBranchId);
       return userBranch ? [{ label: userBranch.branchName, value: userBranch._id }] : [];
@@ -530,28 +626,68 @@ export default function StudentDetails() {
     [editSelectedBranch, routes]
   );
 
-  // Filter options
   const filterBranchOptions = useMemo(() => {
-    if (isBranchRole && userBranchId) {
+    let options: { label: string; value: string }[] = [];
+
+    if (role?.toLowerCase() === "branchgroup" && userSchoolId) {
+      const token = Cookies.get("token");
+      if (token) {
+        try {
+          const decoded = getDecodedToken(token);
+          if (decoded?.AssignedBranch && Array.isArray(decoded.AssignedBranch)) {
+            options = decoded.AssignedBranch.map((branch: any) => {
+              const fullBranchData = branches.find((b: Branch) => b._id === branch._id);
+              const branchName = fullBranchData?.branchName || branch.username || `Branch ${branch._id}`;
+              
+              return {
+                label: branchName,
+                value: branch._id,
+              };
+            });
+          }
+        } catch (error) {
+          console.error("Error decoding token for filter branch options:", error);
+        }
+      }
+      
+      if (options.length === 0) {
+        options = branches
+          .filter((b) => getId(b.schoolId) === userSchoolId)
+          .map((b) => ({ 
+            label: b.branchName || b.username || `Branch ${b._id}`, 
+            value: b._id 
+          }));
+      }
+    } else if (isBranchRole && userBranchId && role?.toLowerCase() !== "branchgroup") {
       const userBranch = branches.find((b) => b._id === userBranchId);
-      return userBranch
-        ? [{ label: userBranch.branchName, value: userBranch._id }]
+      options = userBranch
+        ? [{ 
+            label: userBranch.branchName || userBranch.username || `Branch ${userBranch._id}`, 
+            value: userBranch._id 
+          }]
         : [];
-    }
-
-    if (filters.school) {
-      return branches
+    } else if (filters.school) {
+      options = branches
         .filter((b) => getId(b.schoolId) === filters.school)
-        .map((b) => ({ label: b.branchName, value: b._id }));
-    }
-
-    if (isSchoolRole && userSchoolId) {
-      return branches
+        .map((b) => ({ 
+          label: b.branchName || b.username || `Branch ${b._id}`, 
+          value: b._id 
+        }));
+    } else if (isSchoolRole && userSchoolId) {
+      options = branches
         .filter((b) => getId(b.schoolId) === userSchoolId)
-        .map((b) => ({ label: b.branchName, value: b._id }));
+        .map((b) => ({ 
+          label: b.branchName || b.username || `Branch ${b._id}`, 
+          value: b._id 
+        }));
+    } else {
+      options = branches.map((b) => ({ 
+        label: b.branchName || b.username || `Branch ${b._id}`, 
+        value: b._id 
+      }));
     }
 
-    return branches.map((b) => ({ label: b.branchName, value: b._id }));
+    return options;
   }, [
     branches,
     filters.school,
@@ -559,6 +695,7 @@ export default function StudentDetails() {
     userSchoolId,
     isBranchRole,
     userBranchId,
+    role,
   ]);
 
   const filterRouteOptions = useMemo(() => {
@@ -606,22 +743,17 @@ export default function StudentDetails() {
     userBranchId,
   ]);
 
-  // ✅ FIXED: Pickup and drop options for filters - show ALL geofences when route is selected
   const filterPickupOptions = useMemo(() => {
-    // When route is selected in filters, show ALL geofences
     if (filters.route) {
       return geofenceOptions;
     }
-    // If no route selected, show empty options
     return [];
   }, [filters.route, geofenceOptions]);
 
   const filterDropOptions = useMemo(() => {
-    // When route is selected in filters, show ALL geofences
     if (filters.route) {
       return geofenceOptions;
     }
-    // If no route selected, show empty options
     return [];
   }, [filters.route, geofenceOptions]);
 
@@ -858,11 +990,20 @@ export default function StudentDetails() {
   const isSearchActive = searchTerm.trim() !== "";
   const isFilterActive = Object.values(filters).some(Boolean);
 
-  // Mutations
   const addParentMutation = useMutation({
     mutationFn: async (newParent: any) => {
-      const parent = await api.post("/parent", newParent);
-      return parent.parent;
+      try {
+        const parent = await api.post("/parent", newParent);
+        return parent.parent;
+      } catch (error: any) {
+        console.error("API Error details:", {
+          url: "/parent",
+          payload: newParent,
+          error: error.response?.data || error.message,
+          status: error.response?.status
+        });
+        throw error;
+      }
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["parents"] });
@@ -870,8 +1011,11 @@ export default function StudentDetails() {
       setSelectedParent(data._id);
       alert("Parent added successfully.");
     },
-    onError: (err: any) =>
-      alert(`Failed to add parent.\nError: ${err.message}`),
+    onError: (err: any) => {
+      console.error("Add parent error:", err);
+      const errorMessage = err.response?.data?.message || err.message;
+      alert(`Failed to add parent.\nError: ${errorMessage}`);
+    },
   });
 
   const addStudentMutation = useMutation({
@@ -950,21 +1094,23 @@ export default function StudentDetails() {
     e.preventDefault();
     const form = e.currentTarget as any;
     
-    // Get school and branch IDs based on role
     const schoolIdToUse = isSchoolRole ? userSchoolId : 
-                        (isBranchRole ? userSchoolId : addParentSchool);
+                        (isBranchRole ? userSchoolId : 
+                        (role?.toLowerCase() === "branchgroup" ? userSchoolId : addParentSchool));
+    
     const branchIdToUse = isBranchRole ? userBranchId : 
-                        (isSchoolRole ? addParentBranch : addParentBranch);
+                        (isSchoolRole ? addParentBranch : 
+                        (role?.toLowerCase() === "branchgroup" ? 
+                          (addParentBranch || userBranchId) : addParentBranch));
 
-    // Validation for school and branch
     if (!schoolIdToUse) { 
       alert("School information is missing. Please contact administrator."); 
       return; 
     }
     
     if (!branchIdToUse) { 
-      if (isBranchRole) {
-        alert("Branch information is missing. Please contact administrator.");
+      if (isBranchRole || role?.toLowerCase() === "branchgroup") {
+        alert("Please select a branch from the available options.");
       } else if (isSchoolRole) {
         alert("Please select a branch.");
       } else {
@@ -988,7 +1134,6 @@ export default function StudentDetails() {
       await addParentMutation.mutateAsync(data);
       form.reset();
       
-      // Reset school/branch selection for super admin and school roles
       if (isSuperAdmin) {
         setAddParentSchool("");
         setAddParentBranch("");
@@ -1000,6 +1145,7 @@ export default function StudentDetails() {
       console.error("Failed to add parent:", err);
     }
   };
+
   const handleChildFormChange = (field: string, value: string) => {
     setChildForm((prev) => ({ ...prev, [field]: value }));
   };
@@ -1237,7 +1383,6 @@ export default function StudentDetails() {
         accessorFn: (row) => {
           if (row.schoolId && typeof row.schoolId === "object")
             return row.schoolId.schoolName ?? "N/A";
-          // if it's an id, try to find from schools
           const s = Array.isArray(schools)
             ? schools.find((sc: any) => sc._id === row.schoolId)
             : null;
@@ -1740,15 +1885,6 @@ export default function StudentDetails() {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* <div className="grid gap-2">
-                  <Label>Date of Birth (Optional)</Label>
-                  <DatePicker
-                    date={selectedDOB}
-                    setDate={setSelectedDOB}
-                    // onDateChange={setSelectedDOB}
-                    disabled={false}
-                  />
-                </div> */}
                 <div className="grid gap-2">
                   <Label>Route *</Label>
                   <Combobox
@@ -1756,7 +1892,6 @@ export default function StudentDetails() {
                     value={selectedRoute}
                     onValueChange={(value) => {
                       setSelectedRoute(value);
-                      // Clear pickup/drop when route changes
                       setSelectedPickupGeo("");
                       setSelectedDropGeo("");
                     }}
@@ -1926,7 +2061,6 @@ export default function StudentDetails() {
                 </div>
               ))}
 
-              {/* School selector in add parent - only show for super admin */}
               {isSuperAdmin && (
                 <div className="grid gap-2">
                   <Label>School *</Label>
@@ -1956,7 +2090,6 @@ export default function StudentDetails() {
                 </div>
               )}
               
-              {/* Branch selector in add parent - show for super admin and school roles */}
               {(isSuperAdmin || isSchoolRole) && (
                 <div className="grid gap-2">
                   <Label>Branch *</Label>
@@ -2037,10 +2170,9 @@ export default function StudentDetails() {
             onSave={handleSave} 
             onFieldChange={handleEditFieldChange} 
             fields={EDIT_FIELDS.map(f => {
-              // Hide school field for school and branch roles
               if (f.key === "schoolId") {
                 if (isSchoolRole || isBranchRole) {
-                  return null; // Hide the field completely
+                  return null;
                 }
                 return { 
                   ...f, 
@@ -2049,10 +2181,9 @@ export default function StudentDetails() {
                 };
               }
               
-              // Hide branch field for branch role
               if (f.key === "branchId") {
                 if (isBranchRole) {
-                  return null; // Hide the field completely
+                  return null;
                 }
                 return { 
                   ...f, 
@@ -2070,11 +2201,11 @@ export default function StudentDetails() {
               if (f.key === "pickupGeoId" || f.key === "dropGeoId") return { 
                 ...f, 
                 options: geofenceOptions,
-                disabled: false // Allow selection without route dependency
+                disabled: false
               };
               
               return f;
-            }).filter(Boolean)} // Remove null fields
+            }).filter(Boolean)}
             title="Edit Student" 
             description="Update the student information below." 
             loading={updateStudentMutation.isPending} 

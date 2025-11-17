@@ -1407,6 +1407,7 @@ export default function SupervisorApprove() {
               setEditDialogOpen(true);
             }}
             disabled={updateSupervisorMutation.isPending}
+            className="cursor-pointer bg-yellow-400 hover:bg-yellow-500 text-[#733e0a] font-semibold py-1.5 px-4 rounded-md text-sm"
           >
             Edit
           </Button>
@@ -1415,6 +1416,7 @@ export default function SupervisorApprove() {
             size="sm"
             onClick={() => setDeleteTarget(row.original)}
             disabled={deleteSupervisorMutation.isPending}
+            className="cursor-pointer bg-yellow-400 hover:bg-yellow-500 text-red-600 font-semibold py-1.5 px-4 rounded-md text-sm"
           >
             Delete
           </Button>
@@ -1423,7 +1425,7 @@ export default function SupervisorApprove() {
       meta: { 
         flex: 1.5, 
         minWidth: 150, 
-        maxWidth: 200,
+        maxWidth: 220,
         wrapConfig: { wrap: "nowrap" }
       },
       enableSorting: false,
