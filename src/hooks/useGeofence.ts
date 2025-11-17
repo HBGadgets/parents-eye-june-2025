@@ -65,10 +65,10 @@ export const useGeofences = (params?: GeofenceParams) => {
       if (params?.schoolId) queryParams.append("schoolId", params.schoolId);
       if (params?.branchId) queryParams.append("branchId", params.branchId);
 
-      console.log("🔍 Fetching geofences with params:", params);
+      // console.log("🔍 Fetching geofences with params:", params);
       const response = await api.get(`/geofence?${queryParams.toString()}`);
 
-      console.log("📥 Raw API response:", response);
+      // console.log("📥 Raw API response:", response);
 
       // Handle different response structures
       let data = response.data;
@@ -83,7 +83,7 @@ export const useGeofences = (params?: GeofenceParams) => {
         data = data.geofences;
       }
 
-      console.log("📦 Processed data:", data);
+      // console.log("📦 Processed data:", data);
 
       // Ensure it's an array
       if (!Array.isArray(data)) {
@@ -93,7 +93,7 @@ export const useGeofences = (params?: GeofenceParams) => {
 
       // Filter out invalid geofences
       const validGeofences = data.filter(isValidGeofence);
-      console.log("✅ Valid geofences:", validGeofences.length, validGeofences);
+      // console.log("✅ Valid geofences:", validGeofences.length, validGeofences);
 
       return validGeofences;
     },
@@ -107,10 +107,10 @@ export const useCreateGeofence = (params?: GeofenceParams) => {
 
   return useMutation({
     mutationFn: async (payload: any) => {
-      console.log("📤 Sending geofence creation request:", payload);
+      // console.log("📤 Sending geofence creation request:", payload);
       const response = await api.post("/geofence", payload);
 
-      console.log("📥 Create geofence raw response:", response);
+      // console.log("📥 Create geofence raw response:", response);
 
       // Handle the response structure from your API
       let data = response.data;
@@ -125,14 +125,14 @@ export const useCreateGeofence = (params?: GeofenceParams) => {
         data = data.data;
       }
 
-      console.log("📦 Processed create response:", data);
+      // console.log("📦 Processed create response:", data);
 
       return data;
     },
 
     // Optimistic update with proper validation
     onMutate: async (newGeofence) => {
-      console.log("⚡ Optimistic update - Creating geofence:", newGeofence);
+      // console.log("⚡ Optimistic update - Creating geofence:", newGeofence);
 
       // Cancel outgoing refetches
       await queryClient.cancelQueries({ queryKey: ["geofences", params] });
@@ -162,7 +162,7 @@ export const useCreateGeofence = (params?: GeofenceParams) => {
         createdAt: new Date().toISOString(),
       };
 
-      console.log("🎯 Optimistic geofence created:", optimisticGeofence);
+      // console.log("🎯 Optimistic geofence created:", optimisticGeofence);
 
       // Only update if the optimistic geofence is valid
       if (isValidGeofence(optimisticGeofence)) {
@@ -170,7 +170,7 @@ export const useCreateGeofence = (params?: GeofenceParams) => {
           ["geofences", params],
           (old = []) => {
             const updated = [...old, optimisticGeofence];
-            console.log("💾 Cache updated with optimistic data:", updated);
+            // console.log("💾 Cache updated with optimistic data:", updated);
             return updated;
           }
         );
@@ -186,7 +186,7 @@ export const useCreateGeofence = (params?: GeofenceParams) => {
       console.error("❌ Mutation error:", err);
 
       if (context?.previousGeofences) {
-        console.log("↩️ Rolling back to previous state");
+        // console.log("↩️ Rolling back to previous state");
         queryClient.setQueryData(
           ["geofences", params],
           context.previousGeofences
@@ -196,7 +196,7 @@ export const useCreateGeofence = (params?: GeofenceParams) => {
 
     // On success, replace temp with real data
     onSuccess: (data, variables) => {
-      console.log("✅ Mutation success, response data:", data);
+      // console.log("✅ Mutation success, response data:", data);
 
       // If API returns undefined or null, keep the optimistic update and refetch
       if (!data) {
@@ -219,7 +219,7 @@ export const useCreateGeofence = (params?: GeofenceParams) => {
           // Remove temporary geofence and add the real one
           const filtered = old.filter((g) => !g._id.startsWith("temp-"));
           const updated = [...filtered, data];
-          console.log("💾 Cache updated with server response:", updated);
+          // console.log("💾 Cache updated with server response:", updated);
           return updated;
         }
       );
@@ -227,7 +227,7 @@ export const useCreateGeofence = (params?: GeofenceParams) => {
 
     // Always refetch for consistency
     onSettled: () => {
-      console.log("🔄 Mutation settled, invalidating queries");
+      // console.log("🔄 Mutation settled, invalidating queries");
       queryClient.invalidateQueries({ queryKey: ["geofences", params] });
     },
   });

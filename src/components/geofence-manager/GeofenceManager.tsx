@@ -117,18 +117,22 @@ const GeofenceManager: React.FC = ({
   //   BranchGroup[]
   // >([]);
   const { data: branchData } = useBranchData();
-  const { data: routeData } = useInfiniteRouteData();
+  const { data: routeData } = useInfiniteRouteData({
+    schoolId: selectedSchool?._id,
+    branchId: selectedBranch?._id,
+    limit: "all",
+  });
   const queryClient = useQueryClient();
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [pickupTime, setPickupTime] = useState<Date | undefined>(undefined);
   const [dropTime, setDropTime] = useState<Date | undefined>(undefined);
 
-  console.log("MODE", mode);
+  // console.log("MODE", mode);
   useEffect(() => {
-    console.log("geofenceId", geofenceId);
-    console.log("school Id", geofenceSchoolId);
-    console.log("branch Id", geofenceBranchId);
-    console.log("route Id", geofenceRouteId);
+    // console.log("geofenceId", geofenceId);
+    // console.log("school Id", geofenceSchoolId);
+    // console.log("branch Id", geofenceBranchId);
+    // console.log("route Id", geofenceRouteId);
   }, [geofenceId]);
 
   // 🆕 Add reverse geocoding function
@@ -153,22 +157,22 @@ const GeofenceManager: React.FC = ({
       currentCoords.lat &&
       currentCoords.lng
     ) {
-      console.log(
-        "🗺️ Centering map for edit mode:",
-        currentCoords.lat,
-        currentCoords.lng
-      );
+      // // console.log(
+      //   "🗺️ Centering map for edit mode:",
+      //   currentCoords.lat,
+      //   currentCoords.lng
+      // );
 
       // Use setTimeout to ensure map is fully ready
       setTimeout(() => {
         if (map.current) {
           try {
             map.current.setView([currentCoords.lat, currentCoords.lng], 16);
-            console.log(
-              "✅ Map successfully centered on:",
-              currentCoords.lat,
-              currentCoords.lng
-            );
+            // // console.log(
+            //   "✅ Map successfully centered on:",
+            //   currentCoords.lat,
+            //   currentCoords.lng
+            // );
           } catch (error) {
             console.error("❌ Error centering map:", error);
           }
@@ -180,14 +184,14 @@ const GeofenceManager: React.FC = ({
   // 🆕 UPDATED: Populate form with initial data when in edit mode
   useEffect(() => {
     if (mode === "edit" && initialData && branchData && routeData) {
-      console.log("📝 Populating edit data:", initialData);
+      // console.log("📝 Populating edit data:", initialData);
 
       // Step 1: Extract coordinates from initialData
       let lat, lng;
 
       if (initialData.area?.center && initialData.area.center.length >= 2) {
         [lat, lng] = initialData.area.center;
-        console.log("📍 Found coordinates in area.center:", lat, lng);
+        // console.log("📍 Found coordinates in area.center:", lat, lng);
       } else {
         console.warn("⚠️ No coordinates found in initialData");
         // Set default coordinates if none found
@@ -262,17 +266,17 @@ const GeofenceManager: React.FC = ({
 
       // Step 7: Set school/branch/route objects (your existing code)
       if (geofenceSchoolId) {
-        console.log("Setting school object:", geofenceSchoolId);
+        // console.log("Setting school object:", geofenceSchoolId);
         setSelectedSchool(geofenceSchoolId);
       }
 
       if (geofenceBranchId) {
-        console.log("Setting branch object:", geofenceBranchId);
+        // console.log("Setting branch object:", geofenceBranchId);
         setSelectedBranch(geofenceBranchId);
       }
 
       if (geofenceRouteId) {
-        console.log("Setting route object:", geofenceRouteId);
+        // console.log("Setting route object:", geofenceRouteId);
         setSelectedRoute(geofenceRouteId);
       }
 
@@ -313,13 +317,13 @@ const GeofenceManager: React.FC = ({
   // 🆕 DEBUG: Track edit mode state changes
   useEffect(() => {
     if (mode === "edit") {
-      console.log("=== EDIT MODE DEBUG ===");
-      console.log("Mode:", mode);
-      console.log("GeofenceId:", geofenceId);
-      console.log("Map current:", !!map.current);
-      console.log("Initial data:", initialData);
-      console.log("Current coords:", currentCoords);
-      console.log("========================");
+      // console.log("=== EDIT MODE DEBUG ===");
+      // console.log("Mode:", mode);
+      // console.log("GeofenceId:", geofenceId);
+      // console.log("Map current:", !!map.current);
+      // console.log("Initial data:", initialData);
+      // console.log("Current coords:", currentCoords);
+      // console.log("========================");
     }
   }, [mode, geofenceId, initialData, currentCoords]);
 
@@ -328,7 +332,7 @@ const GeofenceManager: React.FC = ({
     const handleCenterMap = (event: CustomEvent) => {
       const { lat, lng, zoom } = event.detail;
 
-      console.log("Centering map on edit:", lat, lng);
+      // console.log("Centering map on edit:", lat, lng);
 
       if (map.current) {
         map.current.setView([lat, lng], zoom || 15);
@@ -410,7 +414,7 @@ const GeofenceManager: React.FC = ({
     if (!mapContainer.current || map.current) return;
 
     try {
-      console.log("Initializing Leaflet map...");
+      // console.log("Initializing Leaflet map...");
 
       // Create map instance
       map.current = L.map(mapContainer.current).setView(
@@ -448,7 +452,7 @@ const GeofenceManager: React.FC = ({
         setCurrentGeofenceName(currentGeofenceName || `New Geofence`);
       });
 
-      console.log("Map initialized successfully");
+      // console.log("Map initialized successfully");
     } catch (error) {
       console.error("Error initializing map:", error);
 
@@ -676,6 +680,224 @@ const GeofenceManager: React.FC = ({
   //   }
   // };
 
+  useEffect(() => {
+    // console.log("geofence", geofences);
+  }, [geofences]);
+
+  // const searchGeofence = (query: string) => {
+  //   setSearchQuery(query);
+  // };
+
+  const clearTempGeofence = () => {
+    setTempGeofence(null);
+    setCurrentGeofenceName("");
+    setCurrentRadius(100);
+  };
+
+  const updateCoordinates = (lat: number, lng: number) => {
+    setCurrentCoords({ lat, lng });
+
+    // Center map on new coordinates
+    if (map.current) {
+      map.current.setView([lat, lng], map.current.getZoom());
+    }
+
+    // Update temporary geofence or active geofence
+    if (tempGeofence) {
+      setTempGeofence({
+        ...tempGeofence,
+        coordinates: [[lng, lat]],
+      });
+    } else if (activeGeofence) {
+      setGeofences(
+        geofences.map((g) =>
+          g.id === activeGeofence ? { ...g, coordinates: [[lng, lat]] } : g
+        )
+      );
+    }
+  };
+
+  const updateGeofenceName = (name: string) => {
+    setCurrentGeofenceName(name);
+    if (tempGeofence) {
+      setTempGeofence({
+        ...tempGeofence,
+        name,
+        geofenceName: name, // ✅ keep this updated too
+      });
+    } else if (activeGeofence) {
+      setGeofences(
+        geofences.map((g) =>
+          g.id === activeGeofence ? { ...g, name, geofenceName: name } : g
+        )
+      );
+    }
+  };
+
+  const updateRadius = (radius: number) => {
+    setCurrentRadius(radius);
+    if (tempGeofence) {
+      setTempGeofence({
+        ...tempGeofence,
+        radius,
+      });
+    } else if (activeGeofence) {
+      setGeofences(
+        geofences.map((g) => (g.id === activeGeofence ? { ...g, radius } : g))
+      );
+    }
+  };
+
+  const resetMap = () => {
+    if (map.current) {
+      map.current.setView([21.1286677, 79.1038211], 12);
+    }
+    setActiveGeofence(null);
+    setCurrentCoords({ lat: 21.1286677, lng: 79.1038211 });
+    toast("Map Reset", {
+      description: "Map view reset to default location.",
+    });
+  };
+
+  const undoLastAction = () => {
+    toast("Undo", { description: "Last action undone." });
+  };
+
+  const filteredGeofences = geofences.filter((g) =>
+    (g.geofenceName || "").toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const handleCustomFilter = useCallback((filtered: Geofence[]) => {
+    setFilteredData(filtered);
+  }, []);
+
+  // 🆕 Update these useEffects to not reset during edit mode
+  useEffect(() => {
+    if (selectedSchool && branchData && mode !== "edit") {
+      // 🆕 Add mode check
+      const filtered = branchData.filter(
+        (branch) => branch?.schoolId?._id === selectedSchool._id
+      );
+      setFilteredBranches(filtered);
+      setSelectedBranch(null); // Only reset in add mode
+    } else if (selectedSchool && branchData && mode === "edit") {
+      // In edit mode, just filter but don't reset selection
+      const filtered = branchData.filter(
+        (branch) => branch?.schoolId?._id === selectedSchool._id
+      );
+      setFilteredBranches(filtered);
+    } else {
+      setFilteredBranches([]);
+    }
+  }, [selectedSchool, branchData, mode]); // 🆕 Add mode dependency
+
+  useEffect(() => {
+    console.log("route data: ", routeData?.pages[0]?.data);
+  }, [routeData]);
+
+  useEffect(() => {
+    if (selectedBranch && routeData) {
+      const filtered = routeData?.pages[0]?.data.filter(
+        (route) => route?.branchId?._id === selectedBranch._id
+      );
+      setFilteredRoutes(filtered);
+
+      // 🆕 Only clear selection in add mode, not edit mode
+      if (mode === "add") {
+        setSelectedRoute(null);
+      }
+    } else {
+      setFilteredRoutes([]);
+    }
+  }, [selectedBranch, routeData]);
+
+  useEffect(() => {
+    console.log("Selected School:", selectedSchool);
+  }, [selectedSchool]);
+
+  useEffect(() => {
+    console.log("Selected Branch:", selectedBranch);
+  }, [selectedBranch]);
+
+  useEffect(() => {
+    console.log("Routes from [Geofence Manager]:", filteredRoutes);
+  }, [filteredRoutes]);
+
+  // useEffect(() => {
+  //   if (selectedBranchGroup && routeData) {
+  //     const filtered = routeData.filter((route) => {
+  //       const schoolMatch =
+  //         route?.branchId?.schoolId?._id === selectedBranchGroup.schoolId._id;
+
+  //       const isAssigned = selectedBranchGroup.AssignedBranch.some(
+  //         (branch) => branch._id === route?.branchId?._id
+  //       );
+
+  //       return schoolMatch && isAssigned;
+  //     });
+
+  //     setFilteredRoutes(filtered);
+  //     setSelectedRoute(null); // reset on branch group change
+  //   } else {
+  //     setFilteredRoutes([]);
+  //   }
+  // }, [selectedBranchGroup, routeData]);
+
+  const handleSchoolSelect = (school: School | null) => {
+    setSelectedSchool(school);
+  };
+
+  const handleBranchSelect = (branch: Branch | null) => {
+    setSelectedBranch(branch);
+  };
+
+  const handleRouteSelect = (route: Route | null) => {
+    setSelectedRoute(route);
+  };
+
+  // const handleBranchGroupSelect = (branchGroup: BranchGroup | null) => {
+  //   setSelectedBranchGroup(branchGroup);
+  // };
+
+  const formatTime = (date?: Date) => {
+    if (!date) return "";
+    return date.toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    });
+  };
+
+  useEffect(() => {
+    // console.log("Filtered Geofences:", filteredGeofences);
+  }, [filteredGeofences]);
+
+  useEffect(() => {
+    if (tempGeofence) {
+      setTempGeofence((prev) => ({
+        ...prev,
+        pickupTime,
+      }));
+    } else if (activeGeofence) {
+      setGeofences((prev) =>
+        prev.map((g) => (g.id === activeGeofence ? { ...g, pickupTime } : g))
+      );
+    }
+  }, [pickupTime]);
+
+  useEffect(() => {
+    if (tempGeofence) {
+      setTempGeofence((prev) => ({
+        ...prev,
+        dropTime,
+      }));
+    } else if (activeGeofence) {
+      setGeofences((prev) =>
+        prev.map((g) => (g.id === activeGeofence ? { ...g, dropTime } : g))
+      );
+    }
+  }, [dropTime]);
+
   const saveGeofences = async () => {
     if (!tempGeofence) return;
 
@@ -810,221 +1032,6 @@ const GeofenceManager: React.FC = ({
     }
   };
 
-  useEffect(() => {
-    console.log("geofence", geofences);
-  }, [geofences]);
-
-  // const searchGeofence = (query: string) => {
-  //   setSearchQuery(query);
-  // };
-
-  const clearTempGeofence = () => {
-    setTempGeofence(null);
-    setCurrentGeofenceName("");
-    setCurrentRadius(100);
-  };
-
-  const updateCoordinates = (lat: number, lng: number) => {
-    setCurrentCoords({ lat, lng });
-
-    // Center map on new coordinates
-    if (map.current) {
-      map.current.setView([lat, lng], map.current.getZoom());
-    }
-
-    // Update temporary geofence or active geofence
-    if (tempGeofence) {
-      setTempGeofence({
-        ...tempGeofence,
-        coordinates: [[lng, lat]],
-      });
-    } else if (activeGeofence) {
-      setGeofences(
-        geofences.map((g) =>
-          g.id === activeGeofence ? { ...g, coordinates: [[lng, lat]] } : g
-        )
-      );
-    }
-  };
-
-  const updateGeofenceName = (name: string) => {
-    setCurrentGeofenceName(name);
-    if (tempGeofence) {
-      setTempGeofence({
-        ...tempGeofence,
-        name,
-        geofenceName: name, // ✅ keep this updated too
-      });
-    } else if (activeGeofence) {
-      setGeofences(
-        geofences.map((g) =>
-          g.id === activeGeofence ? { ...g, name, geofenceName: name } : g
-        )
-      );
-    }
-  };
-
-  const updateRadius = (radius: number) => {
-    setCurrentRadius(radius);
-    if (tempGeofence) {
-      setTempGeofence({
-        ...tempGeofence,
-        radius,
-      });
-    } else if (activeGeofence) {
-      setGeofences(
-        geofences.map((g) => (g.id === activeGeofence ? { ...g, radius } : g))
-      );
-    }
-  };
-
-  const resetMap = () => {
-    if (map.current) {
-      map.current.setView([21.1286677, 79.1038211], 12);
-    }
-    setActiveGeofence(null);
-    setCurrentCoords({ lat: 21.1286677, lng: 79.1038211 });
-    toast("Map Reset", {
-      description: "Map view reset to default location.",
-    });
-  };
-
-  const undoLastAction = () => {
-    toast("Undo", { description: "Last action undone." });
-  };
-
-  const filteredGeofences = geofences.filter((g) =>
-    (g.geofenceName || "").toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  const handleCustomFilter = useCallback((filtered: Geofence[]) => {
-    setFilteredData(filtered);
-  }, []);
-
-  // 🆕 Update these useEffects to not reset during edit mode
-  useEffect(() => {
-    if (selectedSchool && branchData && mode !== "edit") {
-      // 🆕 Add mode check
-      const filtered = branchData.filter(
-        (branch) => branch?.schoolId?._id === selectedSchool._id
-      );
-      setFilteredBranches(filtered);
-      setSelectedBranch(null); // Only reset in add mode
-    } else if (selectedSchool && branchData && mode === "edit") {
-      // In edit mode, just filter but don't reset selection
-      const filtered = branchData.filter(
-        (branch) => branch?.schoolId?._id === selectedSchool._id
-      );
-      setFilteredBranches(filtered);
-    } else {
-      setFilteredBranches([]);
-    }
-  }, [selectedSchool, branchData, mode]); // 🆕 Add mode dependency
-
-  useEffect(() => {
-    if (selectedBranch && routeData) {
-      const filtered = routeData.filter(
-        (route) => route?.branchId?._id === selectedBranch._id
-      );
-      setFilteredRoutes(filtered);
-
-      // 🆕 Only clear selection in add mode, not edit mode
-      if (mode === "add") {
-        setSelectedRoute(null);
-      }
-    } else {
-      setFilteredRoutes([]);
-    }
-  }, [selectedBranch, routeData]);
-
-  // useEffect(() => {
-  //   if (selectedBranchGroup && routeData) {
-  //     const filtered = routeData.filter((route) => {
-  //       const schoolMatch =
-  //         route?.branchId?.schoolId?._id === selectedBranchGroup.schoolId._id;
-
-  //       const isAssigned = selectedBranchGroup.AssignedBranch.some(
-  //         (branch) => branch._id === route?.branchId?._id
-  //       );
-
-  //       return schoolMatch && isAssigned;
-  //     });
-
-  //     setFilteredRoutes(filtered);
-  //     setSelectedRoute(null); // reset on branch group change
-  //   } else {
-  //     setFilteredRoutes([]);
-  //   }
-  // }, [selectedBranchGroup, routeData]);
-
-  const handleSchoolSelect = (school: School | null) => {
-    setSelectedSchool(school);
-  };
-
-  const handleBranchSelect = (branch: Branch | null) => {
-    setSelectedBranch(branch);
-  };
-
-  const handleRouteSelect = (route: Route | null) => {
-    setSelectedRoute(route);
-  };
-
-  // const handleBranchGroupSelect = (branchGroup: BranchGroup | null) => {
-  //   setSelectedBranchGroup(branchGroup);
-  // };
-
-  const formatTime = (date?: Date) => {
-    if (!date) return "";
-    return date.toLocaleTimeString([], {
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: true,
-    });
-  };
-
-  useEffect(() => {
-    console.log("Filtered Geofences:", filteredGeofences);
-  }, [filteredGeofences]);
-
-  useEffect(() => {
-    if (tempGeofence) {
-      setTempGeofence((prev) => ({
-        ...prev,
-        pickupTime,
-      }));
-    } else if (activeGeofence) {
-      setGeofences((prev) =>
-        prev.map((g) => (g.id === activeGeofence ? { ...g, pickupTime } : g))
-      );
-    }
-  }, [pickupTime]);
-
-  useEffect(() => {
-    if (tempGeofence) {
-      setTempGeofence((prev) => ({
-        ...prev,
-        dropTime,
-      }));
-    } else if (activeGeofence) {
-      setGeofences((prev) =>
-        prev.map((g) => (g.id === activeGeofence ? { ...g, dropTime } : g))
-      );
-    }
-  }, [dropTime]);
-
-  // 🆕 Add these useEffects to track state changes
-  useEffect(() => {
-    console.log("🏫 School changed:", selectedSchool);
-  }, [selectedSchool]);
-
-  useEffect(() => {
-    console.log("🏢 Branch changed:", selectedBranch);
-  }, [selectedBranch]);
-
-  useEffect(() => {
-    console.log("🚌 Route changed:", selectedRoute);
-  }, [selectedRoute]);
-
   return (
     <div className="h-screen flex bg-background">
       {/* Left Sidebar - keeping exact same layout and functionality */}
@@ -1056,36 +1063,34 @@ const GeofenceManager: React.FC = ({
 
         {/* Configuration Panel - keeping exact same layout and functionality */}
         <GeofenceConfigurationPanel
-          dropTime={dropTime}
+          /* -------- Time -------- */
           pickupTime={pickupTime}
-          setDropTime={setDropTime}
           setPickupTime={setPickupTime}
-          handleRouteSelect={handleRouteSelect}
-          filteredBranches={filteredBranches}
-          filteredRoutes={filteredRoutes}
-          handleSchoolSelect={handleSchoolSelect}
-          handleBranchSelect={handleBranchSelect}
-          handleCustomFilter={handleCustomFilter}
-          setFilterResults={setFilterResults}
-          filterResults={filterResults}
-          setSelectedRoute={setSelectedRoute}
-          selectedRoute={selectedRoute}
-          setSelectedBranch={setSelectedBranch}
-          selectedBranch={selectedBranch}
-          setSelectedSchool={setSelectedSchool}
+          dropTime={dropTime}
+          setDropTime={setDropTime}
+          /* -------- Filters -------- */
           selectedSchool={selectedSchool}
+          handleSchoolSelect={handleSchoolSelect}
+          selectedBranch={selectedBranch}
+          handleBranchSelect={handleBranchSelect}
+          filteredBranches={filteredBranches}
+          selectedRoute={selectedRoute}
+          handleRouteSelect={handleRouteSelect}
+          filteredRoutes={filteredRoutes}
+          /* -------- Location Search -------- */
           locationSearchQuery={locationSearchQuery}
           setLocationSearchQuery={setLocationSearchQuery}
-          searchLocation={searchLocation}
           searchResults={searchResults}
           showSearchResults={showSearchResults}
           selectSearchResult={selectSearchResult}
+          /* -------- Geofence Fields -------- */
           currentGeofenceName={currentGeofenceName}
           updateGeofenceName={updateGeofenceName}
           currentRadius={currentRadius}
           updateRadius={updateRadius}
           currentCoords={currentCoords}
           updateCoordinates={updateCoordinates}
+          /* -------- Actions -------- */
           openStreetView={openStreetView}
           saveGeofences={saveGeofences}
           isLoading={isLoading}
