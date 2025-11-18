@@ -41,8 +41,10 @@ declare module "@tanstack/react-table" {
 }
 
 interface DriverResponse {
-  total: number;
+  success: boolean;
   page: number;
+  limit: number;
+  totalDrivers: number;
   totalPages: number;
   drivers: Driver[];
 }
@@ -170,6 +172,7 @@ const StatusDropdown = ({
     </div>
   );
 };
+
 // Helper functions
 const getId = (obj: any): string => {
   if (!obj) return "";
@@ -177,7 +180,7 @@ const getId = (obj: any): string => {
   return obj._id || "";
 };
 
-// UPDATED: Proper paginated API call for drivers - FIXED to match actual backend response
+// FIXED: Proper paginated API call for drivers that matches your backend response
 const useDriversData = ({ 
   enabled = true, 
   schoolId, 
@@ -200,20 +203,17 @@ const useDriversData = ({
       
       console.log("Fetching drivers from:", url);
       
-      // FIX: The backend returns a simple array, not the paginated response structure
-      const response = await api.get<Driver[]>(url);
+      // FIXED: Properly handle the backend response structure
+      const response = await api.get<DriverResponse>(url);
       
-      // FIX: Transform the array response to match the expected paginated structure
-      // Since your backend returns a simple array, we'll create a paginated structure
-      const startIndex = (page - 1) * limit;
-      const endIndex = startIndex + limit;
-      const paginatedDrivers = Array.isArray(response) ? response.slice(startIndex, endIndex) : response;
+      console.log("Drivers API Response:", response);
       
       return {
-        drivers: Array.isArray(paginatedDrivers) ? paginatedDrivers : [],
-        total: Array.isArray(response) ? response.length : 0,
-        page: page,
-        totalPages: Array.isArray(response) ? Math.ceil(response.length / limit) : 1
+        drivers: response.drivers || [],
+        total: response.totalDrivers || 0,
+        page: response.page || 1,
+        totalPages: response.totalPages || 1,
+        success: response.success
       };
     },
     enabled: enabled,
@@ -768,7 +768,7 @@ export default function DriverApprove() {
   const [userSchoolId, setUserSchoolId] = useState<string | null>(null);
   const [userBranchId, setUserBranchId] = useState<string | null>(null);
   
-  // UPDATED: Enhanced pagination state for server-side pagination
+  // FIXED: Enhanced pagination state for server-side pagination
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
     pageSize: 10,
@@ -814,52 +814,25 @@ export default function DriverApprove() {
   const { data: schoolData } = useSchoolData({ enabled: isSuperAdmin });
   const { data: branchData, isLoading: branchLoading } = useBranchData();
 
+  // FIXED: Use the proper useDriversData hook with correct pagination
+  const { data: driversData, isLoading } = useDriversData({
+    enabled: !!normalizedRole,
+    schoolId: isSchoolRole ? userSchoolId : isBranchRole ? null : null,
+    branchId: isBranchRole ? userBranchId : null,
+    page: pagination.pageIndex + 1, // Convert to 1-based for API
+    limit: pagination.pageSize,
+  });
+
   // Form hooks
   const addForm = useDriverForm(undefined, normalizedRole, isSuperAdmin, isSchoolRole, isBranchRole, userBranchId);
   const editForm = useDriverForm(editTarget || undefined, normalizedRole, isSuperAdmin, isSchoolRole, isBranchRole, userBranchId);
 
-  // FIXED: Use a simpler approach for drivers data since backend returns array
-  const { data: driversData, isLoading } = useQuery({
-    queryKey: ["drivers", normalizedRole, userSchoolId, userBranchId, pagination.pageIndex, pagination.pageSize],
-    queryFn: async () => {
-      let url = "/driver";
-      const params = new URLSearchParams();
-      
-      if (isSchoolRole && userSchoolId) {
-        params.append("schoolId", userSchoolId);
-      } else if (isBranchRole && userBranchId) {
-        params.append("branchId", userBranchId);
-      }
-      
-      if (params.toString()) {
-        url += `?${params.toString()}`;
-      }
-      
-      console.log("Fetching drivers from:", url);
-      const response = await api.get<Driver[]>(url);
-      
-      // Client-side pagination since backend returns full array
-      const startIndex = pagination.pageIndex * pagination.pageSize;
-      const endIndex = startIndex + pagination.pageSize;
-      const paginatedData = Array.isArray(response) ? response.slice(startIndex, endIndex) : [];
-      
-      return {
-        drivers: paginatedData,
-        total: Array.isArray(response) ? response.length : 0,
-        page: pagination.pageIndex + 1,
-        totalPages: Array.isArray(response) ? Math.ceil(response.length / pagination.pageSize) : 1
-      };
-    },
-    enabled: !!normalizedRole,
-    staleTime: 5 * 60 * 1000,
-    refetchOnWindowFocus: false,
-  });
-
-  // UPDATED: Set filtered data and pagination info
+  // FIXED: Set filtered data and pagination info correctly
   useEffect(() => {
     if (driversData) {
-      setFilteredData(driversData.drivers);
-      setTotalRecords(driversData.total);
+      setFilteredData(driversData.drivers || []);
+      setTotalRecords(driversData.total || 0);
+      console.log("Drivers data set:", driversData.drivers?.length, "total:", driversData.total);
     }
   }, [driversData]);
 
@@ -1121,18 +1094,18 @@ export default function DriverApprove() {
     updateDriverMutation.mutate({ driverId: editTarget._id, data: changedFields });
   }, [editTarget, updateDriverMutation]);
 
-  // UPDATED: Handle pagination change for server-side
+  // FIXED: Handle pagination change for server-side
   const handlePaginationChange = useCallback((newPagination: PaginationState) => {
     setPagination(newPagination);
   }, []);
 
-  // UPDATED: Handle sorting change
+  // FIXED: Handle sorting change
   const handleSortingChange = useCallback((newSorting: SortingState) => {
     setSorting(newSorting);
     // You can implement server-side sorting here if needed
   }, []);
 
-  // Table columns - UPDATED to match supervisor pattern
+  // Table columns
   const columns: ColumnDef<Driver>[] = useMemo(() => [
     {
       header: "Driver Name",
@@ -1263,6 +1236,7 @@ export default function DriverApprove() {
               setEditTarget(row.original);
               setEditDialogOpen(true);
             }}
+            className="cursor-pointer bg-yellow-400 hover:bg-yellow-500 text-[#733e0a] font-semibold py-1.5 px-4 rounded-md text-sm"
             disabled={updateDriverMutation.isPending}
           >
             Edit
@@ -1272,6 +1246,7 @@ export default function DriverApprove() {
             size="sm"
             onClick={() => setDeleteTarget(row.original)}
             disabled={deleteDriverMutation.isPending}
+            className="cursor-pointer bg-yellow-400 hover:bg-yellow-500 text-red-600 font-semibold py-1.5 px-4 rounded-md text-sm"
           >
             Delete
           </Button>
@@ -1311,7 +1286,7 @@ export default function DriverApprove() {
     getCoreRowModel: getCoreRowModel(),
   });
 
-  // UPDATED: Use the CustomTableServerSidePagination component properly
+  // FIXED: Use the CustomTableServerSidePagination component properly
   const { tableElement } = CustomTableServerSidePagination({
     data: filteredData,
     columns,

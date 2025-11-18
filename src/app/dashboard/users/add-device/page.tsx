@@ -25,7 +25,14 @@ import { ColumnVisibilitySelector } from "@/components/column-visibility-selecto
 import { CustomFilter } from "@/components/ui/CustomFilter";
 import { CustomTableServerSidePagination } from "@/components/ui/customTable(serverSidePagination)";
 import { useExport } from "@/hooks/useExport";
-import { deleteDeviceOld, updateDeviceOld } from "@/hooks/device/useAddDevice(old)";
+import {
+  deleteDeviceOld,
+  updateDeviceOld,
+} from "@/hooks/device/useAddDevice(old)";
+import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { FileSpreadsheet } from "lucide-react";
+import { ExcelUploader } from "@/components/excel-uploader/ExcelUploader";
 
 type UserRole = "superAdmin" | "school" | "branchGroup" | "branch" | null;
 
@@ -59,6 +66,7 @@ const DevicesPage = () => {
   const { data: driverData } = useDriver();
   const { data: routeData } = useRoutes({ limit: "all" });
 
+  const [open, setOpen] = useState(false);
   const {
     data: devicesData,
     isLoading,
@@ -141,6 +149,12 @@ const DevicesPage = () => {
     }
   };
 
+  const handleFileUpload = (file: File, school: string, branch: string) => {
+    console.log("File uploaded:", { file, school, branch });
+    // Handle the file upload logic here
+    setOpen(false); // Close dialog after upload
+  };
+
   /** =========================
    * ✏️ EDIT CONFIGURATION
    * ========================= */
@@ -152,9 +166,9 @@ const DevicesPage = () => {
     { label: "Average (KM/Litre)", key: "average", type: "number" },
     {
       label: "Driver",
-      key: "driver",
+      key: "driver._id",
       type: "searchable-select",
-      options: driverData || [],
+      options: driverData?.drivers || [],
       labelKey: "driverName",
       valueKey: "_id",
     },
@@ -188,103 +202,68 @@ const DevicesPage = () => {
     },
   ];
 
-  /** =========================
-   * 🔄 MUTATIONS
-   * ========================= */
-  // const deleteDeviceMutation = useMutation({
-  //   mutationFn: async (deviceId: string) => api.delete(`/device/${deviceId}`),
-  //   onSuccess: () => {
-  //     queryClient.invalidateQueries({ queryKey: ["devices"] });
-  //     toast.success("Device deleted successfully.");
-  //   },
-  //   onError: () => toast.error("Failed to delete device."),
-  // });
-
   const deleteDeviceMutation = useMutation({
-  mutationFn: async (device: Device) => {
-    const newDeviceId = device._id;
-    const oldDeviceId = device.deviceId ? parseInt(device.deviceId) : null;
+    mutationFn: async (device: Device) => {
+      const newDeviceId = device._id;
+      const oldDeviceId = device.deviceId ? parseInt(device.deviceId) : null;
 
-    // 1️⃣ Delete from NEW system first (so local data syncs immediately)
-    await api.delete(`/device/${newDeviceId}`);
+      // 1️⃣ Delete from NEW system first (so local data syncs immediately)
+      await api.delete(`/device/${newDeviceId}`);
 
-    // 2️⃣ Delete from OLD system (using its numeric ID)
-    if (oldDeviceId) {
-      await deleteDeviceOld(oldDeviceId);
-    }
+      // 2️⃣ Delete from OLD system (using its numeric ID)
+      if (oldDeviceId) {
+        await deleteDeviceOld(oldDeviceId);
+      }
 
-    return { success: true };
-  },
+      return { success: true };
+    },
 
-  onSuccess: () => {
-    queryClient.invalidateQueries({ queryKey: ["devices"] });
-    toast.success("🗑 Device deleted from both systems!");
-  },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["devices"] });
+      toast.success("🗑 Device deleted from both systems!");
+    },
 
-  onError: (err: any) => {
-    console.error("Delete Sync Error:", err);
-    toast.error("❌ Failed to delete device in one or both systems.");
-  },
-});
-
-  
-  // const updateDeviceMutation = useMutation({
-  //   mutationFn: async ({
-  //     deviceId,
-  //     data,
-  //   }: {
-  //     deviceId: string;
-  //     data: Partial<Device>;
-  //   }) => api.put(`/device/${deviceId}`, data),
-  //   onSuccess: (_, { deviceId, data }) => {
-  //     queryClient.invalidateQueries({ queryKey: ["devices"] });
-  //     setFilteredData((prev) =>
-  //       prev.map((d) => (d._id === deviceId ? { ...d, ...data } : d))
-  //     );
-  //     setEditDialogOpen(false);
-  //     setEditTarget(null);
-  //     toast.success("Device updated successfully.");
-  //   },
-  //   onError: () => toast.error("Failed to update device."),
-  // });
+    onError: (err: any) => {
+      console.error("Delete Sync Error:", err);
+      toast.error("❌ Failed to delete device in one or both systems.");
+    },
+  });
 
   const updateDeviceMutation = useMutation({
-  mutationFn: async ({
-    device,
-    data,
-  }: {
-    device: Device;
-    data: Partial<Device>;
-  }) => {
+    mutationFn: async ({
+      device,
+      data,
+    }: {
+      device: Device;
+      data: Partial<Device>;
+    }) => {
+      console.log("Updating device in both systems:", device, data);
+      // Extract both IDs
+      const newDeviceId = device._id;
+      const oldDeviceId = device.deviceId ? parseInt(device.deviceId) : null; // Old API ID
 
-    console.log("Updating device in both systems:", device, data);
-    // Extract both IDs
-    const newDeviceId = device._id;
-    const oldDeviceId = device.deviceId ? parseInt(device.deviceId) : null; // Old API ID
+      // 1️⃣ Update OLD system first
+      if (oldDeviceId) {
+        await updateDeviceOld(oldDeviceId, data);
+      }
 
-    // 1️⃣ Update OLD system first
-    if (oldDeviceId) {
-      await updateDeviceOld(oldDeviceId, data);
-    }
+      // 2️⃣ Update NEW system
+      const { data: updated } = await api.put(`/device/${newDeviceId}`, data);
+      return updated;
+    },
 
-    // 2️⃣ Update NEW system
-    const { data: updated } = await api.put(`/device/${newDeviceId}`, data);
-    return updated;
-  },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["devices"] });
+      toast.success("✅ Device updated in both systems!");
+      setEditDialogOpen(false);
+      setEditTarget(null);
+    },
 
-  onSuccess: (_, variables) => {
-    queryClient.invalidateQueries({ queryKey: ["devices"] });
-    toast.success("✅ Device updated in both systems!");
-    setEditDialogOpen(false);
-    setEditTarget(null);
-  },
-
-  onError: (err: any) => {
-    console.error("Update Sync Error:", err);
-    toast.error("❌ Failed to update in one or both systems.");
-  },
-});
-
+    onError: (err: any) => {
+      console.error("Update Sync Error:", err);
+      toast.error("❌ Failed to update in one or both systems.");
+    },
+  });
 
   /** =========================
    * 📊 TABLE COLUMNS
@@ -297,13 +276,21 @@ const DevicesPage = () => {
       accessorFn: (r) => r.uniqueId ?? "",
     },
     { id: "sim", header: "Sim Number", accessorFn: (r) => r.sim ?? "" },
-    { id: "speed", header: "Speed", accessorFn: (r) => r.speed ?? "" },
+    {
+      id: "speed",
+      header: "Speed Limit (KM/H)",
+      accessorFn: (r) => r.speed ?? "",
+    },
     {
       id: "average",
-      header: "Average Speed",
+      header: "Average (KM/L)",
       accessorFn: (r) => r.average ?? "",
     },
-    { id: "Driver", header: "Driver", accessorFn: (r) => r.Driver ?? "" },
+    {
+      id: "Driver",
+      header: "Driver",
+      accessorFn: (r) => r.driver?.driverName ?? "",
+    },
     { id: "model", header: "Model", accessorFn: (r) => r.model ?? "" },
     { id: "category", header: "Category", accessorFn: (r) => r.category ?? "" },
     {
@@ -400,6 +387,7 @@ const DevicesPage = () => {
           <ColumnVisibilitySelector
             columns={table.getAllColumns()}
             buttonVariant="outline"
+            className="cursor-pointer"
           />
           {/* <CustomFilter
             data={filteredData}
@@ -410,6 +398,26 @@ const DevicesPage = () => {
           /> */}
         </div>
         {userRole === "superAdmin" && <AddDeviceForm />}
+
+        {userRole === "superAdmin" && (
+          <div>
+            <Dialog open={open} onOpenChange={setOpen}>
+              <DialogTrigger asChild>
+                <Button className="gap-2 px-8 text-base shadow-lg hover:shadow-xl transition-shadow cursor-pointer">
+                  <FileSpreadsheet />
+                  Upload Excel
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto p-6 sm:p-8">
+                <ExcelUploader
+                  onFileUpload={handleFileUpload}
+                  schools={schoolData}
+                  branches={branchData}
+                />
+              </DialogContent>
+            </Dialog>
+          </div>
+        )}
       </header>
 
       <section>{tableElement}</section>

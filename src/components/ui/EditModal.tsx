@@ -275,193 +275,197 @@ export const DynamicEditDialog: React.FC<DynamicEditDialogProps> = ({
         control={form.control}
         name={field.key}
         render={({ field: formField }) => (
-          <FormItem className={field.gridCols === 1 ? "col-span-full" : ""}>
-            <FormLabel>
-              {field.label}
-              {field.required && (
-                <span className="text-destructive ml-1">*</span>
-              )}
-            </FormLabel>
-            <FormControl>
-              {field.type === "select" ? (
-                <Select
-                  onValueChange={(value) => {
-                    formField.onChange(value);
-                    onFieldChange?.(field.key, value);
-                  }}
-                  value={formField.value}
-                  disabled={field.disabled}
-                >
-                  <SelectTrigger>
-                    <SelectValue
-                      placeholder={
-                        field.placeholder ||
-                        `Select ${field.label.toLowerCase()}`
-                      }
-                    />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {field.options?.map((option) => {
-                      const value = getOptionValue(option, field);
-                      const label = getOptionLabel(option, field);
-                      return (
-                        <SelectItem key={value} value={value}>
-                          {label}
-                        </SelectItem>
-                      );
-                    })}
-                  </SelectContent>
-                </Select>
-              ) : field.type === "searchable-select" ? (
-                <Popover modal={true}>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      role="combobox"
-                      className={cn(
-                        "w-full justify-between",
-                        !formField.value && "text-muted-foreground"
-                      )}
-                      disabled={field.disabled}
-                    >
-                      {formField.value
-                        ? (() => {
-                            const foundOption = field.options?.find(
-                              (option) => {
-                                const value = getOptionValue(option, field);
-                                return value === formField.value;
-                              }
-                            );
-                            return foundOption
-                              ? getOptionLabel(foundOption, field)
-                              : formField.value;
-                          })()
-                        : field.placeholder ||
-                          `Select ${field.label.toLowerCase()}`}
-                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-full p-0" align="start">
-                    <Command>
-                      <CommandInput
-                        placeholder={`Search ${field.label.toLowerCase()}...`}
+          console.log("📤 Rendering field:", field),
+          (
+            <FormItem className={field.gridCols === 1 ? "col-span-full" : ""}>
+              <FormLabel>
+                {field.label}
+                {field.required && (
+                  <span className="text-destructive ml-1">*</span>
+                )}
+              </FormLabel>
+              <FormControl>
+                {field.type === "select" ? (
+                  <Select
+                    onValueChange={(value) => {
+                      formField.onChange(value);
+                      onFieldChange?.(field.key, value);
+                    }}
+                    value={formField.value}
+                    disabled={field.disabled}
+                  >
+                    <SelectTrigger>
+                      <SelectValue
+                        placeholder={
+                          field.placeholder ||
+                          `Select ${field.label.toLowerCase()}`
+                        }
                       />
-                      <CommandList className="max-h-[200px] overflow-y-auto">
-                        <CommandEmpty>No results found.</CommandEmpty>
-                        <CommandGroup>
-                          {field.options?.map((option) => {
-                            const value = getOptionValue(option, field);
-                            const label = getOptionLabel(option, field);
-                            return (
-                              <CommandItem
-                                key={value}
-                                value={label} // Use label for search matching
-                                onSelect={() => {
-                                  const newValue =
-                                    value === formField.value ? "" : value;
-                                  formField.onChange(newValue);
+                    </SelectTrigger>
+                    <SelectContent>
+                      {field.options?.map((option) => {
+                        const value = getOptionValue(option, field);
+                        const label = getOptionLabel(option, field);
+                        return (
+                          <SelectItem key={value} value={value}>
+                            {label}
+                          </SelectItem>
+                        );
+                      })}
+                    </SelectContent>
+                  </Select>
+                ) : field.type === "searchable-select" ? (
+                  <Popover modal={true}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        className={cn(
+                          "w-full justify-between",
+                          !formField.value && "text-muted-foreground"
+                        )}
+                        disabled={field.disabled}
+                      >
+                        {formField.value
+                          ? (() => {
+                              console.log("formField.value", formField.value);
+                              const foundOption = field.options?.find(
+                                (option) => {
+                                  const value = getOptionValue(option, field);
+                                  return value === formField.value;
+                                }
+                              );
+                              return foundOption
+                                ? getOptionLabel(foundOption, field)
+                                : formField.value;
+                            })()
+                          : field.placeholder ||
+                            `Select ${field.label.toLowerCase()}`}
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-full p-0" align="start">
+                      <Command>
+                        <CommandInput
+                          placeholder={`Search ${field.label.toLowerCase()}...`}
+                        />
+                        <CommandList className="max-h-[200px] overflow-y-auto">
+                          <CommandEmpty>No results found.</CommandEmpty>
+                          <CommandGroup>
+                            {field.options?.map((option) => {
+                              const value = getOptionValue(option, field);
+                              const label = getOptionLabel(option, field);
+                              return (
+                                <CommandItem
+                                  key={value}
+                                  value={label} // Use label for search matching
+                                  onSelect={() => {
+                                    const newValue =
+                                      value === formField.value ? "" : value;
+                                    formField.onChange(newValue);
 
-                                  // Call the parent callback with the full option object
-                                  if (onFieldChange) {
-                                    const selectedOption = newValue
-                                      ? option
-                                      : null;
-                                    onFieldChange(
-                                      field.key,
-                                      newValue,
-                                      selectedOption
-                                    );
-                                  }
-                                }}
-                              >
-                                <Check
-                                  className={cn(
-                                    "mr-2 h-4 w-4",
-                                    formField.value === value
-                                      ? "opacity-100"
-                                      : "opacity-0"
-                                  )}
-                                />
-                                {label}
-                              </CommandItem>
-                            );
-                          })}
-                        </CommandGroup>
-                      </CommandList>
-                    </Command>
-                  </PopoverContent>
-                </Popover>
-              ) : field.type === "textarea" ? (
-                <textarea
-                  {...formField}
-                  placeholder={field.placeholder}
-                  disabled={field.disabled}
-                  className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                  onChange={(e) => {
-                    formField.onChange(e.target.value);
-                    onFieldChange?.(field.key, e.target.value);
-                  }}
-                />
-              ) : field.type === "date" ? (
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className={cn(
-                        "w-full justify-start text-left font-normal",
-                        !formField.value && "text-muted-foreground"
-                      )}
-                      disabled={field.disabled}
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {formField.value ? (
-                        format(formField.value, "PPP")
-                      ) : (
-                        <span>{field.placeholder || "Pick a date"}</span>
-                      )}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={formField.value}
-                      onSelect={(date) => {
-                        formField.onChange(date);
-                        onFieldChange?.(field.key, date);
-                      }}
-                      disabled={(date) => {
-                        if (field.disabled) return true;
-                        const { minDate, maxDate } = field.validation || {};
-                        if (minDate && date < minDate) return true;
-                        if (maxDate && date > maxDate) return true;
-                        return false;
-                      }}
-                      initialFocus
-                      className={cn("p-3 pointer-events-auto")}
-                    />
-                  </PopoverContent>
-                </Popover>
-              ) : (
-                <Input
-                  {...formField}
-                  type={field.type}
-                  placeholder={field.placeholder}
-                  disabled={field.disabled}
-                  onChange={(e) => {
-                    const value =
-                      field.type === "number"
-                        ? e.target.value === ""
-                          ? ""
-                          : Number(e.target.value)
-                        : e.target.value;
-                    formField.onChange(value);
-                    onFieldChange?.(field.key, value);
-                  }}
-                />
-              )}
-            </FormControl>
-            <FormMessage />
-          </FormItem>
+                                    // Call the parent callback with the full option object
+                                    if (onFieldChange) {
+                                      const selectedOption = newValue
+                                        ? option
+                                        : null;
+                                      onFieldChange(
+                                        field.key,
+                                        newValue,
+                                        selectedOption
+                                      );
+                                    }
+                                  }}
+                                >
+                                  <Check
+                                    className={cn(
+                                      "mr-2 h-4 w-4",
+                                      formField.value === value
+                                        ? "opacity-100"
+                                        : "opacity-0"
+                                    )}
+                                  />
+                                  {label}
+                                </CommandItem>
+                              );
+                            })}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                ) : field.type === "textarea" ? (
+                  <textarea
+                    {...formField}
+                    placeholder={field.placeholder}
+                    disabled={field.disabled}
+                    className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    onChange={(e) => {
+                      formField.onChange(e.target.value);
+                      onFieldChange?.(field.key, e.target.value);
+                    }}
+                  />
+                ) : field.type === "date" ? (
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "w-full justify-start text-left font-normal",
+                          !formField.value && "text-muted-foreground"
+                        )}
+                        disabled={field.disabled}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {formField.value ? (
+                          format(formField.value, "PPP")
+                        ) : (
+                          <span>{field.placeholder || "Pick a date"}</span>
+                        )}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={formField.value}
+                        onSelect={(date) => {
+                          formField.onChange(date);
+                          onFieldChange?.(field.key, date);
+                        }}
+                        disabled={(date) => {
+                          if (field.disabled) return true;
+                          const { minDate, maxDate } = field.validation || {};
+                          if (minDate && date < minDate) return true;
+                          if (maxDate && date > maxDate) return true;
+                          return false;
+                        }}
+                        initialFocus
+                        className={cn("p-3 pointer-events-auto")}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                ) : (
+                  <Input
+                    {...formField}
+                    type={field.type}
+                    placeholder={field.placeholder}
+                    disabled={field.disabled}
+                    onChange={(e) => {
+                      const value =
+                        field.type === "number"
+                          ? e.target.value === ""
+                            ? ""
+                            : Number(e.target.value)
+                          : e.target.value;
+                      formField.onChange(value);
+                      onFieldChange?.(field.key, value);
+                    }}
+                  />
+                )}
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )
         )}
       />
     );

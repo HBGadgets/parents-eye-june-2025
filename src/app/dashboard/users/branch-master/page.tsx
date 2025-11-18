@@ -56,6 +56,7 @@ interface DecodedToken {
   branchId?: string;
   id?: string;
   schoolName?: string;
+  AssignedBranch?: Array<{_id: string; username: string}>;
   [key: string]: any;
 }
 
@@ -279,12 +280,23 @@ export default function BranchMaster() {
   const [isVerificationDialogOpen, setIsVerificationDialogOpen] = useState(false);
   const [isVerified, setIsVerified] = useState(false);
   const [currentProtectedField, setCurrentProtectedField] = useState<string | null>(null);
-  const [role, setRole] = useState<string | null>(null);
-  const [userSchoolId, setUserSchoolId] = useState<string | null>(null);
-  const [userBranchId, setUserBranchId] = useState<string | null>(null);
-  const [userSchoolName, setUserSchoolName] = useState<string | null>(null);
+  
+  // FIXED: Combine all user info into a single state to avoid synchronization issues
+  const [userInfo, setUserInfo] = useState<{
+    role: string | null;
+    userSchoolId: string | null;
+    userBranchId: string | null;
+    userSchoolName: string | null;
+    assignedBranches: string[];
+  }>({
+    role: null,
+    userSchoolId: null,
+    userBranchId: null,
+    userSchoolName: null,
+    assignedBranches: []
+  });
 
-  // Get user info from token
+  // Get user info from token - FIXED: Single useEffect to set all user info
   useEffect(() => {
     const token = getAuthToken();
     if (token) {
@@ -292,83 +304,205 @@ export default function BranchMaster() {
       console.log("[Branch Master - Decoded Token]: ", decoded);
       
       const role = (decoded?.role || "").toLowerCase();
-      setRole(role);
 
       // Handle schoolId based on role
+      let schoolIdToUse = null;
+      
       if (role === "school" || role === "schooladmin") {
-        // For school role, use 'id' field from token
-        setUserSchoolId(decoded?.id || null);
-        console.log("[School Role] Using schoolId from 'id' field:", decoded?.id);
-      } else if (role === "branch" || role === "branchadmin") {
-        // For branch role, use 'schoolId' field from token
-        setUserSchoolId(decoded?.schoolId || null);
-        console.log("[Branch Role] Using schoolId from 'schoolId' field:", decoded?.schoolId);
+        schoolIdToUse = decoded?.id || null;
+      } else if (role === "branchgroup" || role === "branch" || role === "branchadmin") {
+        schoolIdToUse = decoded?.schoolId || null;
       } else {
-        // For superadmin or other roles, use schoolId if available
-        setUserSchoolId(decoded?.schoolId || null);
-        console.log("[Other Role] Using schoolId from 'schoolId' field:", decoded?.schoolId);
+        schoolIdToUse = decoded?.schoolId || null;
       }
 
-      // Handle branchId - for branch role, use 'id' field as branchId
+      // Handle branchId
+      let branchIdToUse = null;
       if (role === "branch" || role === "branchadmin") {
-        setUserBranchId(decoded?.id || null);
-        console.log("[Branch Role] Using branchId from 'id' field:", decoded?.id);
+        branchIdToUse = decoded?.id || null;
       } else {
-        setUserBranchId(decoded?.branchId || null);
-        console.log("[Other Role] Using branchId from 'branchId' field:", decoded?.branchId);
+        branchIdToUse = decoded?.branchId || null;
       }
       
-      // Handle schoolName
-      setUserSchoolName(decoded?.schoolName || null);
-
-      console.log("[Branch Master - Final User Info]:", {
+      // Handle assigned branches for branchGroup role
+      let assignedBranchIds: string[] = [];
+      if (role === "branchgroup" && decoded?.AssignedBranch) {
+        assignedBranchIds = decoded.AssignedBranch.map((branch: any) => branch._id);
+        console.log("[BranchGroup Role] Assigned Branches extracted:", {
+          assignedBranchIds,
+          rawAssignedBranches: decoded.AssignedBranch
+        });
+      }
+      
+      // FIXED: Set all user info in one state update
+      setUserInfo({
         role,
-        userSchoolId,
-        userBranchId,
-        userSchoolName
+        userSchoolId: schoolIdToUse,
+        userBranchId: branchIdToUse,
+        userSchoolName: decoded?.schoolName || null,
+        assignedBranches: assignedBranchIds
+      });
+
+      console.log("[Branch Master - Final User Info SET]:", {
+        role,
+        userSchoolId: schoolIdToUse,
+        userBranchId: branchIdToUse,
+        userSchoolName: decoded?.schoolName,
+        assignedBranches: assignedBranchIds,
+        assignedBranchesCount: assignedBranchIds.length
       });
     }
   }, []);
 
-  // Role checks
+  // Destructure userInfo for easier access
+  const { role, userSchoolId, userBranchId, userSchoolName, assignedBranches } = userInfo;
+
   const normalizedRole = useMemo(() => {
     const r = (role || "").toLowerCase();
     if (["superadmin", "super_admin", "admin", "root"].includes(r)) return "superAdmin";
     if (["school", "schooladmin"].includes(r)) return "school";
     if (["branch", "branchadmin"].includes(r)) return "branch";
+    if (["branchgroup"].includes(r)) return "branchGroup"; 
     return undefined;
   }, [role]);
 
   const isSuperAdmin = normalizedRole === "superAdmin";
   const isSchoolRole = normalizedRole === "school";
   const isBranchRole = normalizedRole === "branch";
+  const isBranchGroup = normalizedRole === "branchGroup"; 
 
-  // Fetch branch data with role-based filtering
+  // FIXED: Fetch branch data with proper dependency tracking
   const {
-    data: branchs,
+    data: branches,
     isLoading,
     isError,
     error,
   } = useQuery<branch[]>({
-    queryKey: ["branchs"],
+    queryKey: ["branches", userSchoolId, normalizedRole, assignedBranches],
     queryFn: async () => {
-      const res = await api.get<branch[]>("/branch");
-      return res;
+      console.log("[Branch Master - QueryFn Executing]:", {
+        isBranchGroup,
+        assignedBranches,
+        assignedBranchesCount: assignedBranches?.length || 0,
+        userSchoolId,
+        normalizedRole
+      });
+
+      // For branchGroup
+      if (isBranchGroup) {
+        console.log("[Branch Master - BranchGroup: Fetching ALL branches]:", {
+          assignedBranches,
+          assignedBranchesCount: assignedBranches.length
+        });
+        try {
+          const res = await api.get<branch[]>("/branch");
+          console.log("[Branch Master - BranchGroup API Response]:", {
+            url: "/branch",
+            totalBranches: res?.length,
+            assignedBranches,
+            responseBranches: res?.map(b => ({ id: b._id, name: b.branchName }))
+          });
+          return res || [];
+        } catch (error) {
+          console.error("[Branch Master - BranchGroup API Error]:", error);
+          return [];
+        }
+      }
+      // For school and branch roles, use schoolId parameter
+      else if (!isSuperAdmin && userSchoolId) {
+        console.log("[Branch Master - Fetching with schoolId param]:", {
+          role: normalizedRole,
+          userSchoolId
+        });
+        try {
+          const res = await api.get<branch[]>(`/branch?schoolId=${userSchoolId}`);
+          console.log("[Branch Master - API Response]:", {
+            url: `/branch?schoolId=${userSchoolId}`,
+            response: res,
+            responseLength: res?.length
+          });
+          return res || [];
+        } catch (error) {
+          console.error("[Branch Master - API Error]:", error);
+          return [];
+        }
+      } 
+      // For superadmin, get all branches
+      else {
+        const res = await api.get<branch[]>("/branch");
+        return res || [];
+      }
     },
+    // FIXED: Simplified enabled condition
+    enabled: !!normalizedRole && (
+      isBranchGroup ? assignedBranches.length > 0 : 
+      (!isSuperAdmin ? !!userSchoolId : true)
+    ),
   });
 
-  // Filter branches based on user role
+  // FIXED: Filter branches based on user role
   const filteredBranches = useMemo(() => {
-    if (!branchs) return [];
-    
-    if (isSchoolRole && userSchoolId) {
-      return branchs.filter((branch) => branch.schoolId._id === userSchoolId);
-    } else if (isBranchRole && userBranchId) {
-      // For branch role, they should only see their own branch
-      return branchs.filter((branch) => branch._id === userBranchId);
+    if (!branches) {
+      console.log("[Branch Master - No branches data]");
+      return [];
     }
-    return branchs;
-  }, [branchs, isSchoolRole, isBranchRole, userSchoolId, userBranchId]);
+    
+    console.log("[Branch Master - Filtering Branches]:", {
+      totalBranches: branches.length,
+      role: normalizedRole,
+      userSchoolId,
+      userBranchId,
+      isBranchGroup,
+      assignedBranches,
+      assignedBranchesCount: assignedBranches.length,
+      branches: branches.map(b => ({ 
+        id: b._id, 
+        name: b.branchName, 
+        schoolId: typeof b.schoolId === 'object' ? b.schoolId._id : b.schoolId 
+      }))
+    });
+
+    if (isSchoolRole && userSchoolId) {
+      const filtered = branches.filter((branch) => {
+        const branchSchoolId = typeof branch.schoolId === 'object' 
+          ? branch.schoolId._id 
+          : branch.schoolId;
+        return branchSchoolId === userSchoolId;
+      });
+      console.log("[School Role Filtered]:", filtered.length);
+      return filtered;
+    } else if (isBranchRole && userBranchId) {
+      const filtered = branches.filter((branch) => branch._id === userBranchId);
+      console.log("[Branch Role Filtered]:", filtered.length);
+      return filtered;
+    } else if (isBranchGroup && assignedBranches.length > 0) {
+      // FIXED: Filter branches that match assigned branch IDs
+      const filtered = branches.filter((branch) => {
+        const isInAssignedBranches = assignedBranches.includes(branch._id);
+        
+        if (isInAssignedBranches) {
+          console.log("[BranchGroup - Including Branch]:", {
+            branchId: branch._id,
+            branchName: branch.branchName
+          });
+        }
+        
+        return isInAssignedBranches;
+      });
+      
+      console.log("[BranchGroup Role Filtered - FINAL]:", {
+        filteredCount: filtered.length,
+        assignedBranchesCount: assignedBranches.length,
+        assignedBranches,
+        filteredBranches: filtered.map(f => ({ id: f._id, name: f.branchName }))
+      });
+      return filtered;
+    }
+    
+    // For superadmin, return all branches
+    console.log("[SuperAdmin - Returning all branches]:", branches.length);
+    return branches;
+  }, [branches, isSchoolRole, isBranchRole, isBranchGroup, userSchoolId, userBranchId, isSuperAdmin, normalizedRole, assignedBranches]);
 
   // School data - Convert to Combobox format with role-based filtering
   const schoolOptions = useMemo(() => {
@@ -377,7 +511,7 @@ export default function BranchMaster() {
     let filteredSchools = schoolData;
     
     // Filter schools based on role
-    if (isSchoolRole && userSchoolId) {
+    if ((isSchoolRole || isBranchGroup) && userSchoolId) {
       filteredSchools = schoolData.filter(s => s._id === userSchoolId);
     } else if (isBranchRole && userSchoolId) {
       filteredSchools = schoolData.filter(s => s._id === userSchoolId);
@@ -388,14 +522,19 @@ export default function BranchMaster() {
         label: s.schoolName, 
         value: s._id 
       }));
-  }, [schoolData, isSchoolRole, isBranchRole, userSchoolId]);
+  }, [schoolData, isSchoolRole, isBranchRole, isBranchGroup, userSchoolId]);
 
-  // Set default school for school and branch roles
+  // Set default school for school, branch, and branch group roles
   useEffect(() => {
-    if ((isSchoolRole || isBranchRole) && userSchoolId && !school) {
+    if ((isSchoolRole || isBranchRole || isBranchGroup) && userSchoolId && !school) {
       setSchool(userSchoolId);
+      console.log("[Branch Master - Setting Default School]:", {
+        role: normalizedRole,
+        userSchoolId,
+        isBranchGroup
+      });
     }
-  }, [isSchoolRole, isBranchRole, userSchoolId, school]);
+  }, [isSchoolRole, isBranchRole, isBranchGroup, userSchoolId, school, normalizedRole]);
 
   useEffect(() => {
     if (filteredBranches && filteredBranches.length > 0) {
@@ -406,6 +545,22 @@ export default function BranchMaster() {
       setFilterResults([]);
     }
   }, [filteredBranches]);
+
+  // Debug effect
+  useEffect(() => {
+    console.log("[Branch Master - Data Flow Debug]:", {
+      isLoading,
+      branchesCount: branches?.length,
+      filteredBranchesCount: filteredBranches?.length,
+      filteredDataCount: filteredData?.length,
+      filterResultsCount: filterResults?.length,
+      userSchoolId,
+      assignedBranches,
+      assignedBranchesCount: assignedBranches.length,
+      normalizedRole,
+      isBranchGroup
+    });
+  }, [isLoading, branches, filteredBranches, filteredData, filterResults, userSchoolId, assignedBranches, normalizedRole, isBranchGroup]);
 
   // Define the columns for the table
   const columns: ColumnDef<branch, CellContent>[] = [
@@ -474,7 +629,7 @@ export default function BranchMaster() {
       meta: { flex: 1, minWidth: 150, maxWidth: 300 },
       enableHiding: true,
     },
-    ...((isSuperAdmin || isSchoolRole) ? [{
+    ...((isSuperAdmin || isSchoolRole || isBranchGroup) ? [{
       header: "Access",
       accessorFn: (row) => ({
         type: "group",
@@ -512,7 +667,7 @@ export default function BranchMaster() {
             },
             disabled: accessMutation.isPending,
           },
-          ...((isSuperAdmin || isSchoolRole)
+          ...((isSuperAdmin || isSchoolRole || isBranchGroup)
             ? [
                 {
                   type: "button",
@@ -526,7 +681,12 @@ export default function BranchMaster() {
             : []),
         ],
       }),
-      meta: { flex: 1.5, minWidth: 150, maxWidth: 200 },
+      meta: { 
+        flex: 1.5, 
+        minWidth: 200,
+        maxWidth: 200,
+        width: 200
+      },
       enableSorting: false,
       enableHiding: true,
     }
@@ -542,7 +702,7 @@ export default function BranchMaster() {
     { key: "password", header: "branch Password" },
     { key: "subscriptionExpirationDate", header: "Expiration Date" },
     { key: "createdAt", header: "Registration Date" },
-    ...((isSuperAdmin || isSchoolRole) ? [{
+    ...((isSuperAdmin || isSchoolRole || isBranchGroup) ? [{
       key: "fullAccess",
       header: "Access Level",
       formatter: (val: boolean) => (val ? "Full Access" : "Limited Access"),
@@ -571,8 +731,8 @@ export default function BranchMaster() {
         }
       };
 
-      queryClient.setQueryData<branch[]>(["branchs"], (oldbranchs = []) => {
-        return [...oldbranchs, newBranchWithSchool];
+      queryClient.setQueryData<branch[]>(["branches"], (oldbranches = []) => {
+        return [...oldbranches, newBranchWithSchool];
       });
     },
   });
@@ -585,7 +745,7 @@ export default function BranchMaster() {
       });
     },
     onSuccess: (updated, variables) => {
-      queryClient.setQueryData<branch[]>(["branchs"], (oldData) =>
+      queryClient.setQueryData<branch[]>(["branches"], (oldData) =>
         oldData?.map((branch) =>
           branch._id === variables._id
             ? { ...branch, fullAccess: variables.fullAccess }
@@ -611,10 +771,10 @@ export default function BranchMaster() {
       return await api.put(`/branch/${branchId}`, data);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['branchs'] });
+      queryClient.invalidateQueries({ queryKey: ['branches'] });
       setEditDialogOpen(false);
       setEditTarget(null);
-      setIsVerified(false); // Reset verification state
+      setIsVerified(false);
       alert("branch updated successfully.");
     },
     onError: (err) => {
@@ -628,7 +788,7 @@ export default function BranchMaster() {
       return await api.delete(`/branch/${branchId}`);
     },
     onSuccess: (_, deletedId) => {
-      queryClient.setQueryData<branch[]>(["branchs"], (oldData) =>
+      queryClient.setQueryData<branch[]>(["branches"], (oldData) =>
         oldData?.filter((branch) => branch._id !== deletedId)
       );
       alert("branch deleted successfully.");
@@ -679,13 +839,34 @@ export default function BranchMaster() {
     
     // Role-based school selection
     let selectedSchool = school;
-    if (isSchoolRole || isBranchRole) {
+    
+    if (isSchoolRole || isBranchRole || isBranchGroup) {
       selectedSchool = userSchoolId || "";
+      console.log("[Branch Master - School Selection]:", {
+        role: normalizedRole,
+        userSchoolId,
+        selectedSchool,
+        isBranchGroup
+      });
     }
     
+    // Validate school selection with better error info
     if (!selectedSchool) {
-      alert("Please select a school");
-      return;
+      console.error("[Branch Master - School Selection Error]:", {
+        role: normalizedRole,
+        userSchoolId,
+        isBranchGroup,
+        school,
+        token: getAuthToken() ? 'present' : 'missing'
+      });
+      
+      if (isSuperAdmin) {
+        alert("Please select a school");
+        return;
+      } else {
+        alert(`School information not found for ${normalizedRole} role. Please contact administrator.`);
+        return;
+      }
     }
 
     const formattedDate = selectedDate
@@ -700,8 +881,16 @@ export default function BranchMaster() {
       password: form.password.value,
       email: form.email.value,
       subscriptionExpirationDate: formattedDate,
-      fullAccess: form.fullAccess.checked,
+      fullAccess: (isSuperAdmin || isSchoolRole || isBranchGroup) ? form.fullAccess?.checked : false,
     };
+
+    console.log("[Branch Master - Submitting Branch Data]:", {
+      data,
+      role: normalizedRole,
+      userSchoolId,
+      isBranchGroup,
+      selectedSchool
+    });
 
     try {
       await addbranchMutation.mutateAsync(data);
@@ -765,7 +954,7 @@ export default function BranchMaster() {
             onDateRangeChange={handleDateFilter}
             title="Search by Registration Date"
           />
-          {((isSuperAdmin || isSchoolRole)) && (
+          {((isSuperAdmin || isSchoolRole || isBranchGroup)) && (
             <CustomFilter
               data={filterResults}
               originalData={filterResults}
@@ -789,7 +978,7 @@ export default function BranchMaster() {
         </section>
 
         <section>
-          {(isSuperAdmin || isSchoolRole) && (
+          {(isSuperAdmin || isSchoolRole || isBranchGroup) && (
             <Dialog>
               <DialogTrigger asChild>
                 <Button variant="default">Add branch</Button>
@@ -801,7 +990,7 @@ export default function BranchMaster() {
                   </DialogHeader>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="grid gap-2">
-                      <Label htmlFor="branchName">branch Name</Label>
+                      <Label htmlFor="branchName">Branch Name *</Label>
                       <Input
                         id="branchName"
                         name="branchName"
@@ -809,6 +998,7 @@ export default function BranchMaster() {
                         required
                       />
                     </div>
+                    
                     {/* Show School field only for superadmin */}
                     {isSuperAdmin && (
                       <div className="grid gap-2">
@@ -826,8 +1016,31 @@ export default function BranchMaster() {
                         />
                       </div>
                     )}
+                    
+                    {/* Show school info for non-superadmin roles */}
+                    {(isSchoolRole || isBranchGroup) && userSchoolName && (
+                      <div className="grid gap-2">
+                        <Label htmlFor="schoolInfo">School</Label>
+                        <Input
+                          id="schoolInfo"
+                          value={userSchoolName}
+                          disabled
+                          className="bg-gray-100"
+                          placeholder="Your assigned school"
+                        />
+                        <input 
+                          type="hidden" 
+                          name="schoolId" 
+                          value={userSchoolId || ""} 
+                        />
+                        <p className="text-xs text-gray-500">
+                          School is automatically assigned to your account
+                        </p>
+                      </div>
+                    )}
+
                     <div className="grid gap-2">
-                      <Label htmlFor="email">Email</Label>
+                      <Label htmlFor="email">Email *</Label>
                       <Input
                         id="email"
                         name="email"
@@ -836,8 +1049,9 @@ export default function BranchMaster() {
                         required
                       />
                     </div>
+                    
                     <div className="grid gap-2">
-                      <Label htmlFor="branchMobile">Mobile No</Label>
+                      <Label htmlFor="branchMobile">Mobile No *</Label>
                       <Input
                         id="branchMobile"
                         name="branchMobile"
@@ -849,8 +1063,9 @@ export default function BranchMaster() {
                         required
                       />
                     </div>
+                    
                     <div className="grid gap-2">
-                      <Label htmlFor="username">Username</Label>
+                      <Label htmlFor="username">Username *</Label>
                       <Input
                         id="username"
                         name="username"
@@ -859,8 +1074,9 @@ export default function BranchMaster() {
                         required
                       />
                     </div>
+                    
                     <div className="grid gap-2">
-                      <Label htmlFor="password">Password</Label>
+                      <Label htmlFor="password">Password *</Label>
                       <Input
                         id="password"
                         name="password"
@@ -870,7 +1086,7 @@ export default function BranchMaster() {
                       />
                     </div>
                     
-                    {/* DatePicker for Expiration Date - Available for all roles that can add branches */}
+                    {/* DatePicker for Expiration Date */}
                     <div className="grid gap-2">
                       <Label htmlFor="expirationDate">Expiration Date</Label>
                       <DatePicker
@@ -881,16 +1097,20 @@ export default function BranchMaster() {
                       />
                     </div>
 
-                    <div className="flex items-center gap-3 mt-6">
-                      <input
-                        type="checkbox"
-                        id="fullAccess"
-                        name="fullAccess"
-                        className="h-5 w-5"
-                      />
-                      <Label htmlFor="fullAccess">Full Access</Label>
-                    </div>
+                    {/* Full Access checkbox - only for superadmin, school, and branchGroup roles */}
+                    {(isSuperAdmin || isSchoolRole || isBranchGroup) && (
+                      <div className="flex items-center gap-3 mt-6">
+                        <input
+                          type="checkbox"
+                          id="fullAccess"
+                          name="fullAccess"
+                          className="h-5 w-5"
+                        />
+                        <Label htmlFor="fullAccess">Full Access</Label>
+                      </div>
+                    )}
                   </div>
+                  
                   <DialogFooter>
                     <DialogClose asChild>
                       <Button ref={closeButtonRef} variant="outline">
@@ -918,14 +1138,14 @@ export default function BranchMaster() {
           maxHeight={600}
           minHeight={200}
           showSerialNumber={true}
-          noDataMessage="No branchs found"
+          noDataMessage="No branches found"
           isLoading={isLoading}
         />
       </section>
 
       <section>
         <div>
-          {((isSuperAdmin || isSchoolRole)) && (
+          {((isSuperAdmin || isSchoolRole || isBranchGroup)) && (
             <Alert<branchAccess>
               title="Are you absolutely sure?"
               description={`You are about to give ${accessTarget?.branchName} ${
@@ -946,21 +1166,21 @@ export default function BranchMaster() {
         </div>
 
         <div>
-          {deleteTarget && (
-            <Alert<branch>
-              title="Are you absolutely sure?"
-              description={`This will permanently delete ${deleteTarget?.branchName} and all associated data.`}
-              actionButton={(target) => {
-                deletebranchMutation.mutate(target._id);
-                setDeleteTarget(null);
-              }}
-              target={deleteTarget}
-              setTarget={setDeleteTarget}
-              butttonText="Delete"
-              dialogClassName="max-w-sm" // Reduced width
-            />
-          )}
-        </div>
+            {deleteTarget && (
+              <Alert<branch>
+                title="Are you absolutely sure?"
+                description={`This will permanently delete ${deleteTarget?.branchName} and all associated data.`}
+                actionButton={(target) => {
+                  deletebranchMutation.mutate(target._id);
+                  setDeleteTarget(null);
+                }}
+                target={deleteTarget}
+                setTarget={setDeleteTarget}
+                butttonText="Delete"
+                dialogClassName="w-80" // Fixed width of 320px
+              />
+            )}
+          </div>
       </section>
       
       <section>
@@ -997,7 +1217,7 @@ export default function BranchMaster() {
               title: "branch Master Report",
               companyName: "Parents Eye",
               metadata: {
-                Total: `${filteredData.length} branchs`,
+                Total: `${filteredData.length} branches`,
               },
             });
           }}
@@ -1006,7 +1226,7 @@ export default function BranchMaster() {
               title: "branch Master Report",
               companyName: "Parents Eye",
               metadata: {
-                Total: `${filteredData.length} branchs`,
+                Total: `${filteredData.length} branches`,
               },
             });
           }}
