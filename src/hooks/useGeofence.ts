@@ -1,11 +1,13 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/services/apiService";
+import { totalmem } from "os";
+import { Branch, Device, School } from "@/interface/modal";
 
 export interface Geofence {
   _id: string;
   geofenceName: string;
   area: {
-    center: [number, number]; // [latitude, longitude]
+    center: [number, number];
     radius: number;
   };
   pickupTime?: string;
@@ -17,18 +19,21 @@ export interface Geofence {
   updatedAt?: string;
   route?: {
     routeNumber: string;
+    device: Device;
   };
-  school?: {
-    schoolName: string;
-  };
-  branch?: {
-    branchName: string;
-  };
+  school?: School;
+  branch?: Branch;
 }
 
 interface GeofenceParams {
   schoolId?: string;
   branchId?: string;
+
+  page?: number;
+  limit?: number;
+  sortBy?: string;
+  sortOrder?: "asc" | "desc";
+  search?: string;
 }
 
 // Type guard to validate geofence data
@@ -64,6 +69,16 @@ export const useGeofences = (params?: GeofenceParams) => {
       const queryParams = new URLSearchParams();
       if (params?.schoolId) queryParams.append("schoolId", params.schoolId);
       if (params?.branchId) queryParams.append("branchId", params.branchId);
+      if (params?.page) queryParams.append("page", String(params.page));
+      if (params?.limit) queryParams.append("limit", String(params.limit));
+
+      if (params?.sortBy) queryParams.append("sortBy", params.sortBy);
+      if (params?.sortOrder) queryParams.append("sortOrder", params.sortOrder);
+
+      if (params?.search) queryParams.append("search", params.search);
+
+      if (params?.schoolId) queryParams.append("schoolId", params.schoolId);
+      if (params?.branchId) queryParams.append("branchId", params.branchId);
 
       // console.log("🔍 Fetching geofences with params:", params);
       const response = await api.get(`/geofence?${queryParams.toString()}`);
@@ -95,7 +110,12 @@ export const useGeofences = (params?: GeofenceParams) => {
       const validGeofences = data.filter(isValidGeofence);
       // console.log("✅ Valid geofences:", validGeofences.length, validGeofences);
 
-      return validGeofences;
+      return {
+        data: validGeofences,
+        total: response.total,
+        page: response.page,
+        limit: response.limit,
+      };
     },
     staleTime: 5 * 60 * 1000, // 5 minutes
   });

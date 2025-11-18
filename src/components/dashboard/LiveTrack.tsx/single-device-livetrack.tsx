@@ -108,7 +108,7 @@ const GeofenceLayer = ({
   }
 
   // Filter out invalid geofences before rendering
-  const validGeofences = geofences.filter((g) => {
+  const validGeofences = geofences?.data.filter((g) => {
     const isValid = isValidGeofence(g);
     if (!isValid) {
       console.warn("❌ Invalid geofence filtered out:", g);

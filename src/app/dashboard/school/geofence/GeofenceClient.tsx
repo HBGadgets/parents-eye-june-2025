@@ -46,16 +46,12 @@ export default function GeofenceClient() {
   );
   const { exportToPDF, exportToExcel } = useExport();
 
-  const {
-    data: geofenceData,
-    isLoading,
-    error,
-    isError,
-    isFetching,
-  } = useGeofences({
-    pagination,
-    sorting,
-    name: debouncedName,
+  const { data: geofenceData, isLoading } = useGeofences({
+    page: pagination.pageIndex + 1,
+    limit: pagination.pageSize,
+    search: debouncedName,
+    sortBy: sorting?.[0]?.id,
+    sortOrder: sorting?.[0]?.desc ? "desc" : "asc",
   });
 
   const { data: branchData } = useBranchData();
@@ -84,10 +80,6 @@ export default function GeofenceClient() {
       alert("Failed to delete geofence.\nError: " + err);
     },
   });
-
-  useEffect(() => {
-    // console.log("Geofence data:", geofenceData);
-  }, [geofenceData]);
 
   const handleDialogChange = (isOpen: boolean) => {
     setOpen(isOpen);
@@ -226,12 +218,14 @@ export default function GeofenceClient() {
     },
   ];
 
+  // console.log("📦 Geofence data:", geofenceData);
+
   const { tableElement } = CustomTableServerSidePagination({
     data: geofenceData?.data || [],
     columns,
     pagination,
     totalCount: geofenceData?.total || 0,
-    loading: isLoading || isFetching,
+    loading: isLoading,
     onPaginationChange: setPagination,
     onSortingChange: setSorting,
     sorting,

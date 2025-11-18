@@ -118,8 +118,8 @@ const GeofenceManager: React.FC = ({
   // >([]);
   const { data: branchData } = useBranchData();
   const { data: routeData } = useInfiniteRouteData({
-    schoolId: selectedSchool?._id,
-    branchId: selectedBranch?._id,
+    schoolId: selectedSchool?._id || initialData?.schoolId,
+    branchId: selectedBranch?._id || initialData?.branchId,
     limit: "all",
   });
   const queryClient = useQueryClient();
@@ -183,15 +183,19 @@ const GeofenceManager: React.FC = ({
 
   // 🆕 UPDATED: Populate form with initial data when in edit mode
   useEffect(() => {
+    console.log("mode: ", mode);
+    console.log("initialData: ", initialData);
+    console.log("branchData: ", branchData);
+    console.log("routeData: ", routeData);
     if (mode === "edit" && initialData && branchData && routeData) {
-      // console.log("📝 Populating edit data:", initialData);
+      console.log("📝 Populating edit data:", initialData);
 
       // Step 1: Extract coordinates from initialData
       let lat, lng;
 
       if (initialData.area?.center && initialData.area.center.length >= 2) {
         [lat, lng] = initialData.area.center;
-        // console.log("📍 Found coordinates in area.center:", lat, lng);
+        console.log("📍 Found coordinates in area.center:", lat, lng);
       } else {
         console.warn("⚠️ No coordinates found in initialData");
         // Set default coordinates if none found
@@ -214,9 +218,10 @@ const GeofenceManager: React.FC = ({
       // Step 4: Set up temp geofence for visualization
       setTempGeofence({
         type: "radius",
-        geofenceName: initialData.geofenceName || "Edit Geofence",
-        coordinates: [[lng, lat]], // matches render logic
-        radius: initialData.area?.radius || 100,
+        geofenceName: initialData.geofenceName,
+        name: initialData.geofenceName,
+        coordinates: [[initialData.area.center[1], initialData.area.center[0]]],
+        radius: initialData.area.radius,
         pickupTime: initialData.pickupTime,
         dropTime: initialData.dropTime,
       });
@@ -297,8 +302,12 @@ const GeofenceManager: React.FC = ({
         }
       }
 
+      console.log("ROUTES::::::::::: ", routeData);
+
       if (!geofenceRouteId && initialData.routeObjId) {
-        const route = routeData.find((r) => r._id === initialData.routeObjId);
+        const route = routeData?.pages[0]?.data?.find(
+          (r) => r._id === initialData.routeObjId
+        );
         if (route) {
           setSelectedRoute(route);
         }
@@ -315,17 +324,17 @@ const GeofenceManager: React.FC = ({
   ]);
 
   // 🆕 DEBUG: Track edit mode state changes
-  useEffect(() => {
-    if (mode === "edit") {
-      // console.log("=== EDIT MODE DEBUG ===");
-      // console.log("Mode:", mode);
-      // console.log("GeofenceId:", geofenceId);
-      // console.log("Map current:", !!map.current);
-      // console.log("Initial data:", initialData);
-      // console.log("Current coords:", currentCoords);
-      // console.log("========================");
-    }
-  }, [mode, geofenceId, initialData, currentCoords]);
+  // useEffect(() => {
+  //   if (mode === "edit") {
+  //     console.log("=== EDIT MODE DEBUG ===");
+  //     console.log("Mode:", mode);
+  //     console.log("GeofenceId:", geofenceId);
+  //     console.log("Map current:", !!map.current);
+  //     console.log("Initial data:", initialData);
+  //     console.log("Current coords:", currentCoords);
+  //     console.log("========================");
+  //   }
+  // }, [mode, geofenceId, initialData, currentCoords]);
 
   // 🆕 Add this useEffect to listen for map centering events
   useEffect(() => {
@@ -680,9 +689,9 @@ const GeofenceManager: React.FC = ({
   //   }
   // };
 
-  useEffect(() => {
-    // console.log("geofence", geofences);
-  }, [geofences]);
+  // useEffect(() => {
+  //   // console.log("geofence", geofences);
+  // }, [geofences]);
 
   // const searchGeofence = (query: string) => {
   //   setSearchQuery(query);
@@ -792,10 +801,6 @@ const GeofenceManager: React.FC = ({
   }, [selectedSchool, branchData, mode]); // 🆕 Add mode dependency
 
   useEffect(() => {
-    console.log("route data: ", routeData?.pages[0]?.data);
-  }, [routeData]);
-
-  useEffect(() => {
     if (selectedBranch && routeData) {
       const filtered = routeData?.pages[0]?.data.filter(
         (route) => route?.branchId?._id === selectedBranch._id
@@ -810,18 +815,6 @@ const GeofenceManager: React.FC = ({
       setFilteredRoutes([]);
     }
   }, [selectedBranch, routeData]);
-
-  useEffect(() => {
-    console.log("Selected School:", selectedSchool);
-  }, [selectedSchool]);
-
-  useEffect(() => {
-    console.log("Selected Branch:", selectedBranch);
-  }, [selectedBranch]);
-
-  useEffect(() => {
-    console.log("Routes from [Geofence Manager]:", filteredRoutes);
-  }, [filteredRoutes]);
 
   // useEffect(() => {
   //   if (selectedBranchGroup && routeData) {
@@ -868,9 +861,9 @@ const GeofenceManager: React.FC = ({
     });
   };
 
-  useEffect(() => {
-    // console.log("Filtered Geofences:", filteredGeofences);
-  }, [filteredGeofences]);
+  // useEffect(() => {
+  //   // console.log("Filtered Geofences:", filteredGeofences);
+  // }, [filteredGeofences]);
 
   useEffect(() => {
     if (tempGeofence) {
