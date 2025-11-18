@@ -235,8 +235,6 @@ export default function StudentDetails() {
         schoolId = decoded?.schoolId || decoded?.schoolID;
         
         if (decoded?.AssignedBranch && Array.isArray(decoded.AssignedBranch) && decoded.AssignedBranch.length > 0) {
-          const firstBranch = decoded.AssignedBranch[0];
-          branchId = firstBranch._id;
         }
       } else if (["admin", "superadmin", "super_admin", "root"].includes(userRole)) {
         schoolId = decoded?.schoolId || null;
@@ -324,34 +322,17 @@ export default function StudentDetails() {
       filtersObj.schoolId = userSchoolId;
     }
     
-    if (isBranchRole && userBranchId && role?.toLowerCase() !== "branchgroup") {
+    if (isBranchRole && userBranchId) {
       filtersObj.branchId = userBranchId;
       if (userSchoolId) {
         filtersObj.schoolId = userSchoolId;
       }
     }
     
+    // For branchGroup, only apply school filter, NOT branch filter (unless explicitly selected)
     if (role?.toLowerCase() === "branchgroup" && userSchoolId) {
       filtersObj.schoolId = userSchoolId;
       
-      if (filters.branch) {
-        filtersObj.branchId = filters.branch;
-      } else {
-        const token = Cookies.get("token");
-        if (token) {
-          try {
-            const decoded = getDecodedToken(token);
-            if (decoded?.AssignedBranch && Array.isArray(decoded.AssignedBranch)) {
-              const branchIds = decoded.AssignedBranch.map((branch: any) => branch._id);
-              if (branchIds.length > 0) {
-                filtersObj.branchId = branchIds[0];
-              }
-            }
-          } catch (error) {
-            console.error("Error decoding token for branchGroup filters:", error);
-          }
-        }
-      }
     }
 
     return filtersObj;
@@ -658,7 +639,11 @@ export default function StudentDetails() {
             value: b._id 
           }));
       }
-    } else if (isBranchRole && userBranchId && role?.toLowerCase() !== "branchgroup") {
+      
+      // For branchGroup, return ALL available branches without pre-selecting
+      return options;
+    } else if (isBranchRole && userBranchId) {
+      // For regular branch roles, show only their branch
       const userBranch = branches.find((b) => b._id === userBranchId);
       options = userBranch
         ? [{ 
@@ -2170,25 +2155,27 @@ export default function StudentDetails() {
             onSave={handleSave} 
             onFieldChange={handleEditFieldChange} 
             fields={EDIT_FIELDS.map(f => {
+              // HIDE school dropdown for branchGroup role
               if (f.key === "schoolId") {
-                if (isSchoolRole || isBranchRole) {
-                  return null;
+                if (isSchoolRole || isBranchRole || role?.toLowerCase() === "branchgroup") {
+                  return null; // Hide for school, branch, AND branchGroup roles
                 }
                 return { 
                   ...f, 
                   options: schoolOptions,
-                  disabled: isSchoolRole || isBranchRole
+                  disabled: false
                 };
               }
               
+              // HIDE branch dropdown for branchGroup role  
               if (f.key === "branchId") {
-                if (isBranchRole) {
-                  return null;
+                if (isBranchRole || role?.toLowerCase() === "branchgroup") {
+                  return null; // Hide for branch AND branchGroup roles
                 }
                 return { 
                   ...f, 
                   options: editFilteredBranches.map(b => ({ label: b.branchName || `Branch ${b._id}`, value: b._id })), 
-                  disabled: !editSelectedSchool || isBranchRole
+                  disabled: !editSelectedSchool
                 };
               }
               
@@ -2211,7 +2198,6 @@ export default function StudentDetails() {
             loading={updateStudentMutation.isPending} 
           />
         )}
-
         <FloatingMenu
           onExportPdf={handleExportPdf}
           onExportExcel={handleExportExcel}
