@@ -130,13 +130,6 @@ const GeofenceLayer = ({
         const [latitude, longitude] = geofence.area.center;
         const radius = geofence.area.radius;
 
-        // console.log("🟢 Rendering geofence:", {
-        //   id: geofence._id,
-        //   name: geofence.geofenceName,
-        //   center: [latitude, longitude],
-        //   radius: radius,
-        // });
-
         return (
           <React.Fragment key={geofence._id}>
             <Circle
@@ -149,7 +142,15 @@ const GeofenceLayer = ({
                 weight: 2,
                 dashArray: "5, 5",
               }}
-            />
+            >
+              <Popup>
+                <div className="text-sm">
+                  <strong>{geofence.geofenceName}</strong>
+                  <br />
+                  Radius: {geofence.area.radius} m
+                </div>
+              </Popup>
+            </Circle>
           </React.Fragment>
         );
       })}
