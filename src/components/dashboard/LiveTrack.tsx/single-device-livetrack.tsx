@@ -690,7 +690,7 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
       await refetchGeofences();
     } catch (error) {
       console.error("❌ Error creating geofence:", error);
-      // alert(error?.message);
+      alert(error?.response?.data?.message || "❌ Failed to create geofence");
     }
   };
 
