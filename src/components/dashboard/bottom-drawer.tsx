@@ -45,7 +45,7 @@ export const BottomDrawer = ({
                 )}
 
                 {/* Address display below the device name */}
-                <div className="mt-1 text-sm text-gray-600 ">
+                <div className="mt-1 text-left text-sm text-gray-600 ">
                   {selectedDevice &&
                     (() => {
                       const deviceId = selectedDevice.deviceId;
