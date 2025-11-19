@@ -91,17 +91,25 @@ const GeofenceFormComponent: React.FC<GeofenceFormProps> = memo(
       role,
     });
 
-    // In GeofenceForm.tsx, when calling onSubmit:
+    const convertTo12Hour = (time24: string): string => {
+      const [hours, minutes] = time24.split(":").map(Number);
+      const period = hours >= 12 ? "PM" : "AM";
+      const hours12 = hours % 12 || 12;
+      const hoursFormatted = hours12 < 10 ? `0${hours12}` : hours12;
+      const minutesFormatted = minutes < 10 ? `0${minutes}` : minutes;
+      return `${hoursFormatted}:${minutesFormatted} ${period}`;
+    };
+
     const handleSubmit = (e: React.FormEvent) => {
       e.preventDefault();
 
       const payload = {
-        geofenceName: formData.geofenceName, // Map 'name' to 'geofenceName'
-        pickupTime: formData.pickupTime,
-        dropTime: formData.dropTime,
-        schoolId: schoolId,
-        branchId: branchId,
-        routeObjId: routeObjId,
+        geofenceName: formData.geofenceName,
+        pickupTime: convertTo12Hour(formData.pickupTime),
+        dropTime: convertTo12Hour(formData.dropTime),
+        schoolId: selectedSchool,
+        branchId: selectedBranch,
+        routeObjId: selectedRoute,
       };
 
       onSubmit(payload);

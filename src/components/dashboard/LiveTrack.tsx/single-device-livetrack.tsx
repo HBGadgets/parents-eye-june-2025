@@ -108,7 +108,8 @@ const GeofenceLayer = ({
   }
 
   // Filter out invalid geofences before rendering
-  const validGeofences = geofences?.data.filter((g) => {
+  // console.log("🔵 GeofenceLayer - Rendering geofences:", geofences);
+  const validGeofences = geofences?.data?.filter((g) => {
     const isValid = isValidGeofence(g);
     if (!isValid) {
       console.warn("❌ Invalid geofence filtered out:", g);
@@ -118,14 +119,14 @@ const GeofenceLayer = ({
 
   // console.log("✅ GeofenceLayer - Rendering valid geofences:", validGeofences);
 
-  if (validGeofences.length === 0) {
+  if (validGeofences?.length === 0) {
     console.log("⚠️ GeofenceLayer - No valid geofences after filtering");
     return null;
   }
 
   return (
     <>
-      {validGeofences.map((geofence) => {
+      {validGeofences?.map((geofence) => {
         const [latitude, longitude] = geofence.area.center;
         const radius = geofence.area.radius;
 
@@ -149,20 +150,6 @@ const GeofenceLayer = ({
                 dashArray: "5, 5",
               }}
             />
-            {/* <Marker
-              position={[latitude, longitude]}
-              // icon={L.divIcon({
-              //   className: "geofence-label-marker",
-              //   html: `
-              //     <div class="bg-white px-3 py-1.5 rounded-lg shadow-md border-2 border-green-500 text-xs font-semibold text-gray-700 whitespace-nowrap">
-              //       📍 ${geofence.geofenceName || "Unnamed Geofence"}
-              //       ${geofence.route ? ` (${geofence.route.routeNumber})` : ""}
-              //     </div>
-              //   `,
-              //   iconSize: [0, 0],
-              //   iconAnchor: [0, 0],
-              // })}
-            /> */}
           </React.Fragment>
         );
       })}
@@ -703,7 +690,7 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
       await refetchGeofences();
     } catch (error) {
       console.error("❌ Error creating geofence:", error);
-      alert("Error creating geofence");
+      // alert(error?.message);
     }
   };
 
