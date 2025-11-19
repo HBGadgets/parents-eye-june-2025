@@ -189,9 +189,10 @@ export const useCreateGeofence = (params?: GeofenceParams) => {
         queryClient.setQueryData<Geofence[]>(
           ["geofences", params],
           (old = []) => {
-            const updated = [...old, optimisticGeofence];
+            // const updated = [...old, optimisticGeofence];
+            const safeOld = Array.isArray(old) ? old : [];
             // console.log("💾 Cache updated with optimistic data:", updated);
-            return updated;
+            return [...safeOld, optimisticGeofence];
           }
         );
       } else {
@@ -236,8 +237,9 @@ export const useCreateGeofence = (params?: GeofenceParams) => {
       queryClient.setQueryData<Geofence[]>(
         ["geofences", params],
         (old = []) => {
+          const safeOld = Array.isArray(old) ? old : [];
           // Remove temporary geofence and add the real one
-          const filtered = old.filter((g) => !g._id.startsWith("temp-"));
+          const filtered = safeOld.filter((g) => !g._id.startsWith("temp-"));
           const updated = [...filtered, data];
           // console.log("💾 Cache updated with server response:", updated);
           return updated;
