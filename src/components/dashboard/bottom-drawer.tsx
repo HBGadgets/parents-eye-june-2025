@@ -35,11 +35,17 @@ export const BottomDrawer = ({
         <DrawerContent>
           <DrawerHeader>
             <DrawerTitle className="flex justify-between items-center">
-              <div className="flex items-center gap-4">
+              <div className="flex flex-col items-start">
                 {selectedDevice && selectedDevice.name}
 
+                {selectedDevice?.imei && (
+                  <span className="text-xs text-gray-500 mt-1">
+                    IMEI: {selectedDevice.imei}
+                  </span>
+                )}
+
                 {/* Address display below the device name */}
-                <div className="mt-1 text-sm text-gray-600 ">
+                <div className="mt-1 text-left text-sm text-gray-600 ">
                   {selectedDevice &&
                     (() => {
                       const deviceId = selectedDevice.deviceId;
