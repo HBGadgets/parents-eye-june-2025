@@ -131,6 +131,7 @@ const DevicesPage = () => {
           ...editTarget,
           schoolId: { _id: value, schoolName: option?.schoolName || "" },
           branchId: { _id: "", branchName: "" },
+          routeNo: { _id: "", routeNumber: "" },
         });
         setSelectedBranchId(null);
       }
@@ -144,6 +145,18 @@ const DevicesPage = () => {
         setEditTarget({
           ...editTarget,
           branchId: { _id: value, branchName: option?.branchName || "" },
+          routeNo: { _id: "", routeNumber: "" },
+        });
+      }
+    }
+  };
+
+  const handleRouteChange = (key: string, value: any, option?: any) => {
+    if (key === "routeNo._id") {
+      if (editTarget) {
+        setEditTarget({
+          ...editTarget,
+          routeNo: { _id: value, routeNumber: option?.routeNumber || "" },
         });
       }
     }
@@ -193,7 +206,7 @@ const DevicesPage = () => {
     },
     {
       label: "Route No",
-      key: "routeNo",
+      key: "routeNo._id",
       type: "searchable-select",
       options: filteredRoutes || [],
       labelKey: "routeNumber",
@@ -276,6 +289,11 @@ const DevicesPage = () => {
       accessorFn: (r) => r.uniqueId ?? "",
     },
     { id: "sim", header: "Sim Number", accessorFn: (r) => r.sim ?? "" },
+    {
+      id: "routeNo",
+      header: "Route No",
+      accessorFn: (r) => r.routeNo?.routeNumber ?? "",
+    },
     {
       id: "speed",
       header: "Speed Limit (KM/H)",
@@ -458,6 +476,7 @@ const DevicesPage = () => {
           onFieldChange={(key, value, option) => {
             handleSchoolChange(key, value, option);
             handleBranchChange(key, value, option);
+            handleRouteChange(key, value, option);
           }}
         />
       )}
