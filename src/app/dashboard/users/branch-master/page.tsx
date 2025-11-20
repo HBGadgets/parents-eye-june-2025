@@ -875,40 +875,20 @@ export default function BranchMaster() {
   });
 
   // Mutation for Access control
-  // const accessMutation = useMutation({
-  //   mutationFn: async (branch: { _id: string; fullAccess: boolean }) => {
-  //     return await api.put(`/branch/accessgrant/${branch._id}`, {
-  //       fullAccess: branch.fullAccess,
-  //     });
-  //   },
-  //   onSuccess: (updated, variables) => {
-  //     queryClient.setQueryData<branch[]>(["branches"], (oldData) =>
-  //       oldData?.map((branch) =>
-  //         branch._id === variables._id
-  //           ? { ...branch, fullAccess: variables.fullAccess }
-  //           : branch
-  //       )
-  //     );
-  //     alert("Access updated successfully.");
-  //   },
-  //   onError: (err) => {
-  //     alert("Failed to update access.\nerror: " + err);
-  //   },
-  // });
-  // Mutation for Access control
   const accessMutation = useMutation({
-    mutationFn: async (branch: { id: string; fullAccess: boolean }) => {
-      return await api.put(`branch/accessgrant/${branch.id}`, {
+    mutationFn: async (branch: { _id: string; fullAccess: boolean }) => {
+      return await api.put(`branch/accessgrant/${branch._id}`, {
         fullAccess: !branch.fullAccess,
       });
     },
-    onSuccess: () => {
-      // Invalidate queries to refetch fresh data
-      queryClient.invalidateQueries({ queryKey: ["branches"] });
+    onSuccess: async () => {
+      // Wait for invalidation and refetch to complete
+      await queryClient.invalidateQueries({
+        queryKey: ["branches"],
+        refetchType: "active",
+      });
 
-      // Reset access target
       setAccessTarget(null);
-
       alert("Access updated successfully.");
     },
     onError: (err: any) => {
@@ -918,30 +898,6 @@ export default function BranchMaster() {
     },
   });
 
-  // Mutation for edit branch data
-  // const updatebranchMutation = useMutation({
-  //   mutationFn: async ({
-  //     branchId,
-  //     data,
-  //   }: {
-  //     branchId: string;
-  //     data: Partial<branch>;
-  //   }) => {
-  //     return await api.put(`/branch/${branchId}`, data);
-  //   },
-  //   onSuccess: () => {
-  //     queryClient.invalidateQueries({ queryKey: ["branches"] });
-  //     setEditDialogOpen(false);
-  //     setEditTarget(null);
-  //     setIsVerified(false);
-  //     alert("branch updated successfully.");
-  //   },
-  //   onError: (err) => {
-  //     alert("Failed to update branch.\nerror: " + err);
-  //   },
-  // });
-
-  // Mutation for edit branch data
   const updatebranchMutation = useMutation({
     mutationFn: async ({
       branchId,
@@ -971,21 +927,7 @@ export default function BranchMaster() {
   });
 
   // Mutation to delete a branch
-  // const deletebranchMutation = useMutation({
-  //   mutationFn: async (branchId: string) => {
-  //     return await api.delete(`/branch/${branchId}`);
-  //   },
-  //   onSuccess: (_, deletedId) => {
-  //     queryClient.setQueryData<branch[]>(["branches"], (oldData) =>
-  //       oldData?.filter((branch) => branch._id !== deletedId)
-  //     );
-  //     alert("branch deleted successfully.");
-  //   },
-  //   onError: (err) => {
-  //     alert("Failed to delete student.\nerror: " + err);
-  //   },
-  // });
-  // Mutation to delete a branch
+
   const deletebranchMutation = useMutation({
     mutationFn: async (branchId: string) => {
       return await api.delete(`branch/${branchId}`);
@@ -1040,87 +982,6 @@ export default function BranchMaster() {
       data: changedFields,
     });
   };
-
-  // const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-  //   e.preventDefault();
-  //   const form = e.currentTarget;
-
-  //   // Role-based school selection
-  //   let selectedSchool = school;
-
-  //   if (isSchoolRole || isBranchRole || isBranchGroup) {
-  //     selectedSchool = userSchoolId || "";
-  //     console.log("[Branch Master - School Selection]:", {
-  //       role: normalizedRole,
-  //       userSchoolId,
-  //       selectedSchool,
-  //       isBranchGroup,
-  //     });
-  //   }
-
-  //   // Validate school selection with better error info
-  //   if (!selectedSchool) {
-  //     console.error("[Branch Master - School Selection Error]:", {
-  //       role: normalizedRole,
-  //       userSchoolId,
-  //       isBranchGroup,
-  //       school,
-  //       token: getAuthToken() ? "present" : "missing",
-  //     });
-
-  //     if (isSuperAdmin) {
-  //       alert("Please select a school");
-  //       return;
-  //     } else {
-  //       alert(
-  //         `School information not found for ${normalizedRole} role. Please contact administrator.`
-  //       );
-  //       return;
-  //     }
-  //   }
-
-  //   const formattedDate = selectedDate
-  //     ? selectedDate.toLocaleDateString("en-CA")
-  //     : "";
-
-  //   const data = {
-  //     branchName: form.branchName.value,
-  //     schoolId: selectedSchool,
-  //     mobileNo: form.branchMobile.value,
-  //     username: form.username.value,
-  //     password: form.password.value,
-  //     email: form.email.value,
-  //     subscriptionExpirationDate: formattedDate,
-  //     fullAccess:
-  //       isSuperAdmin || isSchoolRole || isBranchGroup
-  //         ? form.fullAccess?.checked
-  //         : false,
-  //   };
-
-  //   console.log("[Branch Master - Submitting Branch Data]:", {
-  //     data,
-  //     role: normalizedRole,
-  //     userSchoolId,
-  //     isBranchGroup,
-  //     selectedSchool,
-  //   });
-
-  //   try {
-  //     await addbranchMutation.mutateAsync(data);
-  //     closeButtonRef.current?.click();
-  //     form.reset();
-  //     if (isSuperAdmin) {
-  //       setSchool("");
-  //       setSchoolSearch("");
-  //     }
-  //     setSelectedDate(null);
-  //     alert("Branch added successfully.");
-  //   } catch (err: any) {
-  //     alert(
-  //       `Failed to add branch: ${err.response?.data?.message || err.message}`
-  //     );
-  //   }
-  // };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
