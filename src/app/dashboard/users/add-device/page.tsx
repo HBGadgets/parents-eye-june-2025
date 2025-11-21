@@ -33,6 +33,8 @@ import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { FileSpreadsheet } from "lucide-react";
 import { ExcelUploader } from "@/components/excel-uploader/ExcelUploader";
+import axios from "axios";
+import { excelFileUploadForDevice } from "@/services/fileUploadService";
 
 type UserRole = "superAdmin" | "school" | "branchGroup" | "branch" | null;
 
@@ -131,6 +133,7 @@ const DevicesPage = () => {
           ...editTarget,
           schoolId: { _id: value, schoolName: option?.schoolName || "" },
           branchId: { _id: "", branchName: "" },
+          routeNo: { _id: "", routeNumber: "" },
         });
         setSelectedBranchId(null);
       }
@@ -144,15 +147,44 @@ const DevicesPage = () => {
         setEditTarget({
           ...editTarget,
           branchId: { _id: value, branchName: option?.branchName || "" },
+          routeNo: { _id: "", routeNumber: "" },
         });
       }
     }
   };
 
-  const handleFileUpload = (file: File, school: string, branch: string) => {
-    console.log("File uploaded:", { file, school, branch });
-    // Handle the file upload logic here
-    setOpen(false); // Close dialog after upload
+  const handleRouteChange = (key: string, value: any, option?: any) => {
+    if (key === "routeNo._id") {
+      if (editTarget) {
+        setEditTarget({
+          ...editTarget,
+          routeNo: { _id: value, routeNumber: option?.routeNumber || "" },
+        });
+      }
+    }
+  };
+
+  const handleFileUpload = async (
+    file: File,
+    schoolId: string,
+    branchId: string
+  ) => {
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("schoolId", schoolId); // FIXED
+      formData.append("branchId", branchId); // FIXED
+
+      // const resp = await axios.post("device/upload-excel", formData, {
+      //   headers: { "Content-Type": "multipart/form-data" },
+      // });
+      const resp = await excelFileUploadForDevice(file, schoolId, branchId);
+
+      console.log("Upload success:", resp.data);
+    } catch (error) {
+      console.error("Error uploading file:", error);
+    }
+    setOpen(false);
   };
 
   /** =========================
@@ -193,7 +225,7 @@ const DevicesPage = () => {
     },
     {
       label: "Route No",
-      key: "routeNo",
+      key: "routeNo._id",
       type: "searchable-select",
       options: filteredRoutes || [],
       labelKey: "routeNumber",
@@ -276,6 +308,11 @@ const DevicesPage = () => {
       accessorFn: (r) => r.uniqueId ?? "",
     },
     { id: "sim", header: "Sim Number", accessorFn: (r) => r.sim ?? "" },
+    {
+      id: "routeNo",
+      header: "Route No",
+      accessorFn: (r) => r.routeNo?.routeNumber ?? "",
+    },
     {
       id: "speed",
       header: "Speed Limit (KM/H)",
@@ -458,6 +495,7 @@ const DevicesPage = () => {
           onFieldChange={(key, value, option) => {
             handleSchoolChange(key, value, option);
             handleBranchChange(key, value, option);
+            handleRouteChange(key, value, option);
           }}
         />
       )}

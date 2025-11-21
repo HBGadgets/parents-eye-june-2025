@@ -247,7 +247,7 @@ const GeofenceFormComponent: React.FC<GeofenceFormProps> = memo(
             required
             disabled={isLoading}
           />
-
+          {/* 
           <div className="space-y-1">
             {role === "superAdmin" && (
               <Combobox
@@ -301,7 +301,7 @@ const GeofenceFormComponent: React.FC<GeofenceFormProps> = memo(
               onSearchChange={handleRouteSearchChange}
               disabled={isRouteDisabled}
             />
-          </div>
+          </div> */}
 
           <FormInput
             label="Pickup Time"

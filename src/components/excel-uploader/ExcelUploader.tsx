@@ -226,9 +226,9 @@ export const ExcelUploader = ({
     }
   };
 
-  useEffect(() => {
-    console.log("File selected:", selectedFile);
-  }, [selectedFile]);
+  // useEffect(() => {
+  //   console.log("File selected:", selectedFile);
+  // }, [selectedFile]);
 
   return (
     <div className="space-y-6">
