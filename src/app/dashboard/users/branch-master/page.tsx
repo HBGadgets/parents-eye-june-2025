@@ -44,6 +44,7 @@ import { ColumnVisibilitySelector } from "@/components/column-visibility-selecto
 // import { DatePicker } from "@/components/ui/datePicker";
 import { ExpirationDatePicker } from "@/components/ui/ExpirationDatePicker";
 import Cookies from "js-cookie";
+import { toast } from "sonner";
 
 type branchAccess = {
   _id: string;
@@ -343,7 +344,7 @@ export default function BranchMaster() {
     const token = getAuthToken();
     if (token) {
       const decoded = getDecodedToken(token);
-      console.log("[Branch Master - Decoded Token]: ", decoded);
+      // console.log("[Branch Master - Decoded Token]: ", decoded);
 
       const role = (decoded?.role || "").toLowerCase();
 
@@ -376,10 +377,10 @@ export default function BranchMaster() {
         assignedBranchIds = decoded.AssignedBranch.map(
           (branch: any) => branch._id
         );
-        console.log("[BranchGroup Role] Assigned Branches extracted:", {
-          assignedBranchIds,
-          rawAssignedBranches: decoded.AssignedBranch,
-        });
+        // console.log("[BranchGroup Role] Assigned Branches extracted:", {
+        //   assignedBranchIds,
+        //   rawAssignedBranches: decoded.AssignedBranch,
+        // });
       }
 
       // FIXED: Set all user info in one state update
@@ -391,14 +392,14 @@ export default function BranchMaster() {
         assignedBranches: assignedBranchIds,
       });
 
-      console.log("[Branch Master - Final User Info SET]:", {
-        role,
-        userSchoolId: schoolIdToUse,
-        userBranchId: branchIdToUse,
-        userSchoolName: decoded?.schoolName,
-        assignedBranches: assignedBranchIds,
-        assignedBranchesCount: assignedBranchIds.length,
-      });
+      // console.log("[Branch Master - Final User Info SET]:", {
+      //   role,
+      //   userSchoolId: schoolIdToUse,
+      //   userBranchId: branchIdToUse,
+      //   userSchoolName: decoded?.schoolName,
+      //   assignedBranches: assignedBranchIds,
+      //   assignedBranchesCount: assignedBranchIds.length,
+      // });
     }
   }, []);
 
@@ -430,55 +431,55 @@ export default function BranchMaster() {
   } = useQuery<branch[]>({
     queryKey: ["branches", userSchoolId, normalizedRole, assignedBranches],
     queryFn: async () => {
-      console.log("[Branch Master - QueryFn Executing]:", {
-        isBranchGroup,
-        assignedBranches,
-        assignedBranchesCount: assignedBranches?.length || 0,
-        userSchoolId,
-        normalizedRole,
-      });
+      // console.log("[Branch Master - QueryFn Executing]:", {
+      //   isBranchGroup,
+      //   assignedBranches,
+      //   assignedBranchesCount: assignedBranches?.length || 0,
+      //   userSchoolId,
+      //   normalizedRole,
+      // });
 
       // For branchGroup
       if (isBranchGroup) {
-        console.log("[Branch Master - BranchGroup: Fetching ALL branches]:", {
-          assignedBranches,
-          assignedBranchesCount: assignedBranches.length,
-        });
+        // console.log("[Branch Master - BranchGroup: Fetching ALL branches]:", {
+        //   assignedBranches,
+        //   assignedBranchesCount: assignedBranches.length,
+        // });
         try {
           const res = await api.get<branch[]>("/branch");
-          console.log("[Branch Master - BranchGroup API Response]:", {
-            url: "/branch",
-            totalBranches: res?.length,
-            assignedBranches,
-            responseBranches: res?.map((b) => ({
-              id: b._id,
-              name: b.branchName,
-            })),
-          });
+          // console.log("[Branch Master - BranchGroup API Response]:", {
+          //   url: "/branch",
+          //   totalBranches: res?.length,
+          //   assignedBranches,
+          //   responseBranches: res?.map((b) => ({
+          //     id: b._id,
+          //     name: b.branchName,
+          //   })),
+          // });
           return res || [];
         } catch (error) {
-          console.error("[Branch Master - BranchGroup API Error]:", error);
+          // console.error("[Branch Master - BranchGroup API Error]:", error);
           return [];
         }
       }
       // For school and branch roles, use schoolId parameter
       else if (!isSuperAdmin && userSchoolId) {
-        console.log("[Branch Master - Fetching with schoolId param]:", {
-          role: normalizedRole,
-          userSchoolId,
-        });
+        // console.log("[Branch Master - Fetching with schoolId param]:", {
+        //   role: normalizedRole,
+        //   userSchoolId,
+        // });
         try {
           const res = await api.get<branch[]>(
             `/branch?schoolId=${userSchoolId}`
           );
-          console.log("[Branch Master - API Response]:", {
-            url: `/branch?schoolId=${userSchoolId}`,
-            response: res,
-            responseLength: res?.length,
-          });
+          // console.log("[Branch Master - API Response]:", {
+          //   url: `/branch?schoolId=${userSchoolId}`,
+          //   response: res,
+          //   responseLength: res?.length,
+          // });
           return res || [];
         } catch (error) {
-          console.error("[Branch Master - API Error]:", error);
+          // console.error("[Branch Master - API Error]:", error);
           return [];
         }
       }
@@ -501,24 +502,24 @@ export default function BranchMaster() {
   // FIXED: Filter branches based on user role
   const filteredBranches = useMemo(() => {
     if (!branches) {
-      console.log("[Branch Master - No branches data]");
+      // console.log("[Branch Master - No branches data]");
       return [];
     }
 
-    console.log("[Branch Master - Filtering Branches]:", {
-      totalBranches: branches.length,
-      role: normalizedRole,
-      userSchoolId,
-      userBranchId,
-      isBranchGroup,
-      assignedBranches,
-      assignedBranchesCount: assignedBranches.length,
-      branches: branches.map((b) => ({
-        id: b._id,
-        name: b.branchName,
-        schoolId: typeof b.schoolId === "object" ? b.schoolId._id : b.schoolId,
-      })),
-    });
+    // console.log("[Branch Master - Filtering Branches]:", {
+    //   totalBranches: branches.length,
+    //   role: normalizedRole,
+    //   userSchoolId,
+    //   userBranchId,
+    //   isBranchGroup,
+    //   assignedBranches,
+    //   assignedBranchesCount: assignedBranches.length,
+    //   branches: branches.map((b) => ({
+    //     id: b._id,
+    //     name: b.branchName,
+    //     schoolId: typeof b.schoolId === "object" ? b.schoolId._id : b.schoolId,
+    //   })),
+    // });
 
     if (isSchoolRole && userSchoolId) {
       const filtered = branches.filter((branch) => {
@@ -528,11 +529,11 @@ export default function BranchMaster() {
             : branch.schoolId;
         return branchSchoolId === userSchoolId;
       });
-      console.log("[School Role Filtered]:", filtered.length);
+      // console.log("[School Role Filtered]:", filtered.length);
       return filtered;
     } else if (isBranchRole && userBranchId) {
       const filtered = branches.filter((branch) => branch._id === userBranchId);
-      console.log("[Branch Role Filtered]:", filtered.length);
+      // console.log("[Branch Role Filtered]:", filtered.length);
       return filtered;
     } else if (isBranchGroup && assignedBranches.length > 0) {
       // FIXED: Filter branches that match assigned branch IDs
@@ -540,29 +541,29 @@ export default function BranchMaster() {
         const isInAssignedBranches = assignedBranches.includes(branch._id);
 
         if (isInAssignedBranches) {
-          console.log("[BranchGroup - Including Branch]:", {
-            branchId: branch._id,
-            branchName: branch.branchName,
-          });
+          // console.log("[BranchGroup - Including Branch]:", {
+          //   branchId: branch._id,
+          //   branchName: branch.branchName,
+          // });
         }
 
         return isInAssignedBranches;
       });
 
-      console.log("[BranchGroup Role Filtered - FINAL]:", {
-        filteredCount: filtered.length,
-        assignedBranchesCount: assignedBranches.length,
-        assignedBranches,
-        filteredBranches: filtered.map((f) => ({
-          id: f._id,
-          name: f.branchName,
-        })),
-      });
+      // console.log("[BranchGroup Role Filtered - FINAL]:", {
+      //   filteredCount: filtered.length,
+      //   assignedBranchesCount: assignedBranches.length,
+      //   assignedBranches,
+      //   filteredBranches: filtered.map((f) => ({
+      //     id: f._id,
+      //     name: f.branchName,
+      //   })),
+      // });
       return filtered;
     }
 
     // For superadmin, return all branches
-    console.log("[SuperAdmin - Returning all branches]:", branches.length);
+    // console.log("[SuperAdmin - Returning all branches]:", branches.length);
     return branches;
   }, [
     branches,
@@ -605,11 +606,11 @@ export default function BranchMaster() {
       !school
     ) {
       setSchool(userSchoolId);
-      console.log("[Branch Master - Setting Default School]:", {
-        role: normalizedRole,
-        userSchoolId,
-        isBranchGroup,
-      });
+      // console.log("[Branch Master - Setting Default School]:", {
+      //   role: normalizedRole,
+      //   userSchoolId,
+      //   isBranchGroup,
+      // });
     }
   }, [
     isSchoolRole,
@@ -632,18 +633,18 @@ export default function BranchMaster() {
 
   // Debug effect
   useEffect(() => {
-    console.log("[Branch Master - Data Flow Debug]:", {
-      isLoading,
-      branchesCount: branches?.length,
-      filteredBranchesCount: filteredBranches?.length,
-      filteredDataCount: filteredData?.length,
-      filterResultsCount: filterResults?.length,
-      userSchoolId,
-      assignedBranches,
-      assignedBranchesCount: assignedBranches.length,
-      normalizedRole,
-      isBranchGroup,
-    });
+    // console.log("[Branch Master - Data Flow Debug]:", {
+    //   isLoading,
+    //   branchesCount: branches?.length,
+    //   filteredBranchesCount: filteredBranches?.length,
+    //   filteredDataCount: filteredData?.length,
+    //   filterResultsCount: filterResults?.length,
+    //   userSchoolId,
+    //   assignedBranches,
+    //   assignedBranchesCount: assignedBranches.length,
+    //   normalizedRole,
+    //   isBranchGroup,
+    // });
   }, [
     isLoading,
     branches,
@@ -865,7 +866,8 @@ export default function BranchMaster() {
       }
       setSelectedDate(null);
 
-      alert("Branch added successfully.");
+      // alert("Branch added successfully.");
+      toast.success("Branch added successfully.");
     },
     onError: (err: any) => {
       alert(
@@ -877,8 +879,9 @@ export default function BranchMaster() {
   // Mutation for Access control
   const accessMutation = useMutation({
     mutationFn: async (branch: { _id: string; fullAccess: boolean }) => {
+      console.log("Acccess Mutation Fn:", branch);
       return await api.put(`branch/accessgrant/${branch._id}`, {
-        fullAccess: !branch.fullAccess,
+        fullAccess: branch.fullAccess,
       });
     },
     onSuccess: async () => {
@@ -889,7 +892,8 @@ export default function BranchMaster() {
       });
 
       setAccessTarget(null);
-      alert("Access updated successfully.");
+      // alert("Access updated successfully.");
+      toast.success("Access updated successfully.");
     },
     onError: (err: any) => {
       alert(
@@ -917,7 +921,8 @@ export default function BranchMaster() {
       setEditTarget(null);
       setIsVerified(false);
 
-      alert("Branch updated successfully.");
+      // alert("Branch updated successfully.");
+      toast.success("Branch updated successfully.");
     },
     onError: (err: any) => {
       alert(
@@ -939,7 +944,8 @@ export default function BranchMaster() {
       // Reset delete target
       setDeleteTarget(null);
 
-      alert("Branch deleted successfully.");
+      // alert("Branch deleted successfully.");
+      toast.error("Branch deleted successfully.");
     },
     onError: (err: any) => {
       alert(
@@ -973,7 +979,7 @@ export default function BranchMaster() {
     }
 
     if (Object.keys(changedFields).length === 0) {
-      console.log("No changes detected.");
+      // console.log("No changes detected.");
       return;
     }
 
@@ -1028,7 +1034,7 @@ export default function BranchMaster() {
       form.reset(); // Reset the form after successful submission
     } catch (err: any) {
       // Error is already handled in mutation's onError
-      console.error("Error adding branch:", err);
+      // console.error("Error adding branch:", err);
     }
   };
 

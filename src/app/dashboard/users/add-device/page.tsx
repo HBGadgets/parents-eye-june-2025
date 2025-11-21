@@ -33,6 +33,8 @@ import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { FileSpreadsheet } from "lucide-react";
 import { ExcelUploader } from "@/components/excel-uploader/ExcelUploader";
+import axios from "axios";
+import { excelFileUploadForDevice } from "@/services/fileUploadService";
 
 type UserRole = "superAdmin" | "school" | "branchGroup" | "branch" | null;
 
@@ -162,10 +164,27 @@ const DevicesPage = () => {
     }
   };
 
-  const handleFileUpload = (file: File, school: string, branch: string) => {
-    console.log("File uploaded:", { file, school, branch });
-    // Handle the file upload logic here
-    setOpen(false); // Close dialog after upload
+  const handleFileUpload = async (
+    file: File,
+    schoolId: string,
+    branchId: string
+  ) => {
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("schoolId", schoolId); // FIXED
+      formData.append("branchId", branchId); // FIXED
+
+      // const resp = await axios.post("device/upload-excel", formData, {
+      //   headers: { "Content-Type": "multipart/form-data" },
+      // });
+      const resp = await excelFileUploadForDevice(file, schoolId, branchId);
+
+      console.log("Upload success:", resp.data);
+    } catch (error) {
+      console.error("Error uploading file:", error);
+    }
+    setOpen(false);
   };
 
   /** =========================

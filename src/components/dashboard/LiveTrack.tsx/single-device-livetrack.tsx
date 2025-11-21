@@ -89,26 +89,26 @@ const GeofenceLayer = ({
   visible: boolean;
 }) => {
   // Debug logs
-  useEffect(() => {
-    console.log("🔵 GeofenceLayer - Rendered with:", {
-      visible,
-      geofencesCount: geofences?.length || 0,
-      geofences: geofences,
-    });
-  }, [geofences, visible]);
+  // useEffect(() => {
+  //   // console.log("🔵 GeofenceLayer - Rendered with:", {
+  //   //   visible,
+  //   //   geofencesCount: geofences?.length || 0,
+  //   //   geofences: geofences,
+  //   // });
+  // }, [geofences, visible]);
 
-  if (!visible) {
-    console.log("⚪ GeofenceLayer - Not visible");
-    return null;
-  }
+  // if (!visible) {
+  //   // console.log("⚪ GeofenceLayer - Not visible");
+  //   return null;
+  // }
 
-  if (!geofences || geofences.length === 0) {
-    console.log("⚪ GeofenceLayer - No geofences to display");
-    return null;
-  }
+  // if (!geofences || geofences.length === 0) {
+  //   // console.log("⚪ GeofenceLayer - No geofences to display");
+  //   return null;
+  // }
 
   // Filter out invalid geofences before rendering
-  // console.log("🔵 GeofenceLayer - Rendering geofences:", geofences);
+  // // console.log("🔵 GeofenceLayer - Rendering geofences:", geofences);
   const validGeofences = geofences?.data?.filter((g) => {
     const isValid = isValidGeofence(g);
     if (!isValid) {
@@ -117,10 +117,10 @@ const GeofenceLayer = ({
     return isValid;
   });
 
-  // console.log("✅ GeofenceLayer - Rendering valid geofences:", validGeofences);
+  // // console.log("✅ GeofenceLayer - Rendering valid geofences:", validGeofences);
 
   if (validGeofences?.length === 0) {
-    console.log("⚠️ GeofenceLayer - No valid geofences after filtering");
+    // console.log("⚠️ GeofenceLayer - No valid geofences after filtering");
     return null;
   }
 
@@ -416,37 +416,37 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
   const createGeofenceMutation = useCreateGeofence(queryParams);
 
   // Debug logs for geofences
-  useEffect(() => {
-    console.log("📊 Geofences State Update:", {
-      count: geofences.length,
-      isLoading: isLoadingGeofences,
-      error: geofencesError,
-      showGeofences,
-      geofences: geofences,
-      queryParams,
-    });
-  }, [
-    geofences,
-    isLoadingGeofences,
-    geofencesError,
-    showGeofences,
-    queryParams,
-  ]);
+  // useEffect(() => {
+  //   // console.log("📊 Geofences State Update:", {
+  //     count: geofences.length,
+  //     isLoading: isLoadingGeofences,
+  //     error: geofencesError,
+  //     showGeofences,
+  //     geofences: geofences,
+  //     queryParams,
+  //   });
+  // }, [
+  //   geofences,
+  //   isLoadingGeofences,
+  //   geofencesError,
+  //   showGeofences,
+  //   queryParams,
+  // ]);
 
   // Debug mutation state
-  useEffect(() => {
-    console.log("🔄 Mutation State:", {
-      isPending: createGeofenceMutation.isPending,
-      isSuccess: createGeofenceMutation.isSuccess,
-      isError: createGeofenceMutation.isError,
-      error: createGeofenceMutation.error,
-    });
-  }, [
-    createGeofenceMutation.isPending,
-    createGeofenceMutation.isSuccess,
-    createGeofenceMutation.isError,
-    createGeofenceMutation.error,
-  ]);
+  // useEffect(() => {
+  //   // console.log("🔄 Mutation State:", {
+  //     isPending: createGeofenceMutation.isPending,
+  //     isSuccess: createGeofenceMutation.isSuccess,
+  //     isError: createGeofenceMutation.isError,
+  //     error: createGeofenceMutation.error,
+  //   });
+  // }, [
+  //   createGeofenceMutation.isPending,
+  //   createGeofenceMutation.isSuccess,
+  //   createGeofenceMutation.isError,
+  //   createGeofenceMutation.error,
+  // ]);
 
   React.useEffect(() => {
     const token = Cookies.get("token");
@@ -647,7 +647,7 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
 
   const handleToggleGeofences = useCallback(() => {
     setShowGeofences((prev) => {
-      console.log("🔄 Toggling geofences visibility:", !prev);
+      // console.log("🔄 Toggling geofences visibility:", !prev);
       return !prev;
     });
   }, []);
@@ -658,7 +658,7 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
 
   const handleGeofenceSubmit = async (payload: any) => {
     try {
-      console.log("📤 Submitting geofence with payload:", payload);
+      // console.log("📤 Submitting geofence with payload:", payload);
 
       // Transform payload to match your API structure
       const geofencePayload = {
@@ -674,10 +674,10 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
         routeObjId: routeObjId || payload.routeObjId,
       };
 
-      console.log("📤 Final geofence payload:", geofencePayload);
+      // console.log("📤 Final geofence payload:", geofencePayload);
 
       const result = await createGeofenceMutation.mutateAsync(geofencePayload);
-      console.log("✅ Geofence created successfully:", result);
+      // console.log("✅ Geofence created successfully:", result);
 
       alert("Geofence created successfully");
 
@@ -687,7 +687,7 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
       setGeofenceCenter(null);
 
       // The mutation will automatically refetch, but we can force it too
-      console.log("🔄 Refetching geofences...");
+      // console.log("🔄 Refetching geofences...");
       await refetchGeofences();
     } catch (error) {
       console.error("❌ Error creating geofence:", error);
