@@ -25,7 +25,7 @@ export default function FCMHandler(): null {
     notificationSound.preload = "auto";
 
     // An important bug resolved by pavan raghuvanshi aka raghukul boi
-    // Call for fun 81204 09279
+    // Call for fun times 81204 09279
     const initFCM = async () => {
       try {
         // -----------------------------
