@@ -164,6 +164,65 @@ const DevicesPage = () => {
     }
   };
 
+  // Add this handler after your other handlers (handleSchoolChange, handleBranchChange, etc.)
+  const handleFieldChange = (key: string, value: any, option?: any) => {
+    // Handle school change
+    if (key === "schoolId._id") {
+      const prevSchoolId = selectedSchoolId;
+      setSelectedSchoolId(value);
+
+      if (editTarget && prevSchoolId !== value) {
+        setEditTarget({
+          ...editTarget,
+          schoolId: { _id: value, schoolName: option?.schoolName || "" },
+          branchId: { _id: "", branchName: "" },
+          routeNo: { _id: "", routeNumber: "" },
+        });
+        setSelectedBranchId(null);
+      }
+    }
+    // Handle branch change
+    else if (key === "branchId._id") {
+      setSelectedBranchId(value);
+      if (editTarget) {
+        setEditTarget({
+          ...editTarget,
+          branchId: { _id: value, branchName: option?.branchName || "" },
+          routeNo: { _id: "", routeNumber: "" },
+        });
+      }
+    }
+    // Handle route change
+    else if (key === "routeNo._id") {
+      if (editTarget) {
+        setEditTarget({
+          ...editTarget,
+          routeNo: { _id: value, routeNumber: option?.routeNumber || "" },
+        });
+      }
+    }
+    // Handle driver change
+    else if (key === "driver._id") {
+      if (editTarget) {
+        setEditTarget({
+          ...editTarget,
+          driver: { _id: value, driverName: option?.driverName || "" },
+        });
+      }
+    }
+    // Handle all other simple fields (name, sim, speed, etc.)
+    else if (editTarget) {
+      const keys = key.split(".");
+      if (keys.length === 1) {
+        // Simple field like "name", "sim", "speed"
+        setEditTarget({
+          ...editTarget,
+          [key]: value,
+        });
+      }
+    }
+  };
+
   const handleFileUpload = async (
     file: File,
     schoolId: string,
@@ -483,20 +542,24 @@ const DevicesPage = () => {
             setSelectedSchoolId(null);
             setSelectedBranchId(null);
           }}
-          onSave={(data) =>
+          onSave={(data) => {
+            console.log("Data from dialog:", data); // ✅ Check this
+            console.log("EditTarget state:", editTarget); // ✅ Compare with this
             updateDeviceMutation.mutate({
               device: editTarget,
-              data,
-            })
-          }
+              data: {
+                ...data,
+                driver: data.driver?._id || data.driver, // ✅ Extract just the ID
+                schoolId: data.schoolId?._id || data.schoolId,
+                branchId: data.branchId?._id || data.branchId,
+                routeNo: data.routeNo?._id || data.routeNo,
+              },
+            });
+          }}
           fields={deviceEditFieldConfigs}
           title="Edit Device"
           description="Update the device information below."
-          onFieldChange={(key, value, option) => {
-            handleSchoolChange(key, value, option);
-            handleBranchChange(key, value, option);
-            handleRouteChange(key, value, option);
-          }}
+          onFieldChange={handleFieldChange}
         />
       )}
 
