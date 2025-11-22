@@ -87,7 +87,7 @@ export default function FCMHandler(): null {
         }
 
         // -----------------------------
-        // 5️⃣ Foreground FCM Listener
+        // 5️⃣ Foreground & Background FCM Listener
         // -----------------------------
         onMessage(messaging as Messaging, (payload) => {
           const title = payload.notification?.title ?? "New Notification";
