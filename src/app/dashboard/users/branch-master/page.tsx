@@ -89,11 +89,7 @@ const getDecodedToken = (token: string): DecodedToken | null => {
 // Helper function to get token from storage
 const getAuthToken = (): string | null => {
   if (typeof window !== "undefined") {
-    return (
-      Cookies.get("token") ||
-      localStorage.getItem("token") ||
-      sessionStorage.getItem("token")
-    );
+    Cookies.get("token");
   }
   return null;
 };

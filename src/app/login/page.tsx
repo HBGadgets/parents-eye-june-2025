@@ -10,6 +10,7 @@ import { loginUser } from "@/services/userService";
 import Image from "next/image";
 import { Eye, EyeOff, Loader2 } from "lucide-react"; // Added Loader2
 import Link from "next/link";
+import Cookies from "js-cookie";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -26,7 +27,7 @@ export default function LoginPage() {
   }, [isAuthenticated, router]);
 
   useEffect(() => {
-    if (localStorage.getItem("token")) {
+    if (Cookies.get("token")) {
       router.replace("/dashboard");
     }
   }, []);
