@@ -85,155 +85,157 @@ interface DecodedToken {
 // Helper function to decode JWT token
 const getDecodedToken = (token: string): DecodedToken | null => {
   try {
-    const base64Url = token.split('.')[1];
-    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const base64Url = token.split(".")[1];
+    const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
     const jsonPayload = decodeURIComponent(
       atob(base64)
-        .split('')
-        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
-        .join('')
+        .split("")
+        .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
+        .join("")
     );
     return JSON.parse(jsonPayload);
   } catch (error) {
-    console.error('Error decoding token:', error);
+    console.error("Error decoding token:", error);
     return null;
   }
 };
 
-  // Helper function to get token from storage
-  const getAuthToken = (): string | null => {
-    if (typeof window !== 'undefined') {
-      return Cookies.get("token") || localStorage.getItem('token') || sessionStorage.getItem('token');
-    }
-    return null;
-  };
-
-  declare module "@tanstack/react-table" {
-    interface ColumnMeta<TData, TValue> {
-      flex?: number;
-      minWidth?: number;
-      maxWidth?: number;
-      sortable?: boolean;
-    }
+// Helper function to get token from storage
+const getAuthToken = (): string | null => {
+  if (typeof window !== "undefined") {
+    Cookies.get("token");
   }
+  return null;
+};
 
-  export default function ParentsMaster() {
-    const queryClient = useQueryClient();
-    const closeButtonRef = useRef<HTMLButtonElement>(null);
+declare module "@tanstack/react-table" {
+  interface ColumnMeta<TData, TValue> {
+    flex?: number;
+    minWidth?: number;
+    maxWidth?: number;
+    sortable?: boolean;
+  }
+}
 
-    // Server-side table states
-    const [pagination, setPagination] = useState({
-      pageIndex: 0,
-      pageSize: 10,
+export default function ParentsMaster() {
+  const queryClient = useQueryClient();
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+
+  // Server-side table states
+  const [pagination, setPagination] = useState({
+    pageIndex: 0,
+    pageSize: 10,
+  });
+  const [sorting, setSorting] = useState<SortingState>([]);
+  const [globalFilter, setGlobalFilter] = useState<string>("");
+  const [dateRange, setDateRange] = useState<{
+    start: Date | null;
+    end: Date | null;
+  }>({
+    start: null,
+    end: null,
+  });
+
+  // Existing states
+  const [deleteTarget, setDeleteTarget] = useState<Parent | null>(null);
+  const [editTarget, setEditTarget] = useState<Parent | null>(null);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
+
+  // Add school and branch state hooks with search states
+  const [school, setSchool] = useState<string>("");
+  const [schoolSearch, setSchoolSearch] = useState("");
+  const { data: schoolData } = useSchoolData();
+
+  const [branch, setBranch] = useState<string>("");
+  const [branchSearch, setBranchSearch] = useState("");
+  const { data: branchData } = useBranchData();
+
+  const [debouncedName, setDebouncedName] = useState("");
+
+  // Search states
+  const [filteredData, setFilteredData] = useState<Parent[]>([]);
+  const [filterResults, setFilterResults] = useState<Parent[]>([]);
+
+  // Role-based states
+  const [role, setRole] = useState<string | null>(null);
+  const [userSchoolId, setUserSchoolId] = useState<string | null>(null);
+  const [userBranchId, setUserBranchId] = useState<string | null>(null);
+  const [userSchoolName, setUserSchoolName] = useState<string | null>(null);
+
+  const { exportToPDF, exportToExcel } = useExport();
+
+  // Get user info from token - UPDATED WITH BRANCH ID HANDLING
+  useEffect(() => {
+    const token = getAuthToken();
+    if (!token) {
+      console.error("[Parent Master] No token found");
+      return;
+    }
+
+    const decoded = getDecodedToken(token);
+    console.log("[Parent Master - Full Decoded Token]: ", decoded);
+
+    const role = (decoded?.role || "").toLowerCase();
+    setRole(role);
+
+    console.log("[Parent Master - Role Analysis]:", {
+      rawRole: decoded?.role,
+      normalizedRole: role,
+      hasSchoolId: !!decoded?.schoolId,
+      hasId: !!decoded?.id,
+      schoolIdValue: decoded?.schoolId,
+      idValue: decoded?.id,
+      assignedBranches: decoded?.AssignedBranch,
     });
-    const [sorting, setSorting] = useState<SortingState>([]);
-    const [globalFilter, setGlobalFilter] = useState<string>("");
-    const [dateRange, setDateRange] = useState<{
-      start: Date | null;
-      end: Date | null;
-    }>({
-      start: null,
-      end: null,
-    });
 
-    // Existing states
-    const [deleteTarget, setDeleteTarget] = useState<Parent | null>(null);
-    const [editTarget, setEditTarget] = useState<Parent | null>(null);
-    const [editDialogOpen, setEditDialogOpen] = useState(false);
-    const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
+    // SCHOOL ID HANDLING - UPDATED VERSION
+    let schoolIdToUse = null;
+    let branchIdToUse = null;
+    let schoolNameToUse = decoded?.schoolName || null;
 
-    // Add school and branch state hooks with search states
-    const [school, setSchool] = useState<string>("");
-    const [schoolSearch, setSchoolSearch] = useState("");
-    const { data: schoolData } = useSchoolData();
-    
-    const [branch, setBranch] = useState<string>("");
-    const [branchSearch, setBranchSearch] = useState("");
-    const { data: branchData } = useBranchData();
-    
-    const [debouncedName, setDebouncedName] = useState("");
+    if (role === "school" || role === "schooladmin") {
+      schoolIdToUse = decoded?.id; // School role uses id as schoolId
+    } else if (role === "branchgroup") {
+      schoolIdToUse = decoded?.schoolId; // BranchGroup uses schoolId field
 
-    // Search states
-    const [filteredData, setFilteredData] = useState<Parent[]>([]);
-    const [filterResults, setFilterResults] = useState<Parent[]>([]);
-
-    // Role-based states
-    const [role, setRole] = useState<string | null>(null);
-    const [userSchoolId, setUserSchoolId] = useState<string | null>(null);
-    const [userBranchId, setUserBranchId] = useState<string | null>(null);
-    const [userSchoolName, setUserSchoolName] = useState<string | null>(null);
-
-    const { exportToPDF, exportToExcel } = useExport();
-
-
-    // Get user info from token - UPDATED WITH BRANCH ID HANDLING
-    useEffect(() => {
-      const token = getAuthToken();
-      if (!token) {
-        console.error("[Parent Master] No token found");
-        return;
-      }
-
-      const decoded = getDecodedToken(token);
-      console.log("[Parent Master - Full Decoded Token]: ", decoded);
-
-      const role = (decoded?.role || "").toLowerCase();
-      setRole(role);
-
-      console.log("[Parent Master - Role Analysis]:", {
-        rawRole: decoded?.role,
-        normalizedRole: role,
-        hasSchoolId: !!decoded?.schoolId,
-        hasId: !!decoded?.id,
-        schoolIdValue: decoded?.schoolId,
-        idValue: decoded?.id,
-        assignedBranches: decoded?.AssignedBranch
-      });
-
-      // SCHOOL ID HANDLING - UPDATED VERSION
-      let schoolIdToUse = null;
-      let branchIdToUse = null;
-      let schoolNameToUse = decoded?.schoolName || null;
-
-      if (role === "school" || role === "schooladmin") {
-        schoolIdToUse = decoded?.id; // School role uses id as schoolId
-      } else if (role === "branchgroup") {
-        schoolIdToUse = decoded?.schoolId; // BranchGroup uses schoolId field
-        
-        // BRANCHGROUP BRANCH HANDLING: Use first branch from AssignedBranch array as default
-        if (decoded?.AssignedBranch && decoded.AssignedBranch.length > 0) {
-          branchIdToUse = decoded.AssignedBranch[0]._id; // Use first branch as default
-          console.log("[BranchGroup] Using first branch as default:", decoded.AssignedBranch[0]);
-        } else {
-          branchIdToUse = null; // No branches assigned
-          console.log("[BranchGroup] No branches assigned in token");
-        }
-      } else if (role === "branch" || role === "branchadmin") {
-        schoolIdToUse = decoded?.schoolId; // Branch uses schoolId field
-        branchIdToUse = decoded?.id; // Branch uses id as branchId
+      // BRANCHGROUP BRANCH HANDLING: Use first branch from AssignedBranch array as default
+      if (decoded?.AssignedBranch && decoded.AssignedBranch.length > 0) {
+        branchIdToUse = decoded.AssignedBranch[0]._id; // Use first branch as default
+        console.log(
+          "[BranchGroup] Using first branch as default:",
+          decoded.AssignedBranch[0]
+        );
       } else {
-        // Superadmin or other roles
-        schoolIdToUse = decoded?.schoolId;
-        branchIdToUse = decoded?.branchId;
+        branchIdToUse = null; // No branches assigned
+        console.log("[BranchGroup] No branches assigned in token");
       }
+    } else if (role === "branch" || role === "branchadmin") {
+      schoolIdToUse = decoded?.schoolId; // Branch uses schoolId field
+      branchIdToUse = decoded?.id; // Branch uses id as branchId
+    } else {
+      // Superadmin or other roles
+      schoolIdToUse = decoded?.schoolId;
+      branchIdToUse = decoded?.branchId;
+    }
 
-      setUserSchoolId(schoolIdToUse);
-      setUserBranchId(branchIdToUse);
-      setUserSchoolName(schoolNameToUse);
+    setUserSchoolId(schoolIdToUse);
+    setUserBranchId(branchIdToUse);
+    setUserSchoolName(schoolNameToUse);
 
-      console.log("[Parent Master - Final Settings]:", {
-        role,
-        userSchoolId: schoolIdToUse,
-        userBranchId: branchIdToUse,
-        userSchoolName: schoolNameToUse,
-        assignedBranches: decoded?.AssignedBranch
-      });
-
-    }, []);
+    console.log("[Parent Master - Final Settings]:", {
+      role,
+      userSchoolId: schoolIdToUse,
+      userBranchId: branchIdToUse,
+      userSchoolName: schoolNameToUse,
+      assignedBranches: decoded?.AssignedBranch,
+    });
+  }, []);
   // Role checks
   const normalizedRole = useMemo(() => {
     const r = (role || "").toLowerCase();
-    if (["superadmin", "super_admin", "admin", "root"].includes(r)) return "superAdmin";
+    if (["superadmin", "super_admin", "admin", "root"].includes(r))
+      return "superAdmin";
     if (["school", "schooladmin"].includes(r)) return "school";
     if (["branch", "branchadmin"].includes(r)) return "branch";
     if (["branchgroup"].includes(r)) return "branchGroup";
@@ -257,7 +259,8 @@ const getDecodedToken = (token: string): DecodedToken | null => {
     sorting,
     name: debouncedName,
     // Add role-based filters
-    ...((isSchoolRole || isBranchGroupRole) && userSchoolId && { schoolId: userSchoolId }),
+    ...((isSchoolRole || isBranchGroupRole) &&
+      userSchoolId && { schoolId: userSchoolId }),
     ...(isBranchRole && userBranchId && { branchId: userBranchId }),
   });
 
@@ -272,56 +275,69 @@ const getDecodedToken = (token: string): DecodedToken | null => {
   // School options - Convert to Combobox format with role-based filtering
   const schoolOptions = useMemo(() => {
     if (!schoolData) return [];
-    
+
     let filteredSchools = schoolData;
-    
+
     // Filter schools based on role
     if ((isSchoolRole || isBranchGroupRole) && userSchoolId) {
-      filteredSchools = schoolData.filter(s => s._id === userSchoolId);
+      filteredSchools = schoolData.filter((s) => s._id === userSchoolId);
     } else if (isBranchRole && userSchoolId) {
-      filteredSchools = schoolData.filter(s => s._id === userSchoolId);
+      filteredSchools = schoolData.filter((s) => s._id === userSchoolId);
     }
-    
-    return filteredSchools.filter((s) => s._id && s.schoolName)
-      .map((s) => ({ 
-        label: s.schoolName, 
-        value: s._id 
+
+    return filteredSchools
+      .filter((s) => s._id && s.schoolName)
+      .map((s) => ({
+        label: s.schoolName,
+        value: s._id,
       }));
   }, [schoolData, isSchoolRole, isBranchRole, isBranchGroupRole, userSchoolId]);
 
   // Branch options - Convert to Combobox format with role-based filtering
   const branchOptions = useMemo(() => {
     if (!branchData) return [];
-    
+
     let filteredBranches = branchData;
-    
+
     // Filter branches based on role
     if ((isSchoolRole || isBranchGroupRole) && userSchoolId) {
       // For school and branchGroup roles, show all branches of their school
-      filteredBranches = branchData.filter(b => b.schoolId?._id === userSchoolId);
+      filteredBranches = branchData.filter(
+        (b) => b.schoolId?._id === userSchoolId
+      );
     } else if (isBranchRole && userBranchId) {
       // For branch role, they should only see their own branch
-      filteredBranches = branchData.filter(b => b._id === userBranchId);
+      filteredBranches = branchData.filter((b) => b._id === userBranchId);
     }
-    
-    return filteredBranches.filter((b) => b._id && b.branchName)
-      .map((b) => ({ 
-        label: b.branchName, 
-        value: b._id 
+
+    return filteredBranches
+      .filter((b) => b._id && b.branchName)
+      .map((b) => ({
+        label: b.branchName,
+        value: b._id,
       }));
-  }, [branchData, isSchoolRole, isBranchRole, isBranchGroupRole, userSchoolId, userBranchId]);
+  }, [
+    branchData,
+    isSchoolRole,
+    isBranchRole,
+    isBranchGroupRole,
+    userSchoolId,
+    userBranchId,
+  ]);
 
   // Filtered branch options based on selected school
   const filteredBranchOptions = useMemo(() => {
     if (!school || !branchData) return [];
-    
-    let branches = branchData.filter((branch) => branch.schoolId?._id === school);
-    
+
+    let branches = branchData.filter(
+      (branch) => branch.schoolId?._id === school
+    );
+
     // Additional role-based filtering
     if (isBranchRole && userBranchId) {
-      branches = branches.filter(b => b._id === userBranchId);
+      branches = branches.filter((b) => b._id === userBranchId);
     }
-    
+
     return branches.map((branch) => ({
       label: branch.branchName,
       value: branch._id,
@@ -342,7 +358,10 @@ const getDecodedToken = (token: string): DecodedToken | null => {
     } else if (isBranchGroupRole && userBranchId && !branch) {
       // For branchGroup, set the first assigned branch as default
       setBranch(userBranchId);
-      console.log("[BranchGroup] Setting default branch from token:", userBranchId);
+      console.log(
+        "[BranchGroup] Setting default branch from token:",
+        userBranchId
+      );
     }
   }, [isBranchRole, isBranchGroupRole, userBranchId, branch]);
 
@@ -363,13 +382,17 @@ const getDecodedToken = (token: string): DecodedToken | null => {
       enableHiding: true,
       enableSorting: true,
     },
-    ...(isSuperAdmin ? [{
-      id: "schoolName",
-      header: "School Name",
-      accessorFn: (row) => row.schoolId?.schoolName || "N/A",
-      enableHiding: true,
-      enableSorting: true,
-    }] : []),
+    ...(isSuperAdmin
+      ? [
+          {
+            id: "schoolName",
+            header: "School Name",
+            accessorFn: (row) => row.schoolId?.schoolName || "N/A",
+            enableHiding: true,
+            enableSorting: true,
+          },
+        ]
+      : []),
     {
       id: "branchName",
       header: "Branch Name",
@@ -408,7 +431,7 @@ const getDecodedToken = (token: string): DecodedToken | null => {
     {
       id: "status",
       header: "Status",
-      accessorFn: (row) => row.isActive ? "Active" : "Inactive",
+      accessorFn: (row) => (row.isActive ? "Active" : "Inactive"),
       enableHiding: true,
       enableSorting: true,
     },
@@ -429,7 +452,10 @@ const getDecodedToken = (token: string): DecodedToken | null => {
           </button>
 
           {/* Delete Button - Show for superAdmin, school, branch, and branchGroup roles */}
-          {(isSuperAdmin || isSchoolRole || isBranchRole || isBranchGroupRole) && (
+          {(isSuperAdmin ||
+            isSchoolRole ||
+            isBranchRole ||
+            isBranchGroupRole) && (
             <button
               onClick={() => setDeleteTarget(row.original)}
               className="cursor-pointer bg-yellow-400 hover:bg-yellow-500 text-red-600 font-semibold py-1.5 px-4 rounded-md text-sm transition-colors duration-200"
@@ -439,21 +465,23 @@ const getDecodedToken = (token: string): DecodedToken | null => {
           )}
         </div>
       ),
-      meta: { 
-        flex: 1.5, 
-        minWidth: 200,  // ← Set fixed min width
-        maxWidth: 200,  // ← Set fixed max width
-        width: 200      // ← Add explicit width
+      meta: {
+        flex: 1.5,
+        minWidth: 200, // ← Set fixed min width
+        maxWidth: 200, // ← Set fixed max width
+        width: 200, // ← Add explicit width
       },
       enableSorting: false,
       enableHiding: true,
-    }
+    },
   ];
 
   // Columns for export with role-based visibility
   const columnsForExport = [
     { key: "parentName", header: "Parent Name" },
-    ...(isSuperAdmin ? [{ key: "schoolId.schoolName", header: "School Name" }] : []),
+    ...(isSuperAdmin
+      ? [{ key: "schoolId.schoolName", header: "School Name" }]
+      : []),
     { key: "branchId.branchName", header: "Branch Name" },
     { key: "mobileNo", header: "Mobile" },
     { key: "email", header: "Email" },
@@ -472,7 +500,10 @@ const getDecodedToken = (token: string): DecodedToken | null => {
   ];
 
   // Define the fields for the edit dialog with role-based configuration
-  const getParentFieldConfigs = (schoolOptions: selectOption[], branchOptions: selectOption[]): FieldConfig[] => {
+  const getParentFieldConfigs = (
+    schoolOptions: selectOption[],
+    branchOptions: selectOption[]
+  ): FieldConfig[] => {
     const baseFields: FieldConfig[] = [
       { label: "Parent Name", key: "parentName", type: "text", required: true },
     ];
@@ -496,10 +527,11 @@ const getDecodedToken = (token: string): DecodedToken | null => {
         type: "select",
         required: true,
         options: branchOptions,
-        ...(((isSchoolRole || isBranchGroupRole) && userSchoolId) && { 
-          filterBy: "schoolId", 
-          filterValue: userSchoolId 
-        }),
+        ...((isSchoolRole || isBranchGroupRole) &&
+          userSchoolId && {
+            filterBy: "schoolId",
+            filterValue: userSchoolId,
+          }),
       });
     }
 
@@ -509,7 +541,12 @@ const getDecodedToken = (token: string): DecodedToken | null => {
       { label: "Email", key: "email", type: "email", required: true },
       { label: "Username", key: "username", type: "text", required: true },
       { label: "Password", key: "password", type: "text", required: true },
-      { label: "Active Status", key: "isActive", type: "checkbox", className: "h-3 w-3" },
+      {
+        label: "Active Status",
+        key: "isActive",
+        type: "checkbox",
+        className: "h-3 w-3",
+      }
     );
 
     return baseFields;
@@ -604,7 +641,7 @@ const getDecodedToken = (token: string): DecodedToken | null => {
       const oldValue = editTarget[key as keyof Parent];
 
       // Skip branchDisplay field as it's just for display
-      if (key === 'branchDisplay') continue;
+      if (key === "branchDisplay") continue;
 
       if (newValue !== undefined && newValue !== oldValue) {
         changedFields[key as keyof Parent] = newValue;
@@ -643,7 +680,7 @@ const getDecodedToken = (token: string): DecodedToken | null => {
       decodedSchoolId: decoded?.schoolId,
       assignedBranches: decoded?.AssignedBranch,
       stateUserSchoolId: userSchoolId,
-      stateUserBranchId: userBranchId
+      stateUserBranchId: userBranchId,
     });
 
     // Role-based school and branch selection - UPDATED
@@ -659,14 +696,26 @@ const getDecodedToken = (token: string): DecodedToken | null => {
     } else if (isBranchGroupRole) {
       // BranchGroup role - use their schoolId from token
       selectedSchool = decoded?.schoolId || userSchoolId || "";
-      
+
       // For branchGroup, use the selected branch from form OR first assigned branch
-      if (!selectedBranch && decoded?.AssignedBranch && decoded.AssignedBranch.length > 0) {
+      if (
+        !selectedBranch &&
+        decoded?.AssignedBranch &&
+        decoded.AssignedBranch.length > 0
+      ) {
         selectedBranch = decoded.AssignedBranch[0]._id; // Fallback to first assigned branch
-        console.log("[BranchGroup] Using first assigned branch as fallback:", selectedBranch);
+        console.log(
+          "[BranchGroup] Using first assigned branch as fallback:",
+          selectedBranch
+        );
       }
-      
-      console.log("[BranchGroup Form] Using schoolId:", selectedSchool, "branchId:", selectedBranch);
+
+      console.log(
+        "[BranchGroup Form] Using schoolId:",
+        selectedSchool,
+        "branchId:",
+        selectedBranch
+      );
     } else if (isBranchRole) {
       // Branch role - use their schoolId from token and branchId from token (id field)
       selectedSchool = decoded?.schoolId || userSchoolId || "";
@@ -679,8 +728,8 @@ const getDecodedToken = (token: string): DecodedToken | null => {
       validation: {
         hasSchool: !!selectedSchool,
         hasBranch: !!selectedBranch,
-        requiresBranch: isSuperAdmin || isSchoolRole || isBranchGroupRole
-      }
+        requiresBranch: isSuperAdmin || isSchoolRole || isBranchGroupRole,
+      },
     });
 
     // Validation
@@ -689,7 +738,10 @@ const getDecodedToken = (token: string): DecodedToken | null => {
       return;
     }
 
-    if ((isSuperAdmin || isSchoolRole || isBranchGroupRole) && !selectedBranch) {
+    if (
+      (isSuperAdmin || isSchoolRole || isBranchGroupRole) &&
+      !selectedBranch
+    ) {
       alert("Please select a branch");
       return;
     }
@@ -712,14 +764,14 @@ const getDecodedToken = (token: string): DecodedToken | null => {
 
     console.log("Submitting parent data:", {
       ...data,
-      password: "***" // Hide password in logs
+      password: "***", // Hide password in logs
     });
 
     try {
       await addParentMutation.mutateAsync(data);
       closeButtonRef.current?.click();
       form.reset();
-      
+
       // Reset school and branch selection for super admin only
       if (isSuperAdmin) {
         setSchool("");
@@ -758,7 +810,6 @@ const getDecodedToken = (token: string): DecodedToken | null => {
     showSerialNumber: true,
   });
 
-
   return (
     <main>
       {/* Progress loader at the top */}
@@ -769,11 +820,18 @@ const getDecodedToken = (token: string): DecodedToken | null => {
           {/* Search component */}
           <SearchComponent
             data={filterResults}
-            displayKey={["parentName", "mobileNo", "email", "username", "schoolId.schoolName", "branchId.branchName"]}
+            displayKey={[
+              "parentName",
+              "mobileNo",
+              "email",
+              "username",
+              "schoolId.schoolName",
+              "branchId.branchName",
+            ]}
             onResults={handleSearchResults}
             className="w-[300px] mb-4"
           />
-          
+
           {/* Column visibility selector */}
           <ColumnVisibilitySelector
             columns={table.getAllColumns()}
@@ -783,7 +841,10 @@ const getDecodedToken = (token: string): DecodedToken | null => {
         </section>
 
         {/* Add Parent - Show for super admin, school admin, branch admin, and branchGroup */}
-        {(isSuperAdmin || isSchoolRole || isBranchRole || isBranchGroupRole) && (
+        {(isSuperAdmin ||
+          isSchoolRole ||
+          isBranchRole ||
+          isBranchGroupRole) && (
           <section>
             <Dialog>
               <DialogTrigger asChild>
@@ -809,42 +870,42 @@ const getDecodedToken = (token: string): DecodedToken | null => {
                     {isSuperAdmin && (
                       <div className="grid gap-2">
                         <Label htmlFor="schoolId">School *</Label>
-                        <Combobox 
-                          items={schoolOptions} 
-                          value={school} 
+                        <Combobox
+                          items={schoolOptions}
+                          value={school}
                           onValueChange={setSchool}
-                          placeholder="Search school..." 
-                          searchPlaceholder="Search schools..." 
+                          placeholder="Search school..."
+                          searchPlaceholder="Search schools..."
                           emptyMessage="No school found."
-                          width="w-full" 
-                          onSearchChange={setSchoolSearch} 
-                          searchValue={schoolSearch} 
+                          width="w-full"
+                          onSearchChange={setSchoolSearch}
+                          searchValue={schoolSearch}
                         />
                       </div>
                     )}
 
                     {/* Show Branch field for super admin, school, and branchGroup roles */}
-                    {(isSuperAdmin || isSchoolRole ) && (
+                    {(isSuperAdmin || isSchoolRole) && (
                       <div className="grid gap-2">
                         <Label htmlFor="branchId">Branch *</Label>
-                        <Combobox 
-                          items={filteredBranchOptions} 
-                          value={branch} 
+                        <Combobox
+                          items={filteredBranchOptions}
+                          value={branch}
                           onValueChange={setBranch}
                           placeholder={
                             filteredBranchOptions.length
-                              ? "Search branch..." 
+                              ? "Search branch..."
                               : "No branches available"
                           }
-                          searchPlaceholder="Search branches..." 
+                          searchPlaceholder="Search branches..."
                           emptyMessage={
-                            filteredBranchOptions.length === 0 
-                              ? "No branches found for this school" 
+                            filteredBranchOptions.length === 0
+                              ? "No branches found for this school"
                               : "No branches match your search"
                           }
-                          width="w-full" 
-                          onSearchChange={setBranchSearch} 
-                          searchValue={branchSearch} 
+                          width="w-full"
+                          onSearchChange={setBranchSearch}
+                          searchValue={branchSearch}
                         />
                       </div>
                     )}
@@ -914,8 +975,13 @@ const getDecodedToken = (token: string): DecodedToken | null => {
                         Cancel
                       </Button>
                     </DialogClose>
-                    <Button type="submit" disabled={addParentMutation.isPending}>
-                      {addParentMutation.isPending ? "Saving..." : "Save Parent"}
+                    <Button
+                      type="submit"
+                      disabled={addParentMutation.isPending}
+                    >
+                      {addParentMutation.isPending
+                        ? "Saving..."
+                        : "Save Parent"}
                     </Button>
                   </DialogFooter>
                 </form>
@@ -926,9 +992,7 @@ const getDecodedToken = (token: string): DecodedToken | null => {
       </header>
 
       {/* Table component with server-side functionality */}
-      <section className="mb-4">
-        {tableElement}
-      </section>
+      <section className="mb-4">{tableElement}</section>
 
       {/* Alert Boxes */}
       <section>

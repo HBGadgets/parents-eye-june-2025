@@ -24,7 +24,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   login: (token: string) => {
     // Save in cookie/localStorage
     document.cookie = `token=${token}; path=/`;
-    localStorage.setItem("token", token);
+    // localStorage.setItem("token", token);
 
     // Decode token
     const decoded = jwtDecode<DecodedToken>(token);
