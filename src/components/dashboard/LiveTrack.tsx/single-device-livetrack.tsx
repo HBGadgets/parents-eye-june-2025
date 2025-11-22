@@ -894,9 +894,9 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
           radius={geofenceRadius}
           onSubmit={handleGeofenceSubmit}
           onCancel={handleGeofenceCancel}
-          schoolId={schoolId}
-          branchId={branchId}
-          routeObjId={routeObjId}
+          schoolId={vehicle?.schoolId}
+          branchId={vehicle?.branchId}
+          routeObjId={vehicle?.routeId}
           role={userRole as UserRole}
         />
       )}
