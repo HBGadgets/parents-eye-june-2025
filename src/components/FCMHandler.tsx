@@ -133,37 +133,37 @@ export default function FCMHandler(): null {
         // -----------------------------
         // 6️⃣ Background Messages → Zustand
         // -----------------------------
-        if (navigator.serviceWorker) {
-          navigator.serviceWorker.addEventListener("message", (event) => {
-            if (event.data?.source !== "fcm-background") return;
+        // if (navigator.serviceWorker) {
+        //   navigator.serviceWorker.addEventListener("message", (event) => {
+        //     if (event.data?.source !== "fcm-background") return;
 
-            const payload = event.data.payload;
+        //     const payload = event.data.payload;
 
-            const title = payload.notification?.title ?? "New Notification";
-            const body = payload.notification?.body ?? "";
-            const ping = payload.data?.ping ?? 0;
+        //     const title = payload.notification?.title ?? "New Notification";
+        //     const body = payload.notification?.body ?? "";
+        //     const ping = payload.data?.ping ?? 0;
 
-            if (ping && Number(ping) === 1) return;
+        //     if (ping && Number(ping) === 1) return;
 
-            const timeStamp = payload.data?.timeStamp
-              ? new Date(Number(payload.data?.timeStamp))
-              : new Date();
+        //     const timeStamp = payload.data?.timeStamp
+        //       ? new Date(Number(payload.data?.timeStamp))
+        //       : new Date();
 
-            const formattedTime = timeStamp.toLocaleString("en-IN", {
-              timeStyle: "short",
-              dateStyle: "medium",
-            });
+        //     const formattedTime = timeStamp.toLocaleString("en-IN", {
+        //       timeStyle: "short",
+        //       dateStyle: "medium",
+        //     });
 
-            // 💾 Save to Zustand from background
-            addNotification({
-              title,
-              body,
-              timestamp: formattedTime,
-            });
+        //     // 💾 Save to Zustand from background
+        //     addNotification({
+        //       title,
+        //       body,
+        //       timestamp: formattedTime,
+        //     });
 
-            console.log("📥 Background notification stored:", payload);
-          });
-        }
+        //     console.log("📥 Background notification stored:", payload);
+        //   });
+        // }
       } catch (err) {
         console.error("FCM Init Error:", err);
       }
