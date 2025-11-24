@@ -83,7 +83,12 @@ export const BottomDrawer = ({
                 <button
                   className="rounded-sm text-black border border-black px-2 py-1 hover:bg-black hover:text-white transition-colors duration-200 cursor-pointer"
                   onClick={() => {
+                    console.log("on click track button: 💦💦💦");
                     if (selectedDevice?.imei) {
+                      console.log(
+                        "on click track button [inside condition 😏]: 💦💦💦"
+                      );
+
                       handleOpenLiveTrack(
                         selectedDevice.imei,
                         selectedDevice.name
