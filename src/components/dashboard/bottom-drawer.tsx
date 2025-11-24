@@ -81,7 +81,7 @@ export const BottomDrawer = ({
 
               <div className="min-w-max flex gap-1 items-center">
                 <button
-                  className="rounded-sm text-primary border border-primary px-2 py-1 hover:bg-primary hover:text-white transition-colors duration-200 cursor-pointer"
+                  className="rounded-sm text-black border border-black px-2 py-1 hover:bg-black hover:text-white transition-colors duration-200 cursor-pointer"
                   onClick={() => {
                     if (selectedDevice?.imei) {
                       handleOpenLiveTrack(
@@ -94,7 +94,7 @@ export const BottomDrawer = ({
                   Track
                 </button>
                 <button
-                  className="rounded-sm mr-1 text-primary border border-primary px-2 py-1 hover:bg-primary hover:text-white transition-colors duration-200 cursor-pointer"
+                  className="rounded-sm mr-1 text-black border border-black px-2 py-1 hover:bg-black hover:text-white transition-colors duration-200 cursor-pointer"
                   onClick={() =>
                     selectedDevice?.deviceId !== undefined &&
                     handleHistoryClick(selectedDevice.deviceId)
@@ -103,7 +103,7 @@ export const BottomDrawer = ({
                   History
                 </button>
                 <DrawerClose
-                  className="rounded-sm text-white border border-primary px-2 py-1 bg-primary hover:bg-[#b4931b] transition-colors duration-200 cursor-pointer"
+                  className="rounded-sm text-white border border-black px-2 py-1 bg-black cursor-pointer"
                   aria-label="Close"
                 >
                   X

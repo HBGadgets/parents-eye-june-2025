@@ -17,7 +17,7 @@ import { ChevronsLeft, ChevronsRight, Locate } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import { LiveTrack } from "@/components/dashboard/LiveTrack.tsx/livetrack";
 import { BottomDrawer } from "@/components/dashboard/bottom-drawer";
-import SubscriptionExpiry from '@/components/dashboard/SubscriptionExpiry/SubscriptionExpiry';
+import SubscriptionExpiry from "@/components/dashboard/SubscriptionExpiry/SubscriptionExpiry";
 
 type ViewState = "split" | "tableExpanded" | "mapExpanded";
 type StatusFilter = "all" | "running" | "idle" | "stopped" | "inactive" | "new";
@@ -61,13 +61,18 @@ export default function DashboardClient() {
     useReverseGeocode();
 
   const statusColors: Record<string, string> = {
-    Running: "bg-green-500 hover:bg-green-600 focus:ring-green-200",
-    Overspeed: "bg-orange-500 hover:bg-orange-600 focus:ring-orange-200",
-    Idle: "bg-yellow-500 hover:bg-yellow-600 focus:ring-yellow-200",
-    Stopped: "bg-red-500 hover:bg-red-600 focus:ring-red-200",
-    Inactive: "bg-gray-500 hover:bg-gray-600 focus:ring-gray-200",
-    New: "bg-blue-500 hover:bg-blue-600 focus:ring-blue-200",
-    Total: "bg-purple-500 hover:bg-purple-600 focus:ring-purple-200",
+    Running:
+      "bg-green-400 text-green-700 hover:bg-green-500 transition-all rounded-lg shadow-sm hover:shadow",
+    Overspeed:
+      "bg-orange-400 text-orange-700 hover:bg-orange-500 transition-all rounded-lg shadow-sm hover:shadow",
+    Idle: "bg-yellow-200 text-yellow-700 hover:bg-yellow-200 transition-all rounded-lg shadow-sm hover:shadow",
+    Stopped:
+      "bg-red-400 text-red-700 hover:bg-red-500 transition-all rounded-lg shadow-sm hover:shadow",
+    Inactive:
+      "bg-gray-400 text-gray-700 hover:bg-gray-500 transition-all rounded-lg shadow-sm hover:shadow",
+    New: "bg-blue-400 text-blue-700 hover:bg-blue-500 transition-all rounded-lg shadow-sm hover:shadow",
+    Total:
+      "bg-purple-400 text-purple-700 hover:bg-purple-500 transition-all rounded-lg shadow-sm hover:shadow",
   };
 
   const { devices, counts, isLoading, updateFilters, currentPage, limit } =
@@ -91,7 +96,7 @@ export default function DashboardClient() {
   useEffect(() => {
     // Check localStorage to see if popup has been shown before
     const hasPopupBeenShown = localStorage.getItem(SUBSCRIPTION_POPUP_KEY);
-    
+
     if (!hasPopupBeenShown) {
       // If no value exists in localStorage, show the popup
       setShowSubscriptionPopup(true);
@@ -611,27 +616,27 @@ export default function DashboardClient() {
   const expiringDevices = [
     {
       deviceId: 1,
-      name: 'MH-12-AB-1234',
-      imei: '356938035643809',
-      expiryDate: '2025-11-05',
+      name: "MH-12-AB-1234",
+      imei: "356938035643809",
+      expiryDate: "2025-11-05",
       daysRemaining: 5,
-      status: 'critical' as const,
+      status: "critical" as const,
     },
     {
       deviceId: 2,
-      name: 'MH-12-CD-5678',
-      imei: '356938035643810',
-      expiryDate: '2025-11-15',
+      name: "MH-12-CD-5678",
+      imei: "356938035643810",
+      expiryDate: "2025-11-15",
       daysRemaining: 15,
-      status: 'warning' as const,
+      status: "warning" as const,
     },
     {
       deviceId: 3,
-      name: 'MH-12-EF-9012',
-      imei: '356938035643811',
-      expiryDate: '2025-11-25',
+      name: "MH-12-EF-9012",
+      imei: "356938035643811",
+      expiryDate: "2025-11-25",
       daysRemaining: 25,
-      status: 'info' as const,
+      status: "info" as const,
     },
   ];
 
@@ -661,7 +666,7 @@ export default function DashboardClient() {
       `}</style>
 
       <ResponseLoader isLoading={isLoading} />
-      
+
       {/* Main Dashboard Content */}
       <div className="relative min-h-screen bg-white">
         {/* Dashboard Content - Always visible in background */}
@@ -679,7 +684,7 @@ export default function DashboardClient() {
                 buttonVariant="outline"
                 buttonSize="default"
               />
-              
+
               {/* Added margin for spacing */}
               <div className="ml-4"></div>
             </div>
@@ -759,10 +764,10 @@ export default function DashboardClient() {
                   </div>
                 )}
 
-              {viewState !== "mapExpanded" && (
-                <div className="h-[80vh]">{tableElement}</div>
-              )}
-            </section>
+                {viewState !== "mapExpanded" && (
+                  <div className="h-[80vh]">{tableElement}</div>
+                )}
+              </section>
 
               {/* Arrow Controls */}
               {!["tableExpanded", "mapExpanded"].includes(viewState) && (
@@ -789,7 +794,9 @@ export default function DashboardClient() {
                         : "bg-white text-gray-600"
                     }`}
                     title={
-                      viewState === "tableExpanded" ? "Show both" : "Expand table"
+                      viewState === "tableExpanded"
+                        ? "Show both"
+                        : "Expand table"
                     }
                   >
                     <ChevronsRight className="w-4 h-4" />
