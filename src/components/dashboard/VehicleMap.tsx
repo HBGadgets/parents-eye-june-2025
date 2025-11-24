@@ -21,6 +21,7 @@ interface VehicleData {
   course: number;
   deviceId: number;
   imei: string;
+  uniqueId: number;
   attributes: {
     charge: boolean;
     ignition: boolean;
@@ -553,7 +554,7 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
   const renderMarkers = useMemo(() => {
     const markers = validVehicles.map((vehicle) => (
       <VehicleBusMarker
-        key={`${vehicle.deviceId}-${vehicle.imei}`}
+        key={`${vehicle.deviceId}-${vehicle?.uniqueId}`}
         vehicle={vehicle}
         onClick={handleVehicleClick}
         isSelected={selectedVehicleId === vehicle.deviceId}
