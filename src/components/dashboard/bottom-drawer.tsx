@@ -84,7 +84,7 @@ export const BottomDrawer = ({
                   className="rounded-sm text-black border border-black px-2 py-1 hover:bg-black hover:text-white transition-colors duration-200 cursor-pointer"
                   onClick={() => {
                     console.log("on click track button: 💦💦💦");
-                    if (selectedDevice?.imei) {
+                    if (selectedDevice?.uniqueId) {
                       console.log(
                         "on click track button [inside condition 😏]: 💦💦💦"
                       );
