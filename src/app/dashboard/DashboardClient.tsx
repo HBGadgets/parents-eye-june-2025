@@ -44,10 +44,10 @@ export default function DashboardClient() {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [selectedDevice, setSelectedDevice] = useState<DeviceData | null>(null);
   const [selectedImei, setSelectedImei] = useState<{
-    imei: string;
+    uniqueId: number;
     name: string;
   }>({
-    imei: "",
+    uniqueId: 0,
     name: "",
   });
 
@@ -519,9 +519,9 @@ export default function DashboardClient() {
     [queueForGeocoding]
   );
 
-  const handleOpenLiveTrack = (imei: string, name: string) => {
+  const handleOpenLiveTrack = (uniqueId: number, name: string) => {
     setOpen(true);
-    setSelectedImei({ imei, name });
+    setSelectedImei({ uniqueId, name });
   };
 
   const handleHistoryClick = (deviceId: number) => {
