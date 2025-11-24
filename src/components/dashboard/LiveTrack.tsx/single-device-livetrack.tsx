@@ -579,14 +579,14 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
 
   // Clear path when vehicle changes
   useEffect(() => {
-    if (vehicle?.imei) {
+    if (vehicle?.uniqueId) {
       setVehiclePath([]);
       currentPathRef.current = [];
       if (animationRef.current) {
         cancelAnimationFrame(animationRef.current);
       }
     }
-  }, [vehicle?.imei]);
+  }, [vehicle?.uniqueId]);
 
   // Validate vehicle data
   const isValidVehicle = useMemo(() => {

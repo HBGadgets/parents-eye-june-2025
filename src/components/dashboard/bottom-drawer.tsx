@@ -38,9 +38,9 @@ export const BottomDrawer = ({
               <div className="flex flex-col items-start">
                 {selectedDevice && selectedDevice.name}
 
-                {selectedDevice?.imei && (
+                {selectedDevice?.uniqueId && (
                   <span className="text-xs text-gray-500 mt-1">
-                    IMEI: {selectedDevice.imei}
+                    IMEI: {selectedDevice?.uniqueId}
                   </span>
                 )}
 
@@ -90,8 +90,8 @@ export const BottomDrawer = ({
                       );
 
                       handleOpenLiveTrack(
-                        selectedDevice.imei,
-                        selectedDevice.name
+                        selectedDevice?.uniqueId,
+                        selectedDevice?.name
                       );
                     }
                   }}

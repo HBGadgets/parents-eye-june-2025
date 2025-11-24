@@ -31,10 +31,14 @@ interface Imei {
   name?: string;
 }
 
+interface UniqueId {
+  uniqueId?: number;
+}
+
 interface LiveTrackProps {
   open?: boolean;
   setOpen?: (open: boolean) => void;
-  selectedImei?: Imei | null;
+  selectedImei?: Imei | UniqueId | null;
 }
 
 const DISTANCE_THRESHOLD = 500; // 500 meters
@@ -48,7 +52,7 @@ export const LiveTrack = ({ open, setOpen, selectedImei }: LiveTrackProps) => {
     isConnected,
     isAuthenticated,
     switchToAllDevices,
-  } = useSingleDeviceData(open ? selectedImei?.imei : undefined);
+  } = useSingleDeviceData(open ? selectedImei?.uniqueId : undefined);
 
   const { key: refreshKey, triggerRefresh } = useDataRefreshIndicator(10);
   const { addresses, loadingAddresses, queueForGeocoding } =
@@ -64,7 +68,10 @@ export const LiveTrack = ({ open, setOpen, selectedImei }: LiveTrackProps) => {
   // Track if close was triggered by popstate to prevent double history manipulation
   const closedByPopState = useRef(false);
 
-  const currentImei = useMemo(() => selectedImei?.imei, [selectedImei?.imei]);
+  const currentImei = useMemo(
+    () => selectedImei?.uniqueId,
+    [selectedImei?.uniqueId]
+  );
   const currentName = useMemo(() => selectedImei?.name, [selectedImei?.name]);
 
   // Handle browser back button
