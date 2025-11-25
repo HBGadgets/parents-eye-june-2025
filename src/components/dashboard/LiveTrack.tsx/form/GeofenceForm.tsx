@@ -140,9 +140,9 @@ const GeofenceFormComponent: React.FC<GeofenceFormProps> = memo(
 
     const schoolMetaData = useMemo(() => {
       if (!Array.isArray(allSchoolData)) return [];
-      return allSchoolData.map((school) => ({
-        value: school._id.toString(),
-        label: school.schoolName,
+      return allSchoolData?.map((school) => ({
+        value: school?._id.toString(),
+        label: school?.schoolName,
       }));
     }, [allSchoolData]);
 
@@ -151,26 +151,26 @@ const GeofenceFormComponent: React.FC<GeofenceFormProps> = memo(
 
       if (role === "superAdmin" && selectedSchool) {
         return allBranchData
-          .filter((branch) => branch.schoolId._id === selectedSchool)
+          .filter((branch) => branch?.schoolId?._id === selectedSchool)
           .map((branch) => ({
-            value: branch._id.toString(),
-            label: branch.branchName,
+            value: branch?._id.toString(),
+            label: branch?.branchName,
           }));
       }
 
       return allBranchData.map((branch) => ({
-        value: branch._id.toString(),
-        label: branch.branchName,
+        value: branch?._id.toString(),
+        label: branch?.branchName,
       }));
     }, [allBranchData, selectedSchool, role]);
 
     const routeMetaData = useMemo(() => {
       if (!routeInfiniteData?.pages) return [];
 
-      return routeInfiniteData.pages.flatMap((page) =>
-        page.data.map((route) => ({
-          value: route._id.toString(),
-          label: route.routeNumber,
+      return routeInfiniteData?.pages?.flatMap((page) =>
+        page?.data.map((route) => ({
+          value: route?._id.toString(),
+          label: route?.routeNumber,
         }))
       );
     }, [routeInfiniteData]);
