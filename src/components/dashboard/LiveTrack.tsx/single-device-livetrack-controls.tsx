@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { MapPinned, Radius, Satellite } from "lucide-react";
 import { FaStreetView } from "react-icons/fa";
 import { MdDirections } from "react-icons/md";
+import { LiaTrafficLightSolid } from "react-icons/lia";
 import { VehicleData } from "./single-device-livetrack";
 import { useSingleDeviceData } from "@/hooks/livetrack/useLiveDeviceData";
 import { RefreshCcw } from "lucide-react";
@@ -125,11 +126,11 @@ export const SingleDeviceLiveTrackControls: React.FC<
         className={`p-3 rounded-lg shadow-lg transition-all duration-200 cursor-pointer ${
           showTraffic
             ? "bg-orange-500 text-white hover:bg-orange-600"
-            : "bg-gray-700 hover:bg-gray-900"
+            : "bg-gray-700 text-white hover:bg-gray-900"
         }`}
         title={showTraffic ? "Hide Traffic" : "Show Traffic"}
       >
-        <img src={"/icons/traffic.svg"} className="reverse" />
+        <LiaTrafficLightSolid className="w-6 h-6" />
       </button>
 
       {/* Show/Hide Geofences Button */}
