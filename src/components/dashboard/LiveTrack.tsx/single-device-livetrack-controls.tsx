@@ -1,9 +1,10 @@
-import React from "react";
-import Image from "next/image";
+import React, { useState } from "react";
 import { MapPinned, Radius, Satellite } from "lucide-react";
 import { FaStreetView } from "react-icons/fa";
 import { MdDirections } from "react-icons/md";
 import { VehicleData } from "./single-device-livetrack";
+import { useSingleDeviceData } from "@/hooks/livetrack/useLiveDeviceData";
+import { RefreshCcw } from "lucide-react";
 
 interface SingleDeviceLiveTrackControlsProps {
   vehicle: VehicleData | null;
@@ -34,8 +35,46 @@ export const SingleDeviceLiveTrackControls: React.FC<
   onToggleGeofences,
   geofenceCount = 0,
 }) => {
+  const { isLoading, refreshStream, refresh } = useSingleDeviceData(
+    vehicle?.uniqueId
+  );
+
+  // Local state for immediate spin feedback
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const handleRefresh = () => {
+    if (!vehicle?.uniqueId) return;
+
+    // Set local loading state immediately for instant UI feedback
+    setIsRefreshing(true);
+
+    // Call the refresh function
+    refresh();
+    // refreshStream(vehicle.uniqueId);
+
+    // Stop spinning after 1.5 seconds
+    setTimeout(() => {
+      setIsRefreshing(false);
+    }, 1500);
+  };
+
   return (
     <div className="absolute top-4 right-4 z-[1000] flex flex-col gap-2">
+      {/* Refresh Button */}
+      <button
+        onClick={handleRefresh}
+        disabled={isLoading || isRefreshing}
+        className="flex items-center cursor-pointer gap-2 p-3 bg-white rounded-lg shadow-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed select-none"
+        title="Refresh"
+      >
+        <RefreshCcw
+          size={20}
+          className={`text-gray-700 transition-transform ${
+            isRefreshing || isLoading ? "animate-spin" : ""
+          }`}
+        />
+      </button>
+
       {/* Center to Vehicle Button */}
       <button
         onClick={onCenterToVehicle}
@@ -83,15 +122,11 @@ export const SingleDeviceLiveTrackControls: React.FC<
         className={`p-3 rounded-lg shadow-lg transition-all duration-200 cursor-pointer ${
           showTraffic
             ? "bg-orange-500 text-white hover:bg-orange-600"
-            : "bg-gray-700  hover:bg-gray-900"
+            : "bg-gray-700 hover:bg-gray-900"
         }`}
         title={showTraffic ? "Hide Traffic" : "Show Traffic"}
       >
-        <img
-          src={"/icons/traffic.svg"}
-          alt="traffic view"
-          className="reverse"
-        />
+        <img src={"/icons/traffic.svg"} className="reverse" />
       </button>
 
       {/* Show/Hide Geofences Button */}
@@ -112,6 +147,7 @@ export const SingleDeviceLiveTrackControls: React.FC<
         )}
       </button>
 
+      {/* Street View Button */}
       <button
         className={`p-3 rounded-lg shadow-lg transition-all duration-200 relative bg-white text-gray-700 hover:bg-gray-100 cursor-pointer`}
         title="Open Street View"
@@ -121,7 +157,7 @@ export const SingleDeviceLiveTrackControls: React.FC<
           target="_blank"
           rel="noopener noreferrer"
           title="Open Street View"
-          className={` bg-gray-100 text-gray-700 hover:bg-gray-200 cursor-pointer`}
+          className={`bg-gray-100 text-gray-700 hover:bg-gray-200 cursor-pointer`}
         >
           <FaStreetView size={18} />
         </a>
@@ -139,6 +175,8 @@ export const SingleDeviceLiveTrackControls: React.FC<
       >
         <MapPinned />
       </button>
+
+      {/* Directions Button */}
       <button
         className={`p-3 rounded-lg shadow-lg transition-all duration-200 relative bg-white text-gray-700 hover:bg-gray-100 cursor-pointer`}
         title="Directions"
@@ -148,7 +186,7 @@ export const SingleDeviceLiveTrackControls: React.FC<
           target="_blank"
           rel="noopener noreferrer"
           title="Directions"
-          className={` bg-gray-100 text-gray-700 hover:bg-gray-200`}
+          className={`bg-gray-100 text-gray-700 hover:bg-gray-200`}
         >
           <MdDirections size={20} />
         </a>

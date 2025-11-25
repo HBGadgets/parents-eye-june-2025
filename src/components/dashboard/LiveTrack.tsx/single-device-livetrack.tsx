@@ -34,6 +34,7 @@ import {
 } from "@/hooks/useGeofence";
 import { formatToIST } from "@/util/dateFormatters";
 import { calculateTimeSince } from "@/util/calculateTimeSince";
+import { toast } from "sonner";
 
 type UserRole = "superAdmin" | "school" | "branchGroup" | "branch" | null;
 
@@ -674,12 +675,21 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
         routeObjId: routeObjId || payload.routeObjId,
       };
 
+      if (geofencePayload.routeObjId == "") {
+        toast.warning("Assign Route Number", {
+          description:
+            "Please assign a route number to the bus before creating a geofence.",
+        });
+        return;
+      }
+
       // console.log("📤 Final geofence payload:", geofencePayload);
 
       const result = await createGeofenceMutation.mutateAsync(geofencePayload);
       // console.log("✅ Geofence created successfully:", result);
 
-      alert("Geofence created successfully");
+      // alert("Geofence created successfully");
+      toast.success("Geofence created successfully");
 
       // Reset drawing state
       setIsDrawingGeofence(false);
@@ -690,8 +700,11 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
       // console.log("🔄 Refetching geofences...");
       await refetchGeofences();
     } catch (error) {
-      console.error("❌ Error creating geofence:", error);
-      alert(error?.response?.data?.message || "❌ Failed to create geofence");
+      // console.error("❌ Error creating geofence:", error);
+      // alert(error?.response?.data?.message || "❌ Failed to create geofence");
+      toast.error(
+        (error as any)?.response?.data?.message || "Failed to create geofence"
+      );
     }
   };
 
@@ -745,7 +758,7 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
         )}
 
         {/* Display existing geofences */}
-        {!isLoadingGeofences && (
+        {showGeofences && (
           <GeofenceLayer geofences={geofences} visible={showGeofences} />
         )}
 
@@ -825,7 +838,7 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
             {vehicle?.gsmSignal ? "Online" : "Offline"}
           </span>
         </div>
-        <div>Route No: response me nhi ara</div>
+        <div>Route No: {vehicle?.routeNumber}</div>
         <div>Geofences: {geofences ? geofences.length : "loading..."}</div>
         <div>
           Last Update:{" "}

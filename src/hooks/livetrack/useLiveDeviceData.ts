@@ -84,7 +84,6 @@ export const useSingleDeviceData = (uniqueId?: string) => {
         return;
       }
 
-      // console.log("[useSingleDeviceData] Starting stream for:", deviceId);
       store.startSingleDeviceStream(deviceId);
       activeStreamRef.current = deviceId;
     },
@@ -99,7 +98,6 @@ export const useSingleDeviceData = (uniqueId?: string) => {
         return;
       }
 
-      // console.log("[useSingleDeviceData] Stopping stream for:", deviceId);
       store.stopSingleDeviceStream(deviceId);
 
       if (activeStreamRef.current === deviceId) {
@@ -113,11 +111,9 @@ export const useSingleDeviceData = (uniqueId?: string) => {
   const clearDeviceData = useCallback(
     (deviceId: string) => {
       if (!deviceId) {
-        // console.warn("[useSingleDeviceData] No device ID provided");
         return;
       }
 
-      // console.log("[useSingleDeviceData] Clearing data for:", deviceId);
       store.clearSingleDeviceData(deviceId);
 
       if (activeStreamRef.current === deviceId) {
@@ -127,16 +123,49 @@ export const useSingleDeviceData = (uniqueId?: string) => {
     [store]
   );
 
+  // **NEW: Refresh function**
+  const refreshStream = useCallback(
+    (deviceId: string) => {
+      if (!deviceId) {
+        console.warn("[useSingleDeviceData] No device ID provided for refresh");
+        return;
+      }
+
+      console.log("[useSingleDeviceData] Refreshing stream for:", deviceId);
+
+      // Stop current stream
+      // store.stopSingleDeviceStream(deviceId);
+
+      // Clear cached data
+      store.clearSingleDeviceData(deviceId);
+
+      // Restart stream after a brief delay to ensure cleanup
+      setTimeout(() => {
+        store.startSingleDeviceStream(deviceId);
+        activeStreamRef.current = deviceId;
+      }, 100);
+    },
+    [store]
+  );
+
+  // **ALTERNATIVE: Refresh current device**
+  const refresh = useCallback(() => {
+    if (!uniqueId) {
+      console.warn("[useSingleDeviceData] No device ID to refresh");
+      return;
+    }
+
+    refreshStream(uniqueId);
+  }, [uniqueId, refreshStream]);
+
   // Switch back to all devices
   const switchToAllDevices = useCallback(() => {
-    // console.log("[useSingleDeviceData] Switching to all devices");
     store.switchToAllDevices();
     activeStreamRef.current = null;
   }, [store]);
 
   // Stop all single device streams
   const stopAllStreams = useCallback(() => {
-    // console.log("[useSingleDeviceData] Stopping all streams");
     store.stopAllSingleDeviceStreams();
     activeStreamRef.current = null;
   }, [store]);
@@ -150,11 +179,6 @@ export const useSingleDeviceData = (uniqueId?: string) => {
     }
     return () => {
       if (activeStreamRef.current) {
-        // console.log(
-        //   "[useSingleDeviceData] Cleaning up stream:",
-        //   activeStreamRef.current
-        // );
-
         activeStreamRef.current = null;
       }
     };
@@ -183,6 +207,10 @@ export const useSingleDeviceData = (uniqueId?: string) => {
     switchToAllDevices,
     stopAllStreams,
     clearError: store.clearError,
+
+    // **NEW: Refresh actions**
+    refresh, // Refresh current device (uses uniqueId)
+    refreshStream, // Refresh any device by ID
 
     // Check methods
     isDeviceStreamActive: store.isDeviceStreamActive,
