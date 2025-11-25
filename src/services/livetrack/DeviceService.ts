@@ -566,13 +566,20 @@ class DeviceService {
 
     if (this.streamingMode === "all") {
       this.stopAllDeviceData();
+      this.socket.emit("request-single-device-data", deviceKey);
+      return;
+    }
+
+    if (this.streamingMode === "single") {
+      this.stopSingleDeviceData();
+      this.socket.emit("request-single-device-data", deviceKey);
+      return;
     }
 
     // console.log(
     //   "[DeviceService] Requesting single device data for:",
     //   deviceKey
     // );
-    this.socket.emit("request-single-device-data", deviceKey);
 
     if (addToActiveSet) {
       this.activeSingleDeviceStreams.add(deviceKey);
@@ -593,6 +600,19 @@ class DeviceService {
 
     // console.log("[DeviceService] Stopping all device data streaming");
     this.socket.emit("stop-all-device-data");
+    this.streamingMode = null;
+  }
+
+  public stopSingleDeviceData(): void {
+    if (!this.socket?.connected || !this.isAuthenticated) {
+      // console.warn(
+      //   "[DeviceService] Cannot stop single device data: Not connected or authenticated"
+      // );
+      return;
+    }
+
+    // console.log("[DeviceService] Stopping single device data streaming");
+    this.socket.emit("stop-single-device-data");
     this.streamingMode = null;
   }
 

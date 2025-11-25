@@ -2,9 +2,12 @@ import React, { useState } from "react";
 import { MapPinned, Radius, Satellite } from "lucide-react";
 import { FaStreetView } from "react-icons/fa";
 import { MdDirections } from "react-icons/md";
+import { LiaTrafficLightSolid } from "react-icons/lia";
 import { VehicleData } from "./single-device-livetrack";
 import { useSingleDeviceData } from "@/hooks/livetrack/useLiveDeviceData";
 import { RefreshCcw } from "lucide-react";
+import { useDeviceStore } from "@/store/deviceStore";
+import { is } from "date-fns/locale";
 
 interface SingleDeviceLiveTrackControlsProps {
   vehicle: VehicleData | null;
@@ -35,9 +38,10 @@ export const SingleDeviceLiveTrackControls: React.FC<
   onToggleGeofences,
   geofenceCount = 0,
 }) => {
-  const { isLoading, refreshStream, refresh } = useSingleDeviceData(
-    vehicle?.uniqueId
-  );
+  // const { isLoading, refreshStream, refresh } = useSingleDeviceData(
+  //   vehicle?.uniqueId
+  // );
+  const refreshData = useDeviceStore((state) => state.refreshData);
 
   // Local state for immediate spin feedback
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -49,7 +53,7 @@ export const SingleDeviceLiveTrackControls: React.FC<
     setIsRefreshing(true);
 
     // Call the refresh function
-    refresh();
+    refreshData();
     // refreshStream(vehicle.uniqueId);
 
     // Stop spinning after 1.5 seconds
@@ -63,14 +67,14 @@ export const SingleDeviceLiveTrackControls: React.FC<
       {/* Refresh Button */}
       <button
         onClick={handleRefresh}
-        disabled={isLoading || isRefreshing}
+        disabled={isRefreshing}
         className="flex items-center cursor-pointer gap-2 p-3 bg-white rounded-lg shadow-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed select-none"
         title="Refresh"
       >
         <RefreshCcw
           size={20}
           className={`text-gray-700 transition-transform ${
-            isRefreshing || isLoading ? "animate-spin" : ""
+            isRefreshing ? "animate-spin" : ""
           }`}
         />
       </button>
@@ -122,11 +126,11 @@ export const SingleDeviceLiveTrackControls: React.FC<
         className={`p-3 rounded-lg shadow-lg transition-all duration-200 cursor-pointer ${
           showTraffic
             ? "bg-orange-500 text-white hover:bg-orange-600"
-            : "bg-gray-700 hover:bg-gray-900"
+            : "bg-gray-700 text-white hover:bg-gray-900"
         }`}
         title={showTraffic ? "Hide Traffic" : "Show Traffic"}
       >
-        <img src={"/icons/traffic.svg"} className="reverse" />
+        <LiaTrafficLightSolid className="w-6 h-6" />
       </button>
 
       {/* Show/Hide Geofences Button */}
