@@ -512,6 +512,7 @@ export const useDeviceStore = create<DeviceState>()(
           if (state.streamingMode === "all") {
             deviceService.requestDeviceData(state.filters);
           } else if (state.streamingMode === "single" && state.activeDeviceId) {
+            // deviceService.stopSingleDeviceData();
             deviceService.requestSingleDeviceData(state.activeDeviceId, false);
           }
         }
