@@ -45,7 +45,9 @@ import {
   CheckCircle,
   XCircle,
 } from "lucide-react";
+import { GiGps } from "react-icons/gi";
 import Image from "next/image";
+import Model from "@/app/dashboard/master/model/page";
 
 type UserRole = "superAdmin" | "school" | "branchGroup" | "branch" | null;
 
@@ -82,6 +84,8 @@ const iconMap: Record<string, React.ElementType> = {
   "Alerts/Events": Bell,
   "Geofence Report": Map,
   "Route Report": Route,
+  Model: GiGps,
+  Category: FileText,
 };
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
@@ -134,6 +138,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 url: "/dashboard/school/geofence",
               },
               { title: "Notification", url: "/dashboard/users/notification" },
+              { title: "Model", url: "/dashboard/master/model" },
+              { title: "Category", url: "/dashboard/master/category" },
             ];
           } else if (role === "school" || role === "branchGroup") {
             return [

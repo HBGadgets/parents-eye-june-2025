@@ -98,19 +98,21 @@ export const AddDeviceForm = () => {
 
   const branchOptions = useMemo(() => {
     if (!branchData) return [];
-    const filtered = formData.schoolId
-      ? branchData.filter((b: any) => b.schoolId._id === formData.schoolId)
+    const filtered = formData?.schoolId
+      ? branchData.filter((b: any) => b.schoolId?._id === formData?.schoolId)
       : branchData;
     return filtered.map((b: any) => ({
-      value: b._id,
-      label: b.branchName,
+      value: b?._id,
+      label: b?.branchName,
     }));
   }, [branchData, formData.schoolId]);
 
   const routeOptions = useMemo(() => {
     if (!routeData) return [];
     const filtered = formData.branchId
-      ? routeData.data.filter((r: any) => r.branchId?._id === formData.branchId)
+      ? routeData.data.filter(
+          (r: any) => r.branchId?._id === formData?.branchId
+        )
       : routeData.data;
     return filtered.map((r: any) => ({
       value: r._id,

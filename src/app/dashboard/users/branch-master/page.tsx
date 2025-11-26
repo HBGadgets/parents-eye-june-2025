@@ -1065,6 +1065,8 @@ export default function BranchMaster() {
     getCoreRowModel: getCoreRowModel(),
   });
 
+  console.log("[Branch Master - Render]: ", filteredData);
+
   return (
     <main>
       <ResponseLoader isLoading={isLoading} />

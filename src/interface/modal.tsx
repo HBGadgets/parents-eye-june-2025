@@ -188,3 +188,15 @@ export interface LeaveRequest {
   createdAt: string;
   updatedAt: string;
 }
+
+export interface Model {
+  _id: string;
+  modelName: string;
+  createdAt: string;
+  updatedAt: string;
+  __v: number;
+}
+
+export interface GetModelsResponse {
+  data: Model[];
+}
