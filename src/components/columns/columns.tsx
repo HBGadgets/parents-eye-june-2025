@@ -1,7 +1,6 @@
 import { ColumnDef } from "@tanstack/react-table";
-import { Model } from "@/interface/modal";
+import { Category, Model } from "@/interface/modal";
 import { CellContent } from "@/components/ui/CustomTable";
-import { min } from "lodash";
 
 export const getModelColumns = (
   setEditTarget: (row: Model) => void,
@@ -40,5 +39,42 @@ export const getModelColumns = (
     meta: { minWidth: 570 },
     enableSorting: false,
     enableHiding: true,
+  },
+];
+
+export const getCategoryColumns = (
+  setEditTarget: (row: Category) => void,
+  setDeleteTarget: (row: Category) => void
+): ColumnDef<Category, CellContent>[] => [
+  {
+    header: "Category Name",
+    accessorFn: (row) => ({
+      type: "text",
+      value: row.categoryName ?? "",
+    }),
+    meta: { minWidth: 570 },
+  },
+
+  {
+    header: "Action",
+    accessorFn: (row) => ({
+      type: "group",
+      items: [
+        {
+          type: "button",
+          label: "Edit",
+          onClick: () => setEditTarget(row),
+          className: "bg-yellow-500 hover:bg-yellow-600 text-white",
+        },
+        {
+          type: "button",
+          label: "Delete",
+          onClick: () => setDeleteTarget(row),
+          className: "bg-red-500 hover:bg-red-600 text-white",
+        },
+      ],
+    }),
+    meta: { minWidth: 570 },
+    enableSorting: false,
   },
 ];

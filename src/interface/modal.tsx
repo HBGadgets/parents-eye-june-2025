@@ -200,3 +200,15 @@ export interface Model {
 export interface GetModelsResponse {
   data: Model[];
 }
+
+export interface Category {
+  _id: string;
+  categoryName: string;
+  createdAt: string;
+  updatedAt: string;
+  __v: number;
+}
+
+export interface GetCategoriesResponse {
+  data: Category[];
+}
