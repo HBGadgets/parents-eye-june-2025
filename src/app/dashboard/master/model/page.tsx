@@ -24,8 +24,6 @@ export default function ModelPage() {
   const [deleteTarget, setDeleteTarget] = useState<Model | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  const columns = getModelColumns(setEditTarget, setDeleteTarget);
-
   // Open modal for Add
   const openCreateModal = () => {
     setEditTarget(null);
