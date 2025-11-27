@@ -212,3 +212,20 @@ export interface Category {
 export interface GetCategoriesResponse {
   data: Category[];
 }
+
+export interface Route {
+  _id: string;
+  routeNumber: string;
+  deviceObjId: Device;
+  schoolId: School;
+  branchId: Branch;
+  createdAt: string;
+}
+
+export interface GetRoutesResponse {
+  success: boolean;
+  total: number;
+  page: number;
+  limit: number;
+  data: Route[];
+}

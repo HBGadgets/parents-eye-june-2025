@@ -55,7 +55,7 @@ export default function DashboardLayout({
             </div>
           </header>
 
-          <main className="pt-4 px-4 overflow-auto flex-1 min-h-0">
+          <main className="pt-4 px-4 overflow-auto h-full">
             <FCMHandler />
             {children}
           </main>

@@ -1,5 +1,5 @@
 import { ColumnDef } from "@tanstack/react-table";
-import { Category, Model } from "@/interface/modal";
+import { Category, Model, Route } from "@/interface/modal";
 import { CellContent } from "@/components/ui/CustomTable";
 
 export const getModelColumns = (
@@ -54,7 +54,6 @@ export const getCategoryColumns = (
     }),
     meta: { minWidth: 570 },
   },
-
   {
     header: "Action",
     accessorFn: (row) => ({
@@ -75,6 +74,59 @@ export const getCategoryColumns = (
       ],
     }),
     meta: { minWidth: 570 },
+    enableSorting: false,
+  },
+];
+
+export const getRouteColumns = (
+  onEdit: (row: Route) => void,
+  onDelete: (row: Route) => void
+): ColumnDef<Route>[] => [
+  {
+    header: "Route No",
+    accessorKey: "routeNumber",
+  },
+  {
+    header: "Device",
+    accessorKey: "deviceObjId.name",
+  },
+  {
+    header: "School",
+    accessorKey: "schoolId.schoolName",
+  },
+  {
+    header: "Branch",
+    accessorKey: "branchId.branchName",
+  },
+  {
+    header: "Action",
+    cell: ({ row }) => {
+      const data = row.original;
+
+      return (
+        <div className="flex justify-center gap-2">
+          <button
+            className="bg-yellow-500 text-white px-3 py-1 rounded text-xs"
+            onClick={(e) => {
+              e.stopPropagation();
+              onEdit(data);
+            }}
+          >
+            Edit
+          </button>
+
+          <button
+            className="bg-red-500 text-white px-3 py-1 rounded text-xs"
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete(data);
+            }}
+          >
+            Delete
+          </button>
+        </div>
+      );
+    },
     enableSorting: false,
   },
 ];
