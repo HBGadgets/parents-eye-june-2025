@@ -34,11 +34,11 @@ messaging.onBackgroundMessage(async (payload) => {
       });
     });
 
-  const title = payload?.notification?.title || "Notification";
-  const options = {
-    body: payload?.notification?.body || "",
-    icon: "/icon.png",
-  };
+  // const title = payload?.notification?.title || "Notification";
+  // const options = {
+  //   body: payload?.notification?.body || "",
+  //   icon: "/icon.png",
+  // };
 
-  self.registration.showNotification(title, options);
+  // self.registration.showNotification(title, options);
 });
