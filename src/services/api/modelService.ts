@@ -1,9 +1,9 @@
-import api from "@/lib/axios"; // your axios instance
+import api from "@/lib/axios";
 
 export const modelService = {
   getModels: async () => {
     const res = await api.get("/model");
-    return res.data; // backend returns { data: [...] }
+    return res.data;
   },
 
   createModel: async (payload: { modelName: string }) => {

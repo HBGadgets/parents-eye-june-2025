@@ -106,7 +106,7 @@ export const getRouteColumns = (
       return (
         <div className="flex justify-center gap-2">
           <button
-            className="bg-yellow-500 text-white px-3 py-1 rounded text-xs"
+            className="bg-yellow-500 text-white px-3 py-1 rounded text-xs cursor-pointer"
             onClick={(e) => {
               e.stopPropagation();
               onEdit(data);
@@ -116,7 +116,7 @@ export const getRouteColumns = (
           </button>
 
           <button
-            className="bg-red-500 text-white px-3 py-1 rounded text-xs"
+            className="bg-red-500 text-white px-3 py-1 rounded text-xs cursor-pointer"
             onClick={(e) => {
               e.stopPropagation();
               onDelete(data);

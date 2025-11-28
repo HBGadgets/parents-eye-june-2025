@@ -4,15 +4,22 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+} from "@/components/ui/command";
+import { Check, ChevronsUpDown } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-
 import { Route } from "@/interface/modal";
+import { jwtDecode } from "jwt-decode";
 
 interface Props {
   onSubmit: (data: {
@@ -21,11 +28,19 @@ interface Props {
     schoolId: string;
     branchId: string;
   }) => void;
+
   onClose: () => void;
   initialData?: Route | null;
+
   schools: { _id: string; schoolName: string }[];
   branches: { _id: string; branchName: string }[];
   devices: { _id: string; name: string }[];
+
+  selectedSchoolId?: string;
+  selectedBranchId?: string;
+
+  onSchoolChange?: (id?: string) => void;
+  onBranchChange?: (id?: string) => void;
 }
 
 export default function AddRouteForm({
@@ -35,114 +50,208 @@ export default function AddRouteForm({
   schools,
   branches,
   devices,
+  selectedSchoolId,
+  selectedBranchId,
+  onSchoolChange,
+  onBranchChange,
 }: Props) {
   const [routeNumber, setRouteNumber] = useState("");
-  const [schoolId, setSchoolId] = useState("");
-  const [branchId, setBranchId] = useState("");
   const [deviceObjId, setDeviceObjId] = useState("");
 
+  const decodedTokenRole = jwtDecode<{ role: string }>(
+    document.cookie
+      .split("; ")
+      .find((row) => row.startsWith("token="))
+      ?.split("=")[1] || ""
+  ).role;
+
+  // ✅ PREFILL EDIT DATA
   useEffect(() => {
     if (initialData) {
       setRouteNumber(initialData.routeNumber);
-      setSchoolId(initialData.schoolId._id);
-      setBranchId(initialData.branchId._id);
+      onSchoolChange?.(initialData.schoolId._id);
+      onBranchChange?.(initialData.branchId._id);
       setDeviceObjId(initialData.deviceObjId._id);
     }
   }, [initialData]);
 
+  useEffect(() => {
+    if (!initialData) {
+      setDeviceObjId("");
+    }
+  }, [selectedBranchId]);
+
   const handleSave = () => {
-    if (!routeNumber || !schoolId || !branchId || !deviceObjId) {
+    if (
+      !routeNumber ||
+      !selectedSchoolId ||
+      !selectedBranchId ||
+      !deviceObjId
+    ) {
       alert("All fields are required");
       return;
     }
 
     onSubmit({
       routeNumber,
-      schoolId,
-      branchId,
+      schoolId: selectedSchoolId!,
+      branchId: selectedBranchId!,
       deviceObjId,
     });
   };
 
   return (
-    <Card className="w-[400px] shadow-lg">
+    <Card className="w-[400px] shadow-xl">
       <CardHeader>
         <CardTitle>{initialData ? "Edit Route" : "Add Route"}</CardTitle>
       </CardHeader>
 
       <CardContent className="space-y-4">
         {/* ROUTE NUMBER */}
-        <div className="space-y-1">
+        <div>
           <label className="text-sm font-medium">Route Number *</label>
           <Input
             placeholder="e.g. PH-101"
             value={routeNumber}
             onChange={(e) => setRouteNumber(e.target.value)}
-            required
           />
         </div>
 
         {/* SCHOOL */}
-        <div className="space-y-1">
-          <label className="text-sm font-medium">School *</label>
-          <Select value={schoolId} onValueChange={setSchoolId} required>
-            <SelectTrigger className="cursor-pointer">
-              <SelectValue placeholder="Select School" />
-            </SelectTrigger>
-            <SelectContent>
-              {schools.map((s) => (
-                <SelectItem key={s._id} value={s._id}>
-                  {s.schoolName}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        {decodedTokenRole === "superAdmin" && (
+          <div>
+            <label className="text-sm font-medium">School *</label>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className="w-full justify-between">
+                  {schools.find((s) => s._id === selectedSchoolId)
+                    ?.schoolName || "Select School"}
+                  <ChevronsUpDown className="h-4 w-4 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[340px] p-0">
+                <Command>
+                  <CommandInput placeholder="Search school..." />
+                  <CommandEmpty>No schools found</CommandEmpty>
+                  <CommandGroup className="max-h-[220px] overflow-y-auto">
+                    {schools.map((s) => (
+                      <CommandItem
+                        key={s._id}
+                        onSelect={() => onSchoolChange?.(s._id)}
+                      >
+                        <Check
+                          className={cn(
+                            "mr-2 h-4",
+                            s._id === selectedSchoolId
+                              ? "opacity-100"
+                              : "opacity-0"
+                          )}
+                        />
+                        {s.schoolName}
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                </Command>
+              </PopoverContent>
+            </Popover>
+          </div>
+        )}
 
         {/* BRANCH */}
-        <div className="space-y-1">
-          <label className="text-sm font-medium cursor-pointer">Branch *</label>
-          <Select value={branchId} onValueChange={setBranchId} required>
-            <SelectTrigger className="cursor-pointer">
-              <SelectValue placeholder="Select Branch" />
-            </SelectTrigger>
-            <SelectContent>
-              {branches.map((b) => (
-                <SelectItem key={b._id} value={b._id}>
-                  {b.branchName}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        {(decodedTokenRole === "school" ||
+          decodedTokenRole === "superAdmin" ||
+          decodedTokenRole === "branchGroup") && (
+          <div>
+            <label className="text-sm font-medium">Branch *</label>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="w-full justify-between"
+                  disabled={!selectedSchoolId}
+                >
+                  {branches.find((b) => b._id === selectedBranchId)
+                    ?.branchName ||
+                    (selectedSchoolId
+                      ? "Select Branch"
+                      : "Select school first")}
+                  <ChevronsUpDown className="h-4 w-4 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[340px] p-0">
+                <Command>
+                  <CommandInput placeholder="Search branch..." />
+                  <CommandEmpty>No branches found</CommandEmpty>
+                  <CommandGroup className="max-h-[220px] overflow-y-auto">
+                    {branches.map((b) => (
+                      <CommandItem
+                        key={b._id}
+                        onSelect={() => onBranchChange?.(b._id)}
+                      >
+                        <Check
+                          className={cn(
+                            "mr-2 h-4",
+                            selectedBranchId === b._id
+                              ? "opacity-100"
+                              : "opacity-0"
+                          )}
+                        />
+                        {b.branchName}
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                </Command>
+              </PopoverContent>
+            </Popover>
+          </div>
+        )}
 
         {/* DEVICE */}
-        <div className="space-y-1">
-          <label className="text-sm font-medium cursor-pointer">Device *</label>
-          <Select value={deviceObjId} onValueChange={setDeviceObjId} required>
-            <SelectTrigger className="cursor-pointer">
-              <SelectValue placeholder="Select Device" />
-            </SelectTrigger>
-            <SelectContent>
-              {devices.map((d) => (
-                <SelectItem key={d._id} value={d._id}>
-                  {d.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        <div>
+          <label className="text-sm font-medium">Device *</label>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                className="w-full justify-between"
+                disabled={!selectedBranchId}
+              >
+                {devices.find((d) => d._id === deviceObjId)?.name ||
+                  (selectedBranchId ? "Select Device" : "Select branch first")}
+                <ChevronsUpDown className="h-4 w-4 opacity-50" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[340px] p-0">
+              <Command>
+                <CommandInput placeholder="Search device..." />
+                <CommandEmpty>No devices found</CommandEmpty>
+                <CommandGroup className="max-h-[220px] overflow-y-auto">
+                  {devices.map((d) => (
+                    <CommandItem
+                      key={d._id}
+                      onSelect={() => setDeviceObjId(d._id)}
+                    >
+                      <Check
+                        className={cn(
+                          "mr-2 h-4",
+                          d._id === deviceObjId ? "opacity-100" : "opacity-0"
+                        )}
+                      />
+                      {d.name}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </Command>
+            </PopoverContent>
+          </Popover>
         </div>
 
-        {/* FOOTER ACTIONS */}
+        {/* ACTIONS */}
         <div className="flex justify-end gap-2 pt-3">
-          <Button
-            variant="outline"
-            className="cursor-pointer"
-            onClick={onClose}
-          >
+          <Button variant="outline" onClick={onClose}>
             Cancel
           </Button>
-          <Button className="bg-primary cursor-pointer" onClick={handleSave}>
+          <Button className="bg-primary" onClick={handleSave}>
             {initialData ? "Update" : "Create"}
           </Button>
         </div>

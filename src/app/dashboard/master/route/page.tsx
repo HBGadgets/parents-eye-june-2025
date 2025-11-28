@@ -8,7 +8,11 @@ import { Route } from "@/interface/modal";
 import { CustomTableServerSidePagination } from "@/components/ui/customTable(serverSidePagination)";
 import { getRouteColumns } from "@/components/columns/columns";
 import AddRouteForm from "@/components/route/AddRouteForm";
-import { useSchoolDropdown } from "@/hooks/useSchoolDropdown";
+import {
+  useBranchDropdown,
+  useSchoolDropdown,
+  useDeviceDropdown,
+} from "@/hooks/useDropdown";
 
 export default function RoutePage() {
   const [pagination, setPagination] = useState<PaginationState>({
@@ -19,7 +23,11 @@ export default function RoutePage() {
   const [filters, setFilters] = useState({});
   const [showForm, setShowForm] = useState(false);
   const [editRoute, setEditRoute] = useState<Route | null>(null);
+  const [schoolId, setSchoolId] = useState<string | undefined>();
+  const [branchId, setBranchId] = useState<string | undefined>();
   const { data: schools = [] } = useSchoolDropdown();
+  const { data: branches = [] } = useBranchDropdown(schoolId);
+  const { data: devices = [] } = useDeviceDropdown(branchId);
 
   const { routes, total, isLoading, deleteRoute, updateRoute, createRoute } =
     useRoutes(pagination, sorting, filters);
@@ -35,6 +43,8 @@ export default function RoutePage() {
 
   const handleEdit = (row: Route) => {
     setEditRoute(row);
+    setSchoolId(row.schoolId._id);
+    setBranchId(row.branchId._id);
     setShowForm(true);
   };
 
@@ -61,6 +71,12 @@ export default function RoutePage() {
     enableSorting: true,
   });
 
+  useEffect(() => {
+    console.log("Se lected School ID:", schoolId);
+  }, [schoolId]);
+
+  console.log("branches:", branches);
+
   return (
     <div>
       <div className="flex justify-between items-center mb-3">
@@ -69,6 +85,8 @@ export default function RoutePage() {
           className="cursor-pointer"
           onClick={() => {
             setEditRoute(null);
+            setSchoolId(undefined);
+            setBranchId(undefined);
             setShowForm(true);
           }}
         >
@@ -93,8 +111,12 @@ export default function RoutePage() {
               setShowForm(false);
             }}
             schools={schools}
-            branches={[]}
-            devices={[]}
+            branches={branches}
+            devices={devices}
+            selectedSchoolId={schoolId}
+            selectedBranchId={branchId}
+            onSchoolChange={setSchoolId}
+            onBranchChange={setBranchId}
           />
           {/* </div> */}
         </div>
