@@ -39,13 +39,12 @@ export default function RoutePage() {
   const { data: schools = [] } = useSchoolDropdown();
   const { data: branches = [] } = useBranchDropdown(schoolId);
   const { data: devices = [] } = useDeviceDropdown(branchId);
-  const decodedToken = jwtDecode<{
+  const [role, setRole] = useState<string>("");
+  const [decodedToken, setDecodedToken] = useState<{
     role: string;
     schoolId?: string;
     id?: string;
-  }>(Cookies.get("token") || "");
-
-  const role = decodedToken.role;
+  }>({ role: "" });
 
   // Auto IDs from token
   const tokenSchoolId =
@@ -65,6 +64,16 @@ export default function RoutePage() {
     if (role === "branch" && tokenBranchId) {
       setFilterBranchId(tokenBranchId);
       setBranchId(tokenBranchId);
+    }
+    const token = Cookies.get("token");
+    if (token) {
+      const decoded = jwtDecode<{
+        role: string;
+        schoolId?: string;
+        id?: string;
+      }>(token);
+      setDecodedToken(decoded);
+      setRole(decoded.role);
     }
   }, []);
 
