@@ -188,3 +188,44 @@ export interface LeaveRequest {
   createdAt: string;
   updatedAt: string;
 }
+
+export interface Model {
+  _id: string;
+  modelName: string;
+  createdAt: string;
+  updatedAt: string;
+  __v: number;
+}
+
+export interface GetModelsResponse {
+  data: Model[];
+}
+
+export interface Category {
+  _id: string;
+  categoryName: string;
+  createdAt: string;
+  updatedAt: string;
+  __v: number;
+}
+
+export interface GetCategoriesResponse {
+  data: Category[];
+}
+
+export interface Route {
+  _id: string;
+  routeNumber: string;
+  deviceObjId: Device;
+  schoolId: School;
+  branchId: Branch;
+  createdAt: string;
+}
+
+export interface GetRoutesResponse {
+  success: boolean;
+  total: number;
+  page: number;
+  limit: number;
+  data: Route[];
+}
