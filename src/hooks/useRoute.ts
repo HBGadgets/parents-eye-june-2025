@@ -13,7 +13,15 @@ export const useRoutes = (
   const queryClient = useQueryClient();
 
   const getRoutesQuery = useQuery({
-    queryKey: ["routes", pagination, sorting, filters],
+    queryKey: [
+      "routes",
+      pagination.pageIndex,
+      pagination.pageSize,
+      sorting,
+      filters.search,
+      filters.schoolId,
+      filters.branchId,
+    ],
     queryFn: () =>
       routeService.getRoutes({
         page: pagination.pageIndex + 1,
