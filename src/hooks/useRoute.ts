@@ -31,6 +31,9 @@ export const useRoutes = (
       toast.success("Route created");
       queryClient.invalidateQueries({ queryKey: ["routes"] });
     },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.message || "Failed to create route");
+    },
   });
 
   const updateRouteMutation = useMutation({
