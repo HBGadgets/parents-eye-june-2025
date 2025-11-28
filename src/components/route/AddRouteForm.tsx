@@ -58,12 +58,32 @@ export default function AddRouteForm({
   const [routeNumber, setRouteNumber] = useState("");
   const [deviceObjId, setDeviceObjId] = useState("");
 
-  const decodedTokenRole = jwtDecode<{ role: string }>(
+  const decodedToken = jwtDecode<{
+    role: string;
+    schoolId?: string;
+    id?: string;
+  }>(
     document.cookie
       .split("; ")
       .find((row) => row.startsWith("token="))
       ?.split("=")[1] || ""
-  ).role;
+  );
+
+  const decodedTokenRole = decodedToken.role;
+  const tokenSchoolId =
+    decodedToken.role === "school" ? decodedToken.id : decodedToken.schoolId;
+
+  const tokenBranchId = decodedToken.id;
+
+  useEffect(() => {
+    if (decodedTokenRole === "school" && tokenSchoolId) {
+      onSchoolChange?.(tokenSchoolId);
+    }
+
+    if (decodedTokenRole === "branch" && tokenBranchId) {
+      onBranchChange?.(tokenBranchId);
+    }
+  }, []);
 
   // ✅ PREFILL EDIT DATA
   useEffect(() => {
@@ -168,7 +188,7 @@ export default function AddRouteForm({
                 <Button
                   variant="outline"
                   className="w-full justify-between"
-                  disabled={!selectedSchoolId}
+                  disabled={decodedTokenRole !== "branch" && !selectedBranchId}
                 >
                   {branches.find((b) => b._id === selectedBranchId)
                     ?.branchName ||
@@ -214,7 +234,7 @@ export default function AddRouteForm({
               <Button
                 variant="outline"
                 className="w-full justify-between"
-                disabled={!selectedBranchId}
+                disabled={!selectedBranchId && decodedTokenRole === "branch"}
               >
                 {devices.find((d) => d._id === deviceObjId)?.name ||
                   (selectedBranchId ? "Select Device" : "Select branch first")}
