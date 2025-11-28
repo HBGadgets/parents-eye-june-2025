@@ -17,6 +17,7 @@ import { SearchBar } from "@/components/search-bar/SearchBarPagination";
 import { useDebounce } from "@/hooks/useDebounce";
 import { jwtDecode } from "jwt-decode";
 import { Combobox } from "@/components/ui/combobox";
+import Cookies from "js-cookie";
 
 export default function RoutePage() {
   const [pagination, setPagination] = useState<PaginationState>({
@@ -42,12 +43,7 @@ export default function RoutePage() {
     role: string;
     schoolId?: string;
     id?: string;
-  }>(
-    document.cookie
-      .split("; ")
-      .find((r) => r.startsWith("token="))
-      ?.split("=")[1] || ""
-  );
+  }>(Cookies.get("token") || "");
 
   const role = decodedToken.role;
 
