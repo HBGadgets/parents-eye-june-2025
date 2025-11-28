@@ -36,7 +36,7 @@ export default function RoutePage() {
   const [schoolSearch, setSchoolSearch] = useState("");
   const [branchSearch, setBranchSearch] = useState("");
   const { data: schools = [] } = useSchoolDropdown();
-  const { data: branches = [] } = useBranchDropdown(filterSchoolId);
+  const { data: branches = [] } = useBranchDropdown(schoolId);
   const { data: devices = [] } = useDeviceDropdown(branchId);
   const decodedToken = jwtDecode<{
     role: string;
@@ -75,6 +75,12 @@ export default function RoutePage() {
   useEffect(() => {
     if (!isLoading) setShowForm(false);
   }, [isLoading]);
+
+  useEffect(() => {
+    if (!filterSchoolId) {
+      setFilterBranchId(undefined);
+    }
+  }, [filterSchoolId]);
 
   useEffect(() => {
     setFilters({
