@@ -20,6 +20,7 @@ import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Route } from "@/interface/modal";
 import { jwtDecode } from "jwt-decode";
+import { toast } from "sonner";
 
 interface Props {
   onSubmit: (data: {
@@ -41,6 +42,12 @@ interface Props {
 
   onSchoolChange?: (id?: string) => void;
   onBranchChange?: (id?: string) => void;
+  decodedToken?: {
+    role: string;
+    schoolId?: string;
+    id?: string;
+    branchId?: string;
+  };
 }
 
 export default function AddRouteForm({
@@ -54,26 +61,16 @@ export default function AddRouteForm({
   selectedBranchId,
   onSchoolChange,
   onBranchChange,
+  decodedToken,
 }: Props) {
   const [routeNumber, setRouteNumber] = useState("");
   const [deviceObjId, setDeviceObjId] = useState("");
 
-  const decodedToken = jwtDecode<{
-    role: string;
-    schoolId?: string;
-    id?: string;
-  }>(
-    document.cookie
-      .split("; ")
-      .find((row) => row.startsWith("token="))
-      ?.split("=")[1] || ""
-  );
-
-  const decodedTokenRole = decodedToken.role;
+  const decodedTokenRole = decodedToken?.role;
   const tokenSchoolId =
-    decodedToken.role === "school" ? decodedToken.id : decodedToken.schoolId;
+    decodedToken?.role === "school" ? decodedToken?.id : decodedToken?.schoolId;
 
-  const tokenBranchId = decodedToken.id;
+  const tokenBranchId = decodedToken?.id;
 
   useEffect(() => {
     if (decodedTokenRole === "school" && tokenSchoolId) {
@@ -88,10 +85,10 @@ export default function AddRouteForm({
   // ✅ PREFILL EDIT DATA
   useEffect(() => {
     if (initialData) {
-      setRouteNumber(initialData.routeNumber);
-      onSchoolChange?.(initialData.schoolId._id);
-      onBranchChange?.(initialData.branchId._id);
-      setDeviceObjId(initialData.deviceObjId._id);
+      setRouteNumber(initialData?.routeNumber);
+      onSchoolChange?.(initialData?.schoolId?._id);
+      onBranchChange?.(initialData?.branchId?._id);
+      setDeviceObjId(initialData?.deviceObjId?._id);
     }
   }, [initialData]);
 
@@ -102,15 +99,16 @@ export default function AddRouteForm({
   }, [selectedBranchId]);
 
   const handleSave = () => {
-    if (
-      !routeNumber ||
-      !selectedSchoolId ||
-      !selectedBranchId ||
-      !deviceObjId
-    ) {
-      alert("All fields are required");
-      return;
-    }
+    // if (
+    //   !routeNumber ||
+    //   !selectedSchoolId ||
+    //   !selectedBranchId ||
+    //   !deviceObjId
+    // ) {
+    //   // alert("All fields are required");
+    //   toast.warning("All fields are required");
+    //   return;
+    // }
 
     onSubmit({
       routeNumber,
@@ -178,9 +176,7 @@ export default function AddRouteForm({
         )}
 
         {/* BRANCH */}
-        {(decodedTokenRole === "school" ||
-          decodedTokenRole === "superAdmin" ||
-          decodedTokenRole === "branchGroup") && (
+        {decodedTokenRole !== "branch" && (
           <div>
             <label className="text-sm font-medium">Branch *</label>
             <Popover>
@@ -188,7 +184,9 @@ export default function AddRouteForm({
                 <Button
                   variant="outline"
                   className="w-full justify-between"
-                  disabled={decodedTokenRole !== "branch" && !selectedBranchId}
+                  disabled={
+                    decodedTokenRole === "superAdmin" && !selectedSchoolId
+                  }
                 >
                   {branches.find((b) => b._id === selectedBranchId)
                     ?.branchName ||
@@ -234,7 +232,7 @@ export default function AddRouteForm({
               <Button
                 variant="outline"
                 className="w-full justify-between"
-                disabled={!selectedBranchId && decodedTokenRole === "branch"}
+                disabled={decodedTokenRole !== "branch" && !selectedBranchId}
               >
                 {devices.find((d) => d._id === deviceObjId)?.name ||
                   (selectedBranchId ? "Select Device" : "Select branch first")}
@@ -268,10 +266,18 @@ export default function AddRouteForm({
 
         {/* ACTIONS */}
         <div className="flex justify-end gap-2 pt-3">
-          <Button variant="outline" onClick={onClose}>
+          <Button
+            variant="outline"
+            onClick={onClose}
+            className="cursor-pointer"
+          >
             Cancel
           </Button>
-          <Button className="bg-primary" onClick={handleSave}>
+          <Button
+            className="bg-primary"
+            onClick={handleSave}
+            className="cursor-pointer"
+          >
             {initialData ? "Update" : "Create"}
           </Button>
         </div>
