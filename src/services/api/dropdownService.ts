@@ -12,4 +12,20 @@ export const dropdownService = {
     api.get("/device/dropdown", {
       params: branchId ? { branchId } : {},
     }),
+
+  getRoutes: (branchId?: string) =>
+    api.get("/route/dropdown", {
+      params: branchId ? { branchId } : {},
+    }),
+
+  // 🔁 Parent dropdown with pagination & search
+  getParents: (params: {
+    branchId: string;
+    page?: number;
+    limit?: number;
+    search?: string;
+  }) =>
+    api.get("/parent/dropdown", {
+      params,
+    }),
 };

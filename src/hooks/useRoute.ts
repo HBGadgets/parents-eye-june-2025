@@ -50,6 +50,9 @@ export const useRoutes = (
       toast.success("Route updated");
       queryClient.invalidateQueries({ queryKey: ["routes"] });
     },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.message || "Failed to update route");
+    },
   });
 
   const deleteRouteMutation = useMutation({

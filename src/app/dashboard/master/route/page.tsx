@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { useRoutes } from "@/hooks/useRoute";
 import { PaginationState, SortingState } from "@tanstack/react-table";
 import { Button } from "@/components/ui/button";
@@ -19,6 +19,18 @@ import { jwtDecode } from "jwt-decode";
 import { Combobox } from "@/components/ui/combobox";
 import Cookies from "js-cookie";
 
+type DecodedToken = {
+  role: string;
+  schoolId?: string;
+  id?: string;
+};
+
+type Filters = {
+  search?: string;
+  schoolId?: string;
+  branchId?: string;
+};
+
 export default function RoutePage() {
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
@@ -27,33 +39,36 @@ export default function RoutePage() {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [searchInput, setSearchInput] = useState("");
   const debouncedSearch = useDebounce(searchInput, 500);
-  const [filters, setFilters] = useState<{ search?: string }>({});
-  const [showForm, setShowForm] = useState(false);
-  const [editRoute, setEditRoute] = useState<Route | null>(null);
-  const [schoolId, setSchoolId] = useState<string | undefined>();
-  const [branchId, setBranchId] = useState<string | undefined>();
   const [filterSchoolId, setFilterSchoolId] = useState<string>();
   const [filterBranchId, setFilterBranchId] = useState<string>();
-  const [schoolSearch, setSchoolSearch] = useState("");
-  const [branchSearch, setBranchSearch] = useState("");
-  const { data: schools = [] } = useSchoolDropdown();
-  const { data: branches = [] } = useBranchDropdown(schoolId);
-  const { data: devices = [] } = useDeviceDropdown(branchId);
-  const [role, setRole] = useState<string>("");
-  const [decodedToken, setDecodedToken] = useState<{
-    role: string;
-    schoolId?: string;
-    id?: string;
-  }>({ role: "" });
+  const [decodedToken, setDecodedToken] = useState<DecodedToken>({ role: "" });
 
-  // Auto IDs from token
-  const tokenSchoolId =
-    role === "school" ? decodedToken.id : decodedToken.schoolId;
+  const role = decodedToken.role || "";
 
-  const tokenBranchId = role === "branch" ? decodedToken.id : undefined;
+  useEffect(() => {
+    const token = Cookies.get("token");
+    if (!token) return;
 
-  const { routes, total, isLoading, deleteRoute, updateRoute, createRoute } =
-    useRoutes(pagination, sorting, filters);
+    try {
+      const decoded = jwtDecode<DecodedToken>(token);
+      setDecodedToken(decoded);
+    } catch (err) {
+      console.error("Failed to decode token", err);
+    }
+  }, []);
+
+  const tokenSchoolId = useMemo(
+    () => (role === "school" ? decodedToken.id : decodedToken.schoolId),
+    [role, decodedToken.id, decodedToken.schoolId]
+  );
+
+  const tokenBranchId = useMemo(
+    () => (role === "branch" ? decodedToken.id : undefined),
+    [role, decodedToken.id]
+  );
+
+  const [schoolId, setSchoolId] = useState<string | undefined>();
+  const [branchId, setBranchId] = useState<string | undefined>();
 
   useEffect(() => {
     if (role === "school" && tokenSchoolId) {
@@ -65,21 +80,7 @@ export default function RoutePage() {
       setFilterBranchId(tokenBranchId);
       setBranchId(tokenBranchId);
     }
-    const token = Cookies.get("token");
-    if (token) {
-      const decoded = jwtDecode<{
-        role: string;
-        schoolId?: string;
-        id?: string;
-      }>(token);
-      setDecodedToken(decoded);
-      setRole(decoded.role);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!isLoading) setShowForm(false);
-  }, [isLoading]);
+  }, [role, tokenSchoolId, tokenBranchId]);
 
   useEffect(() => {
     if (!filterSchoolId) {
@@ -87,47 +88,78 @@ export default function RoutePage() {
     }
   }, [filterSchoolId]);
 
-  useEffect(() => {
-    setFilters({
+  const filters: Filters = useMemo(
+    () => ({
       search: debouncedSearch || undefined,
       schoolId: filterSchoolId,
       branchId: filterBranchId,
-    });
+    }),
+    [debouncedSearch, filterSchoolId, filterBranchId]
+  );
 
+  useEffect(() => {
     setPagination((p) => ({ ...p, pageIndex: 0 }));
-  }, [debouncedSearch, filterSchoolId, filterBranchId]);
+  }, [filters.search, filters.schoolId, filters.branchId]);
 
-  const schoolItems = schools.map((s) => ({
-    label: s.schoolName!,
-    value: s._id,
-  }));
+  const { data: schools = [] } = useSchoolDropdown();
+  const { data: branches = [] } = useBranchDropdown(schoolId);
+  const { data: devices = [] } = useDeviceDropdown(branchId);
 
-  const branchItems = branches.map((b) => ({
-    label: b.branchName!,
-    value: b._id,
-  }));
+  const schoolItems = useMemo(
+    () =>
+      schools.map((s) => ({
+        label: s.schoolName!,
+        value: s._id,
+      })),
+    [schools]
+  );
 
-  const closeModal = () => {
+  const branchItems = useMemo(
+    () =>
+      branches.map((b) => ({
+        label: b.branchName!,
+        value: b._id,
+      })),
+    [branches]
+  );
+  const { routes, total, isLoading, deleteRoute, updateRoute, createRoute } =
+    useRoutes(pagination, sorting, filters);
+
+  const [showForm, setShowForm] = useState(false);
+
+  const [editRoute, setEditRoute] = useState<Route | null>(null);
+
+  useEffect(() => {
+    if (!isLoading) setShowForm(false);
+  }, [isLoading]);
+
+  const closeModal = useCallback(() => {
     setShowForm(false);
     setEditRoute(null);
-  };
+  }, []);
 
-  const handleEdit = (row: Route) => {
+  const handleEdit = useCallback((row: Route) => {
     setEditRoute(row);
     setSchoolId(row.schoolId._id);
     setBranchId(row.branchId._id);
     setShowForm(true);
-  };
+  }, []);
 
-  const handleDelete = (row: Route) => {
-    if (confirm("Delete this route?")) {
-      deleteRoute(row._id);
-    }
-  };
+  const handleDelete = useCallback(
+    (row: Route) => {
+      if (confirm("Delete this route?")) {
+        deleteRoute(row._id);
+      }
+    },
+    [deleteRoute]
+  );
 
-  const columns = getRouteColumns(handleEdit, handleDelete);
+  const columns = useMemo(
+    () => getRouteColumns(handleEdit, handleDelete),
+    [handleEdit, handleDelete]
+  );
 
-  const { table, tableElement } = CustomTableServerSidePagination({
+  const { tableElement } = CustomTableServerSidePagination({
     data: routes || [],
     columns,
     pagination,
@@ -143,8 +175,9 @@ export default function RoutePage() {
   });
 
   return (
-    <div>
+    <div className="flex flex-col h-full">
       <h2 className="text-xl font-bold">Routes</h2>
+
       <div className="flex justify-between items-center my-3 gap-3">
         <SearchBar
           value={searchInput}
@@ -213,7 +246,6 @@ export default function RoutePage() {
               } else {
                 createRoute(data);
               }
-              setShowForm(false);
             }}
             decodedToken={decodedToken}
             schools={schools}

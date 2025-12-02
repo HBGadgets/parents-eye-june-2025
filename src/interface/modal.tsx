@@ -1,17 +1,3 @@
-export interface Student {
-  _id: string;
-  childName: string;
-  className: string;
-  section: string;
-  age: string;
-  geofenceId: Geofence;
-  parentId: Parent;
-  schoolId: School;
-  branchId: Branch;
-  statusOfRegister: string;
-  createdAt: string;
-}
-
 export interface School {
   _id: string;
   schoolName: string;
@@ -83,22 +69,18 @@ export interface DeviceResponse {
 export interface Geofence {
   _id: string;
   geofenceName: string;
-  area: string;
-  pickupTime: string;
-  dropTime: string;
-  isCrossed: boolean;
-  school: School | null;
-  schoolId: School | null;
-  branch: Branch | null;
-  branchId: Branch | null;
-  deviceObjId?: Device | null;
-  route: {
-    routeNumber: string;
-    device: Device | null;
+  area: {
+    center: number[];
+    radius: number;
   };
-  routeObjId?: Route | null;
-  createdAt?: string;
-  updatedAt?: string;
+  pickupTime?: string;
+  dropTime?: string;
+  schoolId?: string | School;
+  branchId?: string | Branch;
+  parentId?: string | Parent;
+  routeObjId?: string | Route;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface Parent {
@@ -228,4 +210,27 @@ export interface GetRoutesResponse {
   page: number;
   limit: number;
   data: Route[];
+}
+
+export interface Student {
+  _id: string;
+  childName: string;
+  className: string;
+  section: string;
+  age: number;
+  pickupGeoId: Geofence;
+  dropGeoId: Geofence;
+  routeObjId: Route;
+  parentId: Parent;
+  schoolId: School;
+  branchId: Branch;
+  statusOfRegister: string;
+  createdAt: string;
+}
+
+export interface GetStudentsResponse {
+  total: number;
+  page: number;
+  limit: number;
+  children: Student[];
 }

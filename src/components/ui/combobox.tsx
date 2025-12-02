@@ -95,6 +95,7 @@ export function Combobox({
       // Trigger at 80% scroll
       if (scrollPercentage >= 0.8 && !isLoadingMore) {
         console.log("🔄 Scroll triggered at", scrollPercentage.toFixed(2));
+        console.log("onReachEnd:", onReachEnd);
         onReachEnd();
       }
     },

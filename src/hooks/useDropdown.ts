@@ -1,6 +1,6 @@
 import api from "@/lib/axios";
 import { dropdownService } from "@/services/api/dropdownService";
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 
 export interface DropdownItem {
   _id: string;
@@ -10,6 +10,11 @@ export interface DropdownItem {
 }
 
 export interface DropdownResponse<T> {
+  page?: number;
+  limit?: number;
+  totalCount?: number;
+  totalPages?: number;
+
   data: T[];
 }
 
@@ -37,5 +42,41 @@ export const useDeviceDropdown = (branchId?: string) => {
     queryFn: () => dropdownService.getDevices(branchId),
     enabled: !!branchId,
     select: (res) => res.data.data,
+  });
+};
+
+export const useRouteDropdown = (branchId?: string) => {
+  console.log("Fetching routes for branchId:", branchId);
+  return useQuery<DropdownResponse<DropdownItem>>({
+    queryKey: ["route-dropdown", branchId],
+    queryFn: async () => await dropdownService.getRoutes(branchId),
+    enabled: !!branchId,
+    select: (res) => res.data.data,
+  });
+};
+
+export const useParentDropdown = (branchId?: string, search: string = "") => {
+  return useInfiniteQuery({
+    queryKey: ["parent-dropdown", branchId, search],
+    enabled: !!branchId,
+    initialPageParam: 1,
+    queryFn: async ({ pageParam }) => {
+      const res = await dropdownService.getParents({
+        branchId: branchId as string,
+        page: pageParam as number,
+        limit: 10,
+        search,
+      });
+
+      return res.data as DropdownResponse<DropdownItem>;
+    },
+
+    getNextPageParam: (lastPage) => {
+      if (lastPage.page < lastPage.totalPages) {
+        return lastPage.page + 1;
+      }
+
+      return undefined;
+    },
   });
 };

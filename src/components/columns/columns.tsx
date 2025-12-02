@@ -1,5 +1,5 @@
 import { ColumnDef } from "@tanstack/react-table";
-import { Category, Model, Route } from "@/interface/modal";
+import { Category, Model, Route, Student } from "@/interface/modal";
 import { CellContent } from "@/components/ui/CustomTable";
 
 export const getModelColumns = (
@@ -97,6 +97,99 @@ export const getRouteColumns = (
   {
     header: "Branch",
     accessorKey: "branchId.branchName",
+  },
+  {
+    header: "Action",
+    cell: ({ row }) => {
+      const data = row.original;
+
+      return (
+        <div className="flex justify-center gap-2">
+          <button
+            className="bg-yellow-500 text-white px-3 py-1 rounded text-xs cursor-pointer"
+            onClick={(e) => {
+              e.stopPropagation();
+              onEdit(data);
+            }}
+          >
+            Edit
+          </button>
+
+          <button
+            className="bg-red-500 text-white px-3 py-1 rounded text-xs cursor-pointer"
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete(data);
+            }}
+          >
+            Delete
+          </button>
+        </div>
+      );
+    },
+    enableSorting: false,
+  },
+];
+
+export const getStudentColumns = (
+  onEdit: (row: Student) => void,
+  onDelete: (row: Student) => void
+): ColumnDef<Student>[] => [
+  {
+    header: "Student Name",
+    accessorKey: "childName",
+  },
+  {
+    header: "Class",
+    accessorKey: "className",
+  },
+  {
+    header: "Section",
+    accessorKey: "section",
+  },
+  {
+    header: "Age",
+    accessorKey: "age",
+  },
+  {
+    id: "pickupLocation",
+    header: "Pickup Location",
+    accessorFn: (row: Student) => row.pickupGeoId?.geofenceName ?? "—",
+  },
+  {
+    id: "pickupTime",
+    header: "Pickup Time",
+    accessorFn: (row: Student) => row.pickupGeoId?.pickupTime ?? "—",
+  },
+  {
+    id: "dropLocation",
+    header: "Drop Location",
+    accessorFn: (row: Student) => row.dropGeoId?.geofenceName ?? "—",
+  },
+  {
+    id: "dropTime",
+    header: "Drop Time",
+    accessorFn: (row: Student) => row.dropGeoId?.dropTime ?? "—",
+  },
+  {
+    id: "route",
+    headers: "Route",
+    accessorFn: (row: Student) => row.routeObjId?.routeNumber ?? "—",
+  },
+  {
+    id: "school",
+    headers: "School",
+    accessorFn: (row: Student) => row.schoolId?.schoolName ?? "—",
+  },
+  {
+    id: "branch",
+    headers: "Branch",
+    accessorFn: (row: Student) => row.branchId?.branchName ?? "—",
+  },
+  {
+    id: "registerationDate",
+    headers: "Registeration Date",
+    accessorFn: (row: Student) => new Date(row.createdAt).toLocaleDateString(),
   },
   {
     header: "Action",
