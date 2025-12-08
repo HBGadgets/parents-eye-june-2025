@@ -208,11 +208,14 @@ const DevicesPage = () => {
   }, [filters.search, filters.schoolId, filters.branchId, filters.routeObjId]);
 
   // ---------------- API Call ----------------
-  const { devices, total, isLoading, deleteDevice } = useAddDeviceNew(
-    pagination,
-    sorting,
-    filters
-  );
+  const {
+    devices,
+    total,
+    isLoading,
+    deleteDevice,
+    exportExcel,
+    isExcelExporting,
+  } = useAddDeviceNew(pagination, sorting, filters);
 
   // ---------------- Handlers ----------------
   const handleEdit = useCallback((row: any) => {
@@ -270,6 +273,18 @@ const DevicesPage = () => {
     },
     []
   );
+
+  // -------------- Excel Export Handler ----------------
+  const handleExport = () => {
+    exportExcel({
+      search: filters.search,
+      branchId: filters.branchId,
+      schoolId: filters.schoolId,
+      routeObjId: filters.routeObjId,
+      sortBy: sorting[0]?.id,
+      sortOrder: sorting[0]?.desc ? "desc" : "asc",
+    });
+  };
 
   const handleAddDevice = useCallback(() => {
     setEditDevice(null);
@@ -370,6 +385,13 @@ const DevicesPage = () => {
     <div className="flex flex-col h-full">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-bold mb-3">Devices</h2>
+        <Button
+          className="cursor-pointer"
+          onClick={handleExport}
+          disabled={isExcelExporting}
+        >
+          {isExcelExporting ? "Exporting..." : "Export to Excel"}
+        </Button>
       </div>
 
       {/* SEARCH & FILTERS BAR */}
