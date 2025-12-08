@@ -15,7 +15,7 @@ import {
   DrawerTitle,
 } from "@/components/ui/drawer";
 import { useMediaQuery } from "usehooks-ts";
-import SingleDeviceLiveTrack from "./single-device-livetrack";
+// import SingleDeviceLiveTrack from "./single-device-livetrack";
 import "./styles.css";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useSingleDeviceData } from "@/hooks/livetrack/useLiveDeviceData";
@@ -272,7 +272,7 @@ export const LiveTrack = ({ open, setOpen, selectedImei }: LiveTrackProps) => {
           </DialogHeader>
 
           <div className="h-[calc(100vh-120px)] w-full">
-            <SingleDeviceLiveTrack {...singleDeviceProps} />
+            {/* <SingleDeviceLiveTrack {...singleDeviceProps} /> */}
           </div>
         </DialogContent>
       </Dialog>
@@ -297,7 +297,7 @@ export const LiveTrack = ({ open, setOpen, selectedImei }: LiveTrackProps) => {
         </DrawerHeader>
 
         <div className="flex-1 h-[calc(100vh-200px)] w-full">
-          <SingleDeviceLiveTrack {...singleDeviceProps} />
+          {/* <SingleDeviceLiveTrack {...singleDeviceProps} /> */}
         </div>
 
         <DrawerFooter className="pt-2 px-4 pb-4 border-t">

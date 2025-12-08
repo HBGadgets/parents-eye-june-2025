@@ -18,6 +18,7 @@ import { useDebounce } from "@/hooks/useDebounce";
 import { jwtDecode } from "jwt-decode";
 import { Combobox } from "@/components/ui/combobox";
 import Cookies from "js-cookie";
+import { ColumnVisibilitySelector } from "@/components/column-visibility-selector";
 
 type DecodedToken = {
   role: string;
@@ -39,8 +40,11 @@ export default function RoutePage() {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [searchInput, setSearchInput] = useState("");
   const debouncedSearch = useDebounce(searchInput, 500);
+
+  // Filter states - only set when user explicitly selects from dropdown
   const [filterSchoolId, setFilterSchoolId] = useState<string>();
   const [filterBranchId, setFilterBranchId] = useState<string>();
+
   const [decodedToken, setDecodedToken] = useState<DecodedToken>({ role: "" });
 
   const role = decodedToken.role || "";
@@ -57,53 +61,93 @@ export default function RoutePage() {
     }
   }, []);
 
-  const tokenSchoolId = useMemo(
-    () => (role === "school" ? decodedToken.id : decodedToken.schoolId),
-    [role, decodedToken.id, decodedToken.schoolId]
-  );
+  const tokenSchoolId = useMemo(() => {
+    if (role === "school") return decodedToken.id;
+    if (role === "branchGroup") return decodedToken.schoolId;
+    return decodedToken.schoolId;
+  }, [role, decodedToken.id, decodedToken.schoolId]);
 
   const tokenBranchId = useMemo(
     () => (role === "branch" ? decodedToken.id : undefined),
     [role, decodedToken.id]
   );
 
+  const tokenBranchGroupId = useMemo(
+    () => (role === "branchGroup" ? decodedToken.id : undefined),
+    [role, decodedToken.id]
+  );
+
+  // Form dropdown states - for dependent dropdown API calls
   const [schoolId, setSchoolId] = useState<string | undefined>();
   const [branchId, setBranchId] = useState<string | undefined>();
+  const [shouldFetchDevices, setShouldFetchDevices] = useState(false);
 
+  // Set form dropdown states based on role to enable dependent dropdowns
   useEffect(() => {
     if (role === "school" && tokenSchoolId) {
-      setFilterSchoolId(tokenSchoolId);
-      setSchoolId(tokenSchoolId);
+      setSchoolId(tokenSchoolId); // Enables branch dropdown to fetch data
     }
 
     if (role === "branch" && tokenBranchId) {
-      setFilterBranchId(tokenBranchId);
-      setBranchId(tokenBranchId);
+      setBranchId(tokenBranchId); // Sets branch for form
     }
-  }, [role, tokenSchoolId, tokenBranchId]);
 
+    if (role === "branchGroup" && tokenBranchGroupId) {
+      setBranchId(tokenBranchGroupId); // Sets branch for form
+      setShouldFetchDevices(true); // Enables device dropdown to fetch data
+    }
+  }, [role, tokenSchoolId, tokenBranchId, tokenBranchGroupId]);
+
+  // Clear branch filter when school filter is cleared
   useEffect(() => {
     if (!filterSchoolId) {
       setFilterBranchId(undefined);
     }
   }, [filterSchoolId]);
 
+  // Filters object - only uses filter states, not form states
   const filters: Filters = useMemo(
     () => ({
       search: debouncedSearch || undefined,
-      schoolId: filterSchoolId,
-      branchId: filterBranchId,
+      schoolId: filterSchoolId, // Only set when user selects from filter dropdown
+      branchId: filterBranchId, // Only set when user selects from filter dropdown
     }),
     [debouncedSearch, filterSchoolId, filterBranchId]
   );
 
+  // Reset pagination when filters change
   useEffect(() => {
     setPagination((p) => ({ ...p, pageIndex: 0 }));
   }, [filters.search, filters.schoolId, filters.branchId]);
 
-  const { data: schools = [] } = useSchoolDropdown();
-  const { data: branches = [] } = useBranchDropdown(schoolId);
-  const { data: devices = [] } = useDeviceDropdown(branchId);
+  // Dropdown data hooks - use form states for dependent fetching
+  const { data: schools = [] } = useSchoolDropdown(role === "superAdmin");
+
+  // Determine when to fetch branches based on role
+  const shouldFetchBranches = useMemo(() => {
+    if (role === "branch") return false; // Never fetch for branch role (comes from token)
+    if (role === "branchGroup") return true; // Always fetch for branchGroup (all branches)
+    if (role === "school") return !!schoolId; // Fetch when schoolId exists
+    if (role === "superAdmin") return !!(filterSchoolId || schoolId); // Fetch when filter is selected or form schoolId exists
+    return false;
+  }, [role, schoolId, filterSchoolId]);
+
+  // Determine schoolId parameter for branch dropdown
+  const branchDropdownSchoolId = useMemo(() => {
+    if (role === "branchGroup") return undefined; // No schoolId needed for branchGroup
+    return filterSchoolId || schoolId;
+  }, [role, filterSchoolId, schoolId]);
+
+  const { data: branches = [] } = useBranchDropdown(
+    branchDropdownSchoolId,
+    shouldFetchBranches,
+    role === "branchGroup"
+  );
+
+  const { data: devices = [], isLoading: isLoadingDevices } = useDeviceDropdown(
+    branchId,
+    shouldFetchDevices
+  );
 
   const schoolItems = useMemo(
     () =>
@@ -122,16 +166,25 @@ export default function RoutePage() {
       })),
     [branches]
   );
-  const { routes, total, isLoading, deleteRoute, updateRoute, createRoute } =
-    useRoutes(pagination, sorting, filters);
+
+  const {
+    routes,
+    total,
+    isLoading: isLoadingRoutes,
+    deleteRoute,
+    updateRoute,
+    createRoute,
+    isCreating,
+    isUpdating,
+    isDeleting,
+  } = useRoutes(pagination, sorting, filters);
 
   const [showForm, setShowForm] = useState(false);
-
   const [editRoute, setEditRoute] = useState<Route | null>(null);
 
   useEffect(() => {
-    if (!isLoading) setShowForm(false);
-  }, [isLoading]);
+    if (!isLoadingRoutes) setShowForm(false);
+  }, [isLoadingRoutes]);
 
   const closeModal = useCallback(() => {
     setShowForm(false);
@@ -159,12 +212,12 @@ export default function RoutePage() {
     [handleEdit, handleDelete]
   );
 
-  const { tableElement } = CustomTableServerSidePagination({
+  const { table, tableElement } = CustomTableServerSidePagination({
     data: routes || [],
     columns,
     pagination,
     totalCount: total,
-    loading: isLoading,
+    loading: isLoadingRoutes,
     onPaginationChange: setPagination,
     onSortingChange: setSorting,
     sorting,
@@ -179,45 +232,53 @@ export default function RoutePage() {
       <h2 className="text-xl font-bold">Routes</h2>
 
       <div className="flex justify-between items-center my-3 gap-3">
-        <SearchBar
-          value={searchInput}
-          onChange={setSearchInput}
-          placeholder="Search by route number..."
-          width="w-[280px]"
-        />
-
         <div className="flex gap-3 items-center">
-          {/* SCHOOL FILTER */}
-          {role === "superAdmin" && (
-            <Combobox
-              items={schoolItems}
-              value={filterSchoolId}
-              onValueChange={(val) => {
-                setFilterSchoolId(val || undefined);
-                setFilterBranchId(undefined);
-              }}
-              placeholder="Filter School"
-              searchPlaceholder="Search School..."
-              width="w-[220px]"
-              emptyMessage="No schools found"
-            />
-          )}
+          <SearchBar
+            value={searchInput}
+            onChange={setSearchInput}
+            placeholder="Search by route number..."
+            width="w-[280px]"
+          />
 
-          {/* BRANCH FILTER */}
-          {(role === "superAdmin" ||
-            role === "school" ||
-            role === "branchGroup") && (
-            <Combobox
-              items={branchItems}
-              value={filterBranchId}
-              onValueChange={(val) => setFilterBranchId(val || undefined)}
-              placeholder="Filter Branch"
-              searchPlaceholder="Search Branch..."
-              width="w-[220px]"
-              emptyMessage="No branches found"
-              disabled={role === "superAdmin" && !filterSchoolId}
-            />
-          )}
+          <ColumnVisibilitySelector
+            columns={table.getAllColumns()}
+            buttonVariant="outline"
+            buttonSize="default"
+          />
+
+          <div className="flex gap-3 items-center">
+            {/* SCHOOL FILTER */}
+            {role === "superAdmin" && (
+              <Combobox
+                items={schoolItems}
+                value={filterSchoolId}
+                onValueChange={(val) => {
+                  setFilterSchoolId(val || undefined);
+                  setFilterBranchId(undefined);
+                }}
+                placeholder="Filter School"
+                searchPlaceholder="Search School..."
+                width="w-[220px]"
+                emptyMessage="No schools found"
+              />
+            )}
+
+            {/* BRANCH FILTER */}
+            {(role === "superAdmin" ||
+              role === "school" ||
+              role === "branchGroup") && (
+              <Combobox
+                items={branchItems}
+                value={filterBranchId}
+                onValueChange={(val) => setFilterBranchId(val || undefined)}
+                placeholder="Filter Branch"
+                searchPlaceholder="Search Branch..."
+                width="w-[220px]"
+                emptyMessage="No branches found"
+                disabled={role === "superAdmin" && !filterSchoolId}
+              />
+            )}
+          </div>
         </div>
 
         <Button
@@ -255,6 +316,13 @@ export default function RoutePage() {
             selectedBranchId={branchId}
             onSchoolChange={setSchoolId}
             onBranchChange={setBranchId}
+            shouldFetchDevices={shouldFetchDevices}
+            onFetchDevices={setShouldFetchDevices}
+            isLoadingDevices={isLoadingDevices}
+            isLoadingRoutes={isLoadingRoutes}
+            isCreating={isCreating}
+            isUpdating={isUpdating}
+            isDeleting={isDeleting}
           />
         </div>
       )}

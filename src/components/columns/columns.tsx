@@ -1,5 +1,5 @@
 import { ColumnDef } from "@tanstack/react-table";
-import { Category, Model, Route, Student } from "@/interface/modal";
+import { Category, Device, Model, Route, Student } from "@/interface/modal";
 import { CellContent } from "@/components/ui/CustomTable";
 
 export const getModelColumns = (
@@ -221,5 +221,69 @@ export const getStudentColumns = (
       );
     },
     enableSorting: false,
+  },
+];
+
+export const getDeviceColumns = (
+  onEdit: (row: Device) => void,
+  onDelete: (row: Device) => void
+): ColumnDef<Device>[] => [
+  {
+    header: "Device Name",
+    accessorKey: "name",
+  },
+  {
+    header: "Unique Id",
+    accessorKey: "uniqueId",
+  },
+  {
+    header: "Sim No",
+    accessorKey: "sim",
+  },
+  {
+    header: "OverSpeed km/h",
+    accessorKey: "speed",
+  },
+  {
+    header: "Average km/l",
+    accessorKey: "average",
+  },
+
+  {
+    header: "Model",
+    accessorKey: "model",
+  },
+  {
+    header: "Category",
+    accessorKey: "category",
+  },
+  {
+    header: "Key Feature",
+    accessorKey: "keyFeature",
+  },
+  {
+    id: "school",
+    header: "School",
+    accessorFn: (row: Device) => row.schoolId?.schoolName ?? "—",
+  },
+  {
+    id: "branch",
+    header: "Branch",
+    accessorFn: (row: Device) => row.branchId?.branchName ?? "—",
+  },
+  {
+    id: "route",
+    header: "Route",
+    accessorFn: (row: Device) => row.routeObjId?.routeNumber ?? "—",
+  },
+  {
+    id: "driver",
+    header: "Driver",
+    accessorFn: (row: Device) => row.driver?.driverName ?? "—",
+  },
+  {
+    id: "registerationDate",
+    headers: "Registeration Date",
+    accessorFn: (row: Device) => new Date(row.createdAt).toLocaleDateString(),
   },
 ];

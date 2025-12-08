@@ -1,6 +1,12 @@
 "use client";
 
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  useQuery,
+  useMutation,
+  useQueryClient,
+  keepPreviousData,
+  useIsFetching,
+} from "@tanstack/react-query";
 import { routeService } from "@/services/api/routeService";
 import { PaginationState, SortingState } from "@tanstack/react-table";
 import { toast } from "sonner";
@@ -30,7 +36,7 @@ export const useRoutes = (
         branchId: filters.branchId,
         schoolId: filters.schoolId,
       }),
-    keepPreviousData: true,
+    placeholderData: keepPreviousData,
   });
 
   const createRouteMutation = useMutation({
@@ -67,6 +73,8 @@ export const useRoutes = (
     routes: getRoutesQuery.data?.data || [],
     total: getRoutesQuery.data?.total || 0,
     isLoading: getRoutesQuery.isLoading,
+    isFetching: getRoutesQuery.isFetching,
+    isPlaceholderData: getRoutesQuery.isPlaceholderData,
 
     createRoute: createRouteMutation.mutate,
     updateRoute: updateRouteMutation.mutate,

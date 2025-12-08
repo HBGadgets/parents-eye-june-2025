@@ -1,10 +1,14 @@
 "use client";
 
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  useQuery,
+  useMutation,
+  useQueryClient,
+  keepPreviousData,
+} from "@tanstack/react-query";
 import { studentService } from "@/services/api/studentService";
 import { PaginationState, SortingState } from "@tanstack/react-table";
 import { toast } from "sonner";
-import { createStudent } from "@/lib/api/student";
 
 export const useStudent = (
   pagination: PaginationState,
@@ -22,6 +26,7 @@ export const useStudent = (
       filters.search,
       filters.schoolId,
       filters.branchId,
+      filters.routeObjId,
     ],
     queryFn: () =>
       studentService.getStudents({
@@ -30,8 +35,9 @@ export const useStudent = (
         search: filters.search,
         branchId: filters.branchId,
         schoolId: filters.schoolId,
+        routeObjId: filters.routeObjId,
       }),
-    keepPreviousData: true,
+    placeholderData: keepPreviousData,
   });
 
   const createStudentMutation = useMutation({
@@ -72,6 +78,8 @@ export const useStudent = (
     students: getStudentsQuery.data?.children || [],
     total: getStudentsQuery.data?.total || 0,
     isLoading: getStudentsQuery.isLoading,
+    isFetching: getStudentsQuery.isFetching,
+    isPlaceholderData: getStudentsQuery.isPlaceholderData,
 
     createStudent: createStudentMutation.mutate,
     updateStudent: updateStudentMutation.mutate,

@@ -26,7 +26,7 @@ export interface ComboboxItem {
 interface ComboboxProps {
   items: ComboboxItem[];
   value?: string;
-  onValueChange?: (value: string) => void;
+  onValueChange?: (value?: string) => void;
   placeholder?: string;
   searchPlaceholder?: string;
   emptyMessage?: string;
@@ -37,6 +37,8 @@ interface ComboboxProps {
   isLoadingMore?: boolean;
   onSearchChange?: (search: string) => void;
   searchValue?: string;
+  open?: boolean; // Controlled open state
+  onOpenChange?: (open: boolean) => void; // Controlled open handler
 }
 
 export function Combobox({
@@ -53,18 +55,54 @@ export function Combobox({
   isLoadingMore = false,
   onSearchChange,
   searchValue,
+  open: controlledOpen, // Renamed to avoid conflict
+  onOpenChange: controlledOnOpenChange, // Renamed to avoid conflict
 }: ComboboxProps) {
-  const [open, setOpen] = React.useState(false);
-  const [internalValue, setInternalValue] = React.useState("");
+  // Internal state for uncontrolled mode
+  const [internalOpen, setInternalOpen] = React.useState(false);
+  const [internalValue, setInternalValue] = React.useState<string | undefined>(
+    undefined
+  );
   const [internalSearchValue, setInternalSearchValue] = React.useState("");
   const scrollRef = React.useRef<HTMLDivElement>(null);
   const sentinelRef = React.useRef<HTMLDivElement>(null);
 
-  const value = controlledValue !== undefined ? controlledValue : internalValue;
-  const setValue =
-    controlledValue !== undefined
-      ? onValueChange || (() => {})
-      : setInternalValue;
+  // Determine if component is controlled for value
+  const isValueControlled = onValueChange !== undefined;
+  const value = isValueControlled ? controlledValue : internalValue;
+
+  // Determine if component is controlled for open state
+  const isOpenControlled = controlledOnOpenChange !== undefined;
+  const open = isOpenControlled ? controlledOpen : internalOpen;
+
+  const setValue = React.useCallback(
+    (newValue?: string) => {
+      console.log("🎯 Combobox setValue called with:", newValue);
+      console.log("🎯 Is controlled:", isValueControlled);
+
+      if (isValueControlled && onValueChange) {
+        onValueChange(newValue);
+      } else {
+        setInternalValue(newValue);
+      }
+    },
+    [isValueControlled, onValueChange]
+  );
+
+  // Handle open state changes (both controlled and uncontrolled)
+  const setOpen = React.useCallback(
+    (newOpen: boolean) => {
+      console.log("🚪 Combobox setOpen called with:", newOpen);
+      console.log("🚪 Is open controlled:", isOpenControlled);
+
+      if (isOpenControlled && controlledOnOpenChange) {
+        controlledOnOpenChange(newOpen);
+      } else {
+        setInternalOpen(newOpen);
+      }
+    },
+    [isOpenControlled, controlledOnOpenChange]
+  );
 
   const currentSearchValue =
     searchValue !== undefined ? searchValue : internalSearchValue;
@@ -73,11 +111,19 @@ export function Combobox({
       ? onSearchChange || (() => {})
       : setInternalSearchValue;
 
-  const handleSelect = (currentValue: string) => {
-    const newValue = currentValue === value ? "" : currentValue;
-    setValue(newValue);
-    setOpen(false);
-  };
+  const handleSelect = React.useCallback(
+    (currentValue: string) => {
+      console.log("🖱️ Combobox handleSelect called with:", currentValue);
+      console.log("🖱️ Current value:", value);
+
+      const newValue = currentValue === value ? undefined : currentValue;
+      console.log("🖱️ New value to set:", newValue);
+
+      setValue(newValue);
+      setOpen(false);
+    },
+    [value, setValue, setOpen]
+  );
 
   const selectedItem = items.find((item) => item.value === value);
 
@@ -89,13 +135,10 @@ export function Combobox({
       const target = e.currentTarget;
       const { scrollTop, scrollHeight, clientHeight } = target;
 
-      // Calculate scroll percentage
       const scrollPercentage = (scrollTop + clientHeight) / scrollHeight;
 
-      // Trigger at 80% scroll
       if (scrollPercentage >= 0.8 && !isLoadingMore) {
         console.log("🔄 Scroll triggered at", scrollPercentage.toFixed(2));
-        console.log("onReachEnd:", onReachEnd);
         onReachEnd();
       }
     },
@@ -167,15 +210,14 @@ export function Combobox({
       >
         <Command
           filter={(value, search) => {
-            // Server-side filtering when onSearchChange is provided
             if (onSearchChange) return 1;
 
             const item = items.find((item) => item.value === value);
             if (!item) return 0;
 
-            const searchLower = search.toLowerCase();
-            const labelMatch = item.label.toLowerCase().includes(searchLower);
-            const valueMatch = item.value.toLowerCase().includes(searchLower);
+            const searchLower = search?.toLowerCase();
+            const labelMatch = item.label?.toLowerCase()?.includes(searchLower);
+            const valueMatch = item.value?.toLowerCase()?.includes(searchLower);
 
             return labelMatch || valueMatch ? 1 : 0;
           }}
@@ -210,7 +252,6 @@ export function Combobox({
                 </CommandItem>
               ))}
 
-              {/* Sentinel div for IntersectionObserver */}
               {items.length > 0 && <div ref={sentinelRef} className="h-1" />}
 
               {isLoadingMore && (

@@ -1,375 +1,707 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import React, { useEffect, useState, useMemo } from "react";
+import { useForm, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
+import { Combobox, ComboboxItem } from "@/components/ui/combobox";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
   DialogFooter,
-  DialogClose,
 } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Combobox } from "../ui/combobox";
-import { toast } from "sonner";
-
-// Hooks
-import { useDriver } from "@/hooks/useDriver";
-import { useRoutes } from "@/hooks/useRoute";
-import { useSchoolData } from "@/hooks/useSchoolData";
-import { useBranchData } from "@/hooks/useBranchData";
+import {
+  useSchoolDropdown,
+  useBranchDropdown,
+  useRouteDropdown,
+  useCategoryDropdown,
+  useModelDropdown,
+  DropdownItem,
+  useDriverDropdown,
+} from "@/hooks/useDropdown";
+import { Loader2 } from "lucide-react";
 import { useAddDeviceNew } from "@/hooks/device/useAddDevice(new)";
 import { useAddDeviceOld } from "@/hooks/device/useAddDevice(old)";
+import { useDebounce } from "@/hooks/useDebounce";
 
-export const AddDeviceForm = () => {
-  // ======================
-  // 🔹 Hook Setup
-  // ======================
-  const { data: driverData, isLoading: driverLoading } = useDriver();
-  const { data: routeData } = useRoutes({ limit: "all" });
-  const { data: schoolData, isLoading: schoolLoading } = useSchoolData();
-  const { data: branchData } = useBranchData();
+// Validation schema
+const deviceSchema = z.object({
+  name: z.string().min(1, "Device name is required"),
+  uniqueId: z.string().min(1, "Unique ID is required"),
+  sim: z.string().min(1, "SIM number is required"),
+  schoolId: z.string().min(1, "School is required"),
+  branchId: z.string().min(1, "Branch is required"),
+  routeObjId: z.string().optional(),
+  category: z.string().min(1, "Category is required"),
+  model: z.string().min(1, "Model is required"),
+  driver: z.string().optional(),
+  speed: z.string().optional(),
+  average: z.string().optional(),
+  keyFeature: z.boolean().default(false), // ✅ Added keyFeature
+});
 
-  const addDeviceMutationNew = useAddDeviceNew();
-  const addDeviceMutationOld = useAddDeviceOld();
+type DeviceFormData = z.infer<typeof deviceSchema>;
 
-  // ======================
-  // 🔹 Local State
-  // ======================
-  const [open, setOpen] = useState(false);
-  const [formData, setFormData] = useState({
-    name: "",
-    uniqueId: "",
-    deviceId: "",
-    sim: "",
-    speed: "",
-    average: "",
-    driver: "",
-    model: "",
-    routeNo: "",
-    category: "",
-    schoolId: "",
-    branchId: "",
+interface AddDeviceFormProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  editData?: any;
+  pagination: any;
+  sorting: any;
+  filters: any;
+}
+
+export function AddDeviceForm({
+  open,
+  onOpenChange,
+  editData,
+  pagination,
+  sorting,
+  filters,
+}: AddDeviceFormProps) {
+  const isEditMode = !!editData;
+  const [driverSearch, setDriverSearch] = useState("");
+  const debouncedDriverSearch = useDebounce(driverSearch, 300);
+
+  // Form setup
+  const {
+    control,
+    handleSubmit,
+    watch,
+    reset,
+    setValue,
+    formState: { errors, isSubmitting },
+  } = useForm<DeviceFormData>({
+    resolver: zodResolver(deviceSchema),
+    defaultValues: {
+      name: "",
+      uniqueId: "",
+      sim: "",
+      schoolId: "",
+      branchId: "",
+      routeObjId: "",
+      category: "",
+      model: "",
+      driver: "",
+      speed: "",
+      average: "",
+      keyFeature: false,
+    },
   });
 
-  // Reset form on modal close
+  // Watch form fields for dependent dropdowns
+  const selectedSchoolId = watch("schoolId");
+  const selectedBranchId = watch("branchId");
+
+  // Dropdown hooks
+  const { data: schools, isLoading: isLoadingSchools } =
+    useSchoolDropdown(open);
+  const {
+    data: branches,
+    isLoading: isLoadingBranches,
+    isFetching: isFetchingBranches,
+  } = useBranchDropdown(selectedSchoolId, open && !!selectedSchoolId);
+  const {
+    data: routes,
+    isLoading: isLoadingRoutes,
+    isFetching: isFetchingRoutes,
+  } = useRouteDropdown(selectedBranchId, open && !!selectedBranchId);
+  const { data: categories, isLoading: isLoadingCategories } =
+    useCategoryDropdown(open);
+  const { data: models, isLoading: isLoadingModels } = useModelDropdown(open);
+
+  // Driver dropdown with infinite scroll
+  const {
+    data: driversData,
+    isLoading: isLoadingDrivers,
+    isFetching: isFetchingDrivers,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useDriverDropdown(
+    open && !!selectedBranchId,
+    debouncedDriverSearch,
+    selectedBranchId
+  );
+
+  // Mutations
+  const {
+    createDevice,
+    updateDevice,
+    isCreateDeviceLoading,
+    isUpdateDeviceLoading,
+  } = useAddDeviceNew(pagination, sorting, filters);
+  const { mutateAsync: createOldDevice } = useAddDeviceOld();
+
+  // Reset dependent dropdowns when parent changes
   useEffect(() => {
-    if (!open) {
-      setFormData({
+    if (selectedSchoolId && !isEditMode) {
+      setValue("branchId", "");
+      setValue("routeObjId", "");
+      setValue("driver", "");
+    }
+  }, [selectedSchoolId, setValue, isEditMode]);
+
+  useEffect(() => {
+    if (selectedBranchId && !isEditMode) {
+      setValue("routeObjId", "");
+      setValue("driver", "");
+    }
+  }, [selectedBranchId, setValue, isEditMode]);
+
+  // Populate form for edit mode
+  useEffect(() => {
+    if (open && editData) {
+      reset({
+        name: editData.name || "",
+        uniqueId: editData.uniqueId || "",
+        sim: editData.sim || "",
+        schoolId: editData.schoolId?._id || "",
+        branchId: editData.branchId?._id || "",
+        routeObjId: editData.routeObjId?._id || "",
+        category: editData.category || "",
+        model: editData.model || "",
+        driver: editData.driver?._id || "",
+        speed: editData.speed || "",
+        average: editData.average || "",
+        keyFeature: editData.keyFeature ?? false, // ✅ Added keyFeature with fallback
+      });
+    } else if (open && !editData) {
+      reset({
         name: "",
-        deviceId: "",
         uniqueId: "",
         sim: "",
-        speed: "",
-        average: "",
-        driver: "",
-        model: "",
-        routeNo: "",
-        category: "",
         schoolId: "",
         branchId: "",
+        routeObjId: "",
+        category: "",
+        model: "",
+        driver: "",
+        speed: "",
+        average: "",
+        keyFeature: false, // ✅ Reset to false
       });
     }
-  }, [open]);
+  }, [open, editData, reset]);
 
-  // ======================
-  // 🔹 Dropdown Options
-  // ======================
-  const driverOptions = useMemo(
-    () =>
-      driverData?.drivers?.map((driver: any) => ({
-        value: driver._id,
-        label: driver.driverName,
-      })) || [],
-    [driverData]
-  );
+  // Transform dropdown data to ComboboxItem format with proper null safety
+  const transformToComboboxItems = (
+    items: DropdownItem[] | undefined,
+    type?: "category" | "model"
+  ): ComboboxItem[] => {
+    if (!items || !Array.isArray(items)) return [];
 
-  const schoolOptions = useMemo(
-    () =>
-      schoolData?.map((s: any) => ({
-        value: s._id,
-        label: s.schoolName,
-      })) || [],
-    [schoolData]
-  );
-
-  const branchOptions = useMemo(() => {
-    if (!branchData) return [];
-    const filtered = formData?.schoolId
-      ? branchData.filter((b: any) => b.schoolId?._id === formData?.schoolId)
-      : branchData;
-    return filtered.map((b: any) => ({
-      value: b?._id,
-      label: b?.branchName,
-    }));
-  }, [branchData, formData.schoolId]);
-
-  const routeOptions = useMemo(() => {
-    if (!routeData) return [];
-    const filtered = formData.branchId
-      ? routeData.data.filter(
-          (r: any) => r.branchId?._id === formData?.branchId
-        )
-      : routeData.data;
-    return filtered.map((r: any) => ({
-      value: r._id,
-      label: r.routeNumber,
-    }));
-  }, [routeData, formData.branchId]);
-
-  // ======================
-  // 🔹 Handlers
-  // ======================
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-  };
-
-  // Transform data for old API (minimal fields)
-  const transformForOldApi = (data: any) => ({
-    name: data.name,
-    uniqueId: data.uniqueId,
-    model: data.model,
-    category: data.category,
-    phone: data.sim, // old API expects phone instead of sim
-  });
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    try {
-      // 1️⃣ Prepare payloads
-      const oldPayload = transformForOldApi(formData);
-
-      // 2️⃣ Create in old system FIRST
-      const oldResult = await addDeviceMutationOld.mutateAsync(oldPayload);
-
-      // Check if old system responded with valid ID
-      if (!oldResult?.id) {
-        throw new Error("Old system failed to return device ID");
+    return items.map((item) => {
+      if (type === "category") {
+        const categoryName = item?.categoryName || item?.name || "";
+        return {
+          value: item?._id || categoryName || "unknown-category",
+          label: categoryName || "Unknown Category",
+        };
       }
 
-      // 3️⃣ Create in new system using old ID
-      const newPayload = {
-        ...formData,
-        deviceId: oldResult.id, // 🔗 Link old + new
+      if (type === "model") {
+        const modelName = item?.modelName || item?.name || "";
+        return {
+          value: item?._id || modelName || "unknown-model",
+          label: modelName || "Unknown Model",
+        };
+      }
+
+      return {
+        value: item?._id || "",
+        label:
+          item?.name ||
+          item?.schoolName ||
+          item?.branchName ||
+          item?.routeNumber ||
+          "Unknown",
       };
+    });
+  };
 
-      const newResult = await addDeviceMutationNew.mutateAsync(newPayload);
+  const schoolItems = transformToComboboxItems(schools);
+  const branchItems = transformToComboboxItems(branches);
+  const routeItems = transformToComboboxItems(routes);
+  const categoryItems = transformToComboboxItems(categories, "category");
+  const modelItems = transformToComboboxItems(models, "model");
 
-      // 4️⃣ Show success toast
-      toast.success("✅ Device added successfully to both systems!");
+  // Transform driver data from infinite query pages + add edit driver if exists
+  const driverItems: ComboboxItem[] = useMemo(() => {
+    const drivers = driversData
+      ? driversData.pages.flatMap((page) =>
+          (page.data || []).map((driver: DropdownItem) => ({
+            value: driver._id || "",
+            label: driver.driverName || "Unknown Driver",
+          }))
+        )
+      : [];
 
-      setOpen(false);
+    if (isEditMode && editData?.driver?._id) {
+      const driverExists = drivers.some((d) => d.value === editData.driver._id);
+
+      if (!driverExists) {
+        drivers.unshift({
+          value: editData.driver._id,
+          label: editData.driver.driverName || "Selected Driver",
+        });
+      }
+    }
+
+    return drivers;
+  }, [driversData, isEditMode, editData?.driver]);
+
+  // Submit handler
+  const onSubmit = async (data: DeviceFormData) => {
+    console.log("Submitted data:", data);
+    try {
+      if (isEditMode) {
+        // UPDATE MODE
+        const payload = {
+          name: data.name,
+          uniqueId: data.uniqueId,
+          sim: data.sim,
+          schoolId: data.schoolId,
+          branchId: data.branchId,
+          routeObjId: data.routeObjId || undefined,
+          category: data.category,
+          model: data.model,
+          driver: data.driver || undefined,
+          speed: data.speed,
+          average: data.average,
+          keyFeature: data.keyFeature, // ✅ Added to new API
+        };
+
+        // Update device in new API
+        updateDevice({ id: editData._id, payload });
+
+        // Update in old API if deviceId exists (without keyFeature)
+        if (editData.deviceId) {
+          const { updateDeviceOld } = await import(
+            "@/hooks/device/useAddDevice(old)"
+          );
+          await updateDeviceOld(editData.deviceId, {
+            name: data.name,
+            uniqueId: data.uniqueId,
+            model: data.model,
+            category: data.category,
+            sim: data.sim,
+            // NOT passing keyFeature to old API
+          });
+        }
+      } else {
+        // CREATE MODE
+        const oldApiPayload = {
+          name: data.name,
+          uniqueId: data.uniqueId,
+          phone: data.sim,
+          model: data.model,
+          category: data.category,
+          // NOT passing keyFeature to old API
+        };
+
+        console.log("📤 Creating device in old API...");
+        const oldApiResponse = await createOldDevice(oldApiPayload);
+        console.log("✅ Old API Response:", oldApiResponse);
+
+        if (!oldApiResponse?.id) {
+          throw new Error("Old API failed to return device ID");
+        }
+
+        const newApiPayload = {
+          name: data.name,
+          uniqueId: data.uniqueId,
+          sim: data.sim,
+          schoolId: data.schoolId,
+          branchId: data.branchId,
+          routeObjId: data.routeObjId || undefined,
+          category: data.category,
+          model: data.model,
+          deviceId: oldApiResponse.id,
+          driver: data.driver || undefined,
+          speed: data.speed,
+          average: data.average,
+          keyFeature: data.keyFeature, // ✅ Added to new API
+        };
+
+        console.log(
+          "📤 Creating device in new API with deviceId:",
+          oldApiResponse.id
+        );
+        createDevice(newApiPayload);
+      }
+
+      onOpenChange(false);
+      reset();
     } catch (error: any) {
-      console.error("Error adding device:", error);
-      toast.error(
-        error?.response?.data?.message ||
-          "❌ Failed to add device in both systems"
-      );
+      console.error("❌ Form submission error:", error);
     }
   };
 
-  // ======================
-  // 🔹 Render
-  // ======================
-  return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button className="cursor-pointer">Add Device</Button>
-      </DialogTrigger>
+  const isLoading = isCreateDeviceLoading || isUpdateDeviceLoading;
 
-      <DialogContent className="max-w-2xl">
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Add New Device</DialogTitle>
+          <DialogTitle>
+            {isEditMode ? "Edit Device" : "Add New Device"}
+          </DialogTitle>
         </DialogHeader>
 
-        <form
-          onSubmit={handleSubmit}
-          className="grid grid-cols-1 md:grid-cols-2 gap-6"
-        >
-          {/* Device Name */}
-          <div className="grid gap-2">
-            <Label htmlFor="name">Device Name</Label>
-            <Input
-              id="name"
-              name="name"
-              value={formData.name}
-              onChange={handleInputChange}
-              placeholder="Enter device name"
-              required
-            />
-          </div>
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Device Name */}
+            <div className="space-y-2">
+              <Label htmlFor="name">
+                Device Name <span className="text-red-500">*</span>
+              </Label>
+              <Controller
+                name="name"
+                control={control}
+                render={({ field }) => (
+                  <Input
+                    {...field}
+                    id="name"
+                    placeholder="Enter device name"
+                    disabled={isLoading}
+                  />
+                )}
+              />
+              {errors.name && (
+                <p className="text-sm text-red-500">{errors.name.message}</p>
+              )}
+            </div>
 
-          {/* IMEI */}
-          <div className="grid gap-2">
-            <Label htmlFor="uniqueId">IMEI No.</Label>
-            <Input
-              id="uniqueId"
-              name="uniqueId"
-              value={formData.uniqueId}
-              onChange={handleInputChange}
-              placeholder="Enter IMEI number"
-              required
-            />
-          </div>
+            {/* IMEI No */}
+            <div className="space-y-2">
+              <Label htmlFor="uniqueId">
+                IMEI Number <span className="text-red-500">*</span>
+              </Label>
+              <Controller
+                name="uniqueId"
+                control={control}
+                render={({ field }) => (
+                  <Input
+                    {...field}
+                    id="uniqueId"
+                    placeholder="Enter IMEI number"
+                    disabled={isLoading}
+                  />
+                )}
+              />
+              {errors.uniqueId && (
+                <p className="text-sm text-red-500">
+                  {errors.uniqueId.message}
+                </p>
+              )}
+            </div>
 
-          {/* SIM */}
-          <div className="grid gap-2">
-            <Label htmlFor="sim">SIM No.</Label>
-            <Input
-              id="sim"
-              name="sim"
-              type="number"
-              value={formData.sim}
-              onChange={handleInputChange}
-              placeholder="Enter SIM number"
-              required
-            />
-          </div>
+            {/* SIM Number */}
+            <div className="space-y-2">
+              <Label htmlFor="sim">
+                SIM Number <span className="text-red-500">*</span>
+              </Label>
+              <Controller
+                name="sim"
+                control={control}
+                render={({ field }) => (
+                  <Input
+                    {...field}
+                    id="sim"
+                    type="number"
+                    placeholder="Enter SIM number"
+                    disabled={isLoading}
+                  />
+                )}
+              />
+              {errors.sim && (
+                <p className="text-sm text-red-500">{errors.sim.message}</p>
+              )}
+            </div>
 
-          {/* Speed */}
-          <div className="grid gap-2">
-            <Label htmlFor="speed">Speed Limit</Label>
-            <Input
-              id="speed"
-              name="speed"
-              type="number"
-              value={formData.speed}
-              onChange={handleInputChange}
-              placeholder="Enter speed limit"
-              required
-            />
-          </div>
+            {/* School */}
+            <div className="space-y-2">
+              <Label>
+                School <span className="text-red-500">*</span>
+              </Label>
+              <Controller
+                name="schoolId"
+                control={control}
+                render={({ field }) => (
+                  <Combobox
+                    items={schoolItems}
+                    value={field.value}
+                    onValueChange={field.onChange}
+                    placeholder="Select school"
+                    searchPlaceholder="Search schools..."
+                    emptyMessage="No school found"
+                    width="w-full"
+                    disabled={isLoadingSchools || isLoading}
+                  />
+                )}
+              />
+              {errors.schoolId && (
+                <p className="text-sm text-red-500">
+                  {errors.schoolId.message}
+                </p>
+              )}
+            </div>
 
-          {/* Average */}
-          <div className="grid gap-2">
-            <Label htmlFor="average">Average</Label>
-            <Input
-              id="average"
-              name="average"
-              type="number"
-              value={formData.average}
-              onChange={handleInputChange}
-              placeholder="Enter average"
-              required
-            />
-          </div>
+            {/* Branch */}
+            <div className="space-y-2">
+              <Label>
+                Branch <span className="text-red-500">*</span>
+              </Label>
+              <Controller
+                name="branchId"
+                control={control}
+                render={({ field }) => (
+                  <Combobox
+                    items={branchItems}
+                    value={field.value}
+                    onValueChange={field.onChange}
+                    placeholder={
+                      !selectedSchoolId
+                        ? "Select school first"
+                        : "Select branch"
+                    }
+                    searchPlaceholder="Search branches..."
+                    emptyMessage={
+                      isFetchingBranches ? "Loading..." : "No branch found"
+                    }
+                    width="w-full"
+                    disabled={
+                      !selectedSchoolId ||
+                      isLoadingBranches ||
+                      isFetchingBranches ||
+                      isLoading
+                    }
+                  />
+                )}
+              />
+              {errors.branchId && (
+                <p className="text-sm text-red-500">
+                  {errors.branchId.message}
+                </p>
+              )}
+            </div>
 
-          {/* Driver */}
-          <div className="grid gap-2">
-            <Label htmlFor="driver">Driver</Label>
-            <Combobox
-              items={driverOptions}
-              value={formData.driver}
-              onValueChange={(value) =>
-                setFormData((prev) => ({ ...prev, driver: value }))
-              }
-              placeholder="Select driver..."
-              searchPlaceholder="Search driver..."
-              emptyMessage="No driver found."
-              disabled={driverLoading}
-            />
-          </div>
+            {/* Route */}
+            <div className="space-y-2">
+              <Label>Route</Label>
+              <Controller
+                name="routeObjId"
+                control={control}
+                render={({ field }) => (
+                  <Combobox
+                    items={routeItems}
+                    value={field.value}
+                    onValueChange={field.onChange}
+                    placeholder={
+                      !selectedBranchId ? "Select branch first" : "Select route"
+                    }
+                    searchPlaceholder="Search routes..."
+                    emptyMessage={
+                      isFetchingRoutes ? "Loading..." : "No route found"
+                    }
+                    width="w-full"
+                    disabled={
+                      !selectedBranchId ||
+                      isLoadingRoutes ||
+                      isFetchingRoutes ||
+                      isLoading
+                    }
+                  />
+                )}
+              />
+            </div>
 
-          {/* Model */}
-          <div className="grid gap-2">
-            <Label htmlFor="model">Model</Label>
-            <Input
-              id="model"
-              name="model"
-              value={formData.model}
-              onChange={handleInputChange}
-              placeholder="Enter model"
-              required
-            />
-          </div>
+            {/* Driver */}
+            <div className="space-y-2">
+              <Label>Driver</Label>
+              <Controller
+                name="driver"
+                control={control}
+                render={({ field }) => (
+                  <Combobox
+                    items={driverItems}
+                    value={field.value}
+                    onValueChange={field.onChange}
+                    placeholder={
+                      !selectedBranchId
+                        ? "Select branch first"
+                        : "Select driver"
+                    }
+                    searchPlaceholder="Search drivers..."
+                    emptyMessage={
+                      isFetchingDrivers ? "Loading..." : "No driver found"
+                    }
+                    width="w-full"
+                    disabled={
+                      !selectedBranchId ||
+                      isLoadingDrivers ||
+                      isFetchingDrivers ||
+                      isLoading
+                    }
+                    // onSearchChange={setDriverSearch}
+                    onReachEnd={() => {
+                      if (hasNextPage && !isFetchingNextPage) {
+                        fetchNextPage();
+                      }
+                    }}
+                    isLoadingMore={isFetchingNextPage}
+                  />
+                )}
+              />
+            </div>
 
-          {/* Category */}
-          <div className="grid gap-2">
-            <Label htmlFor="category">Category</Label>
-            <Input
-              id="category"
-              name="category"
-              value={formData.category}
-              onChange={handleInputChange}
-              placeholder="Enter category"
-              required
-            />
-          </div>
+            {/* Category */}
+            <div className="space-y-2">
+              <Label>
+                Category <span className="text-red-500">*</span>
+              </Label>
+              <Controller
+                name="category"
+                control={control}
+                render={({ field }) => (
+                  <Combobox
+                    items={categoryItems}
+                    value={field.value}
+                    onValueChange={field.onChange}
+                    placeholder="Select category"
+                    searchPlaceholder="Search categories..."
+                    emptyMessage="No category found"
+                    width="w-full"
+                    disabled={isLoadingCategories || isLoading}
+                  />
+                )}
+              />
+              {errors.category && (
+                <p className="text-sm text-red-500">
+                  {errors.category.message}
+                </p>
+              )}
+            </div>
 
-          {/* School */}
-          <div className="grid gap-2">
-            <Label htmlFor="schoolId">School</Label>
-            <Combobox
-              items={schoolOptions}
-              value={formData.schoolId}
-              onValueChange={(value) =>
-                setFormData((prev) => ({ ...prev, schoolId: value }))
-              }
-              placeholder="Select school..."
-              searchPlaceholder="Search school..."
-              emptyMessage="No school found."
-              disabled={schoolLoading}
-            />
-          </div>
+            {/* Model */}
+            <div className="space-y-2">
+              <Label>
+                Model <span className="text-red-500">*</span>
+              </Label>
+              <Controller
+                name="model"
+                control={control}
+                render={({ field }) => (
+                  <Combobox
+                    items={modelItems}
+                    value={field.value}
+                    onValueChange={field.onChange}
+                    placeholder="Select model"
+                    searchPlaceholder="Search models..."
+                    emptyMessage="No model found"
+                    width="w-full"
+                    disabled={isLoadingModels || isLoading}
+                  />
+                )}
+              />
+              {errors.model && (
+                <p className="text-sm text-red-500">{errors.model.message}</p>
+              )}
+            </div>
 
-          {/* Branch */}
-          <div className="grid gap-2">
-            <Label htmlFor="branch">Branch</Label>
-            <Combobox
-              items={branchOptions}
-              value={formData.branchId}
-              onValueChange={(value) =>
-                setFormData((prev) => ({ ...prev, branchId: value }))
-              }
-              placeholder="Select branch..."
-              searchPlaceholder="Search branch..."
-              emptyMessage="No branch found."
-              disabled={!formData.schoolId}
-            />
-          </div>
+            {/* Overspeed */}
+            <div className="space-y-2">
+              <Label htmlFor="overspeed">Overspeed Limit (km/h)</Label>
+              <Controller
+                name="speed"
+                control={control}
+                render={({ field }) => (
+                  <Input
+                    {...field}
+                    id="overspeed"
+                    type="number"
+                    placeholder="Enter overspeed limit"
+                    disabled={isLoading}
+                  />
+                )}
+              />
+              {errors.speed && (
+                <p className="text-sm text-red-500">{errors.speed.message}</p>
+              )}
+            </div>
 
-          {/* Route */}
-          <div className="grid gap-2">
-            <Label htmlFor="routeNo">Route No.</Label>
-            <Combobox
-              items={routeOptions}
-              value={formData.routeNo}
-              onValueChange={(value) =>
-                setFormData((prev) => ({ ...prev, routeNo: value }))
-              }
-              placeholder="Select route..."
-              searchPlaceholder="Search route..."
-              emptyMessage="No route found."
-              disabled={!formData.branchId}
-            />
-          </div>
+            {/* Average */}
+            <div className="space-y-2">
+              <Label htmlFor="average">Average (km/l)</Label>
+              <Controller
+                name="average"
+                control={control}
+                render={({ field }) => (
+                  <Input
+                    {...field}
+                    id="average"
+                    type="number"
+                    placeholder="Enter average speed"
+                    disabled={isLoading}
+                  />
+                )}
+              />
+              {errors.average && (
+                <p className="text-sm text-red-500">{errors.average.message}</p>
+              )}
+            </div>
 
-          {/* Footer */}
-          <DialogFooter className="col-span-full mt-4 flex justify-end gap-2">
-            <DialogClose asChild>
-              <Button
-                variant="outline"
-                type="button"
-                className="cursor-pointer"
+            <div className="flex items-center gap-2 mt-4">
+              <Controller
+                name="keyFeature"
+                control={control}
+                render={({ field }) => (
+                  <Checkbox
+                    id="keyFeature"
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                    disabled={isLoading}
+                  />
+                )}
+              />
+              <Label
+                htmlFor="keyFeature"
+                className="cursor-pointer font-normal"
               >
-                Cancel
-              </Button>
-            </DialogClose>
+                Enable Key Feature
+              </Label>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              className="cursor-pointer"
+              onClick={() => onOpenChange(false)}
+              disabled={isLoading}
+            >
+              Cancel
+            </Button>
+
             <Button
               type="submit"
-              disabled={addDeviceMutationNew.isPending}
               className="cursor-pointer"
+              disabled={isLoading}
             >
-              {addDeviceMutationNew.isPending ? "Saving..." : "Save Device"}
+              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {isEditMode ? "Update Device" : "Add Device"}
             </Button>
           </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
   );
-};
+}

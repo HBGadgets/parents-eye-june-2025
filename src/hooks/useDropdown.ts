@@ -1,4 +1,3 @@
-import api from "@/lib/axios";
 import { dropdownService } from "@/services/api/dropdownService";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 
@@ -7,6 +6,10 @@ export interface DropdownItem {
   name?: string;
   schoolName?: string;
   branchName?: string;
+  routeNumber?: string;
+  categoryName?: string;
+  modelName?: string;
+  driverName?: string;
 }
 
 export interface DropdownResponse<T> {
@@ -14,29 +17,37 @@ export interface DropdownResponse<T> {
   limit?: number;
   totalCount?: number;
   totalPages?: number;
-
   data: T[];
 }
 
-export const useSchoolDropdown = () => {
+export const useSchoolDropdown = (shouldFetch: boolean = true) => {
   return useQuery({
     queryKey: ["dropdown-schools"],
     queryFn: dropdownService.getSchools,
+    enabled: shouldFetch,
     select: (res) => res.data.data,
   });
 };
 
-export const useBranchDropdown = (schoolId?: string) => {
+export const useBranchDropdown = (
+  schoolId?: string,
+  shouldFetch: boolean = true,
+  skipSchoolId: boolean = false
+) => {
   console.log("Fetching branches for schoolId:", schoolId);
   return useQuery<DropdownResponse<DropdownItem>>({
-    queryKey: ["branch-dropdown", schoolId],
-    queryFn: () => dropdownService.getBranches(schoolId),
-    enabled: !!schoolId,
+    queryKey: ["branch-dropdown", skipSchoolId ? undefined : schoolId],
+    queryFn: () =>
+      dropdownService.getBranches(skipSchoolId ? undefined : schoolId),
+    enabled: (skipSchoolId || !!schoolId) && shouldFetch,
     select: (res) => res.data.data,
   });
 };
 
-export const useDeviceDropdown = (branchId?: string) => {
+export const useDeviceDropdown = (
+  branchId?: string,
+  shouldFetch: boolean = true
+) => {
   return useQuery<DropdownResponse<DropdownItem>>({
     queryKey: ["device-dropdown", branchId],
     queryFn: () => dropdownService.getDevices(branchId),
@@ -45,23 +56,107 @@ export const useDeviceDropdown = (branchId?: string) => {
   });
 };
 
-export const useRouteDropdown = (branchId?: string) => {
+export const useRouteDropdown = (
+  branchId?: string,
+  shouldFetch: boolean = true
+) => {
   console.log("Fetching routes for branchId:", branchId);
   return useQuery<DropdownResponse<DropdownItem>>({
     queryKey: ["route-dropdown", branchId],
     queryFn: async () => await dropdownService.getRoutes(branchId),
-    enabled: !!branchId,
+    enabled: !!branchId && shouldFetch,
     select: (res) => res.data.data,
   });
 };
 
-export const useParentDropdown = (branchId?: string, search: string = "") => {
+export const useParentDropdown = (
+  branchId?: string,
+  search: string = "",
+  shouldFetch: boolean = true
+) => {
   return useInfiniteQuery({
     queryKey: ["parent-dropdown", branchId, search],
-    enabled: !!branchId,
+    enabled: !!branchId && shouldFetch,
     initialPageParam: 1,
     queryFn: async ({ pageParam }) => {
       const res = await dropdownService.getParents({
+        branchId: branchId as string,
+        page: pageParam as number,
+        limit: 10,
+        search,
+      });
+
+      return res.data as DropdownResponse<DropdownItem>;
+    },
+    getNextPageParam: (lastPage) => {
+      if (lastPage.page < lastPage.totalPages) {
+        return lastPage.page + 1;
+      }
+
+      return undefined;
+    },
+  });
+};
+
+export const useGeofenceDropdown = (
+  routeObjId?: string,
+  search: string = "",
+  shouldFetch: boolean = true
+) => {
+  return useInfiniteQuery({
+    queryKey: ["geofence-dropdown", routeObjId, search],
+    enabled: !!routeObjId && shouldFetch,
+    initialPageParam: 1,
+    queryFn: async ({ pageParam }) => {
+      const res = await dropdownService.getGeofence({
+        routeObjId: routeObjId as string,
+        page: pageParam as number,
+        limit: 10,
+        search,
+      });
+
+      return res.data as DropdownResponse<DropdownItem>;
+    },
+
+    getNextPageParam: (lastPage) => {
+      if (lastPage.page < lastPage.totalPages) {
+        return lastPage.page + 1;
+      } else {
+        return undefined;
+      }
+    },
+  });
+};
+
+export const useCategoryDropdown = (shouldFetch: boolean = true) => {
+  return useQuery({
+    queryKey: ["category-dropdown"],
+    queryFn: dropdownService.getCategory,
+    enabled: shouldFetch,
+    select: (res) => res.data.data,
+  });
+};
+
+export const useModelDropdown = (shouldFetch: boolean = true) => {
+  return useQuery({
+    queryKey: ["model-dropdown"],
+    queryFn: dropdownService.getModel,
+    enabled: shouldFetch,
+    select: (res) => res.data.data,
+  });
+};
+
+export const useDriverDropdown = (
+  shouldFetch: boolean = true,
+  search: string = "",
+  branchId?: string
+) => {
+  return useInfiniteQuery({
+    queryKey: ["driver-dropdown", branchId, search],
+    enabled: !!branchId && shouldFetch,
+    initialPageParam: 1,
+    queryFn: async ({ pageParam }) => {
+      const res = await dropdownService.getDriver({
         branchId: branchId as string,
         page: pageParam as number,
         limit: 10,
@@ -74,9 +169,9 @@ export const useParentDropdown = (branchId?: string, search: string = "") => {
     getNextPageParam: (lastPage) => {
       if (lastPage.page < lastPage.totalPages) {
         return lastPage.page + 1;
+      } else {
+        return undefined;
       }
-
-      return undefined;
     },
   });
 };

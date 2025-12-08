@@ -28,38 +28,29 @@ export interface Branch {
 }
 
 export interface Device {
-  parkingMode: boolean;
-  toeingMode: boolean;
-  keyFeature: boolean;
-  TD: number;
-  TDTime: string;
   _id: string;
   name: string;
   uniqueId: string;
   sim: string;
   speed: string;
   average: string;
-  driver: string | null;
-  model: string;
-  category: string;
+  driver: Driver;
+  model: Model;
+  category: Category;
   deviceId: string;
-  routeNo: string;
-  status: string;
-  lastUpdate: string;
-  schoolId: {
-    _id: string;
-    schoolName: string;
-  };
-  branchId: {
-    _id: string;
-    branchName: string;
-  };
+  routeObjId: Route;
+  parkingMode: string;
+  toeingMode: string;
+  keyFeature: string;
+  TD: number;
+  TDTime: string;
+  schoolId: School;
+  branchId: Branch;
   createdAt: string;
   updatedAt: string;
-  __v?: number; // optional if not always provided
 }
 
-export interface DeviceResponse {
+export interface GetDeviceResponse {
   total: number;
   page: number;
   limit: number;
@@ -70,17 +61,26 @@ export interface Geofence {
   _id: string;
   geofenceName: string;
   area: {
-    center: number[];
+    center: [number, number];
     radius: number;
   };
   pickupTime?: string;
   dropTime?: string;
-  schoolId?: string | School;
-  branchId?: string | Branch;
-  parentId?: string | Parent;
-  routeObjId?: string | Route;
+  schoolId?: string;
+  branchId?: string;
+  routeObjId?: string;
+  route?: Route;
+  school?: School;
+  branch?: Branch;
   createdAt: string;
-  updatedAt: string;
+}
+
+export interface GetGeofenceResponse {
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+  data: Geofence[];
 }
 
 export interface Parent {
@@ -90,17 +90,19 @@ export interface Parent {
   email: string;
   username: string;
   password: string;
-  schoolId?: {
-    _id: string;
-    schoolName: string;
-  };
-  branchId?: {
-    _id: string;
-    branchName: string;
-  };
+  schoolId?: School;
+  branchId?: Branch;
   isActive?: boolean;
   createdAt: string;
   updatedAt?: string;
+}
+
+export interface GetParentsResponse {
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+  data: Parent[];
 }
 
 export interface Driver {
@@ -118,6 +120,15 @@ export interface Driver {
   createdAt: string;
   updatedAt: string;
 }
+
+export interface GetDriverResponse {
+  page: number;
+  limit: number;
+  totalCount: number;
+  totalPages: number;
+  data: Driver[];
+}
+
 export interface Supervisor {
   isApproved: boolean;
   _id: string;
@@ -217,7 +228,10 @@ export interface Student {
   childName: string;
   className: string;
   section: string;
+  DOB: Date;
   age: number;
+  gender: string;
+  rollNumber: string;
   pickupGeoId: Geofence;
   dropGeoId: Geofence;
   routeObjId: Route;
