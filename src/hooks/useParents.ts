@@ -1,6 +1,11 @@
 "use client";
 
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  useQuery,
+  useMutation,
+  useQueryClient,
+  keepPreviousData,
+} from "@tanstack/react-query";
 import { parentService } from "@/services/api/parentService";
 import { PaginationState, SortingState } from "@tanstack/react-table";
 import { toast } from "sonner";
@@ -34,7 +39,7 @@ export const useParent = (
         branchId: filters.branchId,
         isActive: filters.isActive,
       }),
-    keepPreviousData: true,
+    placeholderData: keepPreviousData,
   });
 
   /* -------------------- CREATE -------------------- */

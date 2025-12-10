@@ -258,6 +258,20 @@ export default function SchoolMaster() {
     },
   });
 
+  useEffect(() => {
+    if (deleteTarget) {
+      const confirmed = window.confirm(
+        `Are you sure you want to delete "${deleteTarget.schoolName}"? This action cannot be undone.`
+      );
+
+      if (confirmed) {
+        deleteSchoolMutation.mutate(deleteTarget._id);
+      }
+
+      setDeleteTarget(null);
+    }
+  }, [deleteTarget, deleteSchoolMutation]);
+
   // Handle search
   const handleSearchResults = useCallback((results: School[]) => {
     setFilteredData(results);
@@ -489,7 +503,7 @@ export default function SchoolMaster() {
       </section>
 
       <section>
-        <div>
+        {/* <div>
           {deleteTarget && (
             <Alert<School>
               title="Are you absolutely sure?"
@@ -503,7 +517,7 @@ export default function SchoolMaster() {
               butttonText="Delete"
             />
           )}
-        </div>
+        </div> */}
       </section>
 
       <section>
@@ -527,7 +541,7 @@ export default function SchoolMaster() {
         )}
       </section>
 
-      <section>
+      {/* <section>
         <FloatingMenu
           onExportPdf={() => {
             console.log("Export PDF triggered");
@@ -550,7 +564,7 @@ export default function SchoolMaster() {
             });
           }}
         />
-      </section>
+      </section> */}
     </main>
   );
 }

@@ -19,8 +19,12 @@ export const parentService = {
     return response.data;
   },
 
-  deleteParent: async (ids: string[]) => {
-    const response = await api.delete(`/parent`, { data: { ids } });
+  // deleteParent: async (ids: string[]) => {
+  //   const response = await api.delete(`/parent`, { data: { ids } });
+  //   return response.data;
+  // },
+  deleteParent: async (id: string) => {
+    const response = await api.delete(`/parent/${id}`);
     return response.data;
   },
 };

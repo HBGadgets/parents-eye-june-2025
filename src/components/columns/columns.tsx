@@ -1,5 +1,13 @@
 import { ColumnDef } from "@tanstack/react-table";
-import { Category, Device, LiveTrack, Model, Route, Student } from "@/interface/modal";
+import {
+  Category,
+  Device,
+  LiveTrack,
+  Model,
+  Parent,
+  Route,
+  Student,
+} from "@/interface/modal";
 import { CellContent } from "@/components/ui/CustomTable";
 import { Locate } from "lucide-react";
 import { calculateTimeSince } from "@/util/calculateTimeSince";
@@ -563,5 +571,70 @@ export const getLiveVehicleColumns = (): ColumnDef<LiveTrack>[] => [
     meta: { flex: 1, minWidth: 100, maxWidth: 200 },
     enableHiding: true,
     enableSorting: true,
+  },
+];
+
+export const getParentsColumns = (
+  onEdit: (row: Parent) => void,
+  onDelete: (row: Parent) => void
+): ColumnDef<Parent>[] => [
+  {
+    header: "Parent Name",
+    accessorKey: "parentName",
+  },
+  {
+    header: "Username",
+    accessorKey: "username",
+  },
+  {
+    header: "Email",
+    accessorKey: "email",
+  },
+  { header: "Mobile No.", accessorKey: "mobileNo" },
+  {
+    id: "school",
+    header: "School",
+    accessorFn: (row: Parent) => row.schoolId?.schoolName ?? "—",
+  },
+  {
+    id: "branch",
+    header: "Branch",
+    accessorFn: (row: Parent) => row.branchId?.branchName ?? "—",
+  },
+  {
+    id: "registerationDate",
+    headers: "Registeration Date",
+    accessorFn: (row: Parent) => new Date(row.createdAt).toLocaleDateString(),
+  },
+  {
+    header: "Action",
+    cell: ({ row }) => {
+      const data = row.original;
+
+      return (
+        <div className="flex justify-center gap-2">
+          <button
+            className="bg-yellow-500 text-white px-3 py-1 rounded text-xs cursor-pointer"
+            onClick={(e) => {
+              e.stopPropagation();
+              onEdit(data);
+            }}
+          >
+            Edit
+          </button>
+
+          <button
+            className="bg-red-500 text-white px-3 py-1 rounded text-xs cursor-pointer"
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete(data);
+            }}
+          >
+            Delete
+          </button>
+        </div>
+      );
+    },
+    enableSorting: false,
   },
 ];

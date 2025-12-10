@@ -20,7 +20,6 @@ import { useDebounce } from "@/hooks/useDebounce";
 import { Combobox } from "@/components/ui/combobox";
 import { X, Upload } from "lucide-react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
-import api from "@/lib/axios";
 import { toast } from "sonner";
 import { ExcelUploader } from "@/components/excel-uploader/ExcelUploader";
 import { excelFileUploadForStudent } from "@/services/fileUploadService";

@@ -264,10 +264,10 @@ export default function AddParentForm({
 
         {/* ACTIONS */}
         <div className="flex justify-end gap-2 pt-3">
-          <Button variant="outline" onClick={onClose}>
+          <Button variant="outline" className="cursor-pointer" onClick={onClose}>
             Cancel
           </Button>
-          <Button className="bg-primary" onClick={handleSave}>
+          <Button className="bg-primary cursor-pointer" onClick={handleSave}>
             {initialData ? "Update" : "Create"}
           </Button>
         </div>

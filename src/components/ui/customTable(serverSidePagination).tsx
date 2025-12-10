@@ -66,7 +66,7 @@ export interface DataTableProps<T> {
   onSortingChange?: (sorting: SortingState) => void;
   sorting?: SortingState;
   emptyMessage?: string;
-  pageSizeOptions?: number[];
+  pageSizeOptions?: (number | string)[];
   enableSorting?: boolean;
   manualSorting?: boolean;
   manualPagination?: boolean;
