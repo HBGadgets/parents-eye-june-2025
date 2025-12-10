@@ -18,13 +18,17 @@ export const useParent = (
 ) => {
   const queryClient = useQueryClient();
 
+  const sortField = sorting[0]?.id;
+  const sortOrder = sorting[0]?.desc ? "desc" : "asc";
+
   /* -------------------- GET PARENTS -------------------- */
   const getParentsQuery = useQuery<GetParentsResponse>({
     queryKey: [
       "parents",
       pagination.pageIndex,
       pagination.pageSize,
-      sorting,
+      sortField,
+      sortOrder,
       filters.search,
       filters.schoolId,
       filters.branchId,
@@ -34,6 +38,8 @@ export const useParent = (
       parentService.getParents({
         page: pagination.pageIndex + 1,
         limit: pagination.pageSize,
+        sortBy: sortField,
+        sortOrder: sortOrder,
         search: filters.search,
         schoolId: filters.schoolId,
         branchId: filters.branchId,

@@ -683,14 +683,6 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
   }, []);
 
   const handleGeofenceSubmit = (payload: any) => {
-    if (!routeObjId || routeObjId === "") {
-      toast.warning("Assign Route Number", {
-        description:
-          "Please assign a route number to the bus before creating a geofence.",
-      });
-      return;
-    }
-
     const geofencePayload = {
       geofenceName: payload.name || payload.geofenceName || "New Geofence",
       area: {

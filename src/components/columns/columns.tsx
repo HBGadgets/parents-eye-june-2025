@@ -9,9 +9,9 @@ import {
   Student,
 } from "@/interface/modal";
 import { CellContent } from "@/components/ui/CustomTable";
-import { Locate } from "lucide-react";
+import { Eye, EyeOff, Locate } from "lucide-react";
 import { calculateTimeSince } from "@/util/calculateTimeSince";
-import { useMemo } from "react";
+import React, { useMemo } from "react";
 
 export const getModelColumns = (
   setEditTarget: (row: Model) => void,
@@ -163,6 +163,10 @@ export const getStudentColumns = (
     accessorKey: "age",
   },
   {
+    header: "Parent Name",
+    accessorFn: (row: Student) => row.parentId?.parentName ?? "—",
+  },
+  {
     id: "pickupLocation",
     header: "Pickup Location",
     accessorFn: (row: Student) => row.pickupGeoId?.geofenceName ?? "—",
@@ -271,7 +275,21 @@ export const getDeviceColumns = (
   {
     header: "Key Feature",
     accessorKey: "keyFeature",
+    cell: ({ row }) => {
+      const value = row.original.keyFeature;
+
+      return (
+        <span
+          className={`px-2 py-1 rounded text-xs font-medium ${
+            value ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600"
+          }`}
+        >
+          {value ? "Key switch available" : "Key switch not available"}
+        </span>
+      );
+    },
   },
+
   {
     id: "school",
     header: "School",
@@ -585,6 +603,37 @@ export const getParentsColumns = (
   {
     header: "Username",
     accessorKey: "username",
+  },
+  {
+    header: "Password",
+    accessorKey: "password",
+    cell: ({ row }) => {
+      const [show, setShow] = React.useState(false);
+      const password = row.original.password;
+
+      return (
+        <div className="flex items-center justify-center gap-2">
+          <span className="font-mono">
+            {show ? password : "•".repeat(password?.length || 8)}
+          </span>
+
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setShow((prev) => !prev);
+            }}
+            className="p-1 hover:bg-gray-200 rounded"
+          >
+            {show ? (
+              <EyeOff className="h-4 w-4 text-gray-700" />
+            ) : (
+              <Eye className="h-4 w-4 text-gray-700" />
+            )}
+          </button>
+        </div>
+      );
+    },
   },
   {
     header: "Email",
