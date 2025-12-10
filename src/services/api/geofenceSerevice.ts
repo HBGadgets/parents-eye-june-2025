@@ -9,6 +9,11 @@ export const geofenceService = {
     return res.data;
   },
 
+  getGeofenceByRouteObjId: async (id: string) => {
+    const res = await api.get<GetGeofenceResponse>(`/geofence/timeline/${id}`,);
+    return res.data;
+  },
+
   createGeofence: async (payload: any) => {
     const res = await api.post("/geofence", payload);
     return res.data;
