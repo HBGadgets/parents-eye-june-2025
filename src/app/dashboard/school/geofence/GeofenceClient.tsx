@@ -22,7 +22,7 @@ import { useBranchData } from "@/hooks/useBranchData";
 import { useInfiniteRouteData } from "@/hooks/useInfiniteRouteData";
 import { FloatingMenu } from "@/components/floatingMenu";
 import { useExport } from "@/hooks/useExport";
-import { useGeofences } from "@/hooks/useGeofence";
+// import { useGeofences } from "@/hooks/useGeofence";
 
 export default function GeofenceClient() {
   const queryClient = useQueryClient();
