@@ -9,6 +9,24 @@ export const studentService = {
     return res.data;
   },
 
+  exportExcel: async (params: Record<string, any>): Promise<Blob> => {
+    const res = await api.get("/child/export/excel", {
+      params,
+      responseType: "blob",
+    });
+    return res.data;
+  },
+
+  exportPDF: async (
+    params: Record<string, any>
+  ): Promise<Blob> => {
+    const res = await api.get("/child/export/pdf", {
+      params,
+      responseType: "blob",
+    });
+    return res.data;
+  },
+
   createStudent: async (payload: any) => {
     const res = await api.post("/child", payload);
     return res.data;

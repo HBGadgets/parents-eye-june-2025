@@ -47,7 +47,7 @@ export const useAddDeviceNew = (
     placeholderData: keepPreviousData,
   });
 
-  const exportDevicesMutation = useMutation({
+  const exportExcelMutation = useMutation({
     mutationFn: (params: Record<string, any>) =>
       deviceApiService.exportExcel(params),
     onSuccess: (blob: Blob) => {
@@ -75,6 +75,34 @@ export const useAddDeviceNew = (
     },
     onError: (err: any) => {
       toast.error(err?.response?.data?.message || "Export failed");
+    },
+  });
+
+  const exportPdfMutation = useMutation({
+    mutationFn: (params: Record<string, any>) =>
+      deviceApiService.exportPdf(params),
+    onSuccess: (blob: Blob) => {
+      try {
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `Devices_${
+          new Date().toISOString().split("T")[0]
+        }.xlsx`;
+
+        document.body.appendChild(link);
+        link.click();
+
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+
+        toast.success("PDF file downloaded successfully.");
+      } catch (error) {
+        toast.error("Failed to download PDF.");
+      }
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.message || "PDF failed");
     },
   });
 
@@ -122,11 +150,13 @@ export const useAddDeviceNew = (
     createDevice: createDeviceMutation.mutate,
     updateDevice: updateDeviceMutation.mutate,
     deleteDevice: deleteDeviceMutation.mutate,
-    exportExcel: exportDevicesMutation.mutate,
+    exportExcel: exportExcelMutation.mutate,
+    exportPdf: exportPdfMutation.mutate,
 
     isCreateDeviceLoading: createDeviceMutation.isPending,
     isUpdateDeviceLoading: updateDeviceMutation.isPending,
     isDeleteDeviceLoading: deleteDeviceMutation.isPending,
-    isExcelExporting: exportDevicesMutation.isPending,
+    isExcelExporting: exportExcelMutation.isPending,
+    isPdfExporting: exportPdfMutation.isPending,
   };
 };

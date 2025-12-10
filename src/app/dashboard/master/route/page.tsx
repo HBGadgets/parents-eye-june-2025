@@ -19,6 +19,14 @@ import { jwtDecode } from "jwt-decode";
 import { Combobox } from "@/components/ui/combobox";
 import Cookies from "js-cookie";
 import { ColumnVisibilitySelector } from "@/components/column-visibility-selector";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { routeService } from "@/services/api/routeService";
+import { toast } from "sonner";
 
 type DecodedToken = {
   role: string;
@@ -174,9 +182,13 @@ export default function RoutePage() {
     deleteRoute,
     updateRoute,
     createRoute,
+    exportExcel,
+    exportPdf,
     isCreating,
     isUpdating,
     isDeleting,
+    isExcelExporting,
+    isPdfExporting,
   } = useRoutes(pagination, sorting, filters);
 
   const [showForm, setShowForm] = useState(false);
@@ -192,11 +204,33 @@ export default function RoutePage() {
   }, []);
 
   const handleEdit = useCallback((row: Route) => {
-    setEditRoute(row);
-    setSchoolId(row.schoolId._id);
-    setBranchId(row.branchId._id);
-    setShowForm(true);
+    setEditRoute?.(row);
+    setSchoolId?.(row?.schoolId?._id);
+    setBranchId?.(row?.branchId?._id);
+    setShowForm?.(true);
   }, []);
+
+  const handleUpdateRoute = useCallback(
+    async (editRoute: Route, payload: any) => {
+      try {
+        const check = await routeService.checkAlreadyAssign(
+          payload?.deviceObjId
+        );
+
+        if (check?.assigned) {
+          const userConfirmed = confirm(
+            `${check.message}. Do you still want to assign this route number to this vehicle? If you continue, the previous route assignment will be replaced.`
+          );
+          if (!userConfirmed) return;
+        }
+
+        updateRoute({ id: editRoute?._id, payload: payload });
+      } catch (error: any) {
+        toast.error(error?.message || "Failed to update route");
+      }
+    },
+    []
+  );
 
   const handleDelete = useCallback(
     (row: Route) => {
@@ -206,6 +240,28 @@ export default function RoutePage() {
     },
     [deleteRoute]
   );
+
+  // -------------- Excel Export Handler ----------------
+  const handleExcelExport = () => {
+    exportExcel({
+      search: filters.search,
+      branchId: filters.branchId,
+      schoolId: filters.schoolId,
+      sortBy: sorting[0]?.id,
+      sortOrder: sorting[0]?.desc ? "desc" : "asc",
+    });
+  };
+
+  // ---------------- PDF Export Handler ----------------
+  const handlePDFExport = () => {
+    exportPdf({
+      search: filters.search,
+      branchId: filters.branchId,
+      schoolId: filters.schoolId,
+      sortBy: sorting[0]?.id,
+      sortOrder: sorting[0]?.desc ? "desc" : "asc",
+    });
+  };
 
   const columns = useMemo(
     () => getRouteColumns(handleEdit, handleDelete),
@@ -229,7 +285,35 @@ export default function RoutePage() {
 
   return (
     <div className="flex flex-col h-full">
-      <h2 className="text-xl font-bold">Routes</h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-bold">Routes</h2>
+        <div className="mr-3">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                className="cursor-pointer"
+                disabled={isExcelExporting || isPdfExporting}
+              >
+                {isExcelExporting || isPdfExporting ? "Exporting..." : "Export"}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuItem
+                className="cursor-pointer"
+                onClick={handleExcelExport}
+              >
+                Export to Excel
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                className="cursor-pointer"
+                onClick={handlePDFExport}
+              >
+                Export to PDF
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </div>
 
       <div className="flex justify-between items-center my-3 gap-3">
         <div className="flex gap-3 items-center">
@@ -303,7 +387,8 @@ export default function RoutePage() {
             onClose={closeModal}
             onSubmit={(data) => {
               if (editRoute) {
-                updateRoute({ id: editRoute._id, payload: data });
+                // updateRoute({ id: editRoute._id, payload: data });
+                handleUpdateRoute(editRoute, data);
               } else {
                 createRoute(data);
               }

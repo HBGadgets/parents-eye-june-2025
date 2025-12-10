@@ -17,6 +17,14 @@ export const deviceApiService = {
     return res.data;
   },
 
+  exportPdf: async (params: Record<string, any>): Promise<Blob> => {
+    const res = await api.get("/device/export/pdf", {
+      params,
+      responseType: "blob",
+    });
+    return res.data;
+  },
+
   createDevice: async (payload: any) => {
     const res = await api.post("/device", payload);
     return res.data;

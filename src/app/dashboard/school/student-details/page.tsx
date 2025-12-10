@@ -25,6 +25,12 @@ import { toast } from "sonner";
 import { ExcelUploader } from "@/components/excel-uploader/ExcelUploader";
 import { excelFileUploadForStudent } from "@/services/fileUploadService";
 import { ColumnVisibilitySelector } from "@/components/column-visibility-selector";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 type DecodedToken = {
   role: string;
@@ -210,6 +216,10 @@ export default function StudentDetails() {
     deleteStudent,
     updateStudent,
     createStudent,
+    exportExcel,
+    exportPdf,
+    isPdfExporting,
+    isExcelExporting,
     isDeleteLoading,
   } = useStudent(pagination, sorting, filters);
 
@@ -301,7 +311,31 @@ export default function StudentDetails() {
     []
   );
 
+  // -------------- Excel Export Handler ----------------
+  const handleExcelExport = () => {
+    exportExcel({
+      search: filters.search,
+      branchId: filters.branchId,
+      schoolId: filters.schoolId,
+      routeObjId: filters.routeObjId,
+      sortBy: sorting[0]?.id,
+      sortOrder: sorting[0]?.desc ? "desc" : "asc",
+    });
+  };
+
+  // ---------------- PDF Export Handler ----------------
+  const handlePDFExport = () => {
+    exportPdf({
+      search: filters.search,
+      branchId: filters.branchId,
+      schoolId: filters.schoolId,
+      sortBy: sorting[0]?.id,
+      sortOrder: sorting[0]?.desc ? "desc" : "asc",
+    });
+  };
+
   // ---------------- Form Handlers ----------------
+
   const handleSchoolChange = useCallback((id?: string) => {
     setFormSchoolId(id);
   }, []);
@@ -360,19 +394,45 @@ export default function StudentDetails() {
     <div className="flex flex-col h-full">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-bold mb-3">Students</h2>
-        <Button
-          disabled={!selectedCount || isDeleteLoading}
-          onClick={handleBulkDelete}
-          variant={selectedCount ? "destructive" : "outline"}
-          size="sm"
-          className={`transition shrink-0 ${
-            !selectedCount || isDeleteLoading
-              ? "cursor-not-allowed"
-              : "cursor-pointer"
-          }`}
-        >
-          {isDeleteLoading ? "Deleting..." : `Delete (${selectedCount})`}
-        </Button>
+        <div className="flex gap-3">
+          <Button
+            disabled={!selectedCount || isDeleteLoading}
+            onClick={handleBulkDelete}
+            variant={selectedCount ? "destructive" : "outline"}
+            size="sm"
+            className={`transition shrink-0 ${
+              !selectedCount || isDeleteLoading
+                ? "cursor-not-allowed"
+                : "cursor-pointer"
+            }`}
+          >
+            {isDeleteLoading ? "Deleting..." : `Delete (${selectedCount})`}
+          </Button>
+
+          <div className="mr-3">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button className="cursor-pointer" disabled={isExcelExporting || isPdfExporting}>
+                  {isExcelExporting || isPdfExporting ? "Exporting..." : "Export"}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                <DropdownMenuItem
+                  className="cursor-pointer"
+                  onClick={handleExcelExport}
+                >
+                  Export to Excel
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className="cursor-pointer"
+                  onClick={handlePDFExport}
+                >
+                  Export to PDF
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </div>
       </div>
 
       {/* SEARCH & FILTERS BAR - Now with wrapping */}

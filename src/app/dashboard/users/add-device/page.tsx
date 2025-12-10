@@ -24,6 +24,13 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { ExcelUploader } from "@/components/excel-uploader/ExcelUploader";
 import { toast } from "sonner";
 import { excelFileUploadForDevice } from "@/services/fileUploadService";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { sortBy } from "lodash";
 
 type DecodedToken = {
   role: string;
@@ -214,6 +221,8 @@ const DevicesPage = () => {
     isLoading,
     deleteDevice,
     exportExcel,
+    exportPdf,
+    isPdfExporting,
     isExcelExporting,
   } = useAddDeviceNew(pagination, sorting, filters);
 
@@ -275,12 +284,23 @@ const DevicesPage = () => {
   );
 
   // -------------- Excel Export Handler ----------------
-  const handleExport = () => {
+  const handleExcelExport = () => {
     exportExcel({
       search: filters.search,
       branchId: filters.branchId,
       schoolId: filters.schoolId,
       routeObjId: filters.routeObjId,
+      sortBy: sorting[0]?.id,
+      sortOrder: sorting[0]?.desc ? "desc" : "asc",
+    });
+  };
+
+  // ---------------- PDF Export Handler ----------------
+  const handlePDFExport = () => {
+    exportPdf({
+      search: filters.search,
+      branchId: filters.branchId,
+      schoolId: filters.schoolId,
       sortBy: sorting[0]?.id,
       sortOrder: sorting[0]?.desc ? "desc" : "asc",
     });
@@ -385,13 +405,32 @@ const DevicesPage = () => {
     <div className="flex flex-col h-full">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-bold mb-3">Devices</h2>
-        <Button
-          className="cursor-pointer"
-          onClick={handleExport}
-          disabled={isExcelExporting}
-        >
-          {isExcelExporting ? "Exporting..." : "Export to Excel"}
-        </Button>
+        <div className="mr-3">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                className="cursor-pointer"
+                disabled={isExcelExporting || isPdfExporting}
+              >
+                {isExcelExporting || isPdfExporting ? "Exporting..." : "Export"}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuItem
+                className="cursor-pointer"
+                onClick={handleExcelExport}
+              >
+                Export to Excel
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                className="cursor-pointer"
+                onClick={handlePDFExport}
+              >
+                Export to PDF
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
 
       {/* SEARCH & FILTERS BAR */}

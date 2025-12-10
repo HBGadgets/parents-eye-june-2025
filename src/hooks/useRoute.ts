@@ -5,7 +5,6 @@ import {
   useMutation,
   useQueryClient,
   keepPreviousData,
-  useIsFetching,
 } from "@tanstack/react-query";
 import { routeService } from "@/services/api/routeService";
 import { PaginationState, SortingState } from "@tanstack/react-table";
@@ -37,6 +36,60 @@ export const useRoutes = (
         schoolId: filters.schoolId,
       }),
     placeholderData: keepPreviousData,
+  });
+
+  const exportExcelMutation = useMutation({
+    mutationFn: (params: Record<string, any>) =>
+      routeService.exportExcel(params),
+    onSuccess: (blob: Blob) => {
+      try {
+        // Create a temporary URL for the blob
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `Routes_${new Date().toISOString().split("T")[0]}.xlsx`;
+
+        // Trigger download
+        document.body.appendChild(link);
+        link.click();
+
+        // Cleanup
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+
+        toast.success("Excel file downloaded successfully.");
+      } catch (error) {
+        toast.error("Failed to download file.");
+      }
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.message || "Export failed");
+    },
+  });
+
+  const exportPdfMutation = useMutation({
+    mutationFn: (params: Record<string, any>) => routeService.exportPdf(params),
+    onSuccess: (blob: Blob) => {
+      try {
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `Routes_${new Date().toISOString().split("T")[0]}.xlsx`;
+
+        document.body.appendChild(link);
+        link.click();
+
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+
+        toast.success("PDF file downloaded successfully.");
+      } catch (error) {
+        toast.error("Failed to download PDF.");
+      }
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.message || "PDF failed");
+    },
   });
 
   const createRouteMutation = useMutation({
@@ -79,9 +132,13 @@ export const useRoutes = (
     createRoute: createRouteMutation.mutate,
     updateRoute: updateRouteMutation.mutate,
     deleteRoute: deleteRouteMutation.mutate,
+    exportExcel: exportExcelMutation.mutate,
+    exportPdf: exportPdfMutation.mutate,
 
     isCreating: createRouteMutation.isPending,
     isUpdating: updateRouteMutation.isPending,
     isDeleting: deleteRouteMutation.isPending,
+    isExcelExporting: exportExcelMutation.isPending,
+    isPdfExporting: exportPdfMutation.isPending,
   };
 };

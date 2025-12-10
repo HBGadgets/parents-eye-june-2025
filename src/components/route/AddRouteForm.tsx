@@ -97,11 +97,11 @@ export default function AddRouteForm({
 
   useEffect(() => {
     if (initialData) {
-      setRouteNumber(initialData.routeNumber);
-      setDeviceObjId(initialData.deviceObjId._id);
+      setRouteNumber?.(initialData?.routeNumber);
+      setDeviceObjId?.(initialData?.deviceObjId?._id);
 
-      onSchoolChange?.(initialData.schoolId._id);
-      onBranchChange?.(initialData.branchId._id);
+      onSchoolChange?.(initialData?.schoolId?._id);
+      onBranchChange?.(initialData?.branchId?._id);
 
       onFetchDevices?.(true);
     } else {

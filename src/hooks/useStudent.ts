@@ -40,6 +40,65 @@ export const useStudent = (
     placeholderData: keepPreviousData,
   });
 
+  const exportExcelMutation = useMutation({
+    mutationFn: (params: Record<string, any>) =>
+      studentService.exportExcel(params),
+    onSuccess: (blob: Blob) => {
+      try {
+        // Create a temporary URL for the blob
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `Students_${
+          new Date().toISOString().split("T")[0]
+        }.xlsx`;
+
+        // Trigger download
+        document.body.appendChild(link);
+        link.click();
+
+        // Cleanup
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+
+        toast.success("Excel file downloaded successfully.");
+      } catch (error) {
+        toast.error("Failed to download file.");
+      }
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.message || "Export failed");
+    },
+  });
+
+  const exportPdfMutation = useMutation({
+    mutationFn: (params: Record<string, any>) =>
+      studentService.exportPDF(params),
+    onSuccess: (blob: Blob) => {
+      try {
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `Students_${
+          new Date().toISOString().split("T")[0]
+        }.xlsx`;
+
+        document.body.appendChild(link);
+        link.click();
+
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+
+        toast.success("PDF file downloaded successfully.");
+      } catch (error) {
+        toast.error("Failed to download PDF.");
+      }
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.message || "PDF failed");
+    },
+  });
+
   const createStudentMutation = useMutation({
     mutationFn: studentService.createStudent,
     onSuccess: () => {
@@ -84,9 +143,13 @@ export const useStudent = (
     createStudent: createStudentMutation.mutate,
     updateStudent: updateStudentMutation.mutate,
     deleteStudent: deleteStudentMutation.mutate,
+    exportExcel: exportExcelMutation.mutate,
+    exportPdf: exportPdfMutation.mutate,
 
     isCreateLoading: createStudentMutation.isPending,
     isUpdateLoading: updateStudentMutation.isPending,
     isDeleteLoading: deleteStudentMutation.isPending,
+    isExcelExporting: exportExcelMutation.isPending,
+    isPdfExporting: exportPdfMutation.isPending,
   };
 };
