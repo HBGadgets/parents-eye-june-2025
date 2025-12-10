@@ -230,12 +230,12 @@ export default function ParentsMaster() {
     }) => {
       try {
         if (selectedParent) {
-          await updateParent({
+          updateParent({
             id: selectedParent._id,
             payload: data,
           });
         } else {
-          await createParentAsync(data);
+          createParentAsync(data);
         }
         closeModal();
       } catch (error) {
