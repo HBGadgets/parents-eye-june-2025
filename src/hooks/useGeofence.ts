@@ -1,6 +1,11 @@
 "use client";
 
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  useQuery,
+  useMutation,
+  useQueryClient,
+  keepPreviousData,
+} from "@tanstack/react-query";
 // import { studentService } from "@/services/api/studentService";
 import { geofenceService } from "@/services/api/geofenceSerevice";
 import { PaginationState, SortingState } from "@tanstack/react-table";
@@ -31,14 +36,23 @@ export const useGeofence = (
         branchId: filters.branchId,
         schoolId: filters.schoolId,
       }),
-    keepPreviousData: true,
+    placeholderData: keepPreviousData,
+  });
+
+  const getGeofenceByRouteQuery = useQuery({
+    queryKey: ["geofence-by-route", filters.routeId],
+    queryFn: () => geofenceService.getGeofenceByRouteObjId(filters.routeId),
+    placeholderData: keepPreviousData,
+    enabled: !!filters.routeId,
   });
 
   const createGeofenceMutation = useMutation({
     mutationFn: geofenceService.createGeofence,
     onSuccess: () => {
       toast.success("Geofence created successfully");
-      queryClient.invalidateQueries({ queryKey: ["geofence"] });
+      queryClient.invalidateQueries({
+        queryKey: ["geofence", "geofence-by-route"],
+      });
     },
     onError: (err: any) => {
       toast.error(err.message || "Failed to create geofence");
@@ -50,7 +64,9 @@ export const useGeofence = (
       geofenceService.updateGeofence(id, payload),
     onSuccess: () => {
       toast.success("Geofence updated successfully");
-      queryClient.invalidateQueries({ queryKey: ["geofence"] });
+      queryClient.invalidateQueries({
+        queryKey: ["geofence", "geofence-by-route"],
+      });
     },
     onError: (err: any) => {
       toast.error(err.message || "Failed to update geofence");
@@ -61,7 +77,9 @@ export const useGeofence = (
     mutationFn: geofenceService.deleteGeofence,
     onSuccess: () => {
       toast.success("Geofence deleted successfully");
-      queryClient.invalidateQueries({ queryKey: ["geofence"] });
+      queryClient.invalidateQueries({
+        queryKey: ["geofence", "geofence-by-route"],
+      });
     },
     onError: (err: any) => {
       toast.error(err.message || "Failed to delete geofence");
@@ -70,6 +88,8 @@ export const useGeofence = (
 
   return {
     geofence: getGeofenceQuery.data?.data || [],
+    geofenceByRoute: getGeofenceByRouteQuery.data?.data || [],
+    isLoadingByRoute: getGeofenceByRouteQuery.isLoading,
     isLoading: getGeofenceQuery.isLoading,
     total: getGeofenceQuery.data?.total || 0,
 

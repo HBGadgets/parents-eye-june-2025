@@ -92,10 +92,10 @@ interface SingleDeviceLiveTrackProps {
 
 // Geofence Display Layer Component with proper API structure
 const GeofenceLayer = ({
-  geofences,
+  geofenceByRoute,
   visible,
 }: {
-  geofences: Geofence[];
+  geofenceByRoute: Geofence[];
   visible: boolean;
 }) => {
   // Debug logs
@@ -119,7 +119,7 @@ const GeofenceLayer = ({
 
   // Filter out invalid geofences before rendering
   // // console.log("🔵 GeofenceLayer - Rendering geofences:", geofences);
-  const validGeofences = geofences?.filter((g) => isValidGeofence(g));
+  const validGeofences = geofenceByRoute?.filter((g) => isValidGeofence(g));
 
   // // console.log("✅ GeofenceLayer - Rendering valid geofences:", validGeofences);
 
@@ -413,15 +413,14 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
   );
 
   const sorting = useMemo(() => [], []);
-
   const filters = useMemo(
     () => ({
-      search: "", // No search filter for map view
-      schoolId: schoolId || "",
-      branchId: branchId || "",
+      routeId: vehicle?.routeId || "",
     }),
-    [schoolId, branchId]
+    [vehicle?.routeId]
   );
+
+  console.log(filters);
 
   // TanStack Query hooks for geofence management
   const queryParams = useMemo(
@@ -430,7 +429,8 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
   );
 
   const {
-    geofence: geofences,
+    // geofence: geofences,
+    geofenceByRoute,
     isLoading: isLoadingGeofences,
     total: totalGeofences,
     createGeofence,
@@ -758,7 +758,10 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
 
         {/* Display existing geofences */}
         {showGeofences && (
-          <GeofenceLayer geofences={geofences} visible={showGeofences} />
+          <GeofenceLayer
+            geofenceByRoute={geofenceByRoute}
+            visible={showGeofences}
+          />
         )}
 
         {/* Current drawing geofence */}
@@ -838,7 +841,9 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
           </span>
         </div>
         <div>Route No: {vehicle?.routeNumber}</div>
-        <div>Geofences: {geofences ? geofences.length : "loading..."}</div>
+        <div>
+          Geofences: {geofenceByRoute ? geofenceByRoute.length : "loading..."}
+        </div>
         <div>
           Last Update:{" "}
           {vehicle?.lastUpdate ? formatToIST(vehicle.lastUpdate) : "loading..."}
@@ -868,7 +873,7 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
         onGeofenceToggle={handleGeofenceToggle}
         showGeofences={showGeofences}
         onToggleGeofences={handleToggleGeofences}
-        geofenceCount={geofences.length}
+        geofenceCount={geofenceByRoute.length}
       />
 
       {/* Next Button during drawing */}
