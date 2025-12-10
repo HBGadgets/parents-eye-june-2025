@@ -25,6 +25,7 @@ import DataRefreshIndicator, {
 import { useReverseGeocode } from "@/hooks/useReverseGeocoding";
 import { calculateDistance } from "@/util/calculate-distance";
 import { FaMapMarkerAlt } from "react-icons/fa";
+import SingleDeviceLiveTrack from "./single-device-livetrack";
 
 interface Imei {
   imei?: string;
@@ -272,7 +273,7 @@ export const LiveTrack = ({ open, setOpen, selectedImei }: LiveTrackProps) => {
           </DialogHeader>
 
           <div className="h-[calc(100vh-120px)] w-full">
-            {/* <SingleDeviceLiveTrack {...singleDeviceProps} /> */}
+            <SingleDeviceLiveTrack {...singleDeviceProps} />
           </div>
         </DialogContent>
       </Dialog>
@@ -297,7 +298,7 @@ export const LiveTrack = ({ open, setOpen, selectedImei }: LiveTrackProps) => {
         </DrawerHeader>
 
         <div className="flex-1 h-[calc(100vh-200px)] w-full">
-          {/* <SingleDeviceLiveTrack {...singleDeviceProps} /> */}
+          <SingleDeviceLiveTrack {...singleDeviceProps} />
         </div>
 
         <DrawerFooter className="pt-2 px-4 pb-4 border-t">

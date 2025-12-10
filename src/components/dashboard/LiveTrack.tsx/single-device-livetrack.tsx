@@ -26,17 +26,26 @@ import { Slider } from "@/components/ui/slider";
 import { getDecodedToken } from "@/lib/jwt";
 import Cookies from "js-cookie";
 import { GeofenceForm } from "./form/GeofenceForm";
-import {
-  useGeofences,
-  useCreateGeofence,
-  type Geofence,
-  isValidGeofence,
-} from "@/hooks/useGeofence";
+import { useGeofence } from "@/hooks/useGeofence";
 import { formatToIST } from "@/util/dateFormatters";
 import { calculateTimeSince } from "@/util/calculateTimeSince";
 import { toast } from "sonner";
+import { Geofence } from "@/interface/modal";
 
 type UserRole = "superAdmin" | "school" | "branchGroup" | "branch" | null;
+
+export const isValidGeofence = (geofence: any): geofence is Geofence => {
+  return (
+    geofence &&
+    geofence._id &&
+    geofence.area &&
+    Array.isArray(geofence.area.center) &&
+    geofence.area.center.length === 2 &&
+    typeof geofence.area.radius === "number" &&
+    !isNaN(geofence.area.center[0]) &&
+    !isNaN(geofence.area.center[1])
+  );
+};
 
 // Types based on your socket response
 export interface VehicleData {
@@ -110,13 +119,7 @@ const GeofenceLayer = ({
 
   // Filter out invalid geofences before rendering
   // // console.log("🔵 GeofenceLayer - Rendering geofences:", geofences);
-  const validGeofences = geofences?.data?.filter((g) => {
-    const isValid = isValidGeofence(g);
-    if (!isValid) {
-      console.warn("❌ Invalid geofence filtered out:", g);
-    }
-    return isValid;
-  });
+  const validGeofences = geofences?.filter((g) => isValidGeofence(g));
 
   // // console.log("✅ GeofenceLayer - Rendering valid geofences:", validGeofences);
 
@@ -401,6 +404,25 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
   const [userRole, setUserRole] = useState<UserRole | null>(null);
   const [showGeofences, setShowGeofences] = useState(true);
 
+  const pagination = useMemo(
+    () => ({
+      pageIndex: 0,
+      pageSize: 100, // Fetch 100 geofences at once for map display
+    }),
+    []
+  );
+
+  const sorting = useMemo(() => [], []);
+
+  const filters = useMemo(
+    () => ({
+      search: "", // No search filter for map view
+      schoolId: schoolId || "",
+      branchId: branchId || "",
+    }),
+    [schoolId, branchId]
+  );
+
   // TanStack Query hooks for geofence management
   const queryParams = useMemo(
     () => ({ schoolId, branchId }),
@@ -408,13 +430,16 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
   );
 
   const {
-    data: geofences = [],
+    geofence: geofences,
     isLoading: isLoadingGeofences,
-    error: geofencesError,
-    refetch: refetchGeofences,
-  } = useGeofences(queryParams);
-
-  const createGeofenceMutation = useCreateGeofence(queryParams);
+    total: totalGeofences,
+    createGeofence,
+    updateGeofence,
+    deleteGeofence,
+    isCreateLoading,
+    isUpdateLoading,
+    isDeleteLoading,
+  } = useGeofence(pagination, sorting, filters);
 
   // Debug logs for geofences
   // useEffect(() => {
@@ -657,55 +682,37 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
     setShowGeofenceForm(true);
   }, []);
 
-  const handleGeofenceSubmit = async (payload: any) => {
-    try {
-      // console.log("📤 Submitting geofence with payload:", payload);
-
-      // Transform payload to match your API structure
-      const geofencePayload = {
-        geofenceName: payload.name || payload.geofenceName || "New Geofence",
-        area: {
-          center: [geofenceCenter![0], geofenceCenter![1]], // [latitude, longitude]
-          radius: geofenceRadius,
-        },
-        pickupTime: payload.pickupTime,
-        dropTime: payload.dropTime,
-        schoolId: schoolId || payload.schoolId,
-        branchId: branchId || payload.branchId,
-        routeObjId: routeObjId || payload.routeObjId,
-      };
-
-      if (geofencePayload.routeObjId == "") {
-        toast.warning("Assign Route Number", {
-          description:
-            "Please assign a route number to the bus before creating a geofence.",
-        });
-        return;
-      }
-
-      // console.log("📤 Final geofence payload:", geofencePayload);
-
-      const result = await createGeofenceMutation.mutateAsync(geofencePayload);
-      // console.log("✅ Geofence created successfully:", result);
-
-      // alert("Geofence created successfully");
-      toast.success("Geofence created successfully");
-
-      // Reset drawing state
-      setIsDrawingGeofence(false);
-      setShowGeofenceForm(false);
-      setGeofenceCenter(null);
-
-      // The mutation will automatically refetch, but we can force it too
-      // console.log("🔄 Refetching geofences...");
-      await refetchGeofences();
-    } catch (error) {
-      // console.error("❌ Error creating geofence:", error);
-      // alert(error?.response?.data?.message || "❌ Failed to create geofence");
-      toast.error(
-        (error as any)?.response?.data?.message || "Failed to create geofence"
-      );
+  const handleGeofenceSubmit = (payload: any) => {
+    if (!routeObjId || routeObjId === "") {
+      toast.warning("Assign Route Number", {
+        description:
+          "Please assign a route number to the bus before creating a geofence.",
+      });
+      return;
     }
+
+    const geofencePayload = {
+      geofenceName: payload.name || payload.geofenceName || "New Geofence",
+      area: {
+        center: [geofenceCenter![0], geofenceCenter![1]],
+        radius: geofenceRadius,
+      },
+      pickupTime: payload.pickupTime,
+      dropTime: payload.dropTime,
+      schoolId: schoolId || payload.schoolId,
+      branchId: branchId || payload.branchId,
+      routeObjId: routeObjId || payload.routeObjId,
+    };
+
+    console.log("📤 Submitting geofence:", geofencePayload);
+
+    // Call the mutation from the hook
+    createGeofence(geofencePayload);
+
+    // Reset state after submission
+    setIsDrawingGeofence(false);
+    setShowGeofenceForm(false);
+    setGeofenceCenter(null);
   };
 
   const handleGeofenceCancel = useCallback(() => {

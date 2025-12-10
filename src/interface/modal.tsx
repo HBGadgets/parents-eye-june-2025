@@ -1,3 +1,5 @@
+import { uniqueId } from "lodash";
+
 export interface School {
   _id: string;
   schoolName: string;
@@ -247,4 +249,29 @@ export interface GetStudentsResponse {
   page: number;
   limit: number;
   children: Student[];
+}
+
+export interface LiveTrack {
+  speed?: DoubleRange;
+  longitude?: DoubleRange;
+  latitude?: DoubleRange;
+  course?: number;
+  deviceId?: number;
+  uniqueId?: number;
+  attribute?: {
+    charge?: boolean;
+    ignition?: boolean;
+    motion?: boolean;
+    sat?: number;
+    distance?: number;
+    totalDistance?: DoubleRange;
+    todayDistance?: DoubleRange;
+  };
+  gsmSignal?: number;
+  batteryLevel?: number;
+  category?: string;
+  status?: string;
+  lastUpdate?: string;
+  name?: string;
+  fuelConsumption?: DoubleRange;
 }
