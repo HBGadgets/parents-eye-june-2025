@@ -1,582 +1,613 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useMemo } from "react";
-import { ColumnDef, VisibilityState } from "@tanstack/react-table";
-import { useDevices } from "@/hooks/useDevice";
-import { useSchoolData } from "@/hooks/useSchoolData";
-import { useBranchData } from "@/hooks/useBranchData";
-import { useRoutes } from "@/hooks/useRoute";
-import { useDriver } from "@/hooks/useDriver";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { api } from "@/services/apiService";
-import { Device } from "@/interface/modal";
-import { toast } from "sonner";
-import Cookies from "js-cookie";
-import { getDecodedToken } from "@/lib/jwt";
-
-// 🧩 UI Components
-import ResponseLoader from "@/components/ResponseLoader";
-import { SearchBar } from "@/components/search-bar/SearchBarPagination";
-import { Alert } from "@/components/Alert";
-import { DynamicEditDialog, FieldConfig } from "@/components/ui/EditModal";
-import { AddDeviceForm } from "@/components/Device/add-device-form";
-import { FloatingMenu } from "@/components/floatingMenu";
-import { ColumnVisibilitySelector } from "@/components/column-visibility-selector";
-import { CustomFilter } from "@/components/ui/CustomFilter";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { getDeviceColumns } from "@/components/columns/columns";
 import { CustomTableServerSidePagination } from "@/components/ui/customTable(serverSidePagination)";
-import { useExport } from "@/hooks/useExport";
-import {
-  deleteDeviceOld,
-  updateDeviceOld,
-} from "@/hooks/device/useAddDevice(old)";
-import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
+import { useAddDeviceNew } from "@/hooks/device/useAddDevice(new)";
+import { SortingState, PaginationState } from "@tanstack/react-table";
 import { Button } from "@/components/ui/button";
-import { FileSpreadsheet } from "lucide-react";
+import { SearchBar } from "@/components/search-bar/SearchBarPagination";
+import { useDebounce } from "@/hooks/useDebounce";
+import { Combobox } from "@/components/ui/combobox";
+import { Upload, X } from "lucide-react";
+import {
+  useBranchDropdown,
+  useSchoolDropdown,
+  useRouteDropdown,
+} from "@/hooks/useDropdown";
+import Cookies from "js-cookie";
+import { jwtDecode } from "jwt-decode";
+import { ColumnVisibilitySelector } from "@/components/column-visibility-selector";
+import { AddDeviceForm } from "@/components/Device/add-device-form";
+import { deleteDeviceOld } from "@/hooks/device/useAddDevice(old)";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { ExcelUploader } from "@/components/excel-uploader/ExcelUploader";
-import axios from "axios";
+import { toast } from "sonner";
 import { excelFileUploadForDevice } from "@/services/fileUploadService";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { sortBy } from "lodash";
 
-type UserRole = "superAdmin" | "school" | "branchGroup" | "branch" | null;
+type DecodedToken = {
+  role: string;
+  schoolId?: string;
+  id?: string;
+  branchId?: string;
+};
+
+type Filters = {
+  search?: string;
+  schoolId?: string;
+  branchId?: string;
+  routeObjId?: string;
+};
 
 const DevicesPage = () => {
-  const queryClient = useQueryClient();
+  const requiredHeaders = [
+    "name",
+    "uniqueId",
+    "sim",
+    "speed",
+    "average",
+    "model",
+    "category",
+  ];
+  const childCsvContent =
+    "name,uniqueId,sim,speed,average,model,category\n" +
+    "MH00B0000,1234567890123,12345678901,80,12,AIS-140,School Bus\n";
+  // ---------------- Dialog State ----------------
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editDevice, setEditDevice] = useState<any>(null);
 
-  /** =========================
-   * 🔹 STATE & DATA HOOKS
-   * ========================= */
-  const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 10 });
-  const [deleteTarget, setDeleteTarget] = useState<Device | null>(null);
-  const [editTarget, setEditTarget] = useState<Device | null>(null);
-  const [editDialogOpen, setEditDialogOpen] = useState(false);
-  const [filteredData, setFilteredData] = useState<Device[]>([]);
-  const [deviceName, setDeviceName] = useState("");
-  const [debouncedDeviceName, setDebouncedDeviceName] = useState(deviceName);
-  const [sorting, setSorting] = useState([]);
-  const [userRole, setUserRole] = useState<UserRole>(null);
-  const [selectedSchoolId, setSelectedSchoolId] = useState<string | null>(null);
-  const [selectedBranchId, setSelectedBranchId] = useState<string | null>(null);
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
-  const BASIC_AUTH_USER =
-    process.env.NEXT_PUBLIC_ROCKETSALESTRACKER_BASIC_AUTH_USERNAME;
-  const BASIC_AUTH_PASS =
-    process.env.NEXT_PUBLIC_ROCKETSALESTRACKER_BASIC_AUTH_PASSWORD;
-  const { exportToPDF, exportToExcel } = useExport();
-
-  // API hooks
-  const { data: schoolData } = useSchoolData();
-  const { data: branchData } = useBranchData();
-  const { data: driverData } = useDriver();
-  const { data: routeData } = useRoutes({ limit: "all" });
-
-  const [open, setOpen] = useState(false);
-  const {
-    data: devicesData,
-    isLoading,
-    isFetching,
-  } = useDevices({
-    pagination,
-    sorting,
-    deviceName: debouncedDeviceName,
+  // ---------------- Pagination & Sorting ----------------
+  const [pagination, setPagination] = useState<PaginationState>({
+    pageIndex: 0,
+    pageSize: 10,
   });
+  const [sorting, setSorting] = useState<SortingState>([]);
 
-  /** =========================
-   * 🧠 EFFECTS
-   * ========================= */
-  // Debounce search input
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedDeviceName(deviceName);
-      setPagination((prev) => ({ ...prev, pageIndex: 0 }));
-    }, 500);
-    return () => clearTimeout(timer);
-  }, [deviceName]);
+  // ---------------- Search State ----------------
+  const [searchInput, setSearchInput] = useState("");
+  const debouncedSearch = useDebounce(searchInput, 500);
 
-  // Detect logged-in user role
+  // ---------------- Excel Upload State ----------------
+  const [showUploadDialog, setShowUploadDialog] = useState(false);
+
+  // ---------------- All Branches for Upload (no filter) ----------------
+  const { data: allBranches = [] } = useBranchDropdown();
+
+  // ---------------- Filter State ----------------
+  const [filterSchoolId, setFilterSchoolId] = useState<string>();
+  const [filterBranchId, setFilterBranchId] = useState<string>();
+  const [filterRouteId, setFilterRouteId] = useState<string>();
+
+  // ---------------- Lazy Loading States ----------------
+  const [shouldFetchSchools, setShouldFetchSchools] = useState(false);
+  const [shouldFetchBranches, setShouldFetchBranches] = useState(false);
+  const [shouldFetchRoutes, setShouldFetchRoutes] = useState(false);
+
+  // ---------------- Auth ----------------
+  const [decodedToken, setDecodedToken] = useState<DecodedToken>({ role: "" });
+  const role = decodedToken.role || "";
+
+  // ---------------- Decode Token ----------------
   useEffect(() => {
     const token = Cookies.get("token");
-    const decoded = token ? getDecodedToken(token) : null;
-    const role = decoded?.role;
-    if (["superAdmin", "school", "branchGroup", "branch"].includes(role)) {
-      setUserRole(role as UserRole);
+    if (!token) return;
+
+    try {
+      const decoded = jwtDecode<DecodedToken>(token);
+      setDecodedToken(decoded);
+    } catch (err) {
+      console.error("Token decode failed", err);
     }
   }, []);
 
-  // Update local filtered data when devices change
+  // ---------------- Role-based Defaults ----------------
+  const tokenSchoolId = useMemo(
+    () => (role === "school" ? decodedToken.id : decodedToken.schoolId),
+    [role, decodedToken.id, decodedToken.schoolId]
+  );
+
+  const tokenBranchId = useMemo(
+    () => (role === "branch" ? decodedToken.id : undefined),
+    [role, decodedToken.id]
+  );
+
+  const tokenBranchGroupSchoolId = useMemo(
+    () => (role === "branchGroup" ? decodedToken.schoolId : undefined),
+    [role, decodedToken.schoolId]
+  );
+
+  // ---------------- Apply Role Filters & Auto-fetch ----------------
   useEffect(() => {
-    setFilteredData(devicesData?.devices || []);
-  }, [devicesData]);
+    if (role === "school" && tokenSchoolId) {
+      setFilterSchoolId(tokenSchoolId);
+      setShouldFetchBranches(true);
+    }
+    if (role === "branch" && tokenBranchId) {
+      setFilterBranchId(tokenBranchId);
+      setShouldFetchRoutes(true);
+    }
+    // 🔥 FIX: Enable branch fetching for branchGroup role
+    if (role === "branchGroup") {
+      setShouldFetchBranches(true);
+    }
+  }, [role, tokenSchoolId, tokenBranchId]);
 
-  /** =========================
-   * 🏫 FILTERING LOGIC
-   * ========================= */
-  const filteredBranches = useMemo(() => {
-    if (!selectedSchoolId || !branchData) return [];
-    return branchData.filter(
-      (branch: any) => branch.schoolId?._id === selectedSchoolId
-    );
-  }, [selectedSchoolId, branchData]);
+  // ---------------- Reset Dependent Filters ----------------
+  useEffect(() => {
+    if (!filterSchoolId && role === "superAdmin") {
+      setFilterBranchId(undefined);
+      setFilterRouteId(undefined);
+      setShouldFetchBranches(false);
+    }
+  }, [filterSchoolId, role]);
 
-  const filteredRoutes = useMemo(() => {
-    if (!selectedBranchId || !routeData?.data) return [];
-    return routeData.data.filter(
-      (route: any) => route.branchId?._id === selectedBranchId
-    );
-  }, [selectedBranchId, routeData]);
+  useEffect(() => {
+    if (!filterBranchId) {
+      setFilterRouteId(undefined);
+      setShouldFetchRoutes(false);
+    }
+  }, [filterBranchId]);
 
-  const handleSchoolChange = (key: string, value: any, option?: any) => {
-    if (key === "schoolId._id") {
-      const prevSchoolId = selectedSchoolId;
-      setSelectedSchoolId(value);
+  // ---------------- Lazy Dropdown Queries ----------------
+  const { data: schools = [], isLoading: schoolsLoading } =
+    useSchoolDropdown(shouldFetchSchools);
 
-      if (editTarget && prevSchoolId !== value) {
-        setEditTarget({
-          ...editTarget,
-          schoolId: { _id: value, schoolName: option?.schoolName || "" },
-          branchId: { _id: "", branchName: "" },
-          routeNo: { _id: "", routeNumber: "" },
+  const { data: branches = [], isLoading: branchesLoading } = useBranchDropdown(
+    filterSchoolId,
+    shouldFetchBranches,
+    role === "branchGroup"
+  );
+
+  const { data: routes = [], isLoading: routesLoading } = useRouteDropdown(
+    filterBranchId,
+    shouldFetchRoutes
+  );
+
+  // ---------------- Dropdown Items ----------------
+  const schoolItems = useMemo(
+    () =>
+      schools.map((s) => ({
+        label: s.schoolName!,
+        value: s._id,
+      })),
+    [schools]
+  );
+
+  const branchItems = useMemo(
+    () =>
+      branches.map((b) => ({
+        label: b.branchName!,
+        value: b._id,
+      })),
+    [branches]
+  );
+
+  const routeItems = useMemo(
+    () =>
+      routes.map((r: any) => ({
+        label: r.routeNumber,
+        value: r._id,
+      })),
+    [routes]
+  );
+
+  // ---------------- API Filters ----------------
+  const filters: Filters = useMemo(
+    () => ({
+      search: debouncedSearch || undefined,
+      schoolId: filterSchoolId,
+      branchId: filterBranchId,
+      routeObjId: filterRouteId,
+    }),
+    [debouncedSearch, filterSchoolId, filterBranchId, filterRouteId]
+  );
+
+  // ---------------- Reset Pagination When Filters Change ----------------
+  useEffect(() => {
+    setPagination((p) => ({ ...p, pageIndex: 0 }));
+  }, [filters.search, filters.schoolId, filters.branchId, filters.routeObjId]);
+
+  // ---------------- API Call ----------------
+  const {
+    devices,
+    total,
+    isLoading,
+    deleteDevice,
+    exportExcel,
+    exportPdf,
+    isPdfExporting,
+    isExcelExporting,
+  } = useAddDeviceNew(pagination, sorting, filters);
+
+  // ---------------- Handlers ----------------
+  const handleEdit = useCallback((row: any) => {
+    console.log("Edit device:", row);
+    setEditDevice(row);
+    setIsDialogOpen(true);
+  }, []);
+
+  const handleDelete = useCallback(
+    async (row: any) => {
+      try {
+        if (!confirm("Delete this device?")) return;
+
+        await deleteDeviceOld(row.deviceId);
+
+        deleteDevice(row._id);
+      } catch (err: any) {
+        console.error("Delete error:", err.message);
+        alert(err.message);
+      }
+    },
+    [deleteDevice]
+  );
+
+  // ---------------- Excel Upload Handler ----------------
+  const handleExcelUpload = useCallback(
+    async (file: File, schoolId: string, branchId: string) => {
+      try {
+        const response = await excelFileUploadForDevice(
+          file,
+          schoolId,
+          branchId
+        );
+
+        toast.success("Upload successful", {
+          description: `${
+            response.count || response.data?.count || 0
+          } devices imported`,
         });
-        setSelectedBranchId(null);
-      }
-    }
-  };
 
-  const handleBranchChange = (key: string, value: any, option?: any) => {
-    if (key === "branchId._id") {
-      setSelectedBranchId(value);
-      if (editTarget) {
-        setEditTarget({
-          ...editTarget,
-          branchId: { _id: value, branchName: option?.branchName || "" },
-          routeNo: { _id: "", routeNumber: "" },
+        // Close dialog and refresh data
+        setShowUploadDialog(false);
+        setPagination((p) => ({ ...p, pageIndex: 0 }));
+      } catch (error: any) {
+        const errorMessage =
+          error?.response?.data?.message ||
+          error?.message ||
+          "Failed to upload file. Please try again.";
+
+        toast.error("Upload failed", {
+          description: errorMessage,
         });
+        throw error;
       }
-    }
-  };
-
-  const handleRouteChange = (key: string, value: any, option?: any) => {
-    if (key === "routeNo._id") {
-      if (editTarget) {
-        setEditTarget({
-          ...editTarget,
-          routeNo: { _id: value, routeNumber: option?.routeNumber || "" },
-        });
-      }
-    }
-  };
-
-  // Add this handler after your other handlers (handleSchoolChange, handleBranchChange, etc.)
-  const handleFieldChange = (key: string, value: any, option?: any) => {
-    // Handle school change
-    if (key === "schoolId._id") {
-      const prevSchoolId = selectedSchoolId;
-      setSelectedSchoolId(value);
-
-      if (editTarget && prevSchoolId !== value) {
-        setEditTarget({
-          ...editTarget,
-          schoolId: { _id: value, schoolName: option?.schoolName || "" },
-          branchId: { _id: "", branchName: "" },
-          routeNo: { _id: "", routeNumber: "" },
-        });
-        setSelectedBranchId(null);
-      }
-    }
-    // Handle branch change
-    else if (key === "branchId._id") {
-      setSelectedBranchId(value);
-      if (editTarget) {
-        setEditTarget({
-          ...editTarget,
-          branchId: { _id: value, branchName: option?.branchName || "" },
-          routeNo: { _id: "", routeNumber: "" },
-        });
-      }
-    }
-    // Handle route change
-    else if (key === "routeNo._id") {
-      if (editTarget) {
-        setEditTarget({
-          ...editTarget,
-          routeNo: { _id: value, routeNumber: option?.routeNumber || "" },
-        });
-      }
-    }
-    // Handle driver change
-    else if (key === "driver._id") {
-      if (editTarget) {
-        setEditTarget({
-          ...editTarget,
-          driver: { _id: value, driverName: option?.driverName || "" },
-        });
-      }
-    }
-    // Handle all other simple fields (name, sim, speed, etc.)
-    else if (editTarget) {
-      const keys = key.split(".");
-      if (keys.length === 1) {
-        // Simple field like "name", "sim", "speed"
-        setEditTarget({
-          ...editTarget,
-          [key]: value,
-        });
-      }
-    }
-  };
-
-  const handleFileUpload = async (
-    file: File,
-    schoolId: string,
-    branchId: string
-  ) => {
-    try {
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("schoolId", schoolId); // FIXED
-      formData.append("branchId", branchId); // FIXED
-
-      // const resp = await axios.post("device/upload-excel", formData, {
-      //   headers: { "Content-Type": "multipart/form-data" },
-      // });
-      const resp = await excelFileUploadForDevice(file, schoolId, branchId);
-
-      console.log("Upload success:", resp.data);
-    } catch (error) {
-      console.error("Error uploading file:", error);
-    }
-    setOpen(false);
-  };
-
-  /** =========================
-   * ✏️ EDIT CONFIGURATION
-   * ========================= */
-  const deviceEditFieldConfigs: FieldConfig[] = [
-    { label: "Device Name", key: "name", type: "text" },
-    { label: "Sim Number", key: "sim", type: "text" },
-    { label: "IMEI Number", key: "uniqueId", type: "text" },
-    { label: "Speed Limit (KM/H)", key: "speed", type: "number" },
-    { label: "Average (KM/Litre)", key: "average", type: "number" },
-    {
-      label: "Driver",
-      key: "driver._id",
-      type: "searchable-select",
-      options: driverData?.drivers || [],
-      labelKey: "driverName",
-      valueKey: "_id",
     },
-    { label: "Model", key: "model", type: "text" },
-    { label: "Category", key: "category", type: "text" },
-    {
-      label: "School Name",
-      key: "schoolId._id",
-      type: "searchable-select",
-      options: schoolData || [],
-      labelKey: "schoolName",
-      valueKey: "_id",
-    },
-    {
-      label: "Branch Name",
-      key: "branchId._id",
-      type: "searchable-select",
-      options: filteredBranches || [],
-      labelKey: "branchName",
-      valueKey: "_id",
-      disabled: !selectedSchoolId || filteredBranches.length === 0,
-    },
-    {
-      label: "Route No",
-      key: "routeNo._id",
-      type: "searchable-select",
-      options: filteredRoutes || [],
-      labelKey: "routeNumber",
-      valueKey: "_id",
-      disabled: !selectedBranchId || filteredRoutes.length === 0,
-    },
-  ];
+    []
+  );
 
-  const deleteDeviceMutation = useMutation({
-    mutationFn: async (device: Device) => {
-      const newDeviceId = device._id;
-      const oldDeviceId = device.deviceId ? parseInt(device.deviceId) : null;
-
-      // 1️⃣ Delete from NEW system first (so local data syncs immediately)
-      await api.delete(`/device/${newDeviceId}`);
-
-      // 2️⃣ Delete from OLD system (using its numeric ID)
-      if (oldDeviceId) {
-        await deleteDeviceOld(oldDeviceId);
-      }
-
-      return { success: true };
-    },
-
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["devices"] });
-      toast.success("🗑 Device deleted from both systems!");
-    },
-
-    onError: (err: any) => {
-      console.error("Delete Sync Error:", err);
-      toast.error("❌ Failed to delete device in one or both systems.");
-    },
-  });
-
-  const updateDeviceMutation = useMutation({
-    mutationFn: async ({
-      device,
-      data,
-    }: {
-      device: Device;
-      data: Partial<Device>;
-    }) => {
-      console.log("Updating device in both systems:", device, data);
-      // Extract both IDs
-      const newDeviceId = device._id;
-      const oldDeviceId = device.deviceId ? parseInt(device.deviceId) : null; // Old API ID
-
-      // 1️⃣ Update OLD system first
-      if (oldDeviceId) {
-        await updateDeviceOld(oldDeviceId, data);
-      }
-
-      // 2️⃣ Update NEW system
-      const { data: updated } = await api.put(`/device/${newDeviceId}`, data);
-      return updated;
-    },
-
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["devices"] });
-      toast.success("✅ Device updated in both systems!");
-      setEditDialogOpen(false);
-      setEditTarget(null);
-    },
-
-    onError: (err: any) => {
-      console.error("Update Sync Error:", err);
-      toast.error("❌ Failed to update in one or both systems.");
-    },
-  });
-
-  /** =========================
-   * 📊 TABLE COLUMNS
-   * ========================= */
-  const columns: ColumnDef<Device>[] = [
-    { id: "name", header: "Device Name", accessorFn: (r) => r.name ?? "" },
-    {
-      id: "uniqueId",
-      header: "IMEI Number",
-      accessorFn: (r) => r.uniqueId ?? "",
-    },
-    { id: "sim", header: "Sim Number", accessorFn: (r) => r.sim ?? "" },
-    {
-      id: "routeNo",
-      header: "Route No",
-      accessorFn: (r) => r.routeNo?.routeNumber ?? "",
-    },
-    {
-      id: "speed",
-      header: "Speed Limit (KM/H)",
-      accessorFn: (r) => r.speed ?? "",
-    },
-    {
-      id: "average",
-      header: "Average (KM/L)",
-      accessorFn: (r) => r.average ?? "",
-    },
-    {
-      id: "Driver",
-      header: "Driver",
-      accessorFn: (r) => r.driver?.driverName ?? "",
-    },
-    { id: "model", header: "Model", accessorFn: (r) => r.model ?? "" },
-    { id: "category", header: "Category", accessorFn: (r) => r.category ?? "" },
-    {
-      id: "deviceId",
-      header: "Device ID",
-      accessorFn: (r) => r.deviceId ?? "",
-    },
-    { id: "status", header: "Status", accessorFn: (r) => r.status ?? "" },
-    {
-      id: "lastUpdate",
-      header: "Last Updated",
-      accessorFn: (r) =>
-        r.lastUpdate ? new Date(r.lastUpdate).toLocaleString() : "",
-    },
-    {
-      id: "schoolId",
-      header: "School Name",
-      accessorFn: (r) => r.schoolId?.schoolName ?? "",
-    },
-    {
-      id: "branchId",
-      header: "Branch Name",
-      accessorFn: (r) => r.branchId?.branchName ?? "",
-    },
-    {
-      id: "createdAt",
-      header: "Registration Date",
-      accessorFn: (r) =>
-        r.createdAt ? new Date(r.createdAt).toLocaleDateString() : "",
-    },
-  ];
-
-  if (userRole === "superAdmin") {
-    columns.push({
-      id: "actions",
-      header: "Actions",
-      cell: ({ row }) => (
-        <div className="flex gap-2 justify-center">
-          <button
-            className="bg-yellow-400 hover:bg-yellow-500 text-[#733e0a] font-semibold py-1 px-3 rounded-md cursor-pointer"
-            onClick={() => {
-              const device = row.original;
-              setEditTarget(device);
-              setEditDialogOpen(true);
-              setSelectedSchoolId(device.schoolId?._id || null);
-              setSelectedBranchId(device.branchId?._id || null);
-            }}
-          >
-            Edit
-          </button>
-          <button
-            className="bg-yellow-400 hover:bg-yellow-500 text-red-600 font-semibold py-1 px-3 rounded-md cursor-pointer"
-            onClick={() => setDeleteTarget(row.original)}
-          >
-            Delete
-          </button>
-        </div>
-      ),
+  // -------------- Excel Export Handler ----------------
+  const handleExcelExport = () => {
+    exportExcel({
+      search: filters.search,
+      branchId: filters.branchId,
+      schoolId: filters.schoolId,
+      routeObjId: filters.routeObjId,
+      sortBy: sorting[0]?.id,
+      sortOrder: sorting[0]?.desc ? "desc" : "asc",
     });
-  }
+  };
 
-  /** =========================
-   * 🧮 TABLE INSTANCE
-   * ========================= */
+  // ---------------- PDF Export Handler ----------------
+  const handlePDFExport = () => {
+    exportPdf({
+      search: filters.search,
+      branchId: filters.branchId,
+      schoolId: filters.schoolId,
+      sortBy: sorting[0]?.id,
+      sortOrder: sorting[0]?.desc ? "desc" : "asc",
+    });
+  };
+
+  const handleAddDevice = useCallback(() => {
+    setEditDevice(null);
+    setIsDialogOpen(true);
+  }, []);
+
+  const handleDialogClose = useCallback((open: boolean) => {
+    setIsDialogOpen(open);
+    if (!open) {
+      // Reset edit device after dialog closes
+      setTimeout(() => setEditDevice(null), 200);
+    }
+  }, []);
+
+  // ---------------- Clear Filters ----------------
+  const handleClearFilters = useCallback(() => {
+    setSearchInput("");
+    if (role === "superAdmin") {
+      setFilterSchoolId(undefined);
+      setShouldFetchBranches(false);
+    }
+    if (role === "superAdmin" || role === "school" || role === "branchGroup") {
+      setFilterBranchId(undefined);
+      setShouldFetchRoutes(false);
+    }
+    setFilterRouteId(undefined);
+  }, [role]);
+
+  // ---------------- Check Active Filters ----------------
+  const hasActiveFilters = useMemo(() => {
+    return (
+      searchInput !== "" ||
+      (role === "superAdmin" && filterSchoolId !== undefined) ||
+      ((role === "superAdmin" || role === "school" || role === "branchGroup") &&
+        filterBranchId !== undefined) ||
+      filterRouteId !== undefined
+    );
+  }, [searchInput, filterSchoolId, filterBranchId, filterRouteId, role]);
+
+  // ---------------- Table Columns ----------------
+  const columns = useMemo(() => {
+    const base = getDeviceColumns(handleEdit, handleDelete);
+
+    if (role === "superAdmin") {
+      base.push({
+        header: "Action",
+        cell: ({ row }) => {
+          const data = row.original;
+          return (
+            <div className="flex justify-center gap-2">
+              <button
+                className="bg-yellow-500 text-white px-3 py-1 rounded text-xs cursor-pointer"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleEdit(data);
+                }}
+              >
+                Edit
+              </button>
+
+              <button
+                className="bg-red-500 text-white px-3 py-1 rounded text-xs cursor-pointer"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDelete(data);
+                }}
+              >
+                Delete
+              </button>
+            </div>
+          );
+        },
+        enableSorting: false,
+      });
+    }
+
+    return base;
+  }, [handleEdit, handleDelete, role]);
+
+  // ---------------- Table ----------------
   const { table, tableElement } = CustomTableServerSidePagination({
-    data: devicesData?.devices || [],
+    data: devices || [],
     columns,
     pagination,
-    totalCount: devicesData?.total || 0,
-    loading: isLoading || isFetching,
+    totalCount: total,
+    loading: isLoading,
     onPaginationChange: setPagination,
     onSortingChange: setSorting,
     sorting,
-    columnVisibility,
-    onColumnVisibilityChange: setColumnVisibility,
     emptyMessage: "No devices found",
+    pageSizeOptions: [5, 10, 15, 20, 30],
+    showSerialNumber: true,
+    enableSorting: true,
+    enableMultiSelect: false,
   });
 
-  /** =========================
-   * 🧾 RENDER
-   * ========================= */
   return (
-    <div className="p-4">
-      <ResponseLoader isLoading={isLoading} />
-
-      <header className="flex items-center gap-4 mb-4">
-        <div className="flex items-center gap-4 flex-1">
-          <SearchBar
-            value={deviceName}
-            onChange={setDeviceName}
-            placeholder="Search by device name..."
-            width="w-full md:w-1/4"
-          />
-          <ColumnVisibilitySelector
-            columns={table.getAllColumns()}
-            buttonVariant="outline"
-            className="cursor-pointer"
-          />
-          {/* <CustomFilter
-            data={filteredData}
-            filterFields={["status"]}
-            onFilter={setFilteredData}
-            placeholder="Filter by Status"
-            className="w-[180px]"
-          /> */}
+    <div className="flex flex-col h-full">
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-bold mb-3">Devices</h2>
+        <div className="mr-3">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                className="cursor-pointer"
+                disabled={isExcelExporting || isPdfExporting}
+              >
+                {isExcelExporting || isPdfExporting ? "Exporting..." : "Export"}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuItem
+                className="cursor-pointer"
+                onClick={handleExcelExport}
+              >
+                Export to Excel
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                className="cursor-pointer"
+                onClick={handlePDFExport}
+              >
+                Export to PDF
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
-        {userRole === "superAdmin" && <AddDeviceForm />}
+      </div>
 
-        {userRole === "superAdmin" && (
-          <div>
-            <Dialog open={open} onOpenChange={setOpen}>
-              <DialogTrigger asChild>
-                <Button className="gap-2 px-8 text-base shadow-lg hover:shadow-xl transition-shadow cursor-pointer">
-                  <FileSpreadsheet />
-                  Upload Excel
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto p-6 sm:p-8">
-                <ExcelUploader
-                  onFileUpload={handleFileUpload}
-                  schools={schoolData}
-                  branches={branchData}
-                />
-              </DialogContent>
-            </Dialog>
+      {/* SEARCH & FILTERS BAR */}
+      <div className="flex flex-wrap items-center gap-3 my-3">
+        {/* Search Bar */}
+        <div className="flex gap-2 items-center">
+          <SearchBar
+            value={searchInput}
+            onChange={setSearchInput}
+            placeholder="Search devices..."
+            width="w-[280px]"
+          />
+
+          {/* Loading Indicator */}
+          {isLoading && debouncedSearch && (
+            <div className="text-sm text-muted-foreground whitespace-nowrap">
+              Searching...
+            </div>
+          )}
+        </div>
+
+        <ColumnVisibilitySelector
+          columns={table.getAllColumns()}
+          buttonVariant="outline"
+          buttonSize="default"
+          className="cursor-pointer"
+        />
+
+        {/* Filters */}
+        <div className="flex flex-wrap gap-3 items-center flex-1 min-w-0">
+          {/* SCHOOL FILTER (SuperAdmin only) */}
+          {role === "superAdmin" && (
+            <Combobox
+              items={schoolItems}
+              value={filterSchoolId}
+              onValueChange={(val) => {
+                setFilterSchoolId(val || undefined);
+                setFilterBranchId(undefined);
+                setFilterRouteId(undefined);
+                if (val) {
+                  setShouldFetchBranches(true);
+                }
+              }}
+              onOpenChange={(open) => {
+                if (open && !shouldFetchSchools) {
+                  setShouldFetchSchools(true);
+                }
+              }}
+              placeholder="Filter School"
+              searchPlaceholder="Search School..."
+              className="cursor-pointer"
+              width="w-[150px]"
+              emptyMessage={schoolsLoading ? "Loading..." : "No schools found"}
+            />
+          )}
+
+          {/* BRANCH FILTER */}
+          {(role === "superAdmin" ||
+            role === "school" ||
+            role === "branchGroup") && (
+            <Combobox
+              items={branchItems}
+              value={filterBranchId}
+              onValueChange={(val) => {
+                setFilterBranchId(val || undefined);
+                setFilterRouteId(undefined);
+                if (val) {
+                  setShouldFetchRoutes(true);
+                }
+              }}
+              onOpenChange={(open) => {
+                if (open && !shouldFetchBranches && filterSchoolId) {
+                  setShouldFetchBranches(true);
+                }
+              }}
+              placeholder="Filter Branch"
+              searchPlaceholder="Search Branch..."
+              className="cursor-pointer"
+              width="w-[150px]"
+              emptyMessage={
+                branchesLoading ? "Loading..." : "No branches found"
+              }
+              disabled={role === "superAdmin" && !filterSchoolId}
+            />
+          )}
+
+          {/* ROUTE FILTER */}
+          <Combobox
+            items={routeItems}
+            value={filterRouteId}
+            onValueChange={(val) => setFilterRouteId(val || undefined)}
+            onOpenChange={(open) => {
+              if (open && !shouldFetchRoutes && filterBranchId) {
+                setShouldFetchRoutes(true);
+              }
+            }}
+            placeholder="Filter Route"
+            searchPlaceholder="Search Route..."
+            className="cursor-pointer"
+            width="w-[150px]"
+            emptyMessage={routesLoading ? "Loading..." : "No routes found"}
+            disabled={!filterBranchId}
+          />
+
+          {/* CLEAR FILTERS BUTTON */}
+          {hasActiveFilters && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleClearFilters}
+              className="gap-2 shrink-0 cursor-pointer"
+            >
+              <X className="h-4 w-4" color="red" />
+            </Button>
+          )}
+        </div>
+
+        {/* Action Buttons */}
+        {role === "superAdmin" && (
+          <div className="flex gap-3 items-center ml-auto">
+            <Button
+              onClick={() => setShowUploadDialog(true)}
+              size="sm"
+              variant="outline"
+              className="cursor-pointer shrink-0 whitespace-nowrap gap-2"
+            >
+              <Upload className="h-4 w-4" />
+              Bulk Upload
+            </Button>
+
+            <Button
+              onClick={handleAddDevice}
+              size="sm"
+              className="cursor-pointer shrink-0 whitespace-nowrap"
+            >
+              Add Device
+            </Button>
           </div>
         )}
-      </header>
+      </div>
 
-      <section>{tableElement}</section>
-
-      {deleteTarget && (
-        <Alert<Device>
-          title="Are you sure?"
-          description={`This will permanently delete ${deleteTarget.name}.`}
-          actionButton={(target) => {
-            deleteDeviceMutation.mutate(target);
-            setDeleteTarget(null);
-          }}
-          target={deleteTarget}
-          setTarget={setDeleteTarget}
-          butttonText="Delete"
-        />
+      {/* RESULTS COUNT */}
+      {hasActiveFilters && (
+        <div className="text-sm text-muted-foreground mb-2">
+          {total} device{total !== 1 ? "s" : ""} found
+          {searchInput && ` matching "${searchInput}"`}
+        </div>
       )}
 
-      {editTarget && (
-        <DynamicEditDialog
-          data={editTarget}
-          isOpen={editDialogOpen}
-          onClose={() => {
-            setEditDialogOpen(false);
-            setEditTarget(null);
-            setSelectedSchoolId(null);
-            setSelectedBranchId(null);
-          }}
-          onSave={(data) => {
-            console.log("Data from dialog:", data); // ✅ Check this
-            console.log("EditTarget state:", editTarget); // ✅ Compare with this
-            updateDeviceMutation.mutate({
-              device: editTarget,
-              data: {
-                ...data,
-                driver: data.driver?._id || data.driver, // ✅ Extract just the ID
-                schoolId: data.schoolId?._id || data.schoolId,
-                branchId: data.branchId?._id || data.branchId,
-                routeNo: data.routeNo?._id || data.routeNo,
-              },
-            });
-          }}
-          fields={deviceEditFieldConfigs}
-          title="Edit Device"
-          description="Update the device information below."
-          onFieldChange={handleFieldChange}
-        />
-      )}
+      {/* TABLE */}
+      <div className="flex-1 min-h-0 pb-3">{tableElement}</div>
 
-      <FloatingMenu
-        onExportPdf={() =>
-          exportToPDF(devicesData?.devices, columns, {
-            title: "All Devices Data",
-            companyName: "Parents Eye",
-          })
-        }
-        onExportExcel={() =>
-          exportToExcel(devicesData?.devices, columns, {
-            title: "All Devices Data",
-            companyName: "Parents Eye",
-          })
-        }
+      {/* ADD/EDIT DEVICE DIALOG */}
+      <AddDeviceForm
+        open={isDialogOpen}
+        onOpenChange={handleDialogClose}
+        editData={editDevice}
+        pagination={pagination}
+        sorting={sorting}
+        filters={filters}
       />
+      {/* EXCEL UPLOAD DIALOG */}
+      <Dialog open={showUploadDialog} onOpenChange={setShowUploadDialog}>
+        <DialogContent className="max-w-2xl">
+          <ExcelUploader
+            schools={schools}
+            branches={allBranches}
+            onFileUpload={handleExcelUpload}
+            role={role}
+            tokenBranchGroupSchoolId={tokenBranchGroupSchoolId}
+            tokenBranchId={tokenBranchId}
+            tokenSchoolId={tokenSchoolId}
+            csvContent={childCsvContent}
+            requiredHeaders={requiredHeaders}
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

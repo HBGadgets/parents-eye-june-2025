@@ -1,125 +1,155 @@
-// useStudents.ts - Fixed version with proper search and filters support
+"use client";
 
-import { useQuery } from "@tanstack/react-query";
 import {
-  PaginationState,
-  SortingState,
-} from "@/components/ui/customTable(serverSidePagination)";
-import { Student } from "@/interface/modal";
-import { api } from "@/services/apiService";
+  useQuery,
+  useMutation,
+  useQueryClient,
+  keepPreviousData,
+} from "@tanstack/react-query";
+import { studentService } from "@/services/api/studentService";
+import { PaginationState, SortingState } from "@tanstack/react-table";
+import { toast } from "sonner";
 
-interface StudentResponse {
-  students?: Student[];
-  children?: Student[];
-  total?: number;
-  totalCount?: number;
-  page: number;
-  limit: number;
-  pagination?: {
-    total: number;
-  };
-}
+export const useStudent = (
+  pagination: PaginationState,
+  sorting: SortingState,
+  filters: Record<string, any>
+) => {
+  const queryClient = useQueryClient();
 
-interface StudentFilters {
-  search?: string;
-  schoolId?: string;
-  branchId?: string;
-  routeObjId?: string;
-  pickupGeoId?: string;
-  dropGeoId?: string;
-}
-
-interface UseStudentsParams {
-  pagination: PaginationState;
-  sorting: SortingState;
-  filters?: StudentFilters;
-}
-
-const fetchStudents = async ({
-  pagination,
-  sorting,
-  filters,
-}: UseStudentsParams): Promise<StudentResponse> => {
-  const params = new URLSearchParams({
-    page: (pagination.pageIndex + 1).toString(),
-    limit: pagination.pageSize.toString(),
-  });
-
-  // Add search parameter (supports student name, age, class, section)
-  if (filters?.search?.trim()) {
-    params.append("search", filters.search.trim());
-  }
-
-  // Add filter parameters
-  if (filters?.schoolId) {
-    params.append("schoolId", filters.schoolId);
-  }
-
-  if (filters?.branchId) {
-    params.append("branchId", filters.branchId);
-  }
-
-  if (filters?.routeObjId) {
-    params.append("routeObjId", filters.routeObjId);
-  }
-
-  if (filters?.pickupGeoId) {
-    params.append("pickupGeoId", filters.pickupGeoId);
-  }
-
-  if (filters?.dropGeoId) {
-    params.append("dropGeoId", filters.dropGeoId);
-  }
-
-  // Add sorting parameters
-  if (sorting.length > 0) {
-    const sort = sorting[0];
-    params.append("sortBy", sort.id);
-    params.append("sortOrder", sort.desc ? "desc" : "asc");
-  }
-
-  try {
-    const response = await api.get(`/child?${params.toString()}`);
-
-    // Handle different response structures
-    if (response?.children || response?.students) {
-      return response;
-    }
-
-    // If response has .data like Axios
-    if (response?.data?.children || response?.data?.students) {
-      return response.data;
-    }
-
-    throw new Error("Unexpected API response format");
-  } catch (error) {
-    console.error("API Error:", error);
-    throw new Error(
-      error instanceof Error
-        ? `Failed to fetch students: ${error.message}`
-        : "Failed to fetch students"
-    );
-  }
-};
-
-export const useStudents = ({
-  pagination,
-  sorting,
-  filters = {},
-}: UseStudentsParams) => {
-  return useQuery({
+  const getStudentsQuery = useQuery({
     queryKey: [
       "students",
       pagination.pageIndex,
       pagination.pageSize,
-      sorting.map((s) => `${s.id}-${s.desc ? "desc" : "asc"}`).join(","),
-      JSON.stringify(filters),
+      sorting,
+      filters.search,
+      filters.schoolId,
+      filters.branchId,
+      filters.routeObjId,
     ],
-    queryFn: () => fetchStudents({ pagination, sorting, filters }),
-    keepPreviousData: true,
-    staleTime: 30000, 
+    queryFn: () =>
+      studentService.getStudents({
+        page: pagination.pageIndex + 1,
+        limit: pagination.pageSize,
+        search: filters.search,
+        branchId: filters.branchId,
+        schoolId: filters.schoolId,
+        routeObjId: filters.routeObjId,
+      }),
+    placeholderData: keepPreviousData,
   });
-};
 
-// Export types for use in components
-export type { StudentFilters, UseStudentsParams, StudentResponse };
+  const exportExcelMutation = useMutation({
+    mutationFn: (params: Record<string, any>) =>
+      studentService.exportExcel(params),
+    onSuccess: (blob: Blob) => {
+      try {
+        // Create a temporary URL for the blob
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `Students_${
+          new Date().toISOString().split("T")[0]
+        }.xlsx`;
+
+        // Trigger download
+        document.body.appendChild(link);
+        link.click();
+
+        // Cleanup
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+
+        toast.success("Excel file downloaded successfully.");
+      } catch (error) {
+        toast.error("Failed to download file.");
+      }
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.message || "Export failed");
+    },
+  });
+
+  const exportPdfMutation = useMutation({
+    mutationFn: (params: Record<string, any>) =>
+      studentService.exportPDF(params),
+    onSuccess: (blob: Blob) => {
+      try {
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `Students_${
+          new Date().toISOString().split("T")[0]
+        }.xlsx`;
+
+        document.body.appendChild(link);
+        link.click();
+
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+
+        toast.success("PDF file downloaded successfully.");
+      } catch (error) {
+        toast.error("Failed to download PDF.");
+      }
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.message || "PDF failed");
+    },
+  });
+
+  const createStudentMutation = useMutation({
+    mutationFn: studentService.createStudent,
+    onSuccess: () => {
+      toast.success("Student created successfully");
+      queryClient.invalidateQueries({ queryKey: ["students"] });
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.message || "Create failed");
+    },
+  });
+
+  const updateStudentMutation = useMutation({
+    mutationFn: ({ id, payload }: any) =>
+      studentService.updateStudent(id, payload),
+    onSuccess: () => {
+      toast.success("Student updated successfully");
+      queryClient.invalidateQueries({ queryKey: ["students"] });
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.message || "Update failed");
+    },
+  });
+
+  const deleteStudentMutation = useMutation({
+    mutationFn: studentService.deleteStudent,
+    onSuccess: () => {
+      toast.success("Student deleted successfully");
+      queryClient.invalidateQueries({ queryKey: ["students"] });
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.message || "Delete failed");
+    },
+  });
+
+  return {
+    students: getStudentsQuery.data?.children || [],
+    total: getStudentsQuery.data?.total || 0,
+    isLoading: getStudentsQuery.isLoading,
+    isFetching: getStudentsQuery.isFetching,
+    isPlaceholderData: getStudentsQuery.isPlaceholderData,
+
+    createStudent: createStudentMutation.mutate,
+    updateStudent: updateStudentMutation.mutate,
+    deleteStudent: deleteStudentMutation.mutate,
+    exportExcel: exportExcelMutation.mutate,
+    exportPdf: exportPdfMutation.mutate,
+
+    isCreateLoading: createStudentMutation.isPending,
+    isUpdateLoading: updateStudentMutation.isPending,
+    isDeleteLoading: deleteStudentMutation.isPending,
+    isExcelExporting: exportExcelMutation.isPending,
+    isPdfExporting: exportPdfMutation.isPending,
+  };
+};

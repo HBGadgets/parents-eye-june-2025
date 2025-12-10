@@ -6,7 +6,7 @@ import { toast } from "sonner";
 interface DevicePayload {
   name: string;
   uniqueId: string;
-  id: number;
+  id?: number;
   phone: string;
   model: string;
   category: string;

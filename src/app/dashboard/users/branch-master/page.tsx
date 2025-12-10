@@ -1350,7 +1350,7 @@ export default function BranchMaster() {
         )}
       </section>
 
-      <section>
+      {/* <section>
         <FloatingMenu
           onExportPdf={() => {
             exportToPDF(filteredData, columnsForExport, {
@@ -1371,7 +1371,7 @@ export default function BranchMaster() {
             });
           }}
         />
-      </section>
+      </section> */}
     </main>
   );
 }

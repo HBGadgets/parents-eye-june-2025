@@ -1,4 +1,6 @@
 import React, { useState } from "react";
+import { Checkbox } from "./checkbox";
+
 import {
   useReactTable,
   getCoreRowModel,
@@ -53,17 +55,10 @@ export interface ColumnWrapConfig {
   minWidth?: string;
 }
 
-// Extend the meta property instead of the ColumnDef directly
-// declare module "@tanstack/react-table" {
-//   interface ColumnMeta<TData, TValue> {
-//     wrapConfig?: ColumnWrapConfig;
-//   }
-// }
-
 // Main props interface
 export interface DataTableProps<T> {
   data: T[];
-  columns: ColumnDef<T>[]; // Use standard ColumnDef
+  columns: ColumnDef<T>[];
   pagination: PaginationState;
   totalCount: number;
   loading?: boolean;
@@ -71,7 +66,7 @@ export interface DataTableProps<T> {
   onSortingChange?: (sorting: SortingState) => void;
   sorting?: SortingState;
   emptyMessage?: string;
-  pageSizeOptions?: number[];
+  pageSizeOptions?: (number | string)[];
   enableSorting?: boolean;
   manualSorting?: boolean;
   manualPagination?: boolean;
@@ -83,14 +78,17 @@ export interface DataTableProps<T> {
   onRowClick?: (row: T) => void;
   enableRowClick?: boolean;
 
-  // New wrapping options
+  // Wrapping options
   defaultTextWrap?: TextWrapOption;
   enableColumnWrapping?: boolean;
 
-  selectedRowId?: number | string | null; // ID of the currently selected row
-  getRowId?: (row: T) => number | string; // Function to extract ID from row data
-  getRowClassName?: (row: T, isSelected: boolean) => string; // Function to get custom row classes
-  selectedRowClassName?: string; // Default class for selected rows
+  selectedRowId?: number | string | null;
+  getRowId?: (row: T) => number | string;
+  getRowClassName?: (row: T, isSelected: boolean) => string;
+  selectedRowClassName?: string;
+
+  // Multi-select toggle
+  enableMultiSelect?: boolean;
 }
 
 export function CustomTableServerSidePagination<
@@ -119,10 +117,13 @@ export function CustomTableServerSidePagination<
   defaultTextWrap = "nowrap",
   enableColumnWrapping = true,
   selectedRowId = null,
-  getRowId = (row: T) => row.id || row.deviceId || row.key, // Default ID extraction
-}: // getRowClassName,
-// selectedRowClassName = "bg-blue-100 hover:bg-blue-200 border-l-4 border-blue-500",
-DataTableProps<T>) {
+  getRowId = (row: T) =>
+    (row as any)._id ||
+    (row as any).id ||
+    (row as any).deviceId ||
+    (row as any).key,
+  enableMultiSelect = false,
+}: DataTableProps<T>) {
   // Function to get wrapping classes based on wrap option
   const getWrapClasses = (wrapOption: TextWrapOption): string => {
     const baseClasses = "leading-relaxed";
@@ -156,25 +157,45 @@ DataTableProps<T>) {
     };
   };
 
-  // Create serial number column
+  // Optional selection column
+  const selectionColumn: ColumnDef<T> | null = enableMultiSelect
+    ? {
+        id: "select",
+        header: ({ table }) => (
+          <Checkbox
+            checked={table.getIsAllPageRowsSelected()}
+            onCheckedChange={(val) => table.toggleAllPageRowsSelected(!!val)}
+          />
+        ),
+        cell: ({ row }) => (
+          <Checkbox
+            checked={row.getIsSelected()}
+            onCheckedChange={(val) => row.toggleSelected(!!val)}
+            onClick={(e) => e.stopPropagation()}
+          />
+        ),
+        size: 40,
+        enableSorting: false,
+      }
+    : null;
+
+  // Serial number column
   const serialNumberColumn: ColumnDef<T> = {
     id: "serialNumber",
     header: serialNumberHeader,
-    cell: ({ row }) => {
-      const serialNumber =
-        pagination.pageIndex * pagination.pageSize + row.index + 1;
-      return <div className="text-center font-medium">{serialNumber}</div>;
-    },
+    cell: ({ row }) =>
+      pagination.pageIndex * pagination.pageSize + row.index + 1,
     enableSorting: false,
     enableHiding: false,
     size: 60,
     meta: {
-      wrapConfig: { wrap: "nowrap" }, // Serial numbers should never wrap
+      wrapConfig: { wrap: "nowrap" },
     },
   };
 
   const [internalColumnVisibility, setInternalColumnVisibility] =
     useState<VisibilityState>({});
+  const [rowSelection, setRowSelection] = useState({});
 
   // Use controlled visibility if provided, otherwise use internal state
   const currentColumnVisibility = columnVisibility ?? internalColumnVisibility;
@@ -182,7 +203,11 @@ DataTableProps<T>) {
     onColumnVisibilityChange ?? setInternalColumnVisibility;
 
   // Combine serial number column with user columns
-  const tableColumns = showSerialNumber
+  const tableColumns: ColumnDef<T>[] = enableMultiSelect
+    ? showSerialNumber
+      ? [selectionColumn!, serialNumberColumn, ...columns]
+      : [selectionColumn!, ...columns]
+    : showSerialNumber
     ? [serialNumberColumn, ...columns]
     : columns;
 
@@ -194,14 +219,17 @@ DataTableProps<T>) {
     manualSorting,
     manualPagination,
     enableSorting,
+    enableRowSelection: enableMultiSelect,
     state: {
       sorting,
       pagination,
       columnVisibility: currentColumnVisibility,
+      ...(enableMultiSelect ? { rowSelection } : {}),
     },
     onSortingChange,
     onPaginationChange,
     onColumnVisibilityChange: handleColumnVisibilityChange,
+    onRowSelectionChange: enableMultiSelect ? setRowSelection : undefined,
     pageCount: Math.ceil(totalCount / pagination.pageSize),
   });
 
@@ -224,29 +252,31 @@ DataTableProps<T>) {
   };
 
   // Helper function to check if a row is an expanded row
-  const isExpandedRow = (rowData: unknown) => {
-    return rowData.isLoading || rowData.isDetailTable || rowData.isEmpty;
+  const isExpandedRow = (rowData: any) => {
+    return rowData?.isLoading || rowData?.isDetailTable || rowData?.isEmpty;
   };
 
   // Row click handler
-  const handleRowClick = (row: unknown, event: React.MouseEvent) => {
+  const handleRowClick = (row: any, event: React.MouseEvent) => {
     const target = event.target as HTMLElement;
     const isInteractiveElement = target.closest(
       'button, a, input, select, [role="button"]'
     );
 
-    if (isInteractiveElement) {
-      return;
-    }
+    if (isInteractiveElement) return;
 
     if (enableRowClick && onRowClick && !isExpandedRow(row.original)) {
-      // console.log("Row clicked:", row.original);
-      onRowClick(row.original);
+      onRowClick(row.original as T);
     }
   };
 
+  const selectedRows = enableMultiSelect
+    ? table.getSelectedRowModel().rows.map((row) => getRowId(row.original as T))
+    : [];
+
   return {
     table,
+    selectedRows,
     tableElement: (
       <div className="space-y-4">
         <div className="border rounded-lg overflow-hidden">
@@ -316,7 +346,7 @@ DataTableProps<T>) {
                 <TableBody>
                   {table.getRowModel().rows?.length ? (
                     table.getRowModel().rows.map((row) => {
-                      const rowData = row.original;
+                      const rowData = row.original as T;
                       const isExpanded = isExpandedRow(rowData);
 
                       if (isExpanded) {
@@ -355,25 +385,6 @@ DataTableProps<T>) {
                       const isSelected =
                         selectedRowId !== null && rowId === selectedRowId;
 
-                      // Build row className
-                      // let rowClassName = `border-b transition-colors duration-200 ${
-                      //   enableRowClick && onRowClick ? "cursor-pointer" : ""
-                      // }`;
-
-                      // if (isSelected) {
-                      //   // Use custom className function or default selected className
-                      //   const selectedClass = getRowClassName
-                      //     ? getRowClassName(rowData, true)
-                      //     : selectedRowClassName;
-                      //   rowClassName += ` ${selectedClass}`;
-                      // } else {
-                      //   // Apply normal hover effects for non-selected rows
-                      //   const normalClass = getRowClassName
-                      //     ? getRowClassName(rowData, false)
-                      //     : "hover:bg-muted/50";
-                      //   rowClassName += ` ${normalClass}`;
-                      // }
-
                       return (
                         <TableRow
                           key={row.id}
@@ -381,13 +392,12 @@ DataTableProps<T>) {
                             enableRowClick && onRowClick ? "cursor-pointer" : ""
                           }`}
                           onClick={(event) => handleRowClick(row, event)}
-                          data-selected={isSelected} // Add data attribute for CSS targeting
-                          data-row-id={rowId} // Add row ID for debugging/testing
+                          data-selected={isSelected}
+                          data-row-id={rowId}
                         >
                           {row.getVisibleCells().map((cell) => {
-                            // Get column-specific wrap config from meta
                             const wrapConfig = enableColumnWrapping
-                              ? cell.column.columnDef.meta?.wrapConfig
+                              ? (cell.column.columnDef.meta as any)?.wrapConfig
                               : undefined;
 
                             const wrapOption =

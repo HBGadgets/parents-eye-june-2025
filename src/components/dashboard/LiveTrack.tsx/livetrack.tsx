@@ -15,7 +15,7 @@ import {
   DrawerTitle,
 } from "@/components/ui/drawer";
 import { useMediaQuery } from "usehooks-ts";
-import SingleDeviceLiveTrack from "./single-device-livetrack";
+// import SingleDeviceLiveTrack from "./single-device-livetrack";
 import "./styles.css";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useSingleDeviceData } from "@/hooks/livetrack/useLiveDeviceData";
@@ -25,6 +25,7 @@ import DataRefreshIndicator, {
 import { useReverseGeocode } from "@/hooks/useReverseGeocoding";
 import { calculateDistance } from "@/util/calculate-distance";
 import { FaMapMarkerAlt } from "react-icons/fa";
+import SingleDeviceLiveTrack from "./single-device-livetrack";
 
 interface Imei {
   imei?: string;

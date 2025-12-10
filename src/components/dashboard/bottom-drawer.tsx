@@ -28,7 +28,6 @@ export const BottomDrawer = ({
   handleOpenLiveTrack,
   handleHistoryClick,
 }: BottomDrawerProps) => {
-  console.log("BottomDrawer selectedDevice:", selectedDevice);
   return (
     <Drawer open={isDrawerOpen} onOpenChange={setIsDrawerOpen} modal={false}>
       <DrawerPortal>
@@ -84,12 +83,7 @@ export const BottomDrawer = ({
                 <button
                   className="rounded-sm text-black border border-black px-2 py-1 hover:bg-black hover:text-white transition-colors duration-200 cursor-pointer"
                   onClick={() => {
-                    console.log("on click track button: 💦💦💦");
                     if (selectedDevice?.uniqueId) {
-                      console.log(
-                        "on click track button [inside condition 😏]: 💦💦💦",
-                        selectedDevice?.uniqueId
-                      );
                       handleOpenLiveTrack(
                         selectedDevice?.uniqueId,
                         selectedDevice?.name

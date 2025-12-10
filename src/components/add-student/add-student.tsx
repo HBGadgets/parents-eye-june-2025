@@ -1,674 +1,776 @@
+"use client";
+
+import * as React from "react";
+import { Plus, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { useEffect, useState } from "react";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { DatePicker } from "../ui/datePicker";
-import { Eye, EyeOff } from "lucide-react";
-import { getDecodedToken } from "@/lib/jwt";
-import Cookies from "js-cookie";
-import { Combobox } from "../ui/combobox";
-import { useSchoolData } from "@/hooks/useSchoolData";
-import { useBranchData } from "@/hooks/useBranchData";
-import { School } from "@/interface/modal";
-import { useRouteData } from "@/hooks/useInfiniteRouteData";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Student } from "@/interface/modal";
+import { useRouteDropdown, useParentDropdown } from "@/hooks/useDropdown";
+import { Combobox } from "@/components/ui/combobox";
+import { useParent } from "@/hooks/useParents";
+import AddParentForm from "@/components/parent/AddParentForm";
+import { StudentCard } from "./StudentCard";
 
-type UserRole = "superAdmin" | "school" | "branchGroup" | "branch" | null;
+// ---------- TYPES ----------
 
-export function AddStudentForm() {
-  const [activeTab, setActiveTab] = useState<"parent" | "children">("parent");
-  const [showPassword, setShowPassword] = useState(false);
-  const [userRole, setUserRole] = useState<UserRole>(null);
-  const [selectedSchool, setSelectedSchool] = useState("");
-  const [selectedBranch, setSelectedBranch] = useState("");
-  const [selectedRoute, setSelectedRoute] = useState("");
+interface GeofenceSearchState {
+  pickup: string;
+  drop: string;
+}
 
-  // Add parent form state - controlled components
-  const [parentData, setParentData] = useState({
-    parentName: "",
-    username: "",
-    email: "",
-    mobileNo: "",
-    password: "",
+interface StudentFormData {
+  id: string;
+  childName: string;
+  rollNumber: string;
+  className: string;
+  section: string;
+  DOB: Date | undefined;
+  age: number | "";
+  gender: "male" | "female" | "";
+  routeObjId: string;
+  pickupGeoId: string;
+  dropGeoId: string;
+  pickupGeoName?: string;
+  dropGeoName?: string;
+  routeName?: string;
+}
+
+interface Props {
+  onSubmit: (data: {
+    parentId: string;
+    children: {
+      childName: string;
+      rollNumber: string;
+      className: string;
+      section: string;
+      DOB: string;
+      age: number;
+      gender: string;
+      routeObjId: string;
+      pickupGeoId: string;
+      dropGeoId: string;
+    }[];
+  }) => void;
+
+  onClose: () => void;
+  initialData?: Student | null;
+
+  schools: { _id: string; schoolName: string }[];
+  branches: { _id: string; branchName: string }[];
+
+  selectedSchoolId?: string;
+  selectedBranchId?: string;
+
+  onSchoolChange?: (id?: string) => void;
+  onBranchChange?: (id?: string) => void;
+
+  decodedToken?: {
+    role: string;
+    schoolId?: string;
+    id?: string;
+    branchId?: string;
+  };
+}
+
+// ---------- HELPERS ----------
+
+const createEmptyStudent = (): StudentFormData => ({
+  id: crypto.randomUUID(),
+  childName: "",
+  rollNumber: "",
+  className: "",
+  section: "",
+  DOB: undefined,
+  age: "",
+  gender: "",
+  routeObjId: "",
+  pickupGeoId: "",
+  dropGeoId: "",
+  pickupGeoName: "",
+  dropGeoName: "",
+  routeName: "",
+});
+
+const calculateAge = (dob: Date): number => {
+  const today = new Date();
+  let age = today.getFullYear() - dob.getFullYear();
+  const monthDiff = today.getMonth() - dob.getMonth();
+
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dob.getDate())) {
+    age--;
+  }
+
+  return age;
+};
+
+const formatDateForSubmission = (date: Date): string => {
+  const year = date.toLocaleString("en-CA", {
+    timeZone: "Asia/Kolkata",
+    year: "numeric",
+  });
+  const month = date.toLocaleString("en-CA", {
+    timeZone: "Asia/Kolkata",
+    month: "2-digit",
+  });
+  const day = date.toLocaleString("en-CA", {
+    timeZone: "Asia/Kolkata",
+    day: "2-digit",
   });
 
-  const [children, setChildren] = useState([
-    {
-      childName: "",
-      className: "",
-      section: "",
-      DOB: undefined as Date | undefined,
-      age: "",
-      gender: "",
-      geofenceId: "",
-      routeObjId: "",
-    },
+  return `${year}-${month}-${day}`;
+};
+
+export default function AddStudentForm({
+  onSubmit,
+  onClose,
+  initialData,
+  schools,
+  branches,
+  selectedSchoolId,
+  selectedBranchId,
+  onSchoolChange,
+  onBranchChange,
+  decodedToken,
+}: Props) {
+  // State
+  const [students, setStudents] = React.useState<StudentFormData[]>([
+    createEmptyStudent(),
   ]);
-  const [datePickerStates, setDatePickerStates] = useState<boolean[]>([false]);
+  const [parentId, setParentId] = React.useState("");
+  const [parentName, setParentName] = React.useState("");
+  const [showAddParent, setShowAddParent] = React.useState(false);
+  const [parentSearch, setParentSearch] = React.useState("");
+  const [parentOpen, setParentOpen] = React.useState(false);
+  const [routeOpenStates, setRouteOpenStates] = React.useState<
+    Record<string, boolean>
+  >({});
+  const [geofenceSearches, setGeofenceSearches] = React.useState<
+    Record<string, GeofenceSearchState>
+  >({});
 
-  const { data: schoolData } = useSchoolData();
-  const { data: branchData } = useBranchData();
-  const { data: routeData } = useRouteData();
+  const isEditMode = !!initialData;
+  const hasInitialized = React.useRef(false);
 
-  // Handle parent input changes
-  const handleParentInputChange = (
-    field: keyof typeof parentData,
-    value: string
-  ) => {
-    setParentData((prev) => ({
-      ...prev,
-      [field]: value,
-    }));
-  };
+  // DROPDOWNS
+  const anyRouteOpen = Object.values(routeOpenStates).some((isOpen) => isOpen);
+  const { data: routes = [], isLoading: isLoadingRoutes } = useRouteDropdown(
+    selectedBranchId,
+    anyRouteOpen
+  );
 
-  const addSibling = () => {
-    setChildren([
-      ...children,
-      {
-        childName: "",
-        className: "",
-        section: "",
-        DOB: undefined,
-        age: "",
-        gender: "",
-        geofenceId: "",
-        routeObjId: "",
-      },
-    ]);
-    setDatePickerStates([...datePickerStates, false]);
-  };
+  const {
+    data: parentPages,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    isLoading: parentsLoading,
+  } = useParentDropdown(selectedBranchId, parentSearch, parentOpen);
 
-  const removeSibling = (index: number) => {
-    if (children.length > 1) {
-      setChildren(children.filter((_, i) => i !== index));
-      setDatePickerStates(datePickerStates.filter((_, i) => i !== index));
-    }
-  };
+  const parentHook = useParent({ pageIndex: 0, pageSize: 10 }, [], {
+    search: "",
+    schoolId: selectedSchoolId,
+    branchId: selectedBranchId,
+  });
 
-  const updateChild = (
-    index: number,
-    field: string,
-    value: string | Date | undefined
-  ) => {
-    const updatedChildren = [...children];
-    updatedChildren[index] = { ...updatedChildren[index], [field]: value };
-    setChildren(updatedChildren);
-  };
+  const parents = React.useMemo(
+    () => parentPages?.pages.flatMap((p: any) => p.data || []) ?? [],
+    [parentPages]
+  );
 
-  // Transform school data for Combobox
-  const schoolMetaData = schoolData?.map((item) => ({
-    value: item._id,
-    label: item.schoolName,
-  }));
+  const decodedTokenRole = decodedToken?.role;
+  const tokenSchoolId =
+    decodedTokenRole === "school" || decodedTokenRole === "branchGroup"
+      ? decodedToken?.id
+      : decodedToken?.schoolId;
+  const tokenBranchId =
+    decodedTokenRole === "branch" ? decodedToken?.id : decodedToken?.branchId;
 
-  // Transform branch data for Combobox
-  const branchMetaData = branchData
-    ?.filter((branch) =>
-      userRole === "superAdmin"
-        ? branch?.schoolId?._id === selectedSchool
-        : true
-    )
-    .map((branch) => ({
-      value: branch._id,
-      label: branch.branchName,
-    }));
-
-  // Transform route data for Combobox
-  const routeMetaData = routeData
-    ?.filter((route) =>
-      userRole === "superAdmin" || userRole === "school"
-        ? route?.branchId?._id === selectedBranch
-        : true
-    )
-    .map((route) => ({
-      value: route._id,
-      label: route.routeNumber,
-    }));
-
-  const setDatePickerOpen = (index: number, open: boolean) => {
-    const newStates = [...datePickerStates];
-    newStates[index] = open;
-    setDatePickerStates(newStates);
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-
-    // Helper function to remove empty string fields from an object
-    const removeEmptyFields = (obj: Record<string, any>) => {
-      return Object.fromEntries(
-        Object.entries(obj).filter(([key, value]) => {
-          // Keep field if it's not an empty string and not null/undefined
-          return value !== "" && value != null;
-        })
-      );
-    };
-
-    // If we're on the parent tab, validate and switch to children tab
-    if (activeTab === "parent") {
-      // Validate parent data using state instead of FormData
-      const { parentName, username, email, mobileNo, password } = parentData;
-
-      // Basic validation
-      if (!parentName || !username || !password) {
-        alert("Please fill in all parent information fields");
-        return;
-      }
-
-      // Role-based validation
-      if (userRole === "superAdmin" && (!selectedSchool || !selectedBranch)) {
-        alert("Please select both school and branch");
-        return;
-      }
-
-      if (
-        (userRole === "branchGroup" || userRole === "school") &&
-        !selectedBranch
-      ) {
-        alert("Please select a branch");
-        return;
-      }
-
-      // Switch to children tab
-      setActiveTab("children");
-      return;
-    }
-
-    // If we're on the children tab, submit the form
-    if (activeTab === "children") {
-      // Filter out children with empty required fields
-      const validChildren = children.filter((child) => {
-        // Define required fields - add/remove fields as needed
-        const requiredFields = [
-          "childName",
-          "geofenceId",
-          "RouteObjId",
-          // Uncomment additional required fields as needed:
-          // 'className',
-          // 'section',
-          // 'age',
-          // 'gender'
-        ];
-
-        // Check if all required fields are filled
-        return requiredFields.every((field) => {
-          const value = child[field as keyof typeof child];
-          return value && value.toString().trim() !== "";
-        });
+  // ✅ FIX: Sync both geofenceSearch AND routeOpenStates in the SAME useEffect
+  React.useEffect(() => {
+    setGeofenceSearches((prev) => {
+      const next: Record<string, GeofenceSearchState> = {};
+      students.forEach((student) => {
+        next[student.id] = prev[student.id] ?? { pickup: "", drop: "" };
       });
-
-      // Check if we have at least one valid child
-      if (validChildren.length === 0) {
-        alert("Please fill in all required fields for at least one child");
-        return;
-      }
-
-      // Convert dates to strings for submission and add route info
-      const childrenData = validChildren.map((child) => {
-        const childWithRoute = {
-          ...child,
-          DOB: child.DOB ? child.DOB.toISOString().split("T")[0] : "",
-          routeObjId: selectedRoute, // Use the selected route
-        };
-
-        // Remove empty string fields from each child
-        return removeEmptyFields(childWithRoute);
-      });
-
-      // Prepare parent data with school/branch info
-      const parentWithIds = {
-        ...parentData,
-        schoolId: selectedSchool,
-        branchId: selectedBranch,
-      };
-
-      // Remove empty string fields from parent data
-      const cleanParentData = removeEmptyFields(parentWithIds);
-
-      const formSubmissionData = {
-        parent: cleanParentData,
-        children: childrenData,
-      };
-
-      console.log("Form submitted:", formSubmissionData);
-
-      // Show info about how many children were included
-      const totalChildren = children.length;
-      const validChildrenCount = validChildren.length;
-      const skippedChildren = totalChildren - validChildrenCount;
-
-      let successMessage = `${validChildrenCount} child${
-        validChildrenCount > 1 ? "ren" : ""
-      } added successfully!`;
-
-      if (skippedChildren > 0) {
-        successMessage += ` ${skippedChildren} incomplete child record${
-          skippedChildren > 1 ? "s were" : " was"
-        } skipped.`;
-      }
-
-      // Add your actual form submission logic here
-      // Example: await submitStudentForm(formSubmissionData);
-
-      // Show success message and reset form
-      alert(successMessage);
-      resetForm();
-    }
-  };
-
-  const resetForm = () => {
-    setActiveTab("parent");
-    setParentData({
-      parentName: "",
-      username: "",
-      email: "",
-      mobileNo: "",
-      password: "",
+      return next;
     });
-    setChildren([
-      {
-        childName: "",
-        className: "",
-        section: "",
-        DOB: undefined,
-        age: "",
-        gender: "",
-        geofenceId: "",
-        routeObjId: "",
-      },
-    ]);
-    setDatePickerStates([false]);
-    setSelectedSchool("");
-    setSelectedBranch("");
-    setSelectedRoute("");
-  };
 
-  useEffect(() => {
-    const token = Cookies.get("token");
-    const decoded = token ? getDecodedToken(token) : null;
-    const role = decoded?.role;
+    // ✅ MOVED INSIDE useEffect
+    setRouteOpenStates((prev) => {
+      const next: Record<string, boolean> = {};
+      students.forEach((student) => {
+        next[student.id] = prev[student.id] ?? false;
+      });
+      return next;
+    });
+  }, [students]);
+
+  React.useEffect(() => {
+    if (isEditMode || hasInitialized.current) return;
 
     if (
-      typeof role === "string" &&
-      ["superAdmin", "school", "branchGroup", "branch"].includes(role)
+      (decodedTokenRole === "school" || decodedTokenRole === "branchGroup") &&
+      tokenSchoolId
     ) {
-      setUserRole(role as UserRole);
+      onSchoolChange?.(tokenSchoolId);
+    }
+    if (decodedTokenRole === "branch" && tokenBranchId) {
+      onBranchChange?.(tokenBranchId);
+    }
+
+    hasInitialized.current = true;
+  }, [
+    decodedTokenRole,
+    tokenSchoolId,
+    tokenBranchId,
+    isEditMode,
+    onSchoolChange,
+    onBranchChange,
+  ]);
+
+  // PREFILL EDIT DATA
+  React.useEffect(() => {
+    if (!initialData) return;
+
+    const raw: any = initialData;
+    const dobDate = raw.DOB ? new Date(raw.DOB) : undefined;
+
+    const extractedParentName = raw?.parentId?.parentName || "";
+    const routeNumber = raw?.routeObjId?.routeNumber || "";
+    const pickupGeofenceName = raw?.pickupGeoId?.geofenceName || "";
+    const dropGeofenceName = raw?.dropGeoId?.geofenceName || "";
+
+    const studentId = crypto.randomUUID();
+
+    setStudents([
+      {
+        id: studentId,
+        childName: initialData.childName,
+        rollNumber: raw.rollNumber || "",
+        className: initialData.className,
+        section: initialData.section,
+        DOB: dobDate,
+        age: initialData.age,
+        gender: raw.gender || "",
+        routeObjId: raw?.routeObjId?._id || raw?.routeId?._id || "",
+        pickupGeoId: raw?.pickupGeoId?._id || "",
+        dropGeoId: raw?.dropGeoId?._id || "",
+        pickupGeoName: pickupGeofenceName,
+        dropGeoName: dropGeofenceName,
+        routeName: routeNumber,
+      },
+    ]);
+
+    if (raw?.parentId?._id) {
+      setParentId(raw.parentId._id);
+      setParentName(extractedParentName);
+    }
+
+    setParentSearch("");
+    setGeofenceSearches({
+      [studentId]: {
+        pickup: "",
+        drop: "",
+      },
+    });
+  }, [initialData]);
+
+  // RESET ON SCHOOL CHANGE
+  const prevSchoolId = React.useRef<string | undefined>();
+  React.useEffect(() => {
+    if (isEditMode) return;
+
+    if (prevSchoolId.current && prevSchoolId.current !== selectedSchoolId) {
+      onBranchChange?.(undefined);
+      setStudents((prev) =>
+        prev.map((student) => ({
+          ...student,
+          routeObjId: "",
+          pickupGeoId: "",
+          dropGeoId: "",
+          routeName: "",
+          pickupGeoName: "",
+          dropGeoName: "",
+        }))
+      );
+      setParentId("");
+      setParentName("");
+      setParentSearch("");
+    }
+
+    prevSchoolId.current = selectedSchoolId;
+  }, [selectedSchoolId, isEditMode, onBranchChange]);
+
+  // RESET ON BRANCH CHANGE
+  const prevBranchId = React.useRef<string | undefined>();
+  React.useEffect(() => {
+    if (isEditMode) return;
+
+    if (prevBranchId.current && prevBranchId.current !== selectedBranchId) {
+      setStudents((prev) =>
+        prev.map((student) => ({
+          ...student,
+          routeObjId: "",
+          pickupGeoId: "",
+          dropGeoId: "",
+          routeName: "",
+          pickupGeoName: "",
+          dropGeoName: "",
+        }))
+      );
+      setParentId("");
+      setParentName("");
+      setParentSearch("");
+    }
+
+    prevBranchId.current = selectedBranchId;
+  }, [selectedBranchId, isEditMode]);
+
+  // HANDLERS
+
+  const handleAddSibling = React.useCallback(() => {
+    setStudents((prev) => [...prev, createEmptyStudent()]);
+  }, []);
+
+  const handleRemoveSibling = React.useCallback((id: string) => {
+    setStudents((prev) => {
+      if (prev.length === 1) return prev;
+      return prev.filter((student) => student.id !== id);
+    });
+
+    setGeofenceSearches((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+
+    setRouteOpenStates((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+  }, []);
+
+  const handleStudentChange = React.useCallback(
+    (id: string, field: keyof StudentFormData, value: any) => {
+      setStudents((prev) =>
+        prev.map((student) => {
+          if (student.id !== id) return student;
+
+          if (field === "routeObjId") {
+            return {
+              ...student,
+              routeObjId: value,
+              pickupGeoId: "",
+              dropGeoId: "",
+              pickupGeoName: "",
+              dropGeoName: "",
+            };
+          }
+
+          return { ...student, [field]: value };
+        })
+      );
+    },
+    []
+  );
+
+  const handleDOBChange = React.useCallback(
+    (id: string, date: Date | undefined) => {
+      if (!date) {
+        handleStudentChange(id, "DOB", undefined);
+        handleStudentChange(id, "age", "");
+        return;
+      }
+
+      const age = calculateAge(date);
+      setStudents((prev) =>
+        prev.map((student) =>
+          student.id === id ? { ...student, DOB: date, age } : student
+        )
+      );
+    },
+    [handleStudentChange]
+  );
+
+  const handleGeofenceSearchChange = React.useCallback(
+    (studentId: string, type: "pickup" | "drop", value: string) => {
+      setGeofenceSearches((prev) => ({
+        ...prev,
+        [studentId]: {
+          ...(prev[studentId] ?? { pickup: "", drop: "" }),
+          [type]: value,
+        },
+      }));
+    },
+    []
+  );
+
+  const handleRouteOpenChange = React.useCallback(
+    (studentId: string, open: boolean) => {
+      setRouteOpenStates((prev) => ({
+        ...prev,
+        [studentId]: open,
+      }));
+    },
+    []
+  );
+
+  const handleParentChange = React.useCallback(
+    (val?: string) => {
+      if (!val) {
+        setParentId("");
+        setParentName("");
+        return;
+      }
+
+      const parent = parentItems.find((item) => item.value === val);
+      setParentId(val);
+      setParentName(parent?.label || "");
+    },
+    [parents]
+  );
+
+  const handleParentOpenChange = React.useCallback((open: boolean) => {
+    setParentOpen(open);
+    if (open) {
+      setParentSearch("");
     }
   }, []);
 
+  const handleSave = React.useCallback(() => {
+    // --- 1️⃣ Validate each student ---
+    for (const student of students) {
+      const requiredFields = [
+        "childName",
+        "routeObjId",
+        "pickupGeoId",
+        "dropGeoId",
+      ];
+
+      for (const field of requiredFields) {
+        if (!student[field]) {
+          alert("All student fields are required");
+          return;
+        }
+      }
+    }
+
+    // --- 2️⃣ Role-based validation ---
+    let errorMessage = "";
+
+    switch (decodedTokenRole) {
+      case "superAdmin":
+        if (!selectedSchoolId || !selectedBranchId || !parentId)
+          errorMessage = "School, Branch, and Parent are required.";
+        break;
+
+      case "school":
+      case "branchGroup":
+        if (!selectedBranchId || !parentId)
+          errorMessage = "Branch and Parent are required.";
+        break;
+
+      case "branch":
+        if (!parentId) errorMessage = "Parent is required.";
+        break;
+
+      default:
+        errorMessage = "Invalid role.";
+    }
+
+    if (errorMessage) {
+      alert(errorMessage);
+      return;
+    }
+
+    // --- 3️⃣ Utility: remove empty / undefined fields from object ---
+    const cleanObject = (obj) =>
+      Object.fromEntries(
+        Object.entries(obj).filter(
+          ([, value]) => value !== "" && value !== null && value !== undefined
+        )
+      );
+
+    // --- 4️⃣ Build child payload formatter ---
+    const formatChild = (student: Student) => {
+      const hasDOB = Boolean(student.DOB);
+
+      const formatted = {
+        childName: student.childName,
+        rollNumber: student.rollNumber,
+        className: student.className,
+        section: student.section,
+        gender: student.gender,
+        routeObjId: student.routeObjId,
+        pickupGeoId: student.pickupGeoId,
+        dropGeoId: student.dropGeoId,
+      };
+
+      if (hasDOB) {
+        formatted.DOB = formatDateForSubmission(student.DOB).split("T")[0];
+
+        if (student.age) {
+          formatted.age = Number(student.age);
+        }
+      }
+
+      return cleanObject(formatted);
+    };
+
+    let submissionData;
+
+    if (isEditMode) {
+      const student = students[0];
+
+      submissionData = cleanObject({
+        parentId,
+        ...formatChild(student),
+      });
+    } else {
+      submissionData = cleanObject({
+        parentId,
+        children: students.map(formatChild),
+      });
+    }
+
+    // --- 6️⃣ Submit final cleaned payload ---
+    onSubmit(submissionData);
+  }, [
+    students,
+    parentId,
+    selectedSchoolId,
+    selectedBranchId,
+    decodedTokenRole,
+    isEditMode,
+    onSubmit,
+  ]);
+
+  // ITEMS
+
+  const schoolItems = React.useMemo(
+    () =>
+      schools.map((s) => ({
+        value: s._id,
+        label: s.schoolName,
+      })),
+    [schools]
+  );
+
+  const branchItems = React.useMemo(
+    () =>
+      branches.map((b) => ({
+        value: b._id,
+        label: b.branchName,
+      })),
+    [branches]
+  );
+
+  const parentItems = React.useMemo(() => {
+    const items = parents.map((p: any) => ({
+      value: p._id,
+      label: p.parentName,
+    }));
+
+    if (
+      parentId &&
+      parentName &&
+      !items.some((item) => item.value === parentId)
+    ) {
+      items.unshift({
+        value: parentId,
+        label: parentName,
+      });
+    }
+
+    return items;
+  }, [parents, parentId, parentName]);
+
+  const handleSchoolChange = React.useCallback(
+    (val?: string) => {
+      onSchoolChange?.(val);
+    },
+    [onSchoolChange]
+  );
+
+  const branchSelected = !!selectedBranchId;
+
+  // ---------- UI ----------
+
   return (
-    <Dialog onOpenChange={(open) => !open && resetForm()}>
-      <DialogTrigger asChild>
-        <button className="bg-yellow-400 hover:bg-yellow-500 text-[#733e0a] font-semibold py-2 px-4 rounded-md cursor-pointer">
-          Add Student
-        </button>
-      </DialogTrigger>
+    <>
+      <Card className="w-full max-w-[900px] shadow-xl mx-auto max-h-[90vh] overflow-y-auto">
+        <CardHeader>
+          <CardTitle>{initialData ? "Edit Student" : "Add Student"}</CardTitle>
+        </CardHeader>
 
-      <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-hidden flex flex-col">
-        <DialogHeader>
-          <DialogTitle>Add Student Information</DialogTitle>
-          <DialogDescription>
-            Choose to add parent information or children details. You can add
-            multiple siblings for child.
-          </DialogDescription>
-        </DialogHeader>
+        <CardContent className="space-y-6">
+          {/* SCHOOL / BRANCH / PARENT */}
+          <div className="space-y-4 pb-4 border-b">
+            {/* SCHOOL */}
+            {decodedTokenRole === "superAdmin" && (
+              <div className="space-y-1">
+                <label className="text-sm font-medium">School *</label>
+                <Combobox
+                  items={schoolItems}
+                  value={selectedSchoolId}
+                  onValueChange={handleSchoolChange}
+                  placeholder="Select School"
+                  searchPlaceholder="Search school..."
+                  emptyMessage="No schools found"
+                  width="w-full"
+                />
+              </div>
+            )}
 
-        <Tabs
-          value={activeTab}
-          onValueChange={(value) =>
-            setActiveTab(value as "parent" | "children")
-          }
-          className="flex-1 flex flex-col"
-        >
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger
-              value="parent"
-              className="flex items-center gap-2 cursor-pointer"
-            >
-              Parent
-            </TabsTrigger>
-            <TabsTrigger
-              value="children"
-              className="flex items-center gap-2 cursor-pointer"
-            >
-              Child
-            </TabsTrigger>
-          </TabsList>
+            {/* BRANCH */}
+            {(decodedTokenRole === "superAdmin" ||
+              decodedTokenRole === "school" ||
+              decodedTokenRole === "branchGroup") && (
+              <div className="space-y-1">
+                <label className="text-sm font-medium">Branch *</label>
+                <Combobox
+                  items={branchItems}
+                  value={selectedBranchId}
+                  onValueChange={onBranchChange}
+                  placeholder={
+                    selectedSchoolId ? "Select Branch" : "Select school first"
+                  }
+                  searchPlaceholder="Search branch..."
+                  emptyMessage="No branches found"
+                  width="w-full"
+                  disabled={!selectedSchoolId}
+                />
+              </div>
+            )}
 
-          <div className="flex-1 overflow-y-auto">
-            <form onSubmit={handleSubmit}>
-              <TabsContent value="parent" className="space-y-4 mt-4">
-                <div className="grid gap-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="grid gap-2">
-                      <Label htmlFor="parentName">Parent</Label>
-                      <Input
-                        id="parentName"
-                        name="parentName"
-                        value={parentData.parentName}
-                        onChange={(e) =>
-                          handleParentInputChange("parentName", e.target.value)
-                        }
-                        placeholder="Enter parent name"
-                        required
-                      />
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="username">Username</Label>
-                      <Input
-                        id="username"
-                        name="username"
-                        value={parentData.username}
-                        onChange={(e) =>
-                          handleParentInputChange("username", e.target.value)
-                        }
-                        placeholder="Enter username"
-                        required
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="grid gap-2">
-                      <Label htmlFor="email">Email</Label>
-                      <Input
-                        id="email"
-                        name="email"
-                        type="email"
-                        value={parentData.email}
-                        onChange={(e) =>
-                          handleParentInputChange("email", e.target.value)
-                        }
-                        placeholder="Enter email"
-                        required
-                      />
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="mobileNo">Mobile Number</Label>
-                      <Input
-                        id="mobileNo"
-                        name="mobileNo"
-                        value={parentData.mobileNo}
-                        onChange={(e) =>
-                          handleParentInputChange("mobileNo", e.target.value)
-                        }
-                        placeholder="Enter mobile number"
-                        required
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid gap-2">
-                    <Label htmlFor="password">Password</Label>
-                    <div className="relative">
-                      <Input
-                        id="password"
-                        name="password"
-                        type={showPassword ? "text" : "password"}
-                        value={parentData.password}
-                        onChange={(e) =>
-                          handleParentInputChange("password", e.target.value)
-                        }
-                        placeholder="Enter password"
-                        className="pr-10"
-                        required
-                      />
-                      <button
-                        type="button"
-                        className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-gray-600 cursor-pointer"
-                        onClick={() => setShowPassword(!showPassword)}
-                      >
-                        {showPassword ? (
-                          <EyeOff className="h-4 w-4" />
-                        ) : (
-                          <Eye className="h-4 w-4" />
-                        )}
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Role-based conditional rendering */}
-                  {userRole === "superAdmin" && (
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="grid gap-2">
-                        <Label htmlFor="schoolId">School</Label>
-                        <Combobox
-                          items={schoolMetaData || []}
-                          value={selectedSchool}
-                          onValueChange={setSelectedSchool}
-                          placeholder="Select a School..."
-                          emptyMessage="No schools found"
-                          width="w-[300px]"
-                        />
-                      </div>
-
-                      <div className="grid gap-2">
-                        <Label htmlFor="branchId">Branch</Label>
-                        <Combobox
-                          items={branchMetaData || []}
-                          value={selectedBranch}
-                          onValueChange={setSelectedBranch}
-                          placeholder="Select a Branch..."
-                          emptyMessage={
-                            selectedSchool
-                              ? "No branches found"
-                              : "Please select school"
-                          }
-                          width="w-[300px]"
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  {(userRole === "branchGroup" || userRole === "school") && (
-                    <div className="grid gap-2">
-                      <Label htmlFor="branchId">Branch</Label>
-                      <Combobox
-                        items={branchMetaData || []}
-                        value={selectedBranch}
-                        onValueChange={setSelectedBranch}
-                        placeholder="Select a Branch..."
-                        emptyMessage="No branches found"
-                        width="w-[300px]"
-                      />
-                    </div>
-                  )}
-                </div>
-              </TabsContent>
-
-              <TabsContent
-                value="children"
-                className="space-y-4 mt-4 h-[55vh] pr-4"
-              >
-                <div className="space-y-6">
-                  {children.map((child, index) => (
-                    <div
-                      key={index}
-                      className="border rounded-lg p-4 space-y-4 bg-gray-50"
-                    >
-                      <div className="flex justify-between items-center">
-                        <h4 className="font-medium text-lg">
-                          Child {index + 1}
-                        </h4>
-                        {children.length > 1 && (
-                          <Button
-                            type="button"
-                            variant="destructive"
-                            size="sm"
-                            onClick={() => removeSibling(index)}
-                            className="cursor-pointer"
-                          >
-                            ✕ Remove
-                          </Button>
-                        )}
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="grid gap-2">
-                          <Label htmlFor={`childName-${index}`}>
-                            Child Name
-                          </Label>
-                          <Input
-                            id={`childName-${index}`}
-                            value={child.childName}
-                            onChange={(e) =>
-                              updateChild(index, "childName", e.target.value)
-                            }
-                            placeholder="Enter child name"
-                            required
-                          />
-                        </div>
-                        <div className="grid gap-2">
-                          <Label htmlFor={`className-${index}`}>Class</Label>
-                          <Input
-                            id={`className-${index}`}
-                            value={child.className}
-                            onChange={(e) =>
-                              updateChild(index, "className", e.target.value)
-                            }
-                            placeholder="e.g., 12th"
-                            required
-                          />
-                        </div>
-                        <div className="grid gap-2">
-                          <Label htmlFor={`section-${index}`}>Section</Label>
-                          <Input
-                            id={`section-${index}`}
-                            value={child.section}
-                            onChange={(e) =>
-                              updateChild(index, "section", e.target.value)
-                            }
-                            placeholder="e.g., A"
-                            required
-                          />
-                        </div>
-                        <div className="grid gap-2">
-                          <DatePicker
-                            label="Date of Birth"
-                            open={datePickerStates[index] || false}
-                            setOpen={(open) => setDatePickerOpen(index, open)}
-                            date={child.DOB}
-                            setDate={(date) => updateChild(index, "DOB", date)}
-                            className="w-full"
-                          />
-                        </div>
-                        <div className="grid gap-2">
-                          <Label htmlFor={`age-${index}`}>Age</Label>
-                          <Input
-                            id={`age-${index}`}
-                            type="number"
-                            min={0}
-                            value={child.age}
-                            onChange={(e) =>
-                              updateChild(index, "age", e.target.value)
-                            }
-                            placeholder="Enter age"
-                            required
-                          />
-                        </div>
-                        <div className="grid gap-2">
-                          <Label htmlFor={`gender-${index}`}>Gender</Label>
-                          <Select
-                            value={child.gender}
-                            onValueChange={(value) =>
-                              updateChild(index, "gender", value)
-                            }
-                            required
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select gender" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="male">Male</SelectItem>
-                              <SelectItem value="female">Female</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="grid gap-2">
-                          <Label htmlFor={`routeObjId-${index}`}>
-                            Route Number
-                          </Label>
-                          <Combobox
-                            items={routeMetaData || []}
-                            value={selectedRoute}
-                            onValueChange={setSelectedRoute}
-                            placeholder="Select Route No. ..."
-                            emptyMessage={
-                              selectedBranch
-                                ? "No routes found"
-                                : "Please select branch"
-                            }
-                            width="w-[300px]"
-                          />
-                        </div>
-                        <div className="grid gap-2">
-                          <Label htmlFor={`geofenceId-${index}`}>
-                            Geofence
-                          </Label>
-                          <Input
-                            id={`geofenceId-${index}`}
-                            value={child.geofenceId}
-                            onChange={(e) =>
-                              updateChild(index, "geofenceId", e.target.value)
-                            }
-                            placeholder="Enter geofence"
-                            required
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={addSibling}
-                    className="w-full border-dashed border-2 py-6 text-gray-600 hover:text-gray-800 hover:bg-gray-50 cursor-pointer"
-                  >
-                    + Add Another Sibling
-                  </Button>
-                </div>
-              </TabsContent>
-            </form>
+            {/* PARENT */}
+            <div className="space-y-1">
+              <label className="text-sm font-medium">Parent *</label>
+              <div className="flex gap-2 items-center">
+                <Combobox
+                  items={parentItems}
+                  value={parentId}
+                  onValueChange={handleParentChange}
+                  placeholder={
+                    branchSelected ? "Select Parent" : "Select branch first"
+                  }
+                  searchPlaceholder="Search parent..."
+                  emptyMessage={
+                    parentsLoading ? "Loading parents..." : "No parents found"
+                  }
+                  width="w-[95%]"
+                  disabled={!branchSelected}
+                  onReachEnd={() => {
+                    if (hasNextPage && !isFetchingNextPage) {
+                      fetchNextPage();
+                    }
+                  }}
+                  isLoadingMore={isFetchingNextPage}
+                  searchValue={parentSearch}
+                  onSearchChange={setParentSearch}
+                  open={parentOpen}
+                  onOpenChange={handleParentOpenChange}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="shrink-0"
+                  disabled={!branchSelected}
+                  onClick={() => setShowAddParent(true)}
+                  title="Add Parent"
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
           </div>
-        </Tabs>
 
-        <DialogFooter className="pt-4">
-          <DialogClose asChild>
-            <Button variant="outline" className="cursor-pointer">
+          {/* STUDENTS / SIBLINGS */}
+          <div className="space-y-4">
+            {students.map((student, index) => (
+              <StudentCard
+                key={student.id}
+                student={student}
+                index={index}
+                routes={routes}
+                routeOpen={routeOpenStates[student.id] || false}
+                onRouteOpenChange={(open) =>
+                  handleRouteOpenChange(student.id, open)
+                }
+                isLoadingRoutes={isLoadingRoutes}
+                branchSelected={!!selectedBranchId}
+                geofenceSearch={
+                  geofenceSearches[student.id] || { pickup: "", drop: "" }
+                }
+                onStudentChange={handleStudentChange}
+                onDOBChange={handleDOBChange}
+                onGeofenceSearchChange={handleGeofenceSearchChange}
+                onRemoveSibling={handleRemoveSibling}
+                canRemove={students.length > 1 && !isEditMode}
+              />
+            ))}
+
+            {!isEditMode && (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleAddSibling}
+                className="w-full"
+                disabled={!branchSelected}
+              >
+                <UserPlus className="h-4 w-4 mr-2" />
+                Add Sibling
+              </Button>
+            )}
+          </div>
+
+          {/* ACTIONS */}
+          <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 pt-3 border-t cursor-pointer">
+            <Button
+              variant="outline"
+              onClick={onClose}
+              className="w-full sm:w-auto cursor-pointer"
+            >
               Cancel
             </Button>
-          </DialogClose>
-          <Button
-            type="submit"
-            onClick={handleSubmit}
-            className="hover:bg-yellow-500 text-[#733e0a] cursor-pointer"
-          >
-            {activeTab === "parent"
-              ? "Next"
-              : `Add ${children.length} Child${
-                  children.length > 1 ? "ren" : ""
-                }`}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+            <Button
+              onClick={handleSave}
+              className="w-full sm:w-auto cursor-pointer"
+            >
+              {initialData
+                ? "Update Student"
+                : students.length > 1
+                ? `Create ${students.length} Students`
+                : "Create Student"}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {showAddParent && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+          <AddParentForm
+            onClose={() => setShowAddParent(false)}
+            onSubmit={async (data) => {
+              const res = await parentHook.createParentAsync(data);
+              if (res?._id) {
+                setParentId(res._id);
+                setParentName(data.parentName || "");
+              }
+              setShowAddParent(false);
+            }}
+            schools={schools}
+            branches={branches}
+            selectedSchoolId={selectedSchoolId}
+            selectedBranchId={selectedBranchId}
+            onSchoolChange={onSchoolChange}
+            onBranchChange={onBranchChange}
+            decodedToken={decodedToken}
+          />
+        </div>
+      )}
+    </>
   );
 }

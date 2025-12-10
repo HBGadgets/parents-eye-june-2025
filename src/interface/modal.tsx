@@ -1,16 +1,4 @@
-export interface Student {
-  _id: string;
-  childName: string;
-  className: string;
-  section: string;
-  age: string;
-  geofenceId: Geofence;
-  parentId: Parent;
-  schoolId: School;
-  branchId: Branch;
-  statusOfRegister: string;
-  createdAt: string;
-}
+import { uniqueId } from "lodash";
 
 export interface School {
   _id: string;
@@ -42,38 +30,29 @@ export interface Branch {
 }
 
 export interface Device {
-  parkingMode: boolean;
-  toeingMode: boolean;
-  keyFeature: boolean;
-  TD: number;
-  TDTime: string;
   _id: string;
   name: string;
   uniqueId: string;
   sim: string;
   speed: string;
   average: string;
-  driver: string | null;
-  model: string;
-  category: string;
+  driver: Driver;
+  model: Model;
+  category: Category;
   deviceId: string;
-  routeNo: string;
-  status: string;
-  lastUpdate: string;
-  schoolId: {
-    _id: string;
-    schoolName: string;
-  };
-  branchId: {
-    _id: string;
-    branchName: string;
-  };
+  routeObjId: Route;
+  parkingMode: string;
+  toeingMode: string;
+  keyFeature: string;
+  TD: number;
+  TDTime: string;
+  schoolId: School;
+  branchId: Branch;
   createdAt: string;
   updatedAt: string;
-  __v?: number; // optional if not always provided
 }
 
-export interface DeviceResponse {
+export interface GetDeviceResponse {
   total: number;
   page: number;
   limit: number;
@@ -83,22 +62,27 @@ export interface DeviceResponse {
 export interface Geofence {
   _id: string;
   geofenceName: string;
-  area: string;
-  pickupTime: string;
-  dropTime: string;
-  isCrossed: boolean;
-  school: School | null;
-  schoolId: School | null;
-  branch: Branch | null;
-  branchId: Branch | null;
-  deviceObjId?: Device | null;
-  route: {
-    routeNumber: string;
-    device: Device | null;
+  area: {
+    center: [number, number];
+    radius: number;
   };
-  routeObjId?: Route | null;
-  createdAt?: string;
-  updatedAt?: string;
+  pickupTime?: string;
+  dropTime?: string;
+  schoolId?: string;
+  branchId?: string;
+  routeObjId?: string;
+  route?: Route;
+  school?: School;
+  branch?: Branch;
+  createdAt: string;
+}
+
+export interface GetGeofenceResponse {
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+  data: Geofence[];
 }
 
 export interface Parent {
@@ -108,17 +92,19 @@ export interface Parent {
   email: string;
   username: string;
   password: string;
-  schoolId?: {
-    _id: string;
-    schoolName: string;
-  };
-  branchId?: {
-    _id: string;
-    branchName: string;
-  };
+  schoolId?: School;
+  branchId?: Branch;
   isActive?: boolean;
   createdAt: string;
   updatedAt?: string;
+}
+
+export interface GetParentsResponse {
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+  data: Parent[];
 }
 
 export interface Driver {
@@ -136,6 +122,15 @@ export interface Driver {
   createdAt: string;
   updatedAt: string;
 }
+
+export interface GetDriverResponse {
+  page: number;
+  limit: number;
+  totalCount: number;
+  totalPages: number;
+  data: Driver[];
+}
+
 export interface Supervisor {
   isApproved: boolean;
   _id: string;
@@ -228,4 +223,55 @@ export interface GetRoutesResponse {
   page: number;
   limit: number;
   data: Route[];
+}
+
+export interface Student {
+  _id: string;
+  childName: string;
+  className: string;
+  section: string;
+  DOB: Date;
+  age: number;
+  gender: string;
+  rollNumber: string;
+  pickupGeoId: Geofence;
+  dropGeoId: Geofence;
+  routeObjId: Route;
+  parentId: Parent;
+  schoolId: School;
+  branchId: Branch;
+  statusOfRegister: string;
+  createdAt: string;
+}
+
+export interface GetStudentsResponse {
+  total: number;
+  page: number;
+  limit: number;
+  children: Student[];
+}
+
+export interface LiveTrack {
+  speed?: DoubleRange;
+  longitude?: DoubleRange;
+  latitude?: DoubleRange;
+  course?: number;
+  deviceId?: number;
+  uniqueId?: number;
+  attribute?: {
+    charge?: boolean;
+    ignition?: boolean;
+    motion?: boolean;
+    sat?: number;
+    distance?: number;
+    totalDistance?: DoubleRange;
+    todayDistance?: DoubleRange;
+  };
+  gsmSignal?: number;
+  batteryLevel?: number;
+  category?: string;
+  status?: string;
+  lastUpdate?: string;
+  name?: string;
+  fuelConsumption?: DoubleRange;
 }

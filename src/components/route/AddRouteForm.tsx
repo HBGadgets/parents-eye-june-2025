@@ -40,6 +40,16 @@ interface Props {
 
   onSchoolChange?: (id?: string) => void;
   onBranchChange?: (id?: string) => void;
+
+  shouldFetchDevices?: boolean;
+  onFetchDevices?: (value: boolean) => void;
+
+  isLoadingDevices?: boolean;
+  isLoadingRoutes?: boolean;
+  isCreating?: boolean;
+  isUpdating?: boolean;
+  isDeleting?: boolean;
+
   decodedToken?: {
     role: string;
     schoolId?: string;
@@ -60,6 +70,10 @@ export default function AddRouteForm({
   onSchoolChange,
   onBranchChange,
   decodedToken,
+  isLoadingDevices,
+  isCreating,
+  isUpdating,
+  onFetchDevices,
 }: Props) {
   const [routeNumber, setRouteNumber] = useState("");
   const [deviceObjId, setDeviceObjId] = useState("");
@@ -67,46 +81,72 @@ export default function AddRouteForm({
   const decodedTokenRole = decodedToken?.role;
   const tokenSchoolId =
     decodedToken?.role === "school" ? decodedToken?.id : decodedToken?.schoolId;
-
   const tokenBranchId = decodedToken?.id;
 
   useEffect(() => {
-    if (decodedTokenRole === "school" && tokenSchoolId) {
-      onSchoolChange?.(tokenSchoolId);
-    }
+    if (!initialData) {
+      if (decodedTokenRole === "school" && tokenSchoolId) {
+        onSchoolChange?.(tokenSchoolId);
+      }
 
-    if (decodedTokenRole === "branch" && tokenBranchId) {
-      onBranchChange?.(tokenBranchId);
+      if (decodedTokenRole === "branch" && tokenBranchId) {
+        onBranchChange?.(tokenBranchId);
+      }
     }
   }, []);
 
-  // ✅ PREFILL EDIT DATA
   useEffect(() => {
     if (initialData) {
-      setRouteNumber(initialData?.routeNumber);
+      setRouteNumber?.(initialData?.routeNumber);
+      setDeviceObjId?.(initialData?.deviceObjId?._id);
+
       onSchoolChange?.(initialData?.schoolId?._id);
       onBranchChange?.(initialData?.branchId?._id);
-      setDeviceObjId(initialData?.deviceObjId?._id);
-    }
-  }, [initialData]);
 
+      onFetchDevices?.(true);
+    } else {
+      // Reset form for new route
+      setRouteNumber("");
+      setDeviceObjId("");
+    }
+  }, [initialData, onSchoolChange, onBranchChange, onFetchDevices]);
+
+  // ✅ RESET DEVICE WHEN BRANCH CHANGES (only for new routes)
   useEffect(() => {
     if (!initialData) {
       setDeviceObjId("");
     }
-  }, [selectedBranchId]);
+  }, [selectedBranchId, initialData]);
 
   const handleSave = () => {
-    // if (
-    //   !routeNumber ||
-    //   !selectedSchoolId ||
-    //   !selectedBranchId ||
-    //   !deviceObjId
-    // ) {
-    //   // alert("All fields are required");
-    //   toast.warning("All fields are required");
-    //   return;
-    // }
+    if (!routeNumber || !deviceObjId) {
+      alert("Route number and device are required");
+      return;
+    }
+
+    switch (decodedTokenRole) {
+      case "superAdmin":
+        if (!selectedSchoolId || !selectedBranchId) {
+          alert("All fields are required");
+          return;
+        }
+        break;
+
+      case "school":
+      case "branchGroup":
+        if (!selectedBranchId || !selectedBranchId) {
+          alert("School andBranch is required");
+          return;
+        }
+        break;
+
+      case "branch":
+        break;
+
+      default:
+        alert("Invalid role");
+        return;
+    }
 
     onSubmit({
       routeNumber,
@@ -225,7 +265,13 @@ export default function AddRouteForm({
         {/* DEVICE */}
         <div>
           <label className="text-sm font-medium">Device *</label>
-          <Popover>
+          <Popover
+            onOpenChange={(open) => {
+              if (open && selectedBranchId && !initialData) {
+                onFetchDevices?.(true);
+              }
+            }}
+          >
             <PopoverTrigger asChild>
               <Button
                 variant="outline"
@@ -240,7 +286,9 @@ export default function AddRouteForm({
             <PopoverContent className="w-[340px] p-0">
               <Command>
                 <CommandInput placeholder="Search device..." />
-                <CommandEmpty>No devices found</CommandEmpty>
+                <CommandEmpty>
+                  {isLoadingDevices ? "Loading..." : "No devices found"}
+                </CommandEmpty>
                 <CommandGroup className="max-h-[220px] overflow-y-auto">
                   {devices.map((d) => (
                     <CommandItem
@@ -272,11 +320,17 @@ export default function AddRouteForm({
             Cancel
           </Button>
           <Button
-            className="bg-primary"
+            className="bg-primary cursor-pointer"
             onClick={handleSave}
-            className="cursor-pointer"
+            disabled={isCreating || isUpdating}
           >
-            {initialData ? "Update" : "Create"}
+            {initialData
+              ? isUpdating
+                ? "Updating..."
+                : "Update"
+              : isCreating
+              ? "Creating..."
+              : "Create"}
           </Button>
         </div>
       </CardContent>

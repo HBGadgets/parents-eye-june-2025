@@ -1,6 +1,17 @@
 import { ColumnDef } from "@tanstack/react-table";
-import { Category, Model, Route } from "@/interface/modal";
+import {
+  Category,
+  Device,
+  LiveTrack,
+  Model,
+  Parent,
+  Route,
+  Student,
+} from "@/interface/modal";
 import { CellContent } from "@/components/ui/CustomTable";
+import { Locate } from "lucide-react";
+import { calculateTimeSince } from "@/util/calculateTimeSince";
+import { useMemo } from "react";
 
 export const getModelColumns = (
   setEditTarget: (row: Model) => void,
@@ -97,6 +108,503 @@ export const getRouteColumns = (
   {
     header: "Branch",
     accessorKey: "branchId.branchName",
+  },
+  {
+    header: "Action",
+    cell: ({ row }) => {
+      const data = row.original;
+
+      return (
+        <div className="flex justify-center gap-2">
+          <button
+            className="bg-yellow-500 text-white px-3 py-1 rounded text-xs cursor-pointer"
+            onClick={(e) => {
+              e.stopPropagation();
+              onEdit(data);
+            }}
+          >
+            Edit
+          </button>
+
+          <button
+            className="bg-red-500 text-white px-3 py-1 rounded text-xs cursor-pointer"
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete(data);
+            }}
+          >
+            Delete
+          </button>
+        </div>
+      );
+    },
+    enableSorting: false,
+  },
+];
+
+export const getStudentColumns = (
+  onEdit: (row: Student) => void,
+  onDelete: (row: Student) => void
+): ColumnDef<Student>[] => [
+  {
+    header: "Student Name",
+    accessorKey: "childName",
+  },
+  {
+    header: "Class",
+    accessorKey: "className",
+  },
+  {
+    header: "Section",
+    accessorKey: "section",
+  },
+  {
+    header: "Age",
+    accessorKey: "age",
+  },
+  {
+    id: "pickupLocation",
+    header: "Pickup Location",
+    accessorFn: (row: Student) => row.pickupGeoId?.geofenceName ?? "—",
+  },
+  {
+    id: "pickupTime",
+    header: "Pickup Time",
+    accessorFn: (row: Student) => row.pickupGeoId?.pickupTime ?? "—",
+  },
+  {
+    id: "dropLocation",
+    header: "Drop Location",
+    accessorFn: (row: Student) => row.dropGeoId?.geofenceName ?? "—",
+  },
+  {
+    id: "dropTime",
+    header: "Drop Time",
+    accessorFn: (row: Student) => row.dropGeoId?.dropTime ?? "—",
+  },
+  {
+    id: "route",
+    headers: "Route",
+    accessorFn: (row: Student) => row.routeObjId?.routeNumber ?? "—",
+  },
+  {
+    id: "school",
+    headers: "School",
+    accessorFn: (row: Student) => row.schoolId?.schoolName ?? "—",
+  },
+  {
+    id: "branch",
+    headers: "Branch",
+    accessorFn: (row: Student) => row.branchId?.branchName ?? "—",
+  },
+  {
+    id: "registerationDate",
+    headers: "Registeration Date",
+    accessorFn: (row: Student) => new Date(row.createdAt).toLocaleDateString(),
+  },
+  {
+    header: "Action",
+    cell: ({ row }) => {
+      const data = row.original;
+
+      return (
+        <div className="flex justify-center gap-2">
+          <button
+            className="bg-yellow-500 text-white px-3 py-1 rounded text-xs cursor-pointer"
+            onClick={(e) => {
+              e.stopPropagation();
+              onEdit(data);
+            }}
+          >
+            Edit
+          </button>
+
+          <button
+            className="bg-red-500 text-white px-3 py-1 rounded text-xs cursor-pointer"
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete(data);
+            }}
+          >
+            Delete
+          </button>
+        </div>
+      );
+    },
+    enableSorting: false,
+  },
+];
+
+export const getDeviceColumns = (
+  onEdit: (row: Device) => void,
+  onDelete: (row: Device) => void
+): ColumnDef<Device>[] => [
+  {
+    header: "Device Name",
+    accessorKey: "name",
+  },
+  {
+    header: "Unique Id",
+    accessorKey: "uniqueId",
+  },
+  {
+    header: "Sim No",
+    accessorKey: "sim",
+  },
+  {
+    header: "OverSpeed km/h",
+    accessorKey: "speed",
+  },
+  {
+    header: "Average km/l",
+    accessorKey: "average",
+  },
+
+  {
+    header: "Model",
+    accessorKey: "model",
+  },
+  {
+    header: "Category",
+    accessorKey: "category",
+  },
+  {
+    header: "Key Feature",
+    accessorKey: "keyFeature",
+  },
+  {
+    id: "school",
+    header: "School",
+    accessorFn: (row: Device) => row.schoolId?.schoolName ?? "—",
+  },
+  {
+    id: "branch",
+    header: "Branch",
+    accessorFn: (row: Device) => row.branchId?.branchName ?? "—",
+  },
+  {
+    id: "route",
+    header: "Route",
+    accessorFn: (row: Device) => row.routeObjId?.routeNumber ?? "—",
+  },
+  {
+    id: "driver",
+    header: "Driver",
+    accessorFn: (row: Device) => row.driver?.driverName ?? "—",
+  },
+  {
+    id: "registerationDate",
+    headers: "Registeration Date",
+    accessorFn: (row: Device) => new Date(row.createdAt).toLocaleDateString(),
+  },
+];
+
+export const getLiveVehicleColumns = (): ColumnDef<LiveTrack>[] => [
+  {
+    id: "status",
+    header: "Status",
+    cell: ({ row }: any) => {
+      const vehicle = row.original;
+      const vehicleStatus = useMemo(() => {
+        const lastUpdateTime = new Date(vehicle.lastUpdate).getTime();
+        const currentTime = new Date().getTime();
+        const timeDifference = currentTime - lastUpdateTime;
+        const thirtyFiveHoursInMs = 35 * 60 * 60 * 1000;
+
+        // Check for overspeeding
+        const speedLimit = parseFloat(vehicle.speedLimit) || 60;
+        if (vehicle.speed > speedLimit) return "overspeed";
+
+        // Check if vehicle is inactive
+        if (vehicle.latitude === 0 && vehicle.longitude === 0) return "noData";
+
+        if (timeDifference > thirtyFiveHoursInMs) return "inactive";
+
+        // Extract vehicle attributes
+        const { ignition } = vehicle.attributes;
+        const speed = vehicle.speed;
+        if (ignition === true) {
+          if (speed > 5 && speed < speedLimit) {
+            return "running";
+          } else {
+            return "idle";
+          }
+        } else if (ignition === false) {
+          return "stopped";
+        }
+      }, [
+        vehicle.speed,
+        vehicle.speedLimit,
+        vehicle.lastUpdate,
+        vehicle.attributes.ignition,
+      ]);
+
+      const imageUrl = useMemo(() => {
+        const statusToImageUrl = {
+          running: "/bus/side-view/green-bus.svg",
+          idle: "/bus/side-view/yellow-bus.svg",
+          stopped: "/bus/side-view/red-bus.svg",
+          inactive: "/bus/side-view/grey-bus.svg",
+          overspeed: "/bus/side-view/orange-bus.svg",
+          noData: "/bus/side-view/blue-bus.svg",
+        };
+        return (
+          statusToImageUrl[
+            String(vehicleStatus) as keyof typeof statusToImageUrl
+          ] || statusToImageUrl.inactive
+        );
+      }, [vehicleStatus]);
+
+      return (
+        <div>
+          <img src={imageUrl} className="w-20" alt="school bus status" />
+        </div>
+      );
+    },
+    meta: { flex: 1, maxWidth: 80 },
+    enableHiding: true,
+    enableSorting: true,
+  },
+  {
+    id: "name",
+    header: "vehicle",
+    accessorFn: (row: any) => row.name ?? "N/A",
+    meta: {
+      wrapConfig: {
+        wrap: "break-word",
+        maxWidth: "200px",
+      },
+    },
+    enableHiding: true,
+    enableSorting: true,
+  },
+  {
+    id: "lastUpdate",
+    header: "Last Update",
+    cell: ({ row }: any) => {
+      const date = new Date(row.original.lastUpdate);
+      return <div>{date.toLocaleString("en-US")}</div>;
+    },
+    meta: {
+      wrapConfig: {
+        wrap: "break-word",
+        maxWidth: "200px",
+      },
+    },
+    enableHiding: true,
+    enableSorting: true,
+  },
+  {
+    id: "since",
+    header: "Since",
+    cell: ({ row }: any) => {
+      const timeSince = calculateTimeSince(row.original.lastUpdate);
+      return <div>{timeSince}</div>;
+    },
+    meta: { flex: 1, minWidth: 100, maxWidth: 200 },
+    enableHiding: true,
+    enableSorting: true,
+  },
+  {
+    id: "battery",
+    header: "Battery",
+    cell: ({ row }: any) => {
+      const batteryLevel = row.original.batteryLevel ?? 0;
+      const batteryPercentage = Math.min(Math.max(batteryLevel, 20), 100);
+
+      const segments = 4;
+      const filledSegments = Math.ceil(batteryPercentage / (100 / segments));
+
+      const getSegmentColor = (segmentIndex: number, totalFilled: number) => {
+        if (segmentIndex >= totalFilled) return "bg-gray-200";
+
+        if (totalFilled <= 2) return "bg-red-500";
+        if (totalFilled <= 3) return "bg-orange-500";
+        if (totalFilled <= 3) return "bg-yellow-500";
+        return "bg-green-500";
+      };
+
+      return (
+        <div className="flex items-center space-x-2 rotate-[-90deg] relative bottom-4">
+          <div className="relative flex">
+            <div className="flex space-x-0.5 p-0.5 border border-gray-400 bg-white">
+              {[...Array(segments)].map((_, index) => (
+                <div
+                  key={index}
+                  className={`w-[4px] h-2 rounded-sm transition-colors duration-200 ${getSegmentColor(
+                    index,
+                    filledSegments
+                  )}`}
+                />
+              ))}
+            </div>
+            <div className="w-0.5 h-1 bg-gray-400 rounded-r-sm self-center ml-0.5" />
+          </div>
+        </div>
+      );
+    },
+    meta: { flex: 1, minWidth: 130, maxWidth: 180 },
+    enableHiding: true,
+    enableSorting: true,
+  },
+  {
+    id: "gsm",
+    header: "GSM",
+    cell: ({ row }: any) => {
+      const device = row.original;
+      const cellTowers = device.gsmSignal || 0;
+      const towerCount = Math.min(cellTowers, 5);
+
+      const renderSignalBars = (count: number) => {
+        const bars = [];
+        const maxBars = 5;
+
+        for (let i = 1; i <= maxBars; i++) {
+          const isActive = i <= count;
+          const height = `${i * 3 + 3}px`;
+
+          bars.push(
+            <div
+              key={i}
+              className={`w-1 rounded-sm transition-colors duration-200 ${
+                isActive
+                  ? count <= 1
+                    ? "bg-red-500"
+                    : count <= 2
+                    ? "bg-yellow-500"
+                    : count <= 3
+                    ? "bg-green-400"
+                    : "bg-green-600"
+                  : "bg-gray-200"
+              }`}
+              style={{ height }}
+            />
+          );
+        }
+
+        return bars;
+      };
+
+      const getSignalLabel = (count: number) => {
+        if (count === 0) return { label: "No Signal", color: "text-red-600" };
+        if (count === 1) return { label: "Very Weak", color: "text-red-600" };
+        if (count === 2) return { label: "Weak", color: "text-yellow-600" };
+        if (count === 3) return { label: "Good", color: "text-green-600" };
+        if (count >= 4) return { label: "Strong", color: "text-green-700" };
+        return { label: "Unknown", color: "text-gray-600" };
+      };
+
+      const signalInfo = getSignalLabel(towerCount);
+
+      return (
+        <div className="flex items-center space-x-3">
+          <div
+            className="flex items-end space-x-0.5"
+            title={`${towerCount} cell towers detected`}
+          >
+            {renderSignalBars(towerCount)}
+          </div>
+
+          <div className="flex flex-col">
+            <span className={`text-xs font-medium ${signalInfo.color}`}>
+              {/* {signalInfo.label} */}
+            </span>
+          </div>
+        </div>
+      );
+    },
+    meta: { flex: 1, minWidth: 120, maxWidth: 180 },
+    enableHiding: true,
+    enableSorting: true,
+  },
+  {
+    id: "gps",
+    header: "GPS",
+    cell: ({ row }: any) => {
+      const gps = row.original.attributes.sat;
+      return (
+        <div className="relative flex items-center justify-center">
+          <Locate className="w-8 h-8 text-gray-400" />
+          <span className="absolute text-xs font-bold text-gray-700">
+            {gps}
+          </span>
+        </div>
+      );
+    },
+    meta: { flex: 1, minWidth: 100, maxWidth: 200 },
+    enableHiding: true,
+    enableSorting: true,
+  },
+  {
+    id: "speed",
+    header: "Speed (km/h)",
+    accessorFn: (row: any) => row.speed?.toFixed(2) ?? "N/A",
+    meta: { flex: 1, minWidth: 100, maxWidth: 200 },
+    enableHiding: true,
+    enableSorting: true,
+  },
+  {
+    id: "ig",
+    header: "Ignition",
+    cell: ({ row }: any) => {
+      const status = row.original.status || "unknown";
+      const statusColor = status ? "green" : "red";
+      return (
+        <div
+          style={{ color: `${statusColor}`, fontSize: "1.1rem" }}
+          className="flex items-center justify-center"
+        >
+          <svg
+            stroke="currentColor"
+            fill="currentColor"
+            strokeWidth="0"
+            viewBox="0 0 256 256"
+            height="1em"
+            width="1em"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path d="M256,120v48a16,16,0,0,1-16,16H227.31L192,219.31A15.86,15.86,0,0,1,180.69,224H103.31A15.86,15.86,0,0,1,92,219.31L52.69,180A15.86,15.86,0,0,1,48,168.69V148H24v24a8,8,0,0,1-16,0V108a8,8,0,0,1,16,0v24H48V80A16,16,0,0,1,64,64h60V40H100a8,8,0,0,1,0-16h64a8,8,0,0,1,0,16H140V64h40.69A15.86,15.86,0,0,1,192,68.69L227.31,104H240A16,16,0,0,1,256,120Z"></path>
+          </svg>
+        </div>
+      );
+    },
+    meta: { flex: 1, minWidth: 100, maxWidth: 200 },
+    enableHiding: true,
+    enableSorting: true,
+  },
+];
+
+export const getParentsColumns = (
+  onEdit: (row: Parent) => void,
+  onDelete: (row: Parent) => void
+): ColumnDef<Parent>[] => [
+  {
+    header: "Parent Name",
+    accessorKey: "parentName",
+  },
+  {
+    header: "Username",
+    accessorKey: "username",
+  },
+  {
+    header: "Email",
+    accessorKey: "email",
+  },
+  { header: "Mobile No.", accessorKey: "mobileNo" },
+  {
+    id: "school",
+    header: "School",
+    accessorFn: (row: Parent) => row.schoolId?.schoolName ?? "—",
+  },
+  {
+    id: "branch",
+    header: "Branch",
+    accessorFn: (row: Parent) => row.branchId?.branchName ?? "—",
+  },
+  {
+    id: "registerationDate",
+    headers: "Registeration Date",
+    accessorFn: (row: Parent) => new Date(row.createdAt).toLocaleDateString(),
   },
   {
     header: "Action",

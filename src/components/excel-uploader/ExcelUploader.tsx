@@ -16,43 +16,136 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-// import { SearchableDropdown } from "./SearcheableDropdownFilter";
-// import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { cn } from "@/lib/utils";
 import * as XLSX from "xlsx";
-import { SearchableDropdown } from "../SearcheableDropdownFilter";
 import { LoadingSpinner } from "../ui/loading-spinner";
+import { Combobox, ComboboxItem } from "../ui/combobox";
+import { useSchoolDropdown, useBranchDropdown } from "@/hooks/useDropdown";
 
 interface ExcelUploaderProps {
-  schools?: string[];
-  branches?: string[];
   onFileUpload?: (file: File, school: string, branch: string) => Promise<void>;
+  role?: string;
+  tokenSchoolId?: string;
+  tokenBranchId?: string;
+  tokenBranchGroupSchoolId?: string;
+  requiredHeaders?: string[];
+  csvContent?: string;
 }
 
 export const ExcelUploader = ({
-  schools,
-  branches,
   onFileUpload,
+  role = "superAdmin",
+  tokenSchoolId,
+  tokenBranchId,
+  tokenBranchGroupSchoolId,
+  requiredHeaders = [],
+  csvContent,
 }: ExcelUploaderProps) => {
   const [selectedSchool, setSelectedSchool] = useState<string>("");
   const [selectedBranch, setSelectedBranch] = useState<string>("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+
+  // Track dropdown open states
+  const [schoolDropdownOpen, setSchoolDropdownOpen] = useState(false);
+  const [branchDropdownOpen, setBranchDropdownOpen] = useState(false);
+
+  // Track if dropdowns have been opened at least once
+  const [hasOpenedSchool, setHasOpenedSchool] = useState(false);
+  const [hasOpenedBranch, setHasOpenedBranch] = useState(false);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const hasInitialized = useRef(false);
 
-  const isUploadDisabled = !selectedSchool || !selectedBranch;
+  // Determine which dropdowns to show based on role
+  const showSchoolDropdown = role === "superAdmin";
+  const showBranchDropdown = role !== "branch";
 
-  const requiredHeaders = [
-    "name",
-    "uniqueId",
-    "sim",
-    "speed",
-    "average",
-    "model",
-    "category",
-    "createdAt",
-  ];
+  // Determine effective school ID based on role
+  const effectiveSchoolId =
+    role === "school"
+      ? tokenSchoolId
+      : role === "branchGroup"
+      ? tokenBranchGroupSchoolId
+      : role === "branch"
+      ? tokenSchoolId
+      : selectedSchool; // superAdmin selects manually
+
+  // Fetch schools only for superAdmin when dropdown is opened
+  const { data: schools, isLoading: isLoadingSchools } = useSchoolDropdown(
+    hasOpenedSchool && role === "superAdmin"
+  );
+
+  // Fetch branches based on role
+  const { data: branches, isLoading: isLoadingBranches } = useBranchDropdown(
+    effectiveSchoolId,
+    hasOpenedBranch && !!effectiveSchoolId && role !== "branch",
+    role === "branchGroup"
+  );
+
+  // Upload is disabled if required fields are missing
+  const isUploadDisabled = !effectiveSchoolId || !selectedBranch;
+
+  // Transform schools data to Combobox format
+  const schoolItems: ComboboxItem[] =
+    schools?.map((school) => ({
+      value: school._id,
+      label: school.schoolName || school.name || "",
+    })) || [];
+
+  // Transform branches data to Combobox format
+  const branchItems: ComboboxItem[] =
+    branches?.map((branch) => ({
+      value: branch._id,
+      label: branch.branchName || branch.name || "",
+    })) || [];
+
+  // Auto-apply role-based defaults on mount
+  useEffect(() => {
+    if (hasInitialized.current) return;
+
+    if (role === "school" && tokenSchoolId) {
+      setSelectedSchool(tokenSchoolId);
+      setHasOpenedBranch(true);
+    }
+
+    if (role === "branchGroup" && tokenBranchGroupSchoolId) {
+      setSelectedSchool(tokenBranchGroupSchoolId);
+      setHasOpenedBranch(true);
+    }
+
+    if (role === "branch" && tokenSchoolId && tokenBranchId) {
+      setSelectedSchool(tokenSchoolId);
+      setSelectedBranch(tokenBranchId);
+    }
+
+    hasInitialized.current = true;
+  }, [role, tokenSchoolId, tokenBranchId, tokenBranchGroupSchoolId]);
+
+  // Handle school dropdown open state
+  const handleSchoolOpenChange = (open: boolean) => {
+    setSchoolDropdownOpen(open);
+    if (open && !hasOpenedSchool) {
+      setHasOpenedSchool(true);
+    }
+  };
+
+  // Handle branch dropdown open state
+  const handleBranchOpenChange = (open: boolean) => {
+    setBranchDropdownOpen(open);
+    if (open && !hasOpenedBranch) {
+      setHasOpenedBranch(true);
+    }
+  };
+
+  // Reset branch when school changes (only for superAdmin)
+  useEffect(() => {
+    if (role === "superAdmin") {
+      setSelectedBranch("");
+      setHasOpenedBranch(false);
+    }
+  }, [selectedSchool, role]);
 
   const isExcelFile = (file: File): boolean => {
     const allowedTypes = [
@@ -103,20 +196,26 @@ export const ExcelUploader = ({
         headers = jsonData[0] as string[];
       }
 
-      // Compare headers
-      const missing = requiredHeaders.filter((h) => !headers.includes(h));
+      // Compare headers only if requiredHeaders are provided
+      if (requiredHeaders.length > 0) {
+        const missing = requiredHeaders.filter((h) => !headers.includes(h));
 
-      if (missing.length > 0) {
-        toast.error("Invalid template format", {
-          description: `Missing columns: ${missing.join(", ")}`,
-        });
-        return;
+        if (missing.length > 0) {
+          toast.error("Invalid template format", {
+            description: `Missing columns: ${missing.join(", ")}`,
+          });
+          return;
+        }
       }
 
       // All good
       setSelectedFile(file);
       toast.success("File selected", {
-        description: `${file.name} matches the template`,
+        description: `${file.name} ${
+          requiredHeaders.length > 0
+            ? "matches the template"
+            : "is ready to upload"
+        }`,
       });
     };
 
@@ -155,13 +254,15 @@ export const ExcelUploader = ({
   };
 
   const handleUpload = async () => {
-    if (!selectedSchool) {
+    // Validate school selection
+    if (!effectiveSchoolId) {
       toast.error("Missing selection", {
         description: "Please select a school",
       });
       return;
     }
 
+    // Validate branch selection
     if (!selectedBranch) {
       toast.error("Missing selection", {
         description: "Please select a branch",
@@ -169,6 +270,7 @@ export const ExcelUploader = ({
       return;
     }
 
+    // Validate file selection
     if (!selectedFile) {
       toast.error("No file selected", {
         description: "Please select an Excel file to upload",
@@ -179,15 +281,24 @@ export const ExcelUploader = ({
     setIsUploading(true);
 
     try {
-      await onFileUpload?.(selectedFile, selectedSchool, selectedBranch);
+      await onFileUpload?.(selectedFile, effectiveSchoolId, selectedBranch);
+
       toast.success("Upload successful", {
         description: `${selectedFile.name} uploaded successfully`,
       });
 
-      // Reset form after successful upload
+      // Reset form after successful upload based on role
       setSelectedFile(null);
-      setSelectedSchool("");
-      setSelectedBranch("");
+
+      if (role === "superAdmin") {
+        setSelectedSchool("");
+        setSelectedBranch("");
+        setHasOpenedSchool(false);
+        setHasOpenedBranch(false);
+      } else if (role === "school" || role === "branchGroup") {
+        setSelectedBranch("");
+      }
+
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
@@ -201,9 +312,13 @@ export const ExcelUploader = ({
   };
 
   const handleDownloadTemplate = () => {
-    // Create a simple CSV that can be opened in Excel
-    const csvContent =
-      "name,uniqueId,sim,speed,average,model,category,createdAt\nMH31BB1234,7458745874587,01234567890,80,12,v5,School Bus,18/11/2025\n";
+    if (!csvContent) {
+      toast.error("Template not available", {
+        description: "CSV template content is not provided",
+      });
+      return;
+    }
+
     const blob = new Blob([csvContent], { type: "text/csv" });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -226,88 +341,127 @@ export const ExcelUploader = ({
     }
   };
 
-  // useEffect(() => {
-  //   console.log("File selected:", selectedFile);
-  // }, [selectedFile]);
+  // Dynamic dialog description based on role
+  const getDialogDescription = () => {
+    if (role === "branch") {
+      return "Upload your Excel file";
+    }
+    if (role === "school" || role === "branchGroup") {
+      return "Select your branch, then upload your Excel file";
+    }
+    return "Select your school and branch, then upload your Excel file";
+  };
 
   return (
     <div className="space-y-6">
-      <DialogHeader>
-        <DialogTitle className="flex items-center gap-2 text-2xl">
-          <FileSpreadsheet className="h-6 w-6 text-primary" />
+      <DialogHeader className="pb-2">
+        <DialogTitle className="flex items-center gap-3 text-xl font-semibold">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+            <FileSpreadsheet className="h-5 w-5 text-primary" />
+          </div>
           Excel File Upload
         </DialogTitle>
-        <DialogDescription className="text-base">
-          Select your school and branch, then upload your Excel file
+        <DialogDescription className="text-sm text-muted-foreground pt-2">
+          {getDialogDescription()}
         </DialogDescription>
       </DialogHeader>
 
-      <div className="space-y-6 pt-2">
+      <div className="space-y-5">
         {/* School and Branch Selection */}
-        <div className="grid gap-4 sm:grid-cols-2">
-          {/* School Dropdown */}
-          <SearchableDropdown
-            items={schools}
-            valueKey="_id"
-            labelKey="schoolName"
-            placeholder="Select School"
-            value={selectedSchool}
-            onSelect={(item) => {
-              setSelectedSchool(item._id);
-              setSelectedBranch(""); // reset branch
-            }}
-            disabled={isUploading}
-          />
+        {(showSchoolDropdown || showBranchDropdown) && (
+          <div
+            className={cn(
+              "grid gap-4",
+              showSchoolDropdown && showBranchDropdown ? "sm:grid-cols-2" : ""
+            )}
+          >
+            {/* School Dropdown */}
+            {showSchoolDropdown && (
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">
+                  School <span className="text-destructive">*</span>
+                </Label>
+                <Combobox
+                  items={schoolItems}
+                  value={selectedSchool}
+                  onValueChange={(value) => setSelectedSchool(value || "")}
+                  placeholder="Select School"
+                  searchPlaceholder="Search schools..."
+                  emptyMessage={
+                    isLoadingSchools ? "Loading..." : "No schools found"
+                  }
+                  width="w-full"
+                  disabled={isUploading}
+                  open={schoolDropdownOpen}
+                  onOpenChange={handleSchoolOpenChange}
+                />
+              </div>
+            )}
 
-          {/* Branch Dropdown */}
-          <SearchableDropdown
-            items={
-              branches?.filter(
-                (b: any) => b.schoolId?._id === selectedSchool
-              ) || []
-            }
-            valueKey="_id"
-            labelKey="branchName"
-            placeholder="Select Branch"
-            emptyMessage="Select a school first"
-            value={selectedBranch}
-            onSelect={(item) => setSelectedBranch(item._id)}
-            disabled={isUploading}
-          />
-        </div>
+            {/* Branch Dropdown */}
+            {showBranchDropdown && (
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">
+                  Branch <span className="text-destructive">*</span>
+                </Label>
+                <Combobox
+                  items={branchItems}
+                  value={selectedBranch}
+                  onValueChange={(value) => setSelectedBranch(value || "")}
+                  placeholder="Select Branch"
+                  searchPlaceholder="Search branches..."
+                  emptyMessage={
+                    !effectiveSchoolId
+                      ? "Select a school first"
+                      : isLoadingBranches
+                      ? "Loading..."
+                      : "No branches found"
+                  }
+                  width="w-full"
+                  disabled={!effectiveSchoolId || isUploading}
+                  open={branchDropdownOpen}
+                  onOpenChange={handleBranchOpenChange}
+                />
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Template Download Section */}
-        <div className="rounded-lg border border-border bg-muted/30 p-4">
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex gap-3">
-              <AlertCircle className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
-              <div>
-                <p className="text-sm font-medium text-foreground">
-                  Need the correct format?
-                </p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Download our template to ensure your data matches the required
-                  format
-                </p>
+        {csvContent && (
+          <div className="rounded-xl border border-border bg-card p-4 shadow-sm animate-fade-in">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
+                  <AlertCircle className="h-4 w-4 text-primary" />
+                </div>
+                <div className="space-y-0.5">
+                  <p className="text-sm font-medium">
+                    Need the correct format?
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Download our template to ensure compatibility
+                  </p>
+                </div>
               </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleDownloadTemplate}
+                className="gap-2 shrink-0 cursor-pointer"
+                disabled={isUploading}
+              >
+                <Download className="h-4 w-4" />
+                Template
+              </Button>
             </div>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={handleDownloadTemplate}
-              className="gap-2 flex-shrink-0 cursor-pointer"
-              disabled={isUploading}
-            >
-              <Download className="h-4 w-4" />
-              Template
-            </Button>
           </div>
-        </div>
+        )}
 
         {/* File Upload Area */}
-        <div className="space-y-3">
-          <Label className="text-sm font-medium ">
+        <div className="space-y-2">
+          <Label className="text-sm font-medium">
             Upload File <span className="text-destructive">*</span>
           </Label>
 
@@ -320,13 +474,29 @@ export const ExcelUploader = ({
                 fileInputRef.current?.click();
             }}
             className={cn(
-              "relative cursor-pointer rounded-lg border-2 border-dashed transition-all",
+              "relative rounded-xl border-2 border-dashed transition-all duration-200",
               isUploadDisabled || isUploading
-                ? "opacity-50 cursor-not-allowed"
-                : isDragging
-                ? "border-primary bg-upload-bg shadow-sm"
-                : "border-upload-border bg-upload-bg/30 hover:bg-upload-bg/50 hover:border-primary/50"
+                ? "cursor-not-allowed opacity-50"
+                : "cursor-pointer",
+              isDragging
+                ? "border-primary bg-primary/5 scale-[1.01]"
+                : selectedFile
+                ? "border-success/50 bg-success/5"
+                : "border-border bg-muted/30 hover:border-primary/50 hover:bg-muted/50"
             )}
+            role="button"
+            tabIndex={isUploadDisabled || isUploading ? -1 : 0}
+            aria-label="File upload area"
+            onKeyDown={(e) => {
+              if (
+                (e.key === "Enter" || e.key === " ") &&
+                !isUploadDisabled &&
+                !isUploading
+              ) {
+                e.preventDefault();
+                fileInputRef.current?.click();
+              }
+            }}
           >
             <input
               ref={fileInputRef}
@@ -335,31 +505,30 @@ export const ExcelUploader = ({
               onChange={handleFileInput}
               className="hidden"
               disabled={isUploading}
+              aria-label="Upload Excel file"
             />
 
             {selectedFile ? (
-              <div className="p-6">
+              <div className="p-5 animate-scale-in">
                 <div className="flex items-start gap-4">
-                  <div className="flex-shrink-0">
-                    <div className="rounded-lg bg-success/10 p-3">
-                      <FileText className="h-8 w-8 text-success" />
-                    </div>
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-success/10">
+                    <FileText className="h-6 w-6 text-success" />
                   </div>
 
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0 flex-1 space-y-2">
+                    <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0 flex-1">
-                        <p className="font-semibold text-foreground truncate text-lg">
+                        <p className="truncate font-medium">
                           {selectedFile.name}
                         </p>
-                        <div className="flex items-center gap-3 mt-2 text-sm text-muted-foreground">
-                          <span className="flex items-center gap-1.5">
-                            <CheckCircle2 className="h-4 w-4 text-success" />
+                        <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
+                          <span className="flex items-center gap-1 text-success">
+                            <CheckCircle2 className="h-3.5 w-3.5" />
                             Valid format
                           </span>
                           <span className="text-muted-foreground/50">•</span>
                           <span>
-                            {(selectedFile.size / 1024).toFixed(2)} KB
+                            {(selectedFile.size / 1024).toFixed(1)} KB
                           </span>
                         </div>
                       </div>
@@ -373,44 +542,45 @@ export const ExcelUploader = ({
                             e.stopPropagation();
                             removeFile();
                           }}
-                          className="gap-2 flex-shrink-0 hover:bg-destructive/10 hover:text-destructive cursor-pointer"
+                          className="h-8 gap-1.5 px-2 text-muted-foreground hover:bg-destructive/10 hover:text-destructive cursor-pointer"
+                          aria-label="Remove file"
                         >
                           <X className="h-4 w-4" />
-                          Remove
+                          <span className="sr-only sm:not-sr-only ">
+                            Remove
+                          </span>
                         </Button>
                       )}
                     </div>
                   </div>
                 </div>
 
-                {/* Upload Progress Indicator */}
+                {/* Upload Progress */}
                 {isUploading && (
-                  <div className="mt-4 pt-4 border-t border-border">
-                    <div className="flex items-center gap-3">
-                      <LoadingSpinner size="sm" />
-                      <div className="flex-1">
-                        <p className="text-sm font-medium text-foreground">
-                          Uploading file...
-                        </p>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          Please wait while we process your file
-                        </p>
-                      </div>
+                  <div className="mt-4 flex items-center gap-3 border-t border-border pt-4">
+                    <LoadingSpinner size="sm" />
+                    <div className="flex-1">
+                      <p className="text-sm font-medium">Uploading file...</p>
+                      <p className="text-xs text-muted-foreground">
+                        Please wait while we process your file
+                      </p>
                     </div>
                   </div>
                 )}
               </div>
             ) : (
-              <div className="flex flex-col items-center justify-center gap-3 p-10">
-                <div className="rounded-full bg-primary/10 p-4">
-                  <Upload className="h-8 w-8 text-primary" />
+              <div className="flex flex-col items-center justify-center gap-3 p-8">
+                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary/10">
+                  <Upload className="h-6 w-6 text-primary" />
                 </div>
-                <div className="text-center space-y-1">
-                  <p className="font-medium text-foreground">
-                    Drop your Excel file here, or click to browse
+                <div className="space-y-1 text-center">
+                  <p className="font-medium">
+                    {isUploadDisabled
+                      ? "Please select a branch first"
+                      : "Drop your file here, or click to browse"}
                   </p>
                   <p className="text-sm text-muted-foreground">
-                    Supports .xlsx, .xls & .csv files only
+                    Supports .xlsx, .xls & .csv files
                   </p>
                 </div>
               </div>
@@ -419,28 +589,27 @@ export const ExcelUploader = ({
         </div>
 
         {/* Upload Button */}
-        <div className="flex gap-3 pt-2">
-          <Button
-            onClick={handleUpload}
-            disabled={
-              !selectedSchool || !selectedBranch || !selectedFile || isUploading
-            }
-            className="flex-1 h-11 cursor-pointer"
-            size="lg"
-          >
-            {isUploading ? (
-              <>
-                <LoadingSpinner size="sm" className="mr-2" />
-                Uploading...
-              </>
-            ) : (
-              <>
-                <Upload className="mr-2 h-5 w-5" />
-                Upload File
-              </>
-            )}
-          </Button>
-        </div>
+        <Button
+          onClick={handleUpload}
+          disabled={isUploadDisabled || !selectedFile || isUploading}
+          className="w-full h-11 gap-2 font-medium cursor-pointer"
+          size="lg"
+        >
+          {isUploading ? (
+            <>
+              <LoadingSpinner
+                size="sm"
+                className="border-primary-foreground border-t-transparent"
+              />
+              Uploading...
+            </>
+          ) : (
+            <>
+              <Upload className="h-5 w-5" />
+              Upload File
+            </>
+          )}
+        </Button>
       </div>
     </div>
   );
