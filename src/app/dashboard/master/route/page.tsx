@@ -211,19 +211,25 @@ export default function RoutePage() {
   }, []);
 
   const handleCreateRoute = useCallback(async (payload: any) => {
-    try {
-      const check = await routeService.checkAlreadyAssign(payload?.deviceObjId);
-
-      if (check?.assigned) {
-        const userConfirmed = confirm(
-          `${check.message}. Do you still want to assign this route number to this vehicle?`
-        );
-        if (!userConfirmed) return;
-      }
-
+    if (payload.deviceObjId === undefined) {
       createRoute(payload);
-    } catch (error: any) {
-      toast.error(error?.message || "Failed to create route");
+    } else {
+      try {
+        const check = await routeService.checkAlreadyAssign(
+          payload?.deviceObjId
+        );
+
+        if (check?.assigned) {
+          const userConfirmed = confirm(
+            `${check.message}. Do you still want to assign this route number to this vehicle?`
+          );
+          if (!userConfirmed) return;
+        }
+
+        createRoute(payload);
+      } catch (error: any) {
+        toast.error(error?.message || "Failed to create route");
+      }
     }
   }, []);
 

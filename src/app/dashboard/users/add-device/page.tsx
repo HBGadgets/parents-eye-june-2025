@@ -365,7 +365,7 @@ const DevicesPage = () => {
                 Edit
               </button>
 
-              <button
+              {/* <button
                 className="bg-red-500 text-white px-3 py-1 rounded text-xs cursor-pointer"
                 onClick={(e) => {
                   e.stopPropagation();
@@ -373,7 +373,7 @@ const DevicesPage = () => {
                 }}
               >
                 Delete
-              </button>
+              </button> */}
             </div>
           );
         },
