@@ -210,6 +210,23 @@ export default function RoutePage() {
     setShowForm?.(true);
   }, []);
 
+  const handleCreateRoute = useCallback(async (payload: any) => {
+    try {
+      const check = await routeService.checkAlreadyAssign(payload?.deviceObjId);
+
+      if (check?.assigned) {
+        const userConfirmed = confirm(
+          `${check.message}. Do you still want to assign this route number to this vehicle?`
+        );
+        if (!userConfirmed) return;
+      }
+
+      createRoute(payload);
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to create route");
+    }
+  }, []);
+
   const handleUpdateRoute = useCallback(
     async (editRoute: Route, payload: any) => {
       try {
@@ -390,7 +407,7 @@ export default function RoutePage() {
                 // updateRoute({ id: editRoute._id, payload: data });
                 handleUpdateRoute(editRoute, data);
               } else {
-                createRoute(data);
+                handleCreateRoute(data);
               }
             }}
             decodedToken={decodedToken}
