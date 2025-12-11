@@ -51,7 +51,7 @@ export const useGeofence = (
     onSuccess: () => {
       toast.success("Geofence created successfully");
       queryClient.invalidateQueries({
-        queryKey: ["geofence", "geofence-by-route"],
+        queryKey: ["geofence"],
       });
     },
     onError: (err: any) => {
@@ -65,7 +65,7 @@ export const useGeofence = (
     onSuccess: () => {
       toast.success("Geofence updated successfully");
       queryClient.invalidateQueries({
-        queryKey: ["geofence", "geofence-by-route"],
+        queryKey: ["geofence"],
       });
     },
     onError: (err: any) => {
@@ -78,7 +78,7 @@ export const useGeofence = (
     onSuccess: () => {
       toast.success("Geofence deleted successfully");
       queryClient.invalidateQueries({
-        queryKey: ["geofence", "geofence-by-route"],
+        queryKey: ["geofence"],
       });
     },
     onError: (err: any) => {

@@ -2,6 +2,7 @@ import { ColumnDef } from "@tanstack/react-table";
 import {
   Category,
   Device,
+  Geofence,
   LiveTrack,
   Model,
   Parent,
@@ -12,6 +13,7 @@ import { CellContent } from "@/components/ui/CustomTable";
 import { Eye, EyeOff, Locate } from "lucide-react";
 import { calculateTimeSince } from "@/util/calculateTimeSince";
 import React, { useMemo } from "react";
+import { Button } from "../ui/button";
 
 export const getModelColumns = (
   setEditTarget: (row: Model) => void,
@@ -685,5 +687,92 @@ export const getParentsColumns = (
       );
     },
     enableSorting: false,
+  },
+];
+
+export const getGeofenceCoumns = (
+  onEdit: (row: Geofence) => void,
+  onDelete: (row: Geofence) => void
+): ColumnDef<Geofence>[] => [
+  {
+    id: "name",
+    header: "Device Name",
+    accessorFn: (row) => row.route?.device?.name || "N/A",
+    enableHiding: true,
+    enableSorting: true,
+  },
+  {
+    id: "geofenceName",
+    header: "Geofence Name",
+    accessorFn: (row) => row.geofenceName || "N/A",
+    enableHiding: true,
+    enableSorting: true,
+  },
+  {
+    id: "schoolName",
+    header: "School Name",
+    accessorFn: (row) => row.school?.schoolName || "N/A",
+    enableHiding: true,
+    enableSorting: true,
+  },
+  {
+    id: "branchName",
+    header: "Branch Name",
+    accessorFn: (row) => row.branch?.branchName || "N/A",
+    enableHiding: true,
+    enableSorting: true,
+  },
+  {
+    id: "routeNumber",
+    header: "Route Number",
+    accessorFn: (row) => row.route?.routeNumber || "N/A",
+    enableHiding: true,
+    enableSorting: true,
+  },
+  {
+    id: "pickupTime",
+    header: "Pickup Time",
+    accessorFn: (row) => row.pickupTime || "N/A",
+    enableHiding: true,
+    enableSorting: true,
+  },
+  {
+    id: "dropTime",
+    header: "Drop Time",
+    accessorFn: (row) => row.dropTime || "N/A",
+    enableHiding: true,
+    enableSorting: true,
+  },
+ {
+    id: "actions",
+    header: "Actions",
+    cell: ({ row }) => (
+      <div className="flex items-center justify-center gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={(e) => {
+            e.stopPropagation();
+            onEdit(row.original); // Use the callback
+          }}
+          className="cursor-pointer bg-[#f3c623] hover:bg-[#D3A80C]"
+        >
+          Edit
+        </Button>
+        <Button
+          variant="destructive"
+          size="sm"
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete(row.original); // Use the callback
+          }}
+          className="cursor-pointer hover:bg-red-700"
+        >
+          Delete
+        </Button>
+      </div>
+    ),
+    enableSorting: false,
+    enableHiding: false,
   },
 ];
