@@ -53,6 +53,9 @@ export const useGeofence = (
       queryClient.invalidateQueries({
         queryKey: ["geofence"],
       });
+      queryClient.invalidateQueries({
+        queryKey: ["geofence-by-route"],
+      });
     },
     onError: (err: any) => {
       toast.error(err.message || "Failed to create geofence");
