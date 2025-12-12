@@ -268,7 +268,6 @@ const TableBranchDropdown: React.FC<{
   );
 };
 
-
 // Form Branch Dropdown Component
 const BranchDropdown: React.FC<{
   selectedBranches: string[];
@@ -277,7 +276,9 @@ const BranchDropdown: React.FC<{
   onSelectAll: () => void;
 }> = ({ selectedBranches, branchOptions, onBranchToggle, onSelectAll }) => {
   const [isOpen, setIsOpen] = useState(false);
+  const [searchText, setSearchText] = useState("");
   const dropdownRef = useRef<HTMLDivElement>(null);
+
   const allSelected =
     selectedBranches.length === branchOptions.length &&
     branchOptions.length > 0;
@@ -299,6 +300,13 @@ const BranchDropdown: React.FC<{
     e.stopPropagation();
     onBranchToggle(branchId);
   };
+
+  // 🔍 Filter branches based on search
+  const filteredBranches = useMemo(() => {
+    return branchOptions.filter((b) =>
+      b.label.toLowerCase().includes(searchText.toLowerCase())
+    );
+  }, [searchText, branchOptions]);
 
   return (
     <div className="relative w-full" ref={dropdownRef}>
@@ -342,6 +350,7 @@ const BranchDropdown: React.FC<{
 
       {isOpen && (
         <div className="absolute z-50 left-0 mt-1 w-full bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-hidden">
+          {/* Header */}
           <div className="px-3 py-2 border-b border-gray-200 bg-yellow-50">
             <div className="flex items-center justify-between">
               <span className="text-sm font-medium text-gray-700">
@@ -355,31 +364,39 @@ const BranchDropdown: React.FC<{
                 {allSelected ? "Deselect All" : "Select All"}
               </button>
             </div>
+
+            {/* 🔍 Search box */}
+            <input
+              type="text"
+              value={searchText}
+              onChange={(e) => setSearchText(e.target.value)}
+              placeholder="Search..."
+              className="mt-2 w-full border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-yellow-500"
+            />
           </div>
 
+          {/* Options */}
           <div className="max-h-48 overflow-y-auto">
-            {branchOptions.length > 0 ? (
-              branchOptions.map((branch) => (
+            {filteredBranches.length > 0 ? (
+              filteredBranches.map((branch) => (
                 <label
                   key={branch.value}
-                  className="flex items-center px-3 py-2 hover:bg-yellow-50 cursor-pointer group"
+                  className="flex items-center px-3 py-2 hover:bg-yellow-50 cursor-pointer"
                 >
-                  <div className="flex items-center h-4">
-                    <input
-                      type="checkbox"
-                      checked={selectedBranches.includes(branch.value)}
-                      onChange={() => onBranchToggle(branch.value)}
-                      className="h-4 w-4 rounded border-gray-300 text-yellow-600 focus:ring-yellow-500"
-                    />
-                  </div>
-                  <span className="ml-3 text-sm text-gray-700 flex-1">
+                  <input
+                    type="checkbox"
+                    checked={selectedBranches.includes(branch.value)}
+                    onChange={() => onBranchToggle(branch.value)}
+                    className="h-4 w-4 rounded border-gray-300 text-yellow-600 focus:ring-yellow-500"
+                  />
+                  <span className="ml-3 text-sm text-gray-700">
                     {branch.label}
                   </span>
                 </label>
               ))
             ) : (
               <div className="px-3 py-3 text-center text-sm text-gray-500">
-                No branches available
+                No matching branches
               </div>
             )}
           </div>
@@ -420,8 +437,6 @@ export default function UserAccessPage() {
     end: null,
   });
   const [globalFilter, setGlobalFilter] = useState("");
-
-  const { exportToPDF, exportToExcel } = useExport();
   const { data: schoolData } = useSchoolData();
   const { data: branchDataFromHook } = useBranchData();
 
@@ -680,6 +695,16 @@ export default function UserAccessPage() {
     }
   }, [isEditDialogOpen]);
 
+  const handleDeleteClick = (row: BranchGroupAccess) => {
+    const confirmed = window.confirm(
+      `Are you sure you want to delete "${row.branchGroupName}"?`
+    );
+
+    if (confirmed) {
+      deleteMutation.mutate(row._id);
+    }
+  };
+
   // Main columns for CustomTable
   const columns: ColumnDef<BranchGroupAccess, CellContent>[] = useMemo(
     () => [
@@ -744,31 +769,48 @@ export default function UserAccessPage() {
       },
       {
         header: "Assigned Branches",
-        accessorFn: (row) => ({
-          type: "custom",
-          value: (
-            <TableBranchDropdown
-              assignedBranches={row.AssignedBranch || []}
-              branchOptions={branchOptions}
-              onBranchesUpdate={(branchIds) =>
-                handleTableBranchesUpdate(row._id, branchIds)
-              }
-              userId={row._id}
-            />
-          ),
-          render: () => (
-            <TableBranchDropdown
-              assignedBranches={row.AssignedBranch || []}
-              branchOptions={branchOptions}
-              onBranchesUpdate={(branchIds) =>
-                handleTableBranchesUpdate(row._id, branchIds)
-              }
-              userId={row._id}
-            />
-          ),
-        }),
+        accessorFn: (row) => {
+          // console.log("Branches:", branchOptions); 
+          // console.log("Row:", row); 
+          // // Filter branches that belong to this row's school
+          // const schoolFilteredBranches = (branchOptions || [])
+          //   .filter((b) => b.schoolId === row.schoolId?._id)
+          //   .map((b) => ({
+          //     label: b.branchName,
+          //     value: b._id,
+          //   }));
+          const assignedOnly = (row.AssignedBranch || []).map((b) => ({
+            label: b.branchName,
+            value: b._id,
+          }));
+
+          return {
+            type: "custom",
+            value: (
+              <TableBranchDropdown
+                assignedBranches={row.AssignedBranch || []}
+                branchOptions={assignedOnly}
+                onBranchesUpdate={(branchIds) =>
+                  handleTableBranchesUpdate(row._id, branchIds)
+                }
+                userId={row._id}
+              />
+            ),
+            render: () => (
+              <TableBranchDropdown
+                assignedBranches={row.AssignedBranch || []}
+                branchOptions={assignedOnly}
+                onBranchesUpdate={(branchIds) =>
+                  handleTableBranchesUpdate(row._id, branchIds)
+                }
+                userId={row._id}
+              />
+            ),
+          };
+        },
         meta: { flex: 1, minWidth: 280 },
       },
+
       {
         header: "Action",
         accessorFn: (row) => ({
@@ -787,7 +829,7 @@ export default function UserAccessPage() {
             {
               type: "button",
               label: "Delete",
-              onClick: () => setDeleteTarget(row),
+              onClick: () => handleDeleteClick(row),
               className:
                 "bg-yellow-400 hover:bg-yellow-500 text-red-600 font-semibold py-1 px-3 rounded-md cursor-pointer transition-colors duration-200",
             },
@@ -826,6 +868,25 @@ export default function UserAccessPage() {
     state: { columnVisibility },
     onColumnVisibilityChange: setColumnVisibility,
   });
+
+  const filteredBranches = useMemo(() => {
+    if (!selectedSchool) return [];
+    return (
+      branchDataFromHook
+        ?.filter((b) => b.schoolId?._id === selectedSchool)
+        .map((b) => ({ label: b.branchName, value: b._id })) || []
+    );
+  }, [selectedSchool, branchDataFromHook]);
+
+  const filteredEditBranches = useMemo(() => {
+    if (!editSelectedSchool) return [];
+    return (
+      branchDataFromHook
+        ?.filter((b) => b.schoolId?._id === editSelectedSchool)
+        .map((b) => ({ label: b.branchName, value: b._id })) || []
+    );
+  }, [editSelectedSchool, branchDataFromHook]);
+
 
   return (
     <main className="p-4">
@@ -927,7 +988,7 @@ export default function UserAccessPage() {
                 <Label htmlFor="assignedBranches">Assigned Branches</Label>
                 <BranchDropdown
                   selectedBranches={selectedBranches}
-                  branchOptions={branchOptions}
+                  branchOptions={filteredBranches}
                   onBranchToggle={handleBranchToggle}
                   onSelectAll={handleSelectAll}
                 />
@@ -1023,7 +1084,7 @@ export default function UserAccessPage() {
                 <Label htmlFor="edit-assignedBranches">Assigned Branches</Label>
                 <BranchDropdown
                   selectedBranches={editSelectedBranches}
-                  branchOptions={branchOptions}
+                  branchOptions={filteredEditBranches}
                   onBranchToggle={handleEditBranchToggle}
                   onSelectAll={handleEditSelectAll}
                 />
@@ -1048,17 +1109,6 @@ export default function UserAccessPage() {
           )}
         </DialogContent>
       </Dialog>
-
-      {deleteTarget && (
-        <Alert<BranchGroupAccess>
-          title="Are you absolutely sure?"
-          description={`This will permanently delete the branch group "${deleteTarget?.branchGroupName}" and all associated data.`}
-          actionButton={() => handleDelete()}
-          target={deleteTarget}
-          setTarget={setDeleteTarget}
-          butttonText="Delete"
-        />
-      )}
     </main>
   );
 }
