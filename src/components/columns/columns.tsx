@@ -743,7 +743,7 @@ export const getGeofenceCoumns = (
     enableHiding: true,
     enableSorting: true,
   },
-  {
+ {
     id: "actions",
     header: "Actions",
     cell: ({ row }) => (

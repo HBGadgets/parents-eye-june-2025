@@ -46,4 +46,9 @@ export const deviceApiService = {
     });
     return res.data;
   },
+
+  checkRouteAssign: async (id: string) => {
+    const res = await api.get(`/deivce/already-assign-check/${id}`);
+    return res.data;
+  },
 };

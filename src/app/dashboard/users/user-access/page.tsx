@@ -36,7 +36,7 @@ import {
   useReactTable,
   getCoreRowModel,
 } from "@tanstack/react-table";
-import { ChevronDown, X, Edit, Trash2 } from "lucide-react";
+import { ChevronDown, X, Edit, Trash2, EyeOff, Eye } from "lucide-react";
 import SearchComponent from "@/components/ui/SearchOnlydata";
 import { Combobox } from "@/components/ui/combobox";
 import { createPortal } from "react-dom";
@@ -709,15 +709,6 @@ export default function UserAccessPage() {
   const columns: ColumnDef<BranchGroupAccess, CellContent>[] = useMemo(
     () => [
       {
-        header: "User Name",
-        accessorFn: (row) => ({
-          type: "text",
-          value: row.username || "N/A",
-          render: () => row.username || "N/A",
-        }),
-        meta: { flex: 1, minWidth: 180, maxWidth: 250 },
-      },
-      {
         header: "Group Name",
         accessorFn: (row) => ({
           type: "text",
@@ -727,14 +718,64 @@ export default function UserAccessPage() {
         meta: { flex: 1, minWidth: 180, maxWidth: 250 },
       },
       {
-        header: "Password",
+        header: "User Name",
         accessorFn: (row) => ({
           type: "text",
-          value: row.password || "N/A",
-          render: () => row.password || "N/A",
+          value: row.username || "N/A",
+          render: () => row.username || "N/A",
+        }),
+        meta: { flex: 1, minWidth: 180, maxWidth: 250 },
+      },
+
+      // {
+      //   header: "Password",
+      //   accessorFn: (row) => ({
+      //     type: "text",
+      //     value: row.password || "N/A",
+      //     render: () => row.password || "N/A",
+      //   }),
+      //   meta: { flex: 1, minWidth: 150, maxWidth: 200 },
+      // },
+      {
+        header: "Password",
+        accessorFn: (row) => ({
+          type: "custom",
+          render: () => {
+            // Inline component WITH hooks allowed here
+            const PasswordView = () => {
+              const [show, setShow] = React.useState(false);
+              const password = row.password || "N/A";
+
+              return (
+                <div className="flex items-center justify-center gap-2">
+                  <span className="font-mono">
+                    {show ? password : "•".repeat(password?.length || 8)}
+                  </span>
+
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShow((prev) => !prev);
+                    }}
+                    className="p-1 hover:bg-gray-200 rounded cursor-pointer"
+                  >
+                    {show ? (
+                      <EyeOff className="h-4 w-4 text-gray-700" />
+                    ) : (
+                      <Eye className="h-4 w-4 text-gray-700" />
+                    )}
+                  </button>
+                </div>
+              );
+            };
+
+            return <PasswordView />;
+          },
         }),
         meta: { flex: 1, minWidth: 150, maxWidth: 200 },
       },
+
       {
         header: "Mobile No",
         accessorFn: (row) => ({
@@ -770,8 +811,8 @@ export default function UserAccessPage() {
       {
         header: "Assigned Branches",
         accessorFn: (row) => {
-          // console.log("Branches:", branchOptions); 
-          // console.log("Row:", row); 
+          // console.log("Branches:", branchOptions);
+          // console.log("Row:", row);
           // // Filter branches that belong to this row's school
           // const schoolFilteredBranches = (branchOptions || [])
           //   .filter((b) => b.schoolId === row.schoolId?._id)
@@ -886,7 +927,6 @@ export default function UserAccessPage() {
         .map((b) => ({ label: b.branchName, value: b._id })) || []
     );
   }, [editSelectedSchool, branchDataFromHook]);
-
 
   return (
     <main className="p-4">
