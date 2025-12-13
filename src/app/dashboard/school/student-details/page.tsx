@@ -411,8 +411,13 @@ export default function StudentDetails() {
           <div className="mr-3">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button className="cursor-pointer" disabled={isExcelExporting || isPdfExporting}>
-                  {isExcelExporting || isPdfExporting ? "Exporting..." : "Export"}
+                <Button
+                  className="cursor-pointer"
+                  disabled={isExcelExporting || isPdfExporting}
+                >
+                  {isExcelExporting || isPdfExporting
+                    ? "Exporting..."
+                    : "Export"}
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent>
@@ -474,7 +479,7 @@ export default function StudentDetails() {
               placeholder="Filter School"
               searchPlaceholder="Search School..."
               className="cursor-pointer"
-              width="w-[180px]"
+              width="w-[140px]"
               emptyMessage="No schools found"
             />
           )}
@@ -493,7 +498,7 @@ export default function StudentDetails() {
               placeholder="Filter Branch"
               searchPlaceholder="Search Branch..."
               className="cursor-pointer"
-              width="w-[180px]"
+              width="w-[140px]"
               emptyMessage="No branches found"
               disabled={role === "superAdmin" && !filterSchoolId}
             />
@@ -507,7 +512,7 @@ export default function StudentDetails() {
             placeholder="Filter Route"
             searchPlaceholder="Search Route..."
             className="cursor-pointer"
-            width="w-[160px]"
+            width="w-[140px]"
             emptyMessage="No routes found"
             disabled={!filterBranchId}
           />

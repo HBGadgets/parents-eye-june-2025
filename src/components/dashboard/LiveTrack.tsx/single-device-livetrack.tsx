@@ -172,6 +172,17 @@ const GeofenceDrawing = ({
   radius: number;
   onRadiusChange: (radius: number) => void;
 }) => {
+  const sliderContainerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const container = sliderContainerRef.current;
+    if (container) {
+      // Prevent click and scroll events from propagating to the map
+      L.DomEvent.disableClickPropagation(container);
+      L.DomEvent.disableScrollPropagation(container);
+    }
+  }, []);
+
   return (
     <>
       <Circle
@@ -185,6 +196,7 @@ const GeofenceDrawing = ({
         }}
       />
       <div
+        ref={sliderContainerRef}
         className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-white px-6 py-4 rounded-xl shadow-2xl border border-gray-200 w-80"
         style={{ zIndex: 1000 }}
       >
@@ -419,9 +431,6 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
     }),
     [vehicle?.routeId]
   );
-
-  console.log(filters);
-
   // TanStack Query hooks for geofence management
   const queryParams = useMemo(
     () => ({ schoolId, branchId }),
@@ -432,7 +441,6 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
     // geofence: geofences,
     // geofenceByRoute,
     isLoading: isLoadingGeofences,
-    total: totalGeofences,
     createGeofence,
   } = useGeofence(pagination, sorting, filters);
   const { geofenceByRoute, isLoadingByRoute } = useGeofenceByRoute(
