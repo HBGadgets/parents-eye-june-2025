@@ -18,7 +18,7 @@ import { Button } from "@/components/ui/button";
 import { SearchBar } from "@/components/search-bar/SearchBarPagination";
 import { useDebounce } from "@/hooks/useDebounce";
 import { Combobox } from "@/components/ui/combobox";
-import { X, Upload } from "lucide-react";
+import { X, Upload, XCircle, Clock, CheckCircle } from "lucide-react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { ExcelUploader } from "@/components/excel-uploader/ExcelUploader";
@@ -30,6 +30,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Switch } from "@/components/ui/switch";
 
 type DecodedToken = {
   role: string;
@@ -217,9 +218,11 @@ export default function StudentDetails() {
     createStudent,
     exportExcel,
     exportPdf,
+    approveStudent,
     isPdfExporting,
     isExcelExporting,
     isDeleteLoading,
+    isApproveLoading,
   } = useStudent(pagination, sorting, filters);
 
   // ---------------- Auto Close Form on Success ----------------
@@ -348,10 +351,52 @@ export default function StudentDetails() {
   }, []);
 
   // ---------------- Table Columns ----------------
-  const columns = useMemo(
-    () => getStudentColumns(handleEdit, handleDelete),
-    [handleEdit, handleDelete]
-  );
+  const columns = useMemo(() => {
+    const cols = [...getStudentColumns(handleEdit, handleDelete)];
+
+    if (role === "superAdmin") {
+      cols.splice(cols.length - 1, 0, {
+        header: "Registration Status",
+        cell: ({ row }) => {
+          const { statusOfRegister, _id } = row.original;
+
+          // Inline component to use hooks inside cell
+          const StatusSwitch = () => {
+            const [enabled, setEnabled] = useState(
+              statusOfRegister === "registered"
+            );
+
+            const handleToggle = (checked) => {
+              setEnabled(checked);
+
+              const newStatus = checked ? "registered" : "rejected";
+
+              approveStudent({
+                id: _id,
+                statusOfRegister: newStatus,
+              });
+            };
+
+            return (
+              <Switch
+                checked={enabled}
+                onCheckedChange={handleToggle}
+                disabled={isApproveLoading}
+                className={`cursor-pointer ${
+                  isApproveLoading ? "opacity-50 cursor-not-allowed" : ""
+                }`}
+                title={`${statusOfRegister === "registered" ? "Registered" : "Rejected"}`}
+              />
+            );
+          };
+
+          return <StatusSwitch />;
+        },
+      });
+    }
+
+    return cols;
+  }, [handleEdit, handleDelete, role, approveStudent, isApproveLoading]);
 
   // ---------------- Table ----------------
   const { table, tableElement, selectedRows } = CustomTableServerSidePagination(

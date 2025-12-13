@@ -9,6 +9,7 @@ import {
 import { studentService } from "@/services/api/studentService";
 import { PaginationState, SortingState } from "@tanstack/react-table";
 import { toast } from "sonner";
+import { is } from "date-fns/locale";
 
 export const useStudent = (
   pagination: PaginationState,
@@ -133,6 +134,35 @@ export const useStudent = (
     },
   });
 
+const approveStudent = useMutation({
+  mutationFn: ({
+    id,
+    statusOfRegister,
+  }: {
+    id: string;
+    statusOfRegister: string;
+  }) => studentService.approveStudent(id, statusOfRegister),
+
+  onSuccess: (data, variables) => {
+    const { statusOfRegister } = variables;
+
+    // Show toast based on action
+    if (statusOfRegister === "registered") {
+      toast.success("Student approved successfully");
+    } else {
+      toast.success("Student rejected successfully");
+    }
+
+    queryClient.invalidateQueries({ queryKey: ["students"] });
+  },
+
+  onError: (err: any) => {
+    toast.error(err?.response?.data?.message || "Approval failed");
+  },
+});
+
+
+
   return {
     students: getStudentsQuery.data?.children || [],
     total: getStudentsQuery.data?.total || 0,
@@ -145,11 +175,13 @@ export const useStudent = (
     deleteStudent: deleteStudentMutation.mutate,
     exportExcel: exportExcelMutation.mutate,
     exportPdf: exportPdfMutation.mutate,
+    approveStudent: approveStudent.mutate,
 
     isCreateLoading: createStudentMutation.isPending,
     isUpdateLoading: updateStudentMutation.isPending,
     isDeleteLoading: deleteStudentMutation.isPending,
     isExcelExporting: exportExcelMutation.isPending,
     isPdfExporting: exportPdfMutation.isPending,
+    isApproveLoading: approveStudent.isPending
   };
 };

@@ -846,7 +846,10 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
             {vehicle?.gsmSignal ? "Online" : "Offline"}
           </span>
         </div>
-        <div>Route No: {vehicle?.routeNumber}</div>
+        <div>
+          Route No:{" "}
+          {vehicle?.routeNumber ? vehicle.routeNumber : "Not assigned"}
+        </div>
         <div>
           Geofences: {geofenceByRoute ? geofenceByRoute?.length : "loading..."}
         </div>
@@ -861,10 +864,11 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
             : "loading..."}
         </div>
         <div>
-          Speed:{" "}
-          {vehicle?.speed ? `${vehicle?.speed.toFixed(2)} km/h` : "loading..."}
+          Speed: {vehicle?.speed && `${vehicle?.speed.toFixed(2)} km/h`}
         </div>
-        <div>Speed Limit: {vehicle?.speedLimit || "loading..."}</div>
+        <div>
+          Speed Limit: {vehicle?.speedLimit && `${vehicle.speedLimit} km/h`}
+        </div>
       </div>
 
       {/* Controls */}

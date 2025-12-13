@@ -215,10 +215,10 @@ export default function DashboardClient() {
 
       return () => {
         clearTimeout(timer);
-        document.body.style.pointerEvents = "";
+        // document.body.style.pointerEvents = "";
       };
     } else {
-      document.body.style.pointerEvents = "";
+      document.body.style.pointerEvents = "auto";
     }
   }, [isDrawerOpen]);
 
