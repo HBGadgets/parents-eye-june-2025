@@ -261,9 +261,9 @@ export default function StudentDetails() {
 
   const handleEdit = useCallback((row: Student) => {
     setEditStudent(row);
-    setFormSchoolId(row.schoolId._id);
-    setFormBranchId(row.branchId._id);
-    setFormParentId(row.parentId._id);
+    setFormSchoolId(row.schoolId?._id);
+    setFormBranchId(row.branchId?._id);
+    setFormParentId(row.parentId?._id);
     setShowForm(true);
   }, []);
 

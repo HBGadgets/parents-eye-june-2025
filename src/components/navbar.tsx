@@ -11,8 +11,6 @@ import {
   NavigationMenuList,
 } from "@/components/ui/navigation-menu";
 import { ProfileDropdown } from "@/components/ProfileDropdown";
-import Image from "next/image";
-import { Bell } from "lucide-react";
 import { useNotificationStore } from "@/store/notificationStore";
 import { NotificationSheet } from "./NotificationDropdown";
 
@@ -55,18 +53,6 @@ export function Navbar() {
 
   return (
     <div className="w-full h-16 flex items-center relative px-2 sm:px-4 bg-primary border-b border-yellow-600/20">
-      {/* <div className="w-full h-16 fixed flex items-center px-2 sm:px-4 bg-primary border-b border-yellow-600/20"> */}
-      {/* Left: Logo and title */}
-      {/* <div className="flex items-center flex-shrink-0 h-full">
-        <Image
-          width={150}
-          height={150}
-          src="/logo.svg"
-          alt="Logo"
-          className="relative left-10 -top-2.5"
-        />
-      </div> */}
-
       {/* Centered nav links with responsive spacing */}
       <div className="flex-1 flex justify-center items-center relative z-[9999]">
         <div className="max-w-[calc(100%-80px)] sm:max-w-none">

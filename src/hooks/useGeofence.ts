@@ -14,6 +14,7 @@ import { toast } from "sonner";
 export const useGeofence = (
   pagination: PaginationState,
   sorting: SortingState,
+  fetchGeofence: boolean,
   filters: Record<string, any>
 ) => {
   const queryClient = useQueryClient();
@@ -21,12 +22,13 @@ export const useGeofence = (
   const getGeofenceQuery = useQuery({
     queryKey: [
       "geofence",
-      pagination.pageIndex,
-      pagination.pageSize,
+      pagination?.pageIndex,
+      pagination?.pageSize,
       sorting,
-      filters.search,
-      filters.schoolId,
-      filters.branchId,
+      filters?.search,
+      filters?.schoolId,
+      filters?.branchId,
+      fetchGeofence = true,
     ],
     queryFn: () =>
       geofenceService.getGeofence({
@@ -37,14 +39,15 @@ export const useGeofence = (
         schoolId: filters.schoolId,
       }),
     placeholderData: keepPreviousData,
+    enabled: fetchGeofence,
   });
 
-  const getGeofenceByRouteQuery = useQuery({
-    queryKey: ["geofence-by-route", filters.routeId],
-    queryFn: () => geofenceService.getGeofenceByRouteObjId(filters.routeId),
-    placeholderData: keepPreviousData,
-    enabled: !!filters.routeId,
-  });
+  // const getGeofenceByRouteQuery = useQuery({
+  //   queryKey: ["geofence-by-route", filters.routeId],
+  //   queryFn: () => geofenceService.getGeofenceByRouteObjId(filters.routeId),
+  //   placeholderData: keepPreviousData,
+  //   enabled: !!filters.routeId,
+  // });
 
   const createGeofenceMutation = useMutation({
     mutationFn: geofenceService.createGeofence,
@@ -91,8 +94,6 @@ export const useGeofence = (
 
   return {
     geofence: getGeofenceQuery.data?.data || [],
-    geofenceByRoute: getGeofenceByRouteQuery.data?.data || [],
-    isLoadingByRoute: getGeofenceByRouteQuery.isLoading,
     isLoading: getGeofenceQuery.isLoading,
     total: getGeofenceQuery.data?.total || 0,
 
@@ -103,5 +104,18 @@ export const useGeofence = (
     isCreateLoading: createGeofenceMutation.isPending,
     isUpdateLoading: updateGeofenceMutation.isPending,
     isDeleteLoading: deleteGeofenceMutation.isPending,
+  };
+};
+export const useGeofenceByRoute = (routeId: string) => {
+  const geofenceByRoute = useQuery({
+    queryKey: ["geofence-by-route", routeId],
+    queryFn: () => geofenceService.getGeofenceByRouteObjId(routeId),
+    placeholderData: keepPreviousData,
+    enabled: !!routeId,
+  });
+
+  return {
+    geofenceByRoute: geofenceByRoute.data?.data || [],
+    isLoadingByRoute: geofenceByRoute.isLoading,
   };
 };
