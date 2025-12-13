@@ -14,7 +14,6 @@ import { toast } from "sonner";
 export const useGeofence = (
   pagination: PaginationState,
   sorting: SortingState,
-  fetchGeofence: boolean,
   filters: Record<string, any>
 ) => {
   const queryClient = useQueryClient();
@@ -28,7 +27,6 @@ export const useGeofence = (
       filters?.search,
       filters?.schoolId,
       filters?.branchId,
-      fetchGeofence = true,
     ],
     queryFn: () =>
       geofenceService.getGeofence({
@@ -39,7 +37,6 @@ export const useGeofence = (
         schoolId: filters.schoolId,
       }),
     placeholderData: keepPreviousData,
-    enabled: fetchGeofence,
   });
 
   // const getGeofenceByRouteQuery = useQuery({
@@ -117,5 +114,19 @@ export const useGeofenceByRoute = (routeId: string) => {
   return {
     geofenceByRoute: geofenceByRoute.data?.data || [],
     isLoadingByRoute: geofenceByRoute.isLoading,
+  };
+};
+
+export const useGeofenceByUniqueId = (uniqueId: string) => {
+  const geofenceByUniqueId = useQuery({
+    queryKey: ["geofence-by-uniqueId", uniqueId],
+    queryFn: () => geofenceService.getGeofenceByRouteObjId(uniqueId),
+    placeholderData: keepPreviousData,
+    enabled: !!uniqueId,
+  });
+
+  return {
+    geofenceByUniqueId: geofenceByUniqueId.data?.data || [],
+    isLoadingByUniqueId: geofenceByUniqueId.isLoading,
   };
 };

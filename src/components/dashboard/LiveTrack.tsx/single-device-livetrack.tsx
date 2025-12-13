@@ -419,9 +419,6 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
     }),
     [vehicle?.routeId]
   );
-
-  console.log(filters);
-
   // TanStack Query hooks for geofence management
   const queryParams = useMemo(
     () => ({ schoolId, branchId }),
@@ -432,7 +429,6 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
     // geofence: geofences,
     // geofenceByRoute,
     isLoading: isLoadingGeofences,
-    total: totalGeofences,
     createGeofence,
   } = useGeofence(pagination, sorting, filters);
   const { geofenceByRoute, isLoadingByRoute } = useGeofenceByRoute(
