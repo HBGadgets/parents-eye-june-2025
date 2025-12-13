@@ -2,6 +2,7 @@ import { ColumnDef } from "@tanstack/react-table";
 import {
   Category,
   Device,
+  Driver,
   Geofence,
   LiveTrack,
   Model,
@@ -14,6 +15,7 @@ import { Eye, EyeOff, Locate } from "lucide-react";
 import { calculateTimeSince } from "@/util/calculateTimeSince";
 import React, { useMemo } from "react";
 import { Button } from "../ui/button";
+import { access } from "fs";
 
 export const getModelColumns = (
   setEditTarget: (row: Model) => void,
@@ -743,7 +745,117 @@ export const getGeofenceCoumns = (
     enableHiding: true,
     enableSorting: true,
   },
- {
+  {
+    id: "actions",
+    header: "Actions",
+    cell: ({ row }) => (
+      <div className="flex items-center justify-center gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={(e) => {
+            e.stopPropagation();
+            onEdit(row.original); // Use the callback
+          }}
+          className="cursor-pointer bg-[#f3c623] hover:bg-[#D3A80C]"
+        >
+          Edit
+        </Button>
+        <Button
+          variant="destructive"
+          size="sm"
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete(row.original); // Use the callback
+          }}
+          className="cursor-pointer hover:bg-red-700"
+        >
+          Delete
+        </Button>
+      </div>
+    ),
+    enableSorting: false,
+    enableHiding: false,
+  },
+];
+
+export const getDriverColumns = (
+  onEdit: (row: Driver) => void,
+  onDelete: (row: Driver) => void,
+  onApprove: (row: Driver) => void
+): ColumnDef<Driver>[] => [
+  {
+    header: "Driver Name",
+    accessorKey: "driverName",
+  },
+  {
+    header: "Mobile No",
+    accessorKey: "mobileNo",
+  },
+  {
+    header: "Email",
+    accessorKey: "email",
+  },
+  {
+    id: "School",
+    header: "school",
+    accessorFn: (row: Driver) => row.schoolId?.schoolName ?? "—",
+  },
+  {
+    id: "Branch",
+    header: "branch",
+    accessorFn: (row: Driver) => row.branchId?.branchName ?? "—",
+  },
+  {
+    id: "Vehicle No",
+    header: "vehicleNo",
+    accessorFn: (row: Driver) => row.deviceObjId?.name ?? "—",
+  },
+  {
+    header: "Username",
+    accessorKey: "username",
+  },
+  {
+    header: "Password",
+    accessorKey: "password",
+    cell: ({ row }) => {
+      const [show, setShow] = React.useState(false);
+      const password = row.original.password;
+
+      return (
+        <div className="flex items-center justify-center gap-2">
+          <span className="font-mono">
+            {show ? password : "•".repeat(password?.length || 8)}
+          </span>
+
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setShow((prev) => !prev);
+            }}
+            className="p-1 hover:bg-gray-200 rounded cursor-pointer"
+          >
+            {show ? (
+              <EyeOff className="h-4 w-4 text-gray-700" />
+            ) : (
+              <Eye className="h-4 w-4 text-gray-700" />
+            )}
+          </button>
+        </div>
+      );
+    },
+  },
+  {
+    id: "registrationDate",
+    header: "Registration Date",
+    accessorFn: (row: Device) => new Date(row.createdAt).toLocaleDateString(),
+  },
+  {
+    header: "Status",
+    accessorKey: "isApproved",
+  },
+  {
     id: "actions",
     header: "Actions",
     cell: ({ row }) => (

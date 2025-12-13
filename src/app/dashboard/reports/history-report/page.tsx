@@ -113,8 +113,8 @@ function HistoryReportContent() {
   const vehicleMetaData = useMemo(() => {
     if (!Array.isArray(allVehicles)) return [];
     return allVehicles.map((vehicle) => ({
-      value: vehicle.deviceId.toString(),
-      label: vehicle.name,
+      value: vehicle?.uniqueId.toString(),
+      label: vehicle?.name,
     }));
   }, [allVehicles]);
 
@@ -310,7 +310,7 @@ function HistoryReportContent() {
       setLoading(true);
 
       const response = await api.get(
-        `/device-history-playback?deviceId=${selectedVehicle}&from=${fromDate}&to=${toDate}`
+        `/device-history-playback?uniqueId=${selectedVehicle}&from=${fromDate}&to=${toDate}`
       );
 
       // Get the history data safely

@@ -28,6 +28,7 @@ export const useStudent = (
       filters.schoolId,
       filters.branchId,
       filters.routeObjId,
+      filters.statusOfRegister,
     ],
     queryFn: () =>
       studentService.getStudents({
@@ -37,6 +38,7 @@ export const useStudent = (
         branchId: filters.branchId,
         schoolId: filters.schoolId,
         routeObjId: filters.routeObjId,
+        statusOfRegister: filters.statusOfRegister,
       }),
     placeholderData: keepPreviousData,
   });
@@ -148,9 +150,9 @@ const approveStudent = useMutation({
 
     // Show toast based on action
     if (statusOfRegister === "registered") {
-      toast.success("Student approved successfully");
+      toast.success("Student Approve");
     } else {
-      toast.success("Student rejected successfully");
+      toast.warning("Student Rejected");
     }
 
     queryClient.invalidateQueries({ queryKey: ["students"] });

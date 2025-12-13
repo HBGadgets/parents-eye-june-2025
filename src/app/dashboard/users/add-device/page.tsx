@@ -30,7 +30,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { sortBy } from "lodash";
 
 type DecodedToken = {
   role: string;

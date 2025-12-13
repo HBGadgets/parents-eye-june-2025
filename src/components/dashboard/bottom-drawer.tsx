@@ -98,7 +98,7 @@ export const BottomDrawer = ({
                 <button
                   className="rounded-sm mr-1 text-black border border-black px-2 py-1 hover:bg-black hover:text-white transition-colors duration-200 cursor-pointer"
                   onClick={() =>
-                    selectedDevice?.deviceId !== undefined &&
+                    selectedDevice?.uniqueId !== undefined &&
                     onOpenRouteTimeline(
                       selectedDevice.uniqueId,
                       selectedDevice.name
