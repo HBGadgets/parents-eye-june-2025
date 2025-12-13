@@ -19,6 +19,7 @@ import { LiveTrack } from "@/components/dashboard/LiveTrack.tsx/livetrack";
 import { BottomDrawer } from "@/components/dashboard/bottom-drawer";
 import SubscriptionExpiry from "@/components/dashboard/SubscriptionExpiry/SubscriptionExpiry";
 import { getLiveVehicleColumns } from "@/components/columns/columns";
+import { RouteTimeline } from "@/components/dashboard/route/route-timeline";
 
 type ViewState = "split" | "tableExpanded" | "mapExpanded";
 type StatusFilter = "all" | "running" | "idle" | "stopped" | "inactive" | "new";
@@ -51,6 +52,19 @@ export default function DashboardClient() {
     uniqueId: 0,
     name: "",
   });
+  const [isRouteTimelineOpen, setIsRouteTimelineOpen] = useState(false);
+  const [routeTimelineData, setRouteTimelineData] = useState<{
+    uniqueId: string;
+    deviceName: string;
+  } | null>(null);
+
+  const handleOpenRouteTimeline = useCallback(
+    (uniqueId: string, deviceName: string) => {
+      setRouteTimelineData({ uniqueId, deviceName });
+      setIsRouteTimelineOpen(true);
+    },
+    []
+  );
 
   // Active status filter
   const [activeStatus, setActiveStatus] = useState<StatusFilter>("all");
@@ -327,7 +341,8 @@ export default function DashboardClient() {
       addresses,
       loadingAddresses,
       handleOpenLiveTrack,
-      handleHistoryClick,
+
+      onOpenRouteTimeline: handleOpenRouteTimeline,
     };
   }, [
     isDrawerOpen,
@@ -336,7 +351,8 @@ export default function DashboardClient() {
     addresses,
     loadingAddresses,
     handleOpenLiveTrack,
-    handleHistoryClick,
+
+    handleOpenRouteTimeline,
   ]);
 
   // Dummy devices data for subscription expiry
@@ -573,6 +589,14 @@ export default function DashboardClient() {
         </div>
 
         <LiveTrack open={open} setOpen={setOpen} selectedImei={selectedImei} />
+
+        <RouteTimeline
+          isOpen={isRouteTimelineOpen}
+          onOpenChange={setIsRouteTimelineOpen}
+          uniqueId={routeTimelineData?.uniqueId}
+          deviceName={routeTimelineData?.deviceName}
+          handleHistoryClick={handleHistoryClick}
+        />
 
         {/* Subscription Expiry Popup - Fixed to bottom-right corner */}
         {showSubscriptionPopup && (

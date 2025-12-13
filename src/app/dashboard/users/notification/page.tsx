@@ -434,35 +434,6 @@ export default function NotificationMaster() {
         showSerialNumber={true}
         noDataMessage="No notification assignments found"
       />
-
-      {/* Delete Alert */}
-      {deleteTarget && (
-        <Alert<NotificationAssignment>
-          title="Are you absolutely sure?"
-          description={`This will permanently delete ${deleteTarget?.deviceName}'s notifications.`}
-          actionButton={(target) => {
-            deleteNotificationMutation.mutate(target._id);
-            setDeleteTarget(null);
-          }}
-          target={deleteTarget}
-          setTarget={setDeleteTarget}
-          butttonText="Delete"
-        />
-      )}
-
-      {/* Floating Menu */}
-      <FloatingMenu
-        onExportPdf={() =>
-          exportToPDF(filteredData, [{ key: "deviceName", header: "Device Name" }], {
-            title: "Notification Assignment Report",
-          })
-        }
-        onExportExcel={() =>
-          exportToExcel(filteredData, [{ key: "deviceName", header: "Device Name" }], {
-            title: "Notification Assignment Report",
-          })
-        }
-      />
     </main>
   );
 }

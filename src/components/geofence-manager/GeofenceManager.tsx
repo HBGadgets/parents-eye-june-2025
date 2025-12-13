@@ -1,47 +1,29 @@
 "use client";
-import React, { useState, useRef, useEffect, useCallback, use } from "react";
+import React, {
+  useState,
+  useRef,
+  useEffect,
+  useCallback,
+  useMemo,
+} from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Switch } from "@/components/ui/switch";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Card, CardContent } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
-// import { useToast } from "@/hooks/use-toast";
 import { toast } from "sonner";
-import {
-  Search,
-  Trash2,
-  Upload,
-  RotateCcw,
-  Undo,
-  ZoomIn,
-  ZoomOut,
-  Eye,
-  X,
-  MapPin,
-  Save,
-  XCircle,
-  ExternalLink,
-  ChevronRight,
-  ChevronLeft,
-} from "lucide-react";
+import { RotateCcw, Undo, X } from "lucide-react";
 import GeofenceConfigurationPanel from "./configuration-panel";
-import { Branch, BranchGroup, Route, School } from "@/interface/modal";
-import { useBranchData } from "@/hooks/useBranchData";
-// import { useRouteData } from "@/hooks/useInfiniteRouteData";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Branch, Geofence, Route, School } from "@/interface/modal";
+import { useQueryClient } from "@tanstack/react-query";
 import "./style.css";
-import { api } from "@/services/apiService";
-import { parseTimeString, safeParseTimeString } from "@/util/timeUtils";
-import { useInfiniteRouteData } from "@/hooks/useInfiniteRouteData";
+import { parseTimeString } from "@/util/timeUtils";
+// import { useInfiniteRouteData } from "@/hooks/useInfiniteRouteData";
+import { useBranchDropdown, useSchoolDropdown } from "@/hooks/useDropdown";
+import { useGeofence } from "@/hooks/useGeofence";
+import Cookies from "js-cookie";
+import { jwtDecode } from "jwt-decode";
 
 // Fix for default markers in Leaflet
-delete (L.Icon.Default.prototype as unknown)._getIconUrl;
+delete (L.Icon.Default.prototype as any)._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconRetinaUrl:
     "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png",
@@ -52,9 +34,14 @@ L.Icon.Default.mergeOptions({
 });
 
 // Types
-interface Geofence {
+interface GeofenceData {
+  id?: string;
+  type?: string;
   geofenceName?: string;
-  area: {
+  name?: string;
+  coordinates?: number[][];
+  radius?: number;
+  area?: {
     center?: number[];
     radius?: number;
   };
@@ -65,32 +52,39 @@ interface Geofence {
   routeObjId?: string;
 }
 
+type DecodedToken = {
+  role: string;
+  schoolId?: string;
+  id?: string;
+};
+
 interface GeofenceManagerProps {
   mode?: "add" | "edit";
-  initialData?: Geofence | null;
+  initialData?: GeofenceData | null;
   onSuccess?: () => void;
-  geofenceId?: string;
+  geofenceId?: string | null;
   geofenceRouteId?: Route | null;
   geofenceSchoolId?: School | null;
   geofenceBranchId?: Branch | null;
 }
 
-const GeofenceManager: React.FC = ({
-  mode,
+const GeofenceManager: React.FC<GeofenceManagerProps> = ({
+  mode = "add",
   geofenceId,
   initialData = null,
   onSuccess,
   geofenceRouteId,
   geofenceSchoolId,
   geofenceBranchId,
-}: GeofenceManagerProps) => {
+}) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<L.Map | null>(null);
   const geofenceLayerGroup = useRef<L.LayerGroup | null>(null);
-  const [geofences, setGeofences] = useState<Geofence[]>([]);
-  const [searchQuery, setSearchQuery] = useState("");
+  const tempLayerGroup = useRef<L.LayerGroup | null>(null);
+
+  const [geofences, setGeofences] = useState<GeofenceData[]>([]);
   const [locationSearchQuery, setLocationSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<unknown[]>([]);
+  const [searchResults, setSearchResults] = useState<any[]>([]);
   const [showSearchResults, setShowSearchResults] = useState(false);
   const [activeGeofence, setActiveGeofence] = useState<string | null>(null);
   const [currentCoords, setCurrentCoords] = useState({
@@ -100,42 +94,107 @@ const GeofenceManager: React.FC = ({
   const [isLoading, setIsLoading] = useState(false);
   const [currentGeofenceName, setCurrentGeofenceName] = useState("");
   const [currentRadius, setCurrentRadius] = useState(100);
-  const [tempGeofence, setTempGeofence] = useState<Geofence | null>(null);
-  const markerRef = useRef<L.Marker | null>(null);
-  const tempLayerGroup = useRef<L.LayerGroup | null>(null);
+  const [tempGeofence, setTempGeofence] = useState<GeofenceData | null>(null);
+
+  // Form dropdown states
+  const [schoolId, setSchoolId] = useState<string | undefined>();
+  const [branchId, setBranchId] = useState<string | undefined>();
+
   const [selectedSchool, setSelectedSchool] = useState<School | null>(null);
   const [selectedBranch, setSelectedBranch] = useState<Branch | null>(null);
   const [selectedRoute, setSelectedRoute] = useState<Route | null>(null);
-  // const [selectedBranchGroup, setSelectedBranchGroup] =
-  //   useState<BranchGroup | null>(null);
-  const [filterResults, setFilterResults] = useState<Geofence[]>([]);
-  const [filteredData, setFilteredData] = useState<Geofence[]>([]);
-  // const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-  const [filteredBranches, setFilteredBranches] = useState<Branch[]>([]);
-  const [filteredRoutes, setFilteredRoutes] = useState<Route[]>([]);
-  // const [filteredBranchGroups, setFilteredBranchGroups] = useState<
-  //   BranchGroup[]
-  // >([]);
-  const { data: branchData } = useBranchData();
-  const { data: routeData } = useInfiniteRouteData({
-    schoolId: selectedSchool?._id || initialData?.schoolId,
-    branchId: selectedBranch?._id || initialData?.branchId,
-    limit: "all",
-  });
-  const queryClient = useQueryClient();
+
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [pickupTime, setPickupTime] = useState<Date | undefined>(undefined);
   const [dropTime, setDropTime] = useState<Date | undefined>(undefined);
 
-  // console.log("MODE", mode);
-  useEffect(() => {
-    // console.log("geofenceId", geofenceId);
-    // console.log("school Id", geofenceSchoolId);
-    // console.log("branch Id", geofenceBranchId);
-    // console.log("route Id", geofenceRouteId);
-  }, [geofenceId]);
+  // Role-based state
+  const [decodedToken, setDecodedToken] = useState<DecodedToken>({ role: "" });
+  const role = decodedToken.role || "";
 
-  // 🆕 Add reverse geocoding function
+  const queryClient = useQueryClient();
+
+  // Decode token on mount
+  useEffect(() => {
+    const token = Cookies.get("token");
+    if (!token) return;
+
+    try {
+      const decoded = jwtDecode<DecodedToken>(token);
+      setDecodedToken(decoded);
+    } catch (err) {
+      console.error("Failed to decode token", err);
+    }
+  }, []);
+
+  // Token-based IDs
+  const tokenSchoolId = useMemo(() => {
+    if (role === "school") return decodedToken.id;
+    if (role === "branchGroup") return decodedToken.schoolId;
+    return decodedToken.schoolId;
+  }, [role, decodedToken.id, decodedToken.schoolId]);
+
+  const tokenBranchId = useMemo(
+    () => (role === "branch" ? decodedToken.id : undefined),
+    [role, decodedToken.id]
+  );
+
+  const tokenBranchGroupId = useMemo(
+    () => (role === "branchGroup" ? decodedToken.id : undefined),
+    [role, decodedToken.id]
+  );
+
+  // Set form dropdown states based on role
+  useEffect(() => {
+    if (role === "school" && tokenSchoolId) {
+      setSchoolId(tokenSchoolId);
+    }
+
+    if (role === "branch" && tokenBranchId) {
+      setBranchId(tokenBranchId);
+    }
+
+    if (role === "branchGroup" && tokenBranchGroupId) {
+      setBranchId(tokenBranchGroupId);
+    }
+  }, [role, tokenSchoolId, tokenBranchId, tokenBranchGroupId]);
+
+  // Dropdown data hooks
+  const { data: schools = [] } = useSchoolDropdown(role === "superAdmin");
+
+  // Determine when to fetch branches based on role
+  const shouldFetchBranches = useMemo(() => {
+    if (role === "branch") return false;
+    if (role === "branchGroup") return true;
+    if (role === "school") return !!schoolId;
+    if (role === "superAdmin") return !!schoolId;
+    return false;
+  }, [role, schoolId]);
+
+  // Determine schoolId parameter for branch dropdown
+  const branchDropdownSchoolId = useMemo(() => {
+    if (role === "branchGroup") return undefined;
+    return schoolId;
+  }, [role, schoolId]);
+
+  const { data: branches = [] } = useBranchDropdown(
+    branchDropdownSchoolId,
+    shouldFetchBranches,
+    role === "branchGroup"
+  );
+
+  // Route data with proper dependencies
+  // const { data: routeData } = useInfiniteRouteData({
+  //   schoolId: selectedSchool?._id || schoolId,
+  //   branchId: selectedBranch?._id || branchId,
+  //   limit: "all",
+  // });
+
+  // Use the useGeofence hook for mutations
+  const { createGeofence, updateGeofence, isCreateLoading, isUpdateLoading } =
+    useGeofence({ pageIndex: 0, pageSize: 10 }, [], {});
+
+  // Reverse geocoding function
   const reverseGeocode = async (lat: number, lng: number) => {
     try {
       const response = await fetch(
@@ -149,7 +208,7 @@ const GeofenceManager: React.FC = ({
     }
   };
 
-  // 🆕 NEW: Dedicated useEffect for map centering in edit mode
+  // Map centering in edit mode
   useEffect(() => {
     if (
       mode === "edit" &&
@@ -157,56 +216,36 @@ const GeofenceManager: React.FC = ({
       currentCoords.lat &&
       currentCoords.lng
     ) {
-      // // console.log(
-      //   "🗺️ Centering map for edit mode:",
-      //   currentCoords.lat,
-      //   currentCoords.lng
-      // );
-
-      // Use setTimeout to ensure map is fully ready
       setTimeout(() => {
         if (map.current) {
           try {
             map.current.setView([currentCoords.lat, currentCoords.lng], 16);
-            // // console.log(
-            //   "✅ Map successfully centered on:",
-            //   currentCoords.lat,
-            //   currentCoords.lng
-            // );
           } catch (error) {
-            console.error("❌ Error centering map:", error);
+            console.error("Error centering map:", error);
           }
         }
       }, 200);
     }
   }, [mode, currentCoords.lat, currentCoords.lng]);
 
-  // 🆕 UPDATED: Populate form with initial data when in edit mode
+  // Populate form with initial data when in edit mode
   useEffect(() => {
-    console.log("mode: ", mode);
-    console.log("initialData: ", initialData);
-    console.log("branchData: ", branchData);
-    console.log("routeData: ", routeData);
-    if (mode === "edit" && initialData && branchData && routeData) {
-      console.log("📝 Populating edit data:", initialData);
-
-      // Step 1: Extract coordinates from initialData
+    if (
+      mode === "edit" &&
+      initialData &&
+      schools.length > 0 &&
+      branches.length > 0
+    ) {
       let lat, lng;
-
       if (initialData.area?.center && initialData.area.center.length >= 2) {
         [lat, lng] = initialData.area.center;
-        console.log("📍 Found coordinates in area.center:", lat, lng);
       } else {
-        console.warn("⚠️ No coordinates found in initialData");
-        // Set default coordinates if none found
         lat = 21.1286677;
         lng = 79.1038211;
       }
 
-      // Step 2: Set coordinates state (this will trigger the centering useEffect)
       setCurrentCoords({ lat, lng });
 
-      // Step 3: Populate basic geofence data
       if (initialData.geofenceName) {
         setCurrentGeofenceName(initialData.geofenceName);
       }
@@ -215,30 +254,26 @@ const GeofenceManager: React.FC = ({
         setCurrentRadius(initialData.area.radius);
       }
 
-      // Step 4: Set up temp geofence for visualization
       setTempGeofence({
         type: "radius",
         geofenceName: initialData.geofenceName,
         name: initialData.geofenceName,
-        coordinates: [[initialData.area.center[1], initialData.area.center[0]]],
+        coordinates: [[lng, lat]],
         radius: initialData.area.radius,
         pickupTime: initialData.pickupTime,
         dropTime: initialData.dropTime,
       });
 
-      // Step 5: Get address from coordinates (existing code)
-      const getAddressForEdit = async () => {
-        const address = await reverseGeocode(lat, lng);
-        setLocationSearchQuery(address);
-      };
-
+      // Set address
       if (initialData.address) {
         setLocationSearchQuery(initialData.address);
       } else {
-        getAddressForEdit();
+        reverseGeocode(lat, lng).then(setLocationSearchQuery);
       }
 
-      // Step 6: Handle time fields (your existing code)
+      console.log("object", initialData);
+
+      // Handle time fields
       if (initialData.pickupTime) {
         try {
           const pickupDate =
@@ -250,7 +285,6 @@ const GeofenceManager: React.FC = ({
           setPickupTime(pickupDate);
         } catch (error) {
           console.error("Error parsing pickup time:", error);
-          setPickupTime(new Date());
         }
       }
 
@@ -265,53 +299,42 @@ const GeofenceManager: React.FC = ({
           setDropTime(dropDate);
         } catch (error) {
           console.error("Error parsing drop time:", error);
-          setDropTime(new Date());
         }
       }
 
-      // Step 7: Set school/branch/route objects (your existing code)
+      // Set school/branch/route
       if (geofenceSchoolId) {
-        // console.log("Setting school object:", geofenceSchoolId);
         setSelectedSchool(geofenceSchoolId);
+        setSchoolId(geofenceSchoolId._id);
+      } else if (initialData.schoolId) {
+        const school = schools.find((s) => s._id === initialData.schoolId);
+        if (school) {
+          setSelectedSchool(school);
+          setSchoolId(school._id);
+        }
       }
 
       if (geofenceBranchId) {
-        // console.log("Setting branch object:", geofenceBranchId);
         setSelectedBranch(geofenceBranchId);
-      }
-
-      if (geofenceRouteId) {
-        // console.log("Setting route object:", geofenceRouteId);
-        setSelectedRoute(geofenceRouteId);
-      }
-
-      // Step 8: Fallback object finding (your existing code)
-      if (!geofenceSchoolId && initialData.schoolId) {
-        const branch = branchData.find(
-          (b) => b.schoolId?._id === initialData.schoolId
-        );
-        if (branch?.schoolId) {
-          setSelectedSchool(branch.schoolId);
-        }
-      }
-
-      if (!geofenceBranchId && initialData.branchId) {
-        const branch = branchData.find((b) => b._id === initialData.branchId);
+        setBranchId(geofenceBranchId._id);
+      } else if (initialData.branchId) {
+        const branch = branches.find((b) => b._id === initialData.branchId);
         if (branch) {
           setSelectedBranch(branch);
+          setBranchId(branch._id);
         }
       }
 
-      console.log("ROUTES::::::::::: ", routeData);
-
-      if (!geofenceRouteId && initialData.routeObjId) {
-        const route = routeData?.pages[0]?.data?.find(
-          (r) => r._id === initialData.routeObjId
-        );
-        if (route) {
-          setSelectedRoute(route);
-        }
-      }
+      // if (geofenceRouteId) {
+      //   setSelectedRoute(geofenceRouteId);
+      // } else if (initialData.routeObjId && routeData?.pages?.[0]?.data) {
+      //   const route = routeData.pages[0].data.find(
+      //     (r) => r._id === initialData.routeObjId
+      //   );
+      //   if (route) {
+      //     setSelectedRoute(route);
+      //   }
+      // }
     }
   }, [
     mode,
@@ -319,51 +342,12 @@ const GeofenceManager: React.FC = ({
     geofenceSchoolId,
     geofenceBranchId,
     geofenceRouteId,
-    branchData,
-    routeData,
+    schools,
+    branches,
+    // routeData,
   ]);
 
-  // 🆕 DEBUG: Track edit mode state changes
-  // useEffect(() => {
-  //   if (mode === "edit") {
-  //     console.log("=== EDIT MODE DEBUG ===");
-  //     console.log("Mode:", mode);
-  //     console.log("GeofenceId:", geofenceId);
-  //     console.log("Map current:", !!map.current);
-  //     console.log("Initial data:", initialData);
-  //     console.log("Current coords:", currentCoords);
-  //     console.log("========================");
-  //   }
-  // }, [mode, geofenceId, initialData, currentCoords]);
-
-  // 🆕 Add this useEffect to listen for map centering events
-  useEffect(() => {
-    const handleCenterMap = (event: CustomEvent) => {
-      const { lat, lng, zoom } = event.detail;
-
-      // console.log("Centering map on edit:", lat, lng);
-
-      if (map.current) {
-        map.current.setView([lat, lng], zoom || 15);
-      }
-    };
-
-    // Add event listener
-    window.addEventListener(
-      "centerMapOnEdit",
-      handleCenterMap as EventListener
-    );
-
-    // Cleanup
-    return () => {
-      window.removeEventListener(
-        "centerMapOnEdit",
-        handleCenterMap as EventListener
-      );
-    };
-  }, []);
-
-  // 🆕 Clear form when switching to add mode
+  // Clear form when switching to add mode
   useEffect(() => {
     if (mode === "add") {
       setCurrentGeofenceName("");
@@ -371,78 +355,36 @@ const GeofenceManager: React.FC = ({
       setSelectedSchool(null);
       setSelectedBranch(null);
       setSelectedRoute(null);
+      setSchoolId(undefined);
+      setBranchId(undefined);
       setPickupTime(undefined);
       setDropTime(undefined);
       setTempGeofence(null);
       setCurrentCoords({ lat: 21.1286677, lng: 79.1038211 });
 
-      // Reset map to default view
       if (map.current) {
         map.current.setView([21.1286677, 79.1038211], 12);
       }
     }
   }, [mode]);
 
-  // Add Geofence Mutation
-  const addGeofenceMutation = useMutation({
-    mutationFn: async (newGeofence: unknown) => {
-      const geofence = await api.post("/geofence", newGeofence);
-      return geofence.geofence;
-    },
-
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["geofences"] }); // 🔥 This invalidates all geofence-related queries
-      alert("Geofence added successfully.");
-    },
-  });
-
-  // Update Geofence Mutation
-  const updateGeofenceMutation = useMutation({
-    mutationFn: async ({
-      geofenceId,
-      data,
-    }: {
-      geofenceId: string;
-      data: unknown;
-    }) => {
-      return await api.put(`/geofence/${geofenceId}`, data);
-    },
-
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["geofences"] }); // 🔥 This invalidates all geofence-related queries
-      alert("Geofence eddited successfully.");
-    },
-
-    onError: (err) => {
-      alert("Failed to update school.\nerror: " + err);
-    },
-  });
-
-  // Initialize map using vanilla Leaflet
+  // Initialize map
   useEffect(() => {
     if (!mapContainer.current || map.current) return;
 
     try {
-      // console.log("Initializing Leaflet map...");
-
-      // Create map instance
       map.current = L.map(mapContainer.current).setView(
         [21.1286677, 79.1038211],
         12
       );
 
-      // Add tile layer
       L.tileLayer(`https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}`, {
         subdomains: ["mt0", "mt1", "mt2", "mt3"],
       }).addTo(map.current);
 
-      // Create layer group for geofences
       geofenceLayerGroup.current = L.layerGroup().addTo(map.current);
-
-      // Create layer group for temporary geofence
       tempLayerGroup.current = L.layerGroup().addTo(map.current);
 
-      // Add click event listener
       map.current.on("click", (e: L.LeafletMouseEvent) => {
         const newCoords = {
           lat: parseFloat(e.latlng.lat.toFixed(6)),
@@ -453,21 +395,16 @@ const GeofenceManager: React.FC = ({
         setTempGeofence({
           type: "radius",
           geofenceName: currentGeofenceName || `New Geofence`,
-          coordinates: [[newCoords.lng, newCoords.lat]], // matches render logic
+          coordinates: [[newCoords.lng, newCoords.lat]],
           radius: currentRadius,
           pickupTime,
           dropTime,
         });
         setCurrentGeofenceName(currentGeofenceName || `New Geofence`);
       });
-
-      // console.log("Map initialized successfully");
     } catch (error) {
       console.error("Error initializing map:", error);
-
-      toast.error("Map Error", {
-        description: "Failed to initialize map. Please refresh the page.",
-      });
+      toast.error("Failed to initialize map. Please refresh the page.");
     }
 
     return () => {
@@ -476,20 +413,20 @@ const GeofenceManager: React.FC = ({
         map.current = null;
       }
     };
-  }, [toast]);
+  }, []);
 
   // Update geofences on map
   useEffect(() => {
     if (!map.current || !geofenceLayerGroup.current) return;
 
     try {
-      // Clear existing layers
       geofenceLayerGroup.current.clearLayers();
 
       geofences.forEach((geofence) => {
         if (
           geofence.type === "radius" &&
           geofence.radius &&
+          geofence.coordinates &&
           geofence.coordinates.length > 0
         ) {
           const center: [number, number] = [
@@ -506,26 +443,9 @@ const GeofenceManager: React.FC = ({
           });
 
           circle.bindPopup(
-            `<strong>${geofence.name}</strong><br/>Type: ${geofence.type}<br/>Radius: ${geofence.radius}m`
+            `<strong>${geofence.name}</strong><br/>Radius: ${geofence.radius}m`
           );
           geofenceLayerGroup.current?.addLayer(circle);
-        } else if (
-          geofence.type === "polygon" &&
-          geofence.coordinates.length > 2
-        ) {
-          const coords: [number, number][] = geofence.coordinates.map(
-            (coord) => [coord[1], coord[0]]
-          );
-          const polygon = L.polygon(coords, {
-            fillColor: "#8b5cf6",
-            fillOpacity: 0.3,
-            color: "#7c3aed",
-            weight: 2,
-            opacity: activeGeofence === geofence.id ? 1 : 0.8,
-          });
-
-          polygon.bindPopup(`<strong>${geofence.geofenceName}</strong>`);
-          geofenceLayerGroup.current?.addLayer(polygon);
         }
       });
     } catch (error) {
@@ -538,13 +458,13 @@ const GeofenceManager: React.FC = ({
     if (!map.current || !tempLayerGroup.current) return;
 
     try {
-      // Clear existing temporary layers
       tempLayerGroup.current.clearLayers();
 
       if (
         tempGeofence &&
         tempGeofence.type === "radius" &&
         tempGeofence.radius &&
+        tempGeofence.coordinates &&
         tempGeofence.coordinates.length > 0
       ) {
         const center: [number, number] = [
@@ -552,11 +472,9 @@ const GeofenceManager: React.FC = ({
           tempGeofence.coordinates[0][0],
         ];
 
-        // Add marker
         const marker = L.marker(center);
         tempLayerGroup.current.addLayer(marker);
 
-        // Add circle
         const circle = L.circle(center, {
           radius: tempGeofence.radius,
           fillColor: "#f59e0b",
@@ -577,15 +495,13 @@ const GeofenceManager: React.FC = ({
   }, [tempGeofence]);
 
   // Location search debounce
-
-  ////////////////////////////////////////
   useEffect(() => {
     const handler = setTimeout(() => {
       setDebouncedQuery(locationSearchQuery);
     }, 500);
 
     return () => {
-      clearTimeout(handler); // clear timeout on cleanup
+      clearTimeout(handler);
     };
   }, [locationSearchQuery]);
 
@@ -597,7 +513,6 @@ const GeofenceManager: React.FC = ({
       setShowSearchResults(false);
     }
   }, [debouncedQuery]);
-  //////////////////////
 
   // Location search functionality
   const searchLocation = async (query: string) => {
@@ -618,13 +533,11 @@ const GeofenceManager: React.FC = ({
       setShowSearchResults(true);
     } catch (error) {
       console.error("Error searching location:", error);
-      toast.error("Search Error", {
-        description: "Failed to search location. Please try again.",
-      });
+      toast.error("Failed to search location. Please try again.");
     }
   };
 
-  const selectSearchResult = (result: unknown) => {
+  const selectSearchResult = (result: any) => {
     const lat = parseFloat(result.lat);
     const lng = parseFloat(result.lon);
 
@@ -632,19 +545,17 @@ const GeofenceManager: React.FC = ({
     setLocationSearchQuery(result.display_name);
     setShowSearchResults(false);
 
-    // Recenter map
     if (map.current) {
       map.current.setView([lat, lng], 15);
     }
 
-    // ✅ Correct shape for drawing effect
     setTempGeofence({
       type: "radius",
       geofenceName:
         currentGeofenceName ||
         result.display_name.split(",")[0] ||
         "New Geofence",
-      coordinates: [[lng, lat]], // MUST match render logic
+      coordinates: [[lng, lat]],
       radius: currentRadius,
       pickupTime,
       dropTime,
@@ -656,47 +567,6 @@ const GeofenceManager: React.FC = ({
     window.open(url, "_blank");
   };
 
-  // const deleteGeofence = (id: string) => {
-  //   setGeofences(geofences.filter((g) => g.id !== id));
-  //   if (activeGeofence === id) {
-  //     setActiveGeofence(null);
-  //   }
-  //   toast("Geofence Deleted", {
-  //     description: "Geofence removed successfully.",
-  //   });
-  // };
-
-  // GeofenceManager.tsx
-  // const editGeofence = (id: string) => {
-  //   setActiveGeofence(id);
-
-  //   const geofence = geofences.find((g) => g.id === id);
-  //   if (!geofence || geofence.coordinates.length === 0) return;
-
-  //   // 1. Read the first coordinate (all your geofences store centre as [lng, lat])
-  //   const lat = geofence.coordinates[0][1];
-  //   const lng = geofence.coordinates[0][0];
-
-  //   // 2. Push those values into the controlled form state (unchanged code)
-  //   setCurrentCoords({ lat, lng });
-  //   setCurrentGeofenceName(geofence.name);
-  //   if (geofence.radius) setCurrentRadius(geofence.radius);
-
-  //   // 3. NEW: centre the Leaflet map on the feature
-  //   if (map.current) {
-  //     // For polygons we can optionally fit the bounds, but centre works for both.
-  //     map.current.setView([lat, lng], 15); // 15 = nice close-up; tweak if you like.
-  //   }
-  // };
-
-  // useEffect(() => {
-  //   // console.log("geofence", geofences);
-  // }, [geofences]);
-
-  // const searchGeofence = (query: string) => {
-  //   setSearchQuery(query);
-  // };
-
   const clearTempGeofence = () => {
     setTempGeofence(null);
     setCurrentGeofenceName("");
@@ -706,23 +576,15 @@ const GeofenceManager: React.FC = ({
   const updateCoordinates = (lat: number, lng: number) => {
     setCurrentCoords({ lat, lng });
 
-    // Center map on new coordinates
     if (map.current) {
       map.current.setView([lat, lng], map.current.getZoom());
     }
 
-    // Update temporary geofence or active geofence
     if (tempGeofence) {
       setTempGeofence({
         ...tempGeofence,
         coordinates: [[lng, lat]],
       });
-    } else if (activeGeofence) {
-      setGeofences(
-        geofences.map((g) =>
-          g.id === activeGeofence ? { ...g, coordinates: [[lng, lat]] } : g
-        )
-      );
     }
   };
 
@@ -732,14 +594,8 @@ const GeofenceManager: React.FC = ({
       setTempGeofence({
         ...tempGeofence,
         name,
-        geofenceName: name, // ✅ keep this updated too
+        geofenceName: name,
       });
-    } else if (activeGeofence) {
-      setGeofences(
-        geofences.map((g) =>
-          g.id === activeGeofence ? { ...g, name, geofenceName: name } : g
-        )
-      );
     }
   };
 
@@ -750,10 +606,6 @@ const GeofenceManager: React.FC = ({
         ...tempGeofence,
         radius,
       });
-    } else if (activeGeofence) {
-      setGeofences(
-        geofences.map((g) => (g.id === activeGeofence ? { ...g, radius } : g))
-      );
     }
   };
 
@@ -763,94 +615,36 @@ const GeofenceManager: React.FC = ({
     }
     setActiveGeofence(null);
     setCurrentCoords({ lat: 21.1286677, lng: 79.1038211 });
-    toast("Map Reset", {
-      description: "Map view reset to default location.",
-    });
+    toast("Map view reset to default location.");
   };
 
   const undoLastAction = () => {
-    toast("Undo", { description: "Last action undone." });
+    toast("Last action undone.");
   };
-
-  const filteredGeofences = geofences.filter((g) =>
-    (g.geofenceName || "").toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  const handleCustomFilter = useCallback((filtered: Geofence[]) => {
-    setFilteredData(filtered);
-  }, []);
-
-  // 🆕 Update these useEffects to not reset during edit mode
-  useEffect(() => {
-    if (selectedSchool && branchData && mode !== "edit") {
-      // 🆕 Add mode check
-      const filtered = branchData.filter(
-        (branch) => branch?.schoolId?._id === selectedSchool._id
-      );
-      setFilteredBranches(filtered);
-      setSelectedBranch(null); // Only reset in add mode
-    } else if (selectedSchool && branchData && mode === "edit") {
-      // In edit mode, just filter but don't reset selection
-      const filtered = branchData.filter(
-        (branch) => branch?.schoolId?._id === selectedSchool._id
-      );
-      setFilteredBranches(filtered);
-    } else {
-      setFilteredBranches([]);
-    }
-  }, [selectedSchool, branchData, mode]); // 🆕 Add mode dependency
-
-  useEffect(() => {
-    if (selectedBranch && routeData) {
-      const filtered = routeData?.pages[0]?.data.filter(
-        (route) => route?.branchId?._id === selectedBranch._id
-      );
-      setFilteredRoutes(filtered);
-
-      // 🆕 Only clear selection in add mode, not edit mode
-      if (mode === "add") {
-        setSelectedRoute(null);
-      }
-    } else {
-      setFilteredRoutes([]);
-    }
-  }, [selectedBranch, routeData]);
-
-  // useEffect(() => {
-  //   if (selectedBranchGroup && routeData) {
-  //     const filtered = routeData.filter((route) => {
-  //       const schoolMatch =
-  //         route?.branchId?.schoolId?._id === selectedBranchGroup.schoolId._id;
-
-  //       const isAssigned = selectedBranchGroup.AssignedBranch.some(
-  //         (branch) => branch._id === route?.branchId?._id
-  //       );
-
-  //       return schoolMatch && isAssigned;
-  //     });
-
-  //     setFilteredRoutes(filtered);
-  //     setSelectedRoute(null); // reset on branch group change
-  //   } else {
-  //     setFilteredRoutes([]);
-  //   }
-  // }, [selectedBranchGroup, routeData]);
 
   const handleSchoolSelect = (school: School | null) => {
     setSelectedSchool(school);
+    setSchoolId(school?._id);
+
+    if (mode === "add") {
+      setSelectedBranch(null);
+      setBranchId(undefined);
+      setSelectedRoute(null);
+    }
   };
 
   const handleBranchSelect = (branch: Branch | null) => {
     setSelectedBranch(branch);
+    setBranchId(branch?._id);
+
+    if (mode === "add") {
+      setSelectedRoute(null);
+    }
   };
 
   const handleRouteSelect = (route: Route | null) => {
     setSelectedRoute(route);
   };
-
-  // const handleBranchGroupSelect = (branchGroup: BranchGroup | null) => {
-  //   setSelectedBranchGroup(branchGroup);
-  // };
 
   const formatTime = (date?: Date) => {
     if (!date) return "";
@@ -861,47 +655,20 @@ const GeofenceManager: React.FC = ({
     });
   };
 
-  // useEffect(() => {
-  //   // console.log("Filtered Geofences:", filteredGeofences);
-  // }, [filteredGeofences]);
-
-  useEffect(() => {
-    if (tempGeofence) {
-      setTempGeofence((prev) => ({
-        ...prev,
-        pickupTime,
-      }));
-    } else if (activeGeofence) {
-      setGeofences((prev) =>
-        prev.map((g) => (g.id === activeGeofence ? { ...g, pickupTime } : g))
-      );
-    }
-  }, [pickupTime]);
-
-  useEffect(() => {
-    if (tempGeofence) {
-      setTempGeofence((prev) => ({
-        ...prev,
-        dropTime,
-      }));
-    } else if (activeGeofence) {
-      setGeofences((prev) =>
-        prev.map((g) => (g.id === activeGeofence ? { ...g, dropTime } : g))
-      );
-    }
-  }, [dropTime]);
-
   const saveGeofences = async () => {
-    if (!tempGeofence) return;
+    if (!tempGeofence) {
+      toast.error("Please create a geofence first");
+      return;
+    }
 
     setIsLoading(true);
     try {
-      const savedGeofence: unknown = {
+      const savedGeofence: any = {
         geofenceName: tempGeofence?.geofenceName || tempGeofence?.name,
         area: {
           center: [
-            tempGeofence.coordinates?.[0]?.[1] || currentCoords.lat, // lat
-            tempGeofence.coordinates?.[0]?.[0] || currentCoords.lng, // lng
+            tempGeofence.coordinates?.[0]?.[1] || currentCoords.lat,
+            tempGeofence.coordinates?.[0]?.[0] || currentCoords.lng,
           ],
           radius: tempGeofence.radius || currentRadius,
         },
@@ -910,115 +677,35 @@ const GeofenceManager: React.FC = ({
         routeObjId: selectedRoute?._id,
       };
 
-      // Only add times if they exist
-      if (tempGeofence.pickupTime) {
-        savedGeofence.pickupTime = formatTime(tempGeofence.pickupTime);
+      // Read from state variables instead of tempGeofence
+      if (pickupTime) {
+        savedGeofence.pickupTime = formatTime(pickupTime);
       }
 
-      if (tempGeofence.dropTime) {
-        savedGeofence.dropTime = formatTime(tempGeofence.dropTime);
+      if (dropTime) {
+        savedGeofence.dropTime = formatTime(dropTime);
       }
 
       if (mode === "add") {
-        // Add new geofence
-        addGeofenceMutation.mutate(savedGeofence, {
-          onSuccess: (response) => {
-            // 🆕 Create geofence object for map rendering
-            const newGeofence = {
-              id: response._id || Date.now().toString(), // Use API response ID or fallback
-              type: "radius",
-              geofenceName: savedGeofence.geofenceName,
-              name: savedGeofence.geofenceName, // for backward compatibility
-              coordinates: [
-                [
-                  savedGeofence.area.center[1], // lng
-                  savedGeofence.area.center[0], // lat
-                ],
-              ],
-              radius: savedGeofence.area.radius,
-              pickupTime: tempGeofence.pickupTime,
-              dropTime: tempGeofence.dropTime,
-              schoolId: savedGeofence.schoolId,
-              branchId: savedGeofence.branchId,
-              routeObjId: savedGeofence.routeObjId,
-            };
-
-            // 🆕 Add to geofences array so it shows on map
-            setGeofences((prev) => [...prev, newGeofence]);
-
-            // 🆕 Set as active geofence to highlight it
-            setActiveGeofence(newGeofence.id);
-
-            // Clear temp geofence
+        createGeofence(savedGeofence, {
+          onSuccess: () => {
             setTempGeofence(null);
-
-            toast.success("Success", {
-              description: "Geofence added successfully and visible on map.",
-            });
-
-            onSuccess?.(response); // Pass response to parent
-          },
-          onError: () => {
-            toast.error("Error", {
-              description: "Failed to add geofence.",
-            });
+            onSuccess?.();
           },
         });
       } else if (mode === "edit" && geofenceId) {
-        // Update existing geofence
-        updateGeofenceMutation.mutate(
-          { geofenceId, data: savedGeofence },
+        updateGeofence(
+          { id: geofenceId, payload: savedGeofence },
           {
-            onSuccess: (response) => {
-              // 🆕 Update the existing geofence in the array
-              const updatedGeofence = {
-                id: geofenceId,
-                type: "radius",
-                geofenceName: savedGeofence.geofenceName,
-                name: savedGeofence.geofenceName,
-                coordinates: [
-                  [
-                    savedGeofence.area.center[1], // lng
-                    savedGeofence.area.center[0], // lat
-                  ],
-                ],
-                radius: savedGeofence.area.radius,
-                pickupTime: tempGeofence.pickupTime,
-                dropTime: tempGeofence.dropTime,
-                schoolId: savedGeofence.schoolId,
-                branchId: savedGeofence.branchId,
-                routeObjId: savedGeofence.routeObjId,
-              };
-
-              // 🆕 Update geofences array
-              setGeofences((prev) =>
-                prev.map((g) => (g.id === geofenceId ? updatedGeofence : g))
-              );
-
-              // Keep it active to show it's selected
-              setActiveGeofence(geofenceId);
-
-              // Clear temp geofence
+            onSuccess: () => {
               setTempGeofence(null);
-
-              toast.success("Success", {
-                description: "Geofence updated successfully.",
-              });
-
-              onSuccess?.(response);
-            },
-            onError: () => {
-              toast.error("Error", {
-                description: "Failed to update geofence.",
-              });
+              onSuccess?.();
             },
           }
         );
       }
     } catch (error) {
-      toast.error("Error", {
-        description: "Failed to save geofence. Please try again.",
-      });
+      toast.error("Failed to save geofence. Please try again.");
       console.error(error);
     } finally {
       setIsLoading(false);
@@ -1027,18 +714,15 @@ const GeofenceManager: React.FC = ({
 
   return (
     <div className="h-screen flex bg-background">
-      {/* Left Sidebar - keeping exact same layout and functionality */}
-
-      {/* Main Map Area */}
+      {/* Map Container */}
       <div className="flex-1 relative">
-        {/* Vanilla Leaflet Map Container */}
         <div
           ref={mapContainer}
-          className="w-full h-full min-h-[500px]" // 🆕 Add min-height
+          className="w-full h-full min-h-[500px]"
           style={{ height: "100%", minHeight: "500px" }}
         />
 
-        {/* Map Controls */}
+        {/* Map Control Buttons */}
         <div className="absolute top-20 left-2 flex flex-col space-y-2 z-[1000]">
           <Button size="sm" variant="secondary" onClick={resetMap}>
             <RotateCcw className="h-4 w-4" />
@@ -1051,45 +735,40 @@ const GeofenceManager: React.FC = ({
               <X className="h-4 w-4" />
             </Button>
           )}
-          <Separator />
         </div>
-
-        {/* Configuration Panel - keeping exact same layout and functionality */}
-        <GeofenceConfigurationPanel
-          /* -------- Time -------- */
-          pickupTime={pickupTime}
-          setPickupTime={setPickupTime}
-          dropTime={dropTime}
-          setDropTime={setDropTime}
-          /* -------- Filters -------- */
-          selectedSchool={selectedSchool}
-          handleSchoolSelect={handleSchoolSelect}
-          selectedBranch={selectedBranch}
-          handleBranchSelect={handleBranchSelect}
-          filteredBranches={filteredBranches}
-          selectedRoute={selectedRoute}
-          handleRouteSelect={handleRouteSelect}
-          filteredRoutes={filteredRoutes}
-          /* -------- Location Search -------- */
-          locationSearchQuery={locationSearchQuery}
-          setLocationSearchQuery={setLocationSearchQuery}
-          searchResults={searchResults}
-          showSearchResults={showSearchResults}
-          selectSearchResult={selectSearchResult}
-          /* -------- Geofence Fields -------- */
-          currentGeofenceName={currentGeofenceName}
-          updateGeofenceName={updateGeofenceName}
-          currentRadius={currentRadius}
-          updateRadius={updateRadius}
-          currentCoords={currentCoords}
-          updateCoordinates={updateCoordinates}
-          /* -------- Actions -------- */
-          openStreetView={openStreetView}
-          saveGeofences={saveGeofences}
-          isLoading={isLoading}
-          tempGeofence={tempGeofence}
-        />
       </div>
+
+      {/* Configuration Panel */}
+      <GeofenceConfigurationPanel
+        pickupTime={pickupTime}
+        setPickupTime={setPickupTime}
+        dropTime={dropTime}
+        setDropTime={setDropTime}
+        selectedSchool={selectedSchool}
+        handleSchoolSelect={handleSchoolSelect}
+        selectedBranch={selectedBranch}
+        handleBranchSelect={handleBranchSelect}
+        selectedRoute={selectedRoute}
+        handleRouteSelect={handleRouteSelect}
+        role={role}
+        schools={schools}
+        branches={branches}
+        locationSearchQuery={locationSearchQuery}
+        setLocationSearchQuery={setLocationSearchQuery}
+        searchResults={searchResults}
+        showSearchResults={showSearchResults}
+        selectSearchResult={selectSearchResult}
+        currentGeofenceName={currentGeofenceName}
+        updateGeofenceName={updateGeofenceName}
+        currentRadius={currentRadius}
+        updateRadius={updateRadius}
+        currentCoords={currentCoords}
+        updateCoordinates={updateCoordinates}
+        openStreetView={openStreetView}
+        saveGeofences={saveGeofences}
+        isLoading={isCreateLoading || isUpdateLoading || isLoading}
+        tempGeofence={tempGeofence}
+      />
     </div>
   );
 };

@@ -26,7 +26,7 @@ import { Slider } from "@/components/ui/slider";
 import { getDecodedToken } from "@/lib/jwt";
 import Cookies from "js-cookie";
 import { GeofenceForm } from "./form/GeofenceForm";
-import { useGeofence } from "@/hooks/useGeofence";
+import { useGeofence, useGeofenceByRoute } from "@/hooks/useGeofence";
 import { formatToIST } from "@/util/dateFormatters";
 import { calculateTimeSince } from "@/util/calculateTimeSince";
 import { toast } from "sonner";
@@ -430,16 +430,14 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
 
   const {
     // geofence: geofences,
-    geofenceByRoute,
+    // geofenceByRoute,
     isLoading: isLoadingGeofences,
     total: totalGeofences,
     createGeofence,
-    updateGeofence,
-    deleteGeofence,
-    isCreateLoading,
-    isUpdateLoading,
-    isDeleteLoading,
   } = useGeofence(pagination, sorting, filters);
+  const { geofenceByRoute, isLoadingByRoute } = useGeofenceByRoute(
+    vehicle?.routeId
+  );
 
   // Debug logs for geofences
   // useEffect(() => {
@@ -842,7 +840,7 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
         </div>
         <div>Route No: {vehicle?.routeNumber}</div>
         <div>
-          Geofences: {geofenceByRoute ? geofenceByRoute.length : "loading..."}
+          Geofences: {geofenceByRoute ? geofenceByRoute?.length : "loading..."}
         </div>
         <div>
           Last Update:{" "}
@@ -873,7 +871,7 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
         onGeofenceToggle={handleGeofenceToggle}
         showGeofences={showGeofences}
         onToggleGeofences={handleToggleGeofences}
-        geofenceCount={geofenceByRoute.length}
+        geofenceCount={geofenceByRoute?.length}
       />
 
       {/* Next Button during drawing */}

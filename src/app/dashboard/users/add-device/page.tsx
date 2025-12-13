@@ -237,6 +237,7 @@ const DevicesPage = () => {
     async (row: any) => {
       try {
         if (!confirm("Delete this device?")) return;
+        console.log("row.deviceId: ", row);
 
         await deleteDeviceOld(row.deviceId);
 
@@ -395,7 +396,7 @@ const DevicesPage = () => {
     onSortingChange: setSorting,
     sorting,
     emptyMessage: "No devices found",
-    pageSizeOptions: [5, 10, 15, 20, 30],
+    pageSizeOptions: [5, 10, 15, 20, 30, 50, 100, 200, 300, 400, 500],
     showSerialNumber: true,
     enableSorting: true,
     enableMultiSelect: false,

@@ -29,6 +29,9 @@ import { Loader2 } from "lucide-react";
 import { useAddDeviceNew } from "@/hooks/device/useAddDevice(new)";
 import { useAddDeviceOld } from "@/hooks/device/useAddDevice(old)";
 import { useDebounce } from "@/hooks/useDebounce";
+import { routeService } from "@/services/api/routeService";
+import { toast } from "sonner";
+import { deviceApiService } from "@/services/api/deviceApiService";
 
 // Validation schema
 const deviceSchema = z.object({
@@ -260,9 +263,42 @@ export function AddDeviceForm({
   // Submit handler
   const onSubmit = async (data: DeviceFormData) => {
     console.log("Submitted data:", data);
+
     try {
+      // try {
+      //   // When editing, user may not change the route, so fallback to editData.routeObjId._id
+        
+      // } catch (err) {
+      //   console.error("[RouteCheck] error:", err);
+      //   toast.error("Failed to check route assignment");
+      //   return;
+      // }
+      const routeId = data.routeObjId || editData?.routeObjId?._id;
+
+      if (routeId) {
+        const check = await deviceApiService.checkRouteAssign(routeId);
+        console.log("❌ [RouteCheck] response:", check);
+
+        // If route assigned => ALWAYS show warning (as per your requirement)
+        if (check?.assigned) {
+          console.log("⛔ Route is already assigned to another device.");
+          const confirmed = confirm(
+            `${check.message}. Do you still want to continue?`
+          );
+
+          if (!confirmed) {
+            console.log("⛔ User cancelled route assignment.");
+            return; // Stop submit
+          }
+        }
+      }
+
+      // -------------------------------------------------------
+      // 2️⃣ IF NOT CANCELLED → Continue with CREATE or UPDATE
+      // -------------------------------------------------------
+
       if (isEditMode) {
-        // UPDATE MODE
+        // UPDATE PAYLOAD
         const payload = {
           name: data.name,
           uniqueId: data.uniqueId,
@@ -275,13 +311,13 @@ export function AddDeviceForm({
           driver: data.driver || undefined,
           speed: data.speed,
           average: data.average,
-          keyFeature: data.keyFeature, // ✅ Added to new API
+          keyFeature: data.keyFeature,
         };
 
-        // Update device in new API
+        // UPDATE NEW API
         updateDevice({ id: editData._id, payload });
 
-        // Update in old API if deviceId exists (without keyFeature)
+        // UPDATE OLD API IF deviceId EXISTS
         if (editData.deviceId) {
           const { updateDeviceOld } = await import(
             "@/hooks/device/useAddDevice(old)"
@@ -292,7 +328,6 @@ export function AddDeviceForm({
             model: data.model,
             category: data.category,
             sim: data.sim,
-            // NOT passing keyFeature to old API
           });
         }
       } else {
@@ -303,12 +338,10 @@ export function AddDeviceForm({
           phone: data.sim,
           model: data.model,
           category: data.category,
-          // NOT passing keyFeature to old API
         };
 
-        console.log("📤 Creating device in old API...");
+        // CREATE DEVICE IN OLD API
         const oldApiResponse = await createOldDevice(oldApiPayload);
-        console.log("✅ Old API Response:", oldApiResponse);
 
         if (!oldApiResponse?.id) {
           throw new Error("Old API failed to return device ID");
@@ -327,13 +360,9 @@ export function AddDeviceForm({
           driver: data.driver || undefined,
           speed: data.speed,
           average: data.average,
-          keyFeature: data.keyFeature, // ✅ Added to new API
+          keyFeature: data.keyFeature,
         };
 
-        console.log(
-          "📤 Creating device in new API with deviceId:",
-          oldApiResponse.id
-        );
         createDevice(newApiPayload);
       }
 
@@ -341,6 +370,7 @@ export function AddDeviceForm({
       reset();
     } catch (error: any) {
       console.error("❌ Form submission error:", error);
+      toast.error(error?.message || "Failed to process device request");
     }
   };
 

@@ -119,8 +119,8 @@ export default function AddRouteForm({
   }, [selectedBranchId, initialData]);
 
   const handleSave = () => {
-    if (!routeNumber || !deviceObjId) {
-      alert("Route number and device are required");
+    if (!routeNumber) {
+      alert("Route number is  required");
       return;
     }
 
@@ -148,12 +148,14 @@ export default function AddRouteForm({
         return;
     }
 
-    onSubmit({
+    const payload: any = {
       routeNumber,
-      schoolId: selectedSchoolId!,
-      branchId: selectedBranchId!,
-      deviceObjId,
-    });
+      ...(selectedSchoolId ? { schoolId: selectedSchoolId } : {}),
+      ...(selectedBranchId ? { branchId: selectedBranchId } : {}),
+      ...(deviceObjId ? { deviceObjId } : {}),
+    };
+
+    onSubmit(payload);
   };
 
   return (
@@ -264,7 +266,7 @@ export default function AddRouteForm({
 
         {/* DEVICE */}
         <div>
-          <label className="text-sm font-medium">Device *</label>
+          <label className="text-sm font-medium">Device</label>
           <Popover
             onOpenChange={(open) => {
               if (open && selectedBranchId && !initialData) {
