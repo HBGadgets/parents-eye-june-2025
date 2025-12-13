@@ -16,9 +16,9 @@ const nextConfig: NextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
-  // compiler: {
-  //   removeConsole: true,
-  // },
+  compiler: {
+    removeConsole: true,
+  },
   typescript: {
     /** ⚠️⚠️⚠️⚠️⚠️⚠️⚠️ Comment this before uploading to production */
     // !! WARN !!
