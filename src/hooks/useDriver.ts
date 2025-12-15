@@ -8,8 +8,6 @@ import {
   keepPreviousData,
 } from "@tanstack/react-query";
 import { PaginationState, SortingState } from "@tanstack/react-table";
-import { is } from "date-fns/locale";
-import { get } from "lodash";
 import { toast } from "sonner";
 
 export const useDriver = (
@@ -32,6 +30,7 @@ export const useDriver = (
       filters?.search,
       filters?.schoolId,
       filters?.branchId,
+      filters?.isApproved,
     ],
 
     queryFn: () =>
@@ -43,6 +42,7 @@ export const useDriver = (
         search: filters.search,
         branchId: filters.branchId,
         schoolId: filters.schoolId,
+        isApproved: filters.isApproved,
       }),
     placeholderData: keepPreviousData,
   });
@@ -55,18 +55,19 @@ export const useDriver = (
     },
     onError: (err: any) => {
       toast.error(err?.message || "Create failed");
-    }
+    },
   });
 
   const updateDriverMutation = useMutation({
-    mutationFn: ({id, payload}: any) => driverService.updateDriver(id, payload),
+    mutationFn: ({ id, payload }: any) =>
+      driverService.updateDriver(id, payload),
     onSuccess: () => {
       toast.success("Driver updated");
       queryClient.invalidateQueries({ queryKey: ["driver"] });
     },
     onError: (err: any) => {
       toast.error(err?.message || "Update failed");
-    }
+    },
   });
 
   const deleteDriverMutation = useMutation({
@@ -77,22 +78,41 @@ export const useDriver = (
     },
     onError: (err: any) => {
       toast.error(err?.message || "Delete failed");
-    }
+    },
+  });
+
+  const approveDriverMutation = useMutation({
+    mutationFn: ({ id, isApproved }: { id: string; isApproved: string }) =>
+      driverService.driverApprove(id, isApproved),
+    onSuccess: (variables) => {
+      const { isApproved } = variables;
+      if (isApproved === "Approved") {
+        toast.success("Driver approved");
+      } else {
+        toast.warning("Driver rejected");
+      }
+      queryClient.invalidateQueries({ queryKey: ["driver"] });
+    },
+    onError: (err: any) => {
+      toast.error(err?.message || "Approve failed");
+    },
   });
 
   return {
     driver: getDriverQuery.data?.data || [],
     total: getDriverQuery.data?.totalCount || 0,
     isLoading: getDriverQuery.isLoading,
-    useIsFetching: getDriverQuery.isFetching,
+    isFetching: getDriverQuery.isFetching,
     isPlaceholderData: getDriverQuery.isPlaceholderData,
 
     createDriver: createDriverMutation.mutate,
     updateDriver: updateDriverMutation.mutate,
     deleteDriver: deleteDriverMutation.mutate,
+    approveDriver: approveDriverMutation.mutate,
 
     isCreateDriver: createDriverMutation.isPending,
     isUpdateDriver: updateDriverMutation.isPending,
     isDeleteDriver: deleteDriverMutation.isPending,
+    isApproveLoading: approveDriverMutation.isPending,
   };
 };

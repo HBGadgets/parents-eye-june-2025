@@ -782,7 +782,6 @@ export const getGeofenceCoumns = (
 export const getDriverColumns = (
   onEdit: (row: Driver) => void,
   onDelete: (row: Driver) => void,
-  onApprove: (row: Driver) => void
 ): ColumnDef<Driver>[] => [
   {
     header: "Driver Name",
@@ -850,10 +849,6 @@ export const getDriverColumns = (
     id: "registrationDate",
     header: "Registration Date",
     accessorFn: (row: Device) => new Date(row.createdAt).toLocaleDateString(),
-  },
-  {
-    header: "Status",
-    accessorKey: "isApproved",
   },
   {
     id: "actions",

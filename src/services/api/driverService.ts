@@ -1,4 +1,5 @@
 import api from "@/lib/axios";
+import { id } from "date-fns/locale";
 
 export const driverService = {
   getDriver: async (params: Record<string, any>) => {
@@ -20,4 +21,16 @@ export const driverService = {
     const res = await api.delete(`/driver/${id}`);
     return res.data;
   },
+
+  driverApprove: async (id: string, isApproved: string) => {
+    const res = await api.post(`/driver/approve/${id}`, {
+      isApproved,
+    });
+    return res.data;
+  },
+
+  checkAlreadyAssign: async (deviceObjId: string) => {
+    const res = await api.get(`/driver/already-assign-check/${deviceObjId}`);
+    return res.data;
+  }
 };

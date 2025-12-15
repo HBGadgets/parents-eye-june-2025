@@ -114,7 +114,7 @@ export interface Driver {
   username: string;
   password: string;
   email: string;
-  driverMobile: string;
+  mobileNo: string;
   schoolId: School;
   branchId: Branch;
   deviceObjId: Device;
@@ -126,13 +126,15 @@ export interface Driver {
 export interface GetDriverResponse {
   page: number;
   limit: number;
+  sortBy: string;
+  sortOrder: string;
   totalCount: number;
   totalPages: number;
   data: Driver[];
 }
 
 export interface Supervisor {
-  isApproved: boolean;
+  status: boolean;
   _id: string;
   supervisorName: string;
   username: string;
@@ -142,11 +144,17 @@ export interface Supervisor {
   schoolId: School;
   branchId: Branch;
   deviceObjId: Device;
-
-  role: string;
   createdAt: string;
-  updatedAt: string;
 }
+
+export interface GetSupervisorResponse {
+  page: number;
+  limit: number;
+  totalCount: number;
+  totalPages: number;
+  data: Supervisor[];
+}
+
 export interface Route {
   _id: string;
   routeNumber: string;

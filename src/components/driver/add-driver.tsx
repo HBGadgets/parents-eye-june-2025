@@ -6,56 +6,28 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Combobox } from "@/components/ui/combobox";
 import { Eye, EyeOff } from "lucide-react";
-
-interface Driver {
-  _id: string;
-  name: string;
-  phone: string;
-  email?: string;
-  licenseNumber?: string;
-  username: string;
-  deviceObjId: { _id: string; name: string };
-  schoolId?: { _id: string; schoolName: string };
-  branchId?: { _id: string; branchName: string };
-}
+import { Driver } from "@/interface/modal";
+import {
+  useSchoolDropdown,
+  useBranchDropdown,
+  useDeviceDropdown,
+} from "@/hooks/useDropdown";
 
 interface Props {
   onSubmit: (data: {
     name: string;
     phone: string;
     email?: string;
-    licenseNumber?: string;
     username: string;
     password?: string;
     deviceObjId: string;
     schoolId: string;
     branchId: string;
   }) => void;
-
   onClose: () => void;
   initialData?: Driver | null;
-
-  schools: { _id: string; schoolName: string }[];
-  branches: { _id: string; branchName: string }[];
-  devices: { _id: string; name: string }[];
-
-  selectedSchoolId?: string;
-  selectedBranchId?: string;
-
-  onSchoolChange?: (id?: string) => void;
-  onBranchChange?: (id?: string) => void;
-
-  shouldFetchBranches?: boolean;
-  shouldFetchDevices?: boolean;
-
-  onFetchBranches?: (value: boolean) => void;
-  onFetchDevices?: (value: boolean) => void;
-
-  isLoadingBranches?: boolean;
-  isLoadingDevices?: boolean;
   isCreating?: boolean;
   isUpdating?: boolean;
-
   decodedToken?: {
     role: string;
     schoolId?: string;
@@ -68,29 +40,25 @@ export default function AddDriverForm({
   onSubmit,
   onClose,
   initialData,
-  schools,
-  branches,
-  devices,
-  selectedSchoolId,
-  selectedBranchId,
-  onSchoolChange,
-  onBranchChange,
-  decodedToken,
-  isLoadingBranches,
-  isLoadingDevices,
   isCreating,
   isUpdating,
-  onFetchBranches,
-  onFetchDevices,
+  decodedToken,
 }: Props) {
   // ---------------- Form State ----------------
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
-  const [licenseNumber, setLicenseNumber] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [deviceObjId, setDeviceObjId] = useState<string>("");
+
+  // ---------------- Selection State ----------------
+  const [selectedSchoolId, setSelectedSchoolId] = useState<
+    string | undefined
+  >();
+  const [selectedBranchId, setSelectedBranchId] = useState<
+    string | undefined
+  >();
 
   // ---------------- Password Visibility ----------------
   const [showPassword, setShowPassword] = useState(false);
@@ -103,77 +71,82 @@ export default function AddDriverForm({
   // ---------------- Error States ----------------
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  // ---------------- Role & Token Info ----------------
   const decodedTokenRole = decodedToken?.role;
   const tokenSchoolId =
     decodedToken?.role === "school" ? decodedToken?.id : decodedToken?.schoolId;
-  const tokenBranchId = decodedToken?.id;
+  const tokenBranchId = decodedToken?.branchId;
 
-  // ---------------- Initialize Form on Role Change ----------------
+  // ---------------- React Query Hooks ----------------
+
+  // Schools dropdown (only for superAdmin)
+  const { data: schools = [], isLoading: isLoadingSchools } = useSchoolDropdown(
+    decodedTokenRole === "superAdmin"
+  );
+
+  // Branches dropdown (conditional based on role)
+  const { data: branches = [], isLoading: isLoadingBranches } =
+    useBranchDropdown(
+      selectedSchoolId,
+      true,
+      decodedTokenRole === "branchGroup" // skipSchoolId for branchGroup
+    );
+
+  // Devices dropdown (all roles need this)
+  const { data: devices = [], isLoading: isLoadingDevices } = useDeviceDropdown(
+    selectedBranchId,
+    true
+  );
+
+  // ---------------- Initialize Form Based on Role ----------------
   useEffect(() => {
     if (!initialData) {
+      // For school role, auto-select their school
       if (decodedTokenRole === "school" && tokenSchoolId) {
-        onSchoolChange?.(tokenSchoolId);
-        onFetchBranches?.(true);
+        setSelectedSchoolId(tokenSchoolId);
       }
 
+      // For branch role, auto-select their branch
       if (decodedTokenRole === "branch" && tokenBranchId) {
-        onBranchChange?.(tokenBranchId);
-        onFetchDevices?.(true);
-      }
-
-      if (decodedTokenRole === "branchGroup") {
-        onFetchBranches?.(true);
+        setSelectedBranchId(tokenBranchId);
       }
     }
-  }, [decodedTokenRole, tokenSchoolId, tokenBranchId]);
+  }, [decodedTokenRole, tokenSchoolId, tokenBranchId, initialData]);
 
   // ---------------- Populate Form for Edit Mode ----------------
+
   useEffect(() => {
+    console.log("initial data", initialData);
     if (initialData) {
-      setName(initialData.name || "");
-      setPhone(initialData.phone || "");
+      setName(initialData.driverName || "");
+      setPhone(initialData.mobileNo || "");
       setEmail(initialData.email || "");
-      setLicenseNumber(initialData.licenseNumber || "");
       setUsername(initialData.username || "");
       setDeviceObjId(initialData.deviceObjId?._id || "");
-      // Password is not populated for security reasons
 
-      onSchoolChange?.(initialData.schoolId?._id);
-      onBranchChange?.(initialData.branchId?._id);
-
-      if (initialData.schoolId?._id) {
-        onFetchBranches?.(true);
-      }
-      if (initialData.branchId?._id) {
-        onFetchDevices?.(true);
-      }
+      // Set selected school and branch for edit mode
+      setSelectedSchoolId(initialData.schoolId?._id);
+      setSelectedBranchId(initialData.branchId?._id);
     } else {
       // Reset form for new driver
       setName("");
       setPhone("");
       setEmail("");
-      setLicenseNumber("");
       setUsername("");
       setPassword("");
       setDeviceObjId("");
     }
-  }, [
-    initialData,
-    onSchoolChange,
-    onBranchChange,
-    onFetchBranches,
-    onFetchDevices,
-  ]);
+  }, [initialData]);
 
-  // ---------------- Reset Branch & Device When School Changes (New Driver Only) ----------------
+  // ---------------- Reset Branch & Device When School Changes ----------------
   useEffect(() => {
     if (!initialData && decodedTokenRole === "superAdmin") {
-      onBranchChange?.(undefined);
+      setSelectedBranchId(undefined);
       setDeviceObjId("");
     }
-  }, [selectedSchoolId, initialData, decodedTokenRole, onBranchChange]);
+  }, [selectedSchoolId, initialData, decodedTokenRole]);
 
-  // ---------------- Reset Device When Branch Changes (New Driver Only) ----------------
+  // ---------------- Reset Device When Branch Changes ----------------
   useEffect(() => {
     if (!initialData) {
       setDeviceObjId("");
@@ -182,19 +155,17 @@ export default function AddDriverForm({
 
   // ---------------- Validation Functions ----------------
   const validateEmail = (email: string) => {
-    if (!email) return true; // Email is optional
+    if (!email) return true;
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     return emailRegex.test(email);
   };
 
   const validateUsername = (username: string) => {
-    // Username: 4-20 characters, alphanumeric, underscore, dot allowed
     const usernameRegex = /^[a-zA-Z0-9_.]{4,20}$/;
     return usernameRegex.test(username);
   };
 
   const validatePassword = (password: string) => {
-    // Password: minimum 6 characters
     return password.length >= 6;
   };
 
@@ -206,26 +177,22 @@ export default function AddDriverForm({
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
 
-    // Name validation
     if (!name.trim()) {
       newErrors.name = "Name is required";
     } else if (name.trim().length < 3) {
       newErrors.name = "Name must be at least 3 characters";
     }
 
-    // Phone validation
     if (!phone.trim()) {
       newErrors.phone = "Phone number is required";
     } else if (!validatePhone(phone)) {
       newErrors.phone = "Phone number must be 10 digits";
     }
 
-    // Email validation (optional)
     if (email && !validateEmail(email)) {
       newErrors.email = "Invalid email format";
     }
 
-    // Username validation
     if (!username.trim()) {
       newErrors.username = "Username is required";
     } else if (!validateUsername(username)) {
@@ -233,7 +200,6 @@ export default function AddDriverForm({
         "Username must be 4-20 characters (letters, numbers, _, .)";
     }
 
-    // Password validation (required only for new driver)
     if (!initialData) {
       if (!password.trim()) {
         newErrors.password = "Password is required";
@@ -241,16 +207,13 @@ export default function AddDriverForm({
         newErrors.password = "Password must be at least 6 characters";
       }
     } else if (password && !validatePassword(password)) {
-      // If updating and password is provided, validate it
       newErrors.password = "Password must be at least 6 characters";
     }
 
-    // Device validation
-    if (!deviceObjId) {
-      newErrors.device = "Vehicle is required";
-    }
+    // if (!deviceObjId) {
+    //   newErrors.device = "Vehicle is required";
+    // }
 
-    // Role-based validation
     switch (decodedTokenRole) {
       case "superAdmin":
         if (!selectedSchoolId) {
@@ -267,33 +230,23 @@ export default function AddDriverForm({
           newErrors.branch = "Branch is required";
         }
         break;
-
-      case "branch":
-        // No additional validation needed
-        break;
-
-      default:
-        newErrors.role = "Invalid role";
-        break;
     }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  // ---------------- Handle Submit ----------------
   const handleSave = () => {
     if (!validateForm()) {
       return;
     }
 
     const payload: any = {
-      name: name.trim(),
-      phone: phone.trim(),
+      driverName: name.trim(),
+      mobileNo: phone.trim(),
       username: username.trim(),
       deviceObjId,
       ...(email ? { email: email.trim() } : {}),
-      ...(licenseNumber ? { licenseNumber: licenseNumber.trim() } : {}),
       ...(password ? { password: password.trim() } : {}),
       ...(selectedSchoolId ? { schoolId: selectedSchoolId } : {}),
       ...(selectedBranchId ? { branchId: selectedBranchId } : {}),
@@ -303,15 +256,14 @@ export default function AddDriverForm({
   };
 
   return (
-    <Card className="w-[700px] shadow-xl">
+    <Card className="shadow-xl">
       <CardHeader>
         <CardTitle>{initialData ? "Edit Driver" : "Add Driver"}</CardTitle>
       </CardHeader>
 
       <CardContent className="space-y-4">
-        {/* TWO COLUMN GRID FOR PERSONAL INFO */}
+        {/* Personal Info Grid */}
         <div className="grid grid-cols-2 gap-4">
-          {/* NAME */}
           <div>
             <label className="text-sm font-medium">
               Driver Name <span className="text-red-500">*</span>
@@ -330,7 +282,6 @@ export default function AddDriverForm({
             )}
           </div>
 
-          {/* PHONE */}
           <div>
             <label className="text-sm font-medium">
               Phone Number <span className="text-red-500">*</span>
@@ -351,7 +302,6 @@ export default function AddDriverForm({
             )}
           </div>
 
-          {/* EMAIL */}
           <div>
             <label className="text-sm font-medium">Email (Optional)</label>
             <Input
@@ -368,26 +318,12 @@ export default function AddDriverForm({
               <p className="text-xs text-red-500 mt-1">{errors.email}</p>
             )}
           </div>
-
-          {/* LICENSE NUMBER */}
-          <div>
-            <label className="text-sm font-medium">
-              License Number (Optional)
-            </label>
-            <Input
-              placeholder="e.g. MH1220210012345"
-              value={licenseNumber}
-              onChange={(e) => setLicenseNumber(e.target.value.toUpperCase())}
-            />
-          </div>
         </div>
 
-        {/* DIVIDER */}
         <div className="border-t pt-4" />
 
-        {/* TWO COLUMN GRID FOR CREDENTIALS */}
+        {/* Credentials Grid */}
         <div className="grid grid-cols-2 gap-4">
-          {/* USERNAME */}
           <div>
             <label className="text-sm font-medium">
               Username <span className="text-red-500">*</span>
@@ -406,14 +342,13 @@ export default function AddDriverForm({
             )}
           </div>
 
-          {/* PASSWORD */}
           <div>
             <label className="text-sm font-medium">
               Password{" "}
               {!initialData ? (
                 <span className="text-red-500">*</span>
               ) : (
-                <span className="text-gray-500 text-xs">
+                <span className="text-gray-500 text-[10px]">
                   (Leave empty to keep current)
                 </span>
               )}
@@ -447,33 +382,30 @@ export default function AddDriverForm({
           </div>
         </div>
 
-        {/* DIVIDER */}
         <div className="border-t pt-4" />
 
-        {/* TWO COLUMN GRID FOR ORGANIZATION INFO */}
+        {/* Organization Info Grid */}
         <div className="grid grid-cols-2 gap-4">
-          {/* SCHOOL (SuperAdmin only) */}
           {decodedTokenRole === "superAdmin" && (
             <div className="col-span-2">
               <label className="text-sm font-medium">
                 School <span className="text-red-500">*</span>
               </label>
               <Combobox
-                items={schools.map((s) => ({
+                items={schools.map((s: any) => ({
                   label: s.schoolName,
                   value: s._id,
                 }))}
                 value={selectedSchoolId}
                 onValueChange={(value) => {
-                  onSchoolChange?.(value);
-                  if (value) {
-                    onFetchBranches?.(true);
-                  }
+                  setSelectedSchoolId(value);
                   if (errors.school) setErrors({ ...errors, school: "" });
                 }}
                 placeholder="Select School"
                 searchPlaceholder="Search schools..."
-                emptyMessage="No school found."
+                emptyMessage={
+                  isLoadingSchools ? "Loading schools..." : "No school found."
+                }
                 width="w-full"
                 open={schoolOpen}
                 onOpenChange={setSchoolOpen}
@@ -485,7 +417,6 @@ export default function AddDriverForm({
             </div>
           )}
 
-          {/* BRANCH (SuperAdmin, School, BranchGroup) */}
           {decodedTokenRole !== "branch" && (
             <div
               className={decodedTokenRole === "superAdmin" ? "" : "col-span-2"}
@@ -494,16 +425,13 @@ export default function AddDriverForm({
                 Branch <span className="text-red-500">*</span>
               </label>
               <Combobox
-                items={branches.map((b) => ({
+                items={branches.map((b: any) => ({
                   label: b.branchName,
                   value: b._id,
                 }))}
                 value={selectedBranchId}
                 onValueChange={(value) => {
-                  onBranchChange?.(value);
-                  if (value) {
-                    onFetchDevices?.(true);
-                  }
+                  setSelectedBranchId(value);
                   if (errors.branch) setErrors({ ...errors, branch: "" });
                 }}
                 placeholder={
@@ -529,7 +457,6 @@ export default function AddDriverForm({
             </div>
           )}
 
-          {/* VEHICLE/DEVICE (All roles) */}
           <div
             className={
               decodedTokenRole !== "branch" && decodedTokenRole === "superAdmin"
@@ -538,10 +465,10 @@ export default function AddDriverForm({
             }
           >
             <label className="text-sm font-medium">
-              Vehicle <span className="text-red-500">*</span>
+              Vehicle
             </label>
             <Combobox
-              items={devices.map((d) => ({
+              items={devices.map((d: any) => ({
                 label: d.name,
                 value: d._id,
               }))}
@@ -562,12 +489,7 @@ export default function AddDriverForm({
               width="w-full"
               disabled={decodedTokenRole !== "branch" && !selectedBranchId}
               open={deviceOpen}
-              onOpenChange={(open) => {
-                setDeviceOpen(open);
-                if (open && selectedBranchId && !initialData) {
-                  onFetchDevices?.(true);
-                }
-              }}
+              onOpenChange={setDeviceOpen}
               className={errors.device ? "border-red-500" : ""}
             />
             {errors.device && (
@@ -576,7 +498,7 @@ export default function AddDriverForm({
           </div>
         </div>
 
-        {/* ACTIONS */}
+        {/* Actions */}
         <div className="flex justify-end gap-2 pt-3 border-t">
           <Button
             variant="outline"
