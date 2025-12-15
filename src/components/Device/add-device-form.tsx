@@ -43,7 +43,7 @@ const deviceSchema = z.object({
   routeObjId: z.string().optional(),
   category: z.string().min(1, "Category is required"),
   model: z.string().min(1, "Model is required"),
-  driver: z.string().optional(),
+  driverObjId: z.string().optional(),
   speed: z.string().optional(),
   average: z.string().optional(),
   keyFeature: z.boolean().default(false), // ✅ Added keyFeature
@@ -91,7 +91,7 @@ export function AddDeviceForm({
       routeObjId: "",
       category: "",
       model: "",
-      driver: "",
+      driverObjId: "",
       speed: "",
       average: "",
       keyFeature: false,
@@ -119,7 +119,7 @@ export function AddDeviceForm({
     useCategoryDropdown(open);
   const { data: models, isLoading: isLoadingModels } = useModelDropdown(open);
 
-  // Driver dropdown with infinite scroll
+  // driverObjId dropdown with infinite scroll
   const {
     data: driversData,
     isLoading: isLoadingDrivers,
@@ -147,20 +147,21 @@ export function AddDeviceForm({
     if (selectedSchoolId && !isEditMode) {
       setValue("branchId", "");
       setValue("routeObjId", "");
-      setValue("driver", "");
+      setValue("driverObjId", "");
     }
   }, [selectedSchoolId, setValue, isEditMode]);
 
   useEffect(() => {
     if (selectedBranchId && !isEditMode) {
       setValue("routeObjId", "");
-      setValue("driver", "");
+      setValue("driverObjId", "");
     }
   }, [selectedBranchId, setValue, isEditMode]);
 
   // Populate form for edit mode
   useEffect(() => {
     if (open && editData) {
+      console.log("Edit data:", editData);
       reset({
         name: editData.name || "",
         uniqueId: editData.uniqueId || "",
@@ -170,7 +171,7 @@ export function AddDeviceForm({
         routeObjId: editData.routeObjId?._id || "",
         category: editData.category || "",
         model: editData.model || "",
-        driver: editData.driver?._id || "",
+        driverObjId: editData.driverObjId?._id || "",
         speed: editData.speed || "",
         average: editData.average || "",
         keyFeature: editData.keyFeature ?? false, // ✅ Added keyFeature with fallback
@@ -185,7 +186,7 @@ export function AddDeviceForm({
         routeObjId: "",
         category: "",
         model: "",
-        driver: "",
+        driverObjId: "",
         speed: "",
         average: "",
         keyFeature: false, // ✅ Reset to false
@@ -235,51 +236,58 @@ export function AddDeviceForm({
   const categoryItems = transformToComboboxItems(categories, "category");
   const modelItems = transformToComboboxItems(models, "model");
 
-  // Transform driver data from infinite query pages + add edit driver if exists
+  // Transform driverObjId data from infinite query pages + add edit driverObjId if exists
   const driverItems: ComboboxItem[] = useMemo(() => {
     const drivers = driversData
       ? driversData.pages.flatMap((page) =>
-          (page.data || []).map((driver: DropdownItem) => ({
-            value: driver._id || "",
-            label: driver.driverName || "Unknown Driver",
+          (page.data || []).map((driverObjId: DropdownItem) => ({
+            value: driverObjId._id || "",
+            label: driverObjId.driverName || "Unknown driverObjId",
           }))
         )
       : [];
 
-    if (isEditMode && editData?.driver?._id) {
-      const driverExists = drivers.some((d) => d.value === editData.driver._id);
+    if (isEditMode && editData?.driverObjId?._id) {
+      const driverExists = drivers.some(
+        (d) => d.value === editData.driverObjId._id
+      );
 
       if (!driverExists) {
         drivers.unshift({
-          value: editData.driver._id,
-          label: editData.driver.driverName || "Selected Driver",
+          value: editData.driverObjId._id,
+          label: editData.driverObjId.driverName || "Selected driverObjId",
         });
       }
     }
 
     return drivers;
-  }, [driversData, isEditMode, editData?.driver]);
+  }, [driversData, isEditMode, editData?.driverObjId]);
 
   // Submit handler
   const onSubmit = async (data: DeviceFormData) => {
     console.log("Submitted data:", data);
-
     try {
-      // try {
-      //   // When editing, user may not change the route, so fallback to editData.routeObjId._id
-        
-      // } catch (err) {
-      //   console.error("[RouteCheck] error:", err);
-      //   toast.error("Failed to check route assignment");
-      //   return;
-      // }
-      const routeId = data.routeObjId || editData?.routeObjId?._id;
+      const routeId = data?.routeObjId || editData?.routeObjId?._id;
+      const driverId = data?.driverObjId || editData?.driverObjId?._id;
 
-      if (routeId) {
+      // -------------------------------------------------------
+      // 1️⃣ CHECK IF VALUES CHANGED (only in edit mode)
+      // -------------------------------------------------------
+      const routeChanged = isEditMode
+        ? data.routeObjId !== editData?.routeObjId?._id
+        : true; // Always check in create mode
+
+      const driverChanged = isEditMode
+        ? data.driverObjId !== editData?.driverObjId?._id
+        : true; // Always check in create mode
+
+      // -------------------------------------------------------
+      // 2️⃣ CHECK ROUTE ASSIGNMENT (only if changed)
+      // -------------------------------------------------------
+      if (routeId && routeChanged) {
         const check = await deviceApiService.checkRouteAssign(routeId);
         console.log("❌ [RouteCheck] response:", check);
 
-        // If route assigned => ALWAYS show warning (as per your requirement)
         if (check?.assigned) {
           console.log("⛔ Route is already assigned to another device.");
           const confirmed = confirm(
@@ -294,7 +302,27 @@ export function AddDeviceForm({
       }
 
       // -------------------------------------------------------
-      // 2️⃣ IF NOT CANCELLED → Continue with CREATE or UPDATE
+      // 3️⃣ CHECK driverObjId ASSIGNMENT (only if changed)
+      // -------------------------------------------------------
+      if (driverId && driverChanged) {
+        const check = await deviceApiService.checkDriverAssign(driverId);
+        console.log("❌ [DriverCheck] response:", check);
+
+        if (check?.assigned) {
+          console.log("⛔ driverObjId is already assigned to another device.");
+          const confirmed = confirm(
+            `${check.message}. Do you still want to continue?`
+          );
+
+          if (!confirmed) {
+            console.log("⛔ User cancelled driverObjId assignment.");
+            return; // Stop submit
+          }
+        }
+      }
+
+      // -------------------------------------------------------
+      // 4️⃣ IF NOT CANCELLED → Continue with CREATE or UPDATE
       // -------------------------------------------------------
 
       if (isEditMode) {
@@ -308,7 +336,7 @@ export function AddDeviceForm({
           routeObjId: data.routeObjId || undefined,
           category: data.category,
           model: data.model,
-          driver: data.driver || undefined,
+          driverObjId: data.driverObjId || undefined,
           speed: data.speed,
           average: data.average,
           keyFeature: data.keyFeature,
@@ -331,7 +359,7 @@ export function AddDeviceForm({
           });
         }
       } else {
-        // CREATE MODE
+        // CREATE MODE (same as before)
         const oldApiPayload = {
           name: data.name,
           uniqueId: data.uniqueId,
@@ -340,7 +368,6 @@ export function AddDeviceForm({
           category: data.category,
         };
 
-        // CREATE DEVICE IN OLD API
         const oldApiResponse = await createOldDevice(oldApiPayload);
 
         if (!oldApiResponse?.id) {
@@ -357,7 +384,7 @@ export function AddDeviceForm({
           category: data.category,
           model: data.model,
           deviceId: oldApiResponse.id,
-          driver: data.driver || undefined,
+          driverObjId: data.driverObjId || undefined,
           speed: data.speed,
           average: data.average,
           keyFeature: data.keyFeature,
@@ -553,11 +580,11 @@ export function AddDeviceForm({
               />
             </div>
 
-            {/* Driver */}
+            {/* Driver Name */}
             <div className="space-y-2">
               <Label>Driver</Label>
               <Controller
-                name="driver"
+                name="driverObjId"
                 control={control}
                 render={({ field }) => (
                   <Combobox

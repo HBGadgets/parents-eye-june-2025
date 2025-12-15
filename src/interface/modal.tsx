@@ -36,7 +36,7 @@ export interface Device {
   sim: string;
   speed: string;
   average: string;
-  driver: Driver;
+  driverObjId: Driver;
   model: Model;
   category: Category;
   deviceId: string;
