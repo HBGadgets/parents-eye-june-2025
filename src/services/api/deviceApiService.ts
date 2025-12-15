@@ -51,4 +51,11 @@ export const deviceApiService = {
     const res = await api.get(`/deivce/already-assign-check/${id}`);
     return res.data;
   },
+
+  checkDriverAssign: async (driverObjId: string) => {
+    const res = await api.get(
+      `/deivce/already-assign-check-to-driver/${driverObjId}`
+    );
+    return res.data;
+  },
 };

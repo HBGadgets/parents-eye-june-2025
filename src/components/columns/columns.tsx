@@ -312,7 +312,7 @@ export const getDeviceColumns = (
   {
     id: "driver",
     header: "Driver",
-    accessorFn: (row: Device) => row.driver?.driverName ?? "—",
+    accessorFn: (row: Device) => row.driverObjId?.driverName ?? "—",
   },
   {
     id: "registerationDate",
