@@ -18,7 +18,7 @@ import { Button } from "@/components/ui/button";
 import { SearchBar } from "@/components/search-bar/SearchBarPagination";
 import { useDebounce } from "@/hooks/useDebounce";
 import { Combobox } from "@/components/ui/combobox";
-import { X, Upload } from "lucide-react";
+import { X, Upload, XCircle, Clock, CheckCircle, FilterX } from "lucide-react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { ExcelUploader } from "@/components/excel-uploader/ExcelUploader";
@@ -30,6 +30,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Switch } from "@/components/ui/switch";
 
 type DecodedToken = {
   role: string;
@@ -85,6 +86,8 @@ export default function StudentDetails() {
   const [filterSchoolId, setFilterSchoolId] = useState<string>();
   const [filterBranchId, setFilterBranchId] = useState<string>();
   const [filterRouteId, setFilterRouteId] = useState<string>();
+  const [filterStatusOfRegistration, setFilterStatusOfRegistration] =
+    useState<string>();
 
   // ---------------- Form State (FORM ONLY) ----------------
   const [formSchoolId, setFormSchoolId] = useState<string | undefined>(
@@ -161,8 +164,15 @@ export default function StudentDetails() {
       schoolId: filterSchoolId,
       branchId: filterBranchId,
       routeObjId: filterRouteId,
+      statusOfRegister: filterStatusOfRegistration,
     }),
-    [debouncedSearch, filterSchoolId, filterBranchId, filterRouteId]
+    [
+      debouncedSearch,
+      filterSchoolId,
+      filterBranchId,
+      filterRouteId,
+      filterStatusOfRegistration,
+    ]
   );
 
   // ---------------- Reset Pagination When Filters Change ----------------
@@ -207,6 +217,12 @@ export default function StudentDetails() {
     [routes]
   );
 
+  const statusOfRegister = [
+    { label: "Registered", value: "registered" },
+    { label: "Rejected", value: "rejected" },
+    { label: "Pending", value: "pending" },
+  ];
+
   // ---------------- API ----------------
   const {
     students,
@@ -217,9 +233,11 @@ export default function StudentDetails() {
     createStudent,
     exportExcel,
     exportPdf,
+    approveStudent,
     isPdfExporting,
     isExcelExporting,
     isDeleteLoading,
+    isApproveLoading,
   } = useStudent(pagination, sorting, filters);
 
   // ---------------- Auto Close Form on Success ----------------
@@ -348,10 +366,73 @@ export default function StudentDetails() {
   }, []);
 
   // ---------------- Table Columns ----------------
-  const columns = useMemo(
-    () => getStudentColumns(handleEdit, handleDelete),
-    [handleEdit, handleDelete]
-  );
+  const columns = useMemo(() => {
+    const cols = [...getStudentColumns(handleEdit, handleDelete)];
+
+    if (role === "superAdmin") {
+      cols.splice(cols.length - 1, 0, {
+        header: "Registration Status",
+        cell: ({ row }) => {
+          const { statusOfRegister, _id } = row.original;
+
+          const StatusSegmentedControl = () => {
+            const [status, setStatus] = useState(statusOfRegister);
+
+            const handleStatusChange = (newStatus) => {
+              setStatus(newStatus);
+              approveStudent({
+                id: _id,
+                statusOfRegister: newStatus,
+              });
+            };
+
+            const statuses = [
+              {
+                value: "registered",
+                label: "Registered",
+                color: "bg-green-100 text-green-700 border-green-300",
+              },
+              {
+                value: "rejected",
+                label: "Rejected",
+                color: "bg-red-100 text-red-700 border-red-300",
+              },
+            ];
+
+            return (
+              <div className="inline-flex rounded-md border border-gray-200 bg-gray-50 p-1">
+                {statuses.map(({ value, label, color }) => (
+                  <button
+                    key={value}
+                    onClick={() => handleStatusChange(value)}
+                    disabled={isApproveLoading}
+                    className={`
+                  px-3 py-1 text-xs font-medium rounded transition-all duration-200
+                  ${
+                    status === value
+                      ? color
+                      : "bg-transparent text-gray-600 hover:bg-gray-100"
+                  }
+                  ${
+                    isApproveLoading
+                      ? "opacity-50 cursor-not-allowed"
+                      : "cursor-pointer"
+                  }
+                `}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            );
+          };
+
+          return <StatusSegmentedControl />;
+        },
+      });
+    }
+    return cols;
+  }, [handleEdit, handleDelete, role, approveStudent, isApproveLoading]);
 
   // ---------------- Table ----------------
   const { table, tableElement, selectedRows } = CustomTableServerSidePagination(
@@ -394,6 +475,19 @@ export default function StudentDetails() {
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-bold mb-3">Students</h2>
         <div className="flex gap-3">
+          {/* CLEAR FILTERS BUTTON */}
+          <Button
+            variant="outline"
+            size="default"
+            className={`cursor-pointer flex items-center gap-2 ${
+              !hasActiveFilters ? "opacity-50 cursor-not-allowed" : ""
+            }`}
+            onClick={handleClearFilters}
+            disabled={!hasActiveFilters}
+          >
+            <FilterX className="h-4 w-4" />
+            Clear Filters
+          </Button>
           <Button
             disabled={!selectedCount || isDeleteLoading}
             onClick={handleBulkDelete}
@@ -408,6 +502,7 @@ export default function StudentDetails() {
             {isDeleteLoading ? "Deleting..." : `Delete (${selectedCount})`}
           </Button>
 
+          {/* EXPORT BUTTON */}
           <div className="mr-3">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -447,7 +542,7 @@ export default function StudentDetails() {
             value={searchInput}
             onChange={setSearchInput}
             placeholder="Search by student name..."
-            width="w-[280px]"
+            width="w-[220px]"
           />
 
           {/* Loading Indicator */}
@@ -462,6 +557,7 @@ export default function StudentDetails() {
           columns={table.getAllColumns()}
           buttonVariant="outline"
           buttonSize="default"
+          className="cursor-pointer w-[140px]"
         />
 
         {/* ROW 2: Filters - will wrap to next line if needed */}
@@ -498,7 +594,7 @@ export default function StudentDetails() {
               placeholder="Filter Branch"
               searchPlaceholder="Search Branch..."
               className="cursor-pointer"
-              width="w-[140px]"
+              width="w-[130px]"
               emptyMessage="No branches found"
               disabled={role === "superAdmin" && !filterSchoolId}
             />
@@ -512,22 +608,24 @@ export default function StudentDetails() {
             placeholder="Filter Route"
             searchPlaceholder="Search Route..."
             className="cursor-pointer"
-            width="w-[140px]"
+            width="w-[130px]"
             emptyMessage="No routes found"
             disabled={!filterBranchId}
           />
 
-          {/* CLEAR FILTERS BUTTON */}
-          {hasActiveFilters && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleClearFilters}
-              className="gap-2 shrink-0 cursor-pointer"
-            >
-              <X className="h-4 w-4" color="red" />
-            </Button>
-          )}
+          {/* STATUS OF REGISTRATION FILTER */}
+          <Combobox
+            items={statusOfRegister}
+            value={filterStatusOfRegistration}
+            onValueChange={(val) =>
+              setFilterStatusOfRegistration(val || undefined)
+            }
+            placeholder="Filter Status"
+            searchPlaceholder="Search Status..."
+            className="cursor-pointer"
+            width="w-[120px]"
+            emptyMessage="No status found"
+          />
         </div>
 
         {/* ROW 3: Action Buttons - will wrap to next line if needed */}

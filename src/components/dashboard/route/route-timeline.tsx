@@ -13,7 +13,7 @@ import { useGeofenceByUniqueId } from "@/hooks/useGeofence";
 interface RouteTimelineProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
-  handleHistoryClick: (deviceId: number) => void;
+  handleHistoryClick: (uniqueId: number) => void;
   uniqueId?: string;
   deviceName?: string;
 }

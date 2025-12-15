@@ -17,9 +17,7 @@ export const studentService = {
     return res.data;
   },
 
-  exportPDF: async (
-    params: Record<string, any>
-  ): Promise<Blob> => {
+  exportPDF: async (params: Record<string, any>): Promise<Blob> => {
     const res = await api.get("/child/export/pdf", {
       params,
       responseType: "blob",
@@ -40,6 +38,13 @@ export const studentService = {
   deleteStudent: async (ids: string[]) => {
     const res = await api.delete("/child", {
       data: { ids },
+    });
+    return res.data;
+  },
+
+  approveStudent: async (id: string, statusOfRegister: string) => {
+    const res = await api.put(`/child/approve/${id}`, {
+      statusOfRegister,
     });
     return res.data;
   },

@@ -113,7 +113,7 @@ export const useAddDeviceNew = (
       queryClient.invalidateQueries({ queryKey: ["devices"] });
     },
     onError: (err: any) => {
-      toast.error(err?.response?.data?.message || "Create failed");
+      toast.error(err?.message || "Create failed");
     },
   });
 
@@ -125,7 +125,7 @@ export const useAddDeviceNew = (
       queryClient.invalidateQueries({ queryKey: ["devices"] });
     },
     onError: (err: any) => {
-      toast.error(err?.response?.data?.message || "Update failed");
+      toast.error(err?.message || "Update failed");
     },
   });
 
