@@ -567,7 +567,7 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
     const endLatLng = L.latLng(currentPoint.latitude, currentPoint.longitude);
 
     // --- Animation Config ---
-    const duration = 1000; // ms (time to move between points)
+    const duration = 0; // ms (time to move between points)
     const startTime = performance.now();
 
     // Linear interpolation (no easing)

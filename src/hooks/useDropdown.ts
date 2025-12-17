@@ -26,6 +26,8 @@ export const useSchoolDropdown = (shouldFetch: boolean = true) => {
     queryFn: dropdownService.getSchools,
     enabled: shouldFetch,
     select: (res) => res.data.data,
+    refetchOnWindowFocus: false,
+    retry: false,
   });
 };
 
@@ -41,6 +43,8 @@ export const useBranchDropdown = (
       dropdownService.getBranches(skipSchoolId ? undefined : schoolId),
     enabled: (skipSchoolId || !!schoolId) && shouldFetch,
     select: (res) => res.data.data,
+    refetchOnWindowFocus: false,
+    retry: false,
   });
 };
 
@@ -53,6 +57,8 @@ export const useDeviceDropdown = (
     queryFn: () => dropdownService.getDevices(branchId),
     enabled: !!branchId,
     select: (res) => res.data.data,
+    refetchOnWindowFocus: false,
+    retry: false,
   });
 };
 
@@ -65,6 +71,20 @@ export const useDeviceDropdownWithUniqueId = (
     queryFn: () => dropdownService.getDevicesWithUniqueId(branchId),
     enabled: !!branchId,
     select: (res) => res.data.data,
+    refetchOnWindowFocus: false,
+    retry: false,
+  });
+};
+
+export const useDeviceDropdownWithUniqueIdForHistory = (
+  shouldFetch: boolean = true
+) => {
+  return useQuery<DropdownResponse<DropdownItem>>({
+    queryKey: ["device-dropdown-uniqueId"],
+    queryFn: () => dropdownService.getDevicesWithUniqueId(),
+    select: (res) => res.data.data,
+    refetchOnWindowFocus: false,
+    retry: false,
   });
 };
 
@@ -78,6 +98,8 @@ export const useRouteDropdown = (
     queryFn: async () => await dropdownService.getRoutes(branchId),
     enabled: !!branchId && shouldFetch,
     select: (res) => res.data.data,
+    refetchOnWindowFocus: false,
+    retry: false,
   });
 };
 
@@ -107,6 +129,8 @@ export const useParentDropdown = (
 
       return undefined;
     },
+    refetchOnWindowFocus: false,
+    retry: false,
   });
 };
 
@@ -137,6 +161,8 @@ export const useGeofenceDropdown = (
         return undefined;
       }
     },
+    refetchOnWindowFocus: false,
+    retry: false,
   });
 };
 
@@ -146,6 +172,8 @@ export const useCategoryDropdown = (shouldFetch: boolean = true) => {
     queryFn: dropdownService.getCategory,
     enabled: shouldFetch,
     select: (res) => res.data.data,
+    refetchOnWindowFocus: false,
+    retry: false,
   });
 };
 
@@ -155,6 +183,8 @@ export const useModelDropdown = (shouldFetch: boolean = true) => {
     queryFn: dropdownService.getModel,
     enabled: shouldFetch,
     select: (res) => res.data.data,
+    refetchOnWindowFocus: false,
+    retry: false,
   });
 };
 
@@ -185,5 +215,7 @@ export const useDriverDropdown = (
         return undefined;
       }
     },
+    refetchOnWindowFocus: false,
+    retry: false,
   });
 };

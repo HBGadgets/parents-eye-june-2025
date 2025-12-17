@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { loginUser } from "@/services/userService";
 import Image from "next/image";
-import { Eye, EyeOff, Loader2 } from "lucide-react"; // Added Loader2
+import { Eye, EyeOff, Loader2 } from "lucide-react";
 import Link from "next/link";
 import Cookies from "js-cookie";
 
@@ -18,7 +18,8 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [isLoading, setIsLoading] = useState(false); // ✅ Added loading state
+  const [isLoading, setIsLoading] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -40,7 +41,8 @@ export default function LoginPage() {
       const data = await loginUser(email, password);
 
       if (data?.token) {
-        login(data.token);
+        login(data.token, rememberMe ? 30 : undefined);
+        // login(data.token);
         router.push("/dashboard");
       } else {
         alert("Invalid response from server.");
@@ -171,7 +173,7 @@ export default function LoginPage() {
                       className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
                       onClick={() => setShowPassword((prev) => !prev)}
                       tabIndex={-1}
-                      disabled={isLoading} // ✅ Disable during loading
+                      disabled={isLoading}
                     >
                       {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                     </button>
@@ -182,7 +184,9 @@ export default function LoginPage() {
                   <input
                     type="checkbox"
                     id="remember"
-                    disabled={isLoading} // ✅ Disable during loading
+                    checked={rememberMe}
+                    onChange={(e) => setRememberMe(e.target.checked)}
+                    disabled={isLoading}
                     className="w-4 h-4 text-yellow-500 border-gray-300 rounded focus:ring-yellow-500"
                   />
                   <label
@@ -195,10 +199,10 @@ export default function LoginPage() {
 
                 <Button
                   type="submit"
-                  disabled={isLoading} // ✅ Disable button during loading
-                  className="w-full h-12 text-base font-semibold bg-gradient-to-r from-yellow-400 to-yellow-500 hover:from-yellow-500 hover:to-yellow-600 text-gray-900 shadow-lg mt-6 disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={isLoading}
+                  className="w-full h-12 text-base font-semibold bg-gradient-to-r from-yellow-400 to-yellow-500 hover:from-yellow-500 hover:to-yellow-600 text-gray-900 shadow-lg mt-6 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                 >
-                  {isLoading ? ( // ✅ Show loader when loading
+                  {isLoading ? (
                     <>
                       <Loader2 className="mr-2 h-5 w-5 animate-spin" />
                       Logging in...

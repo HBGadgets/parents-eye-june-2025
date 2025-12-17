@@ -12,7 +12,7 @@ interface AuthState {
   isAuthenticated: boolean;
   token: string | null;
   decodedToken: DecodedToken | null;
-  login: (token: string) => void;
+  login: (token: string, expiryDays?: number) => void;
   logout: () => void;
 }
 
@@ -21,9 +21,18 @@ export const useAuthStore = create<AuthState>((set) => ({
   token: null,
   decodedToken: null,
 
-  login: (token: string) => {
+  login: (token: string, expiryDays?: number) => {
     // Save in cookie/localStorage
-    document.cookie = `token=${token}; path=/`;
+    let cookieString = `token=${token}; path=/`;
+
+    if (expiryDays) {
+      const date = new Date();
+      date.setTime(date.getTime() + expiryDays * 24 * 60 * 60 * 1000);
+      const expires = date.toUTCString();
+      cookieString += `; expires=${expires}`;
+    }
+
+    document.cookie = cookieString;
     // localStorage.setItem("token", token);
 
     // Decode token

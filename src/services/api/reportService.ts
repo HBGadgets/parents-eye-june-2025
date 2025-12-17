@@ -32,7 +32,7 @@ export const reportService = {
   },
 
   getTripReport: async (params: Record<string, any>): Promise<any> => {
-    const res = await api.get("/report/trip-report", { params }); 
+    const res = await api.get("/report/trip-summary-report", { params }); 
     return res.data;
   },
 
