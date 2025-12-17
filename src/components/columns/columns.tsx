@@ -1205,14 +1205,110 @@ export const GetGeofenceAlertsReportColumns =
   ];
 
 export const GetTripReportColumns = (): ColumnDef<TripReport>[] => [
-  { header: "Vehicle No", accessorKey: "name" },
-  { header: "Start Time", accessorKey: "startTime" },
-  { header: "End Time", accessorKey: "endTime" },
-  { header: "Duration", accessorKey: "duration" },
-  { header: "Distance", accessorKey: "distance" },
-  { header: "Max Speed", accessorKey: "maxSpeed" },
-  { header: "Start Location", accessorKey: "startLocation" },
-  { header: "Start Coordinates", accessorKey: "startCoordinates" },
-  { header: "End Location", accessorKey: "endLocation" },
-  { header: "End Coordinates", accessorKey: "endCoordinates" },
+  {
+    header: "Vehicle No",
+    accessorKey: "name",
+  },
+
+  {
+    header: "Start Time",
+    accessorKey: "startTime",
+    cell: ({ getValue }) =>
+      new Date(getValue<string>()).toLocaleString("en-IN", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: true,
+      }),
+  },
+
+  {
+    header: "Start Address",
+    accessorKey: "startAddress",
+    meta: {
+      wrapConfig: { wrap: "wrap", maxWidth: "260px" },
+    },
+  },
+
+  {
+    header: "Start Coordinates",
+    accessorFn: (row) => ({
+      lat: row.startLatitude,
+      lng: row.startLongitude,
+    }),
+    cell: ({ getValue }) => {
+      const { lat, lng } = getValue<{ lat: number; lng: number }>();
+      return (
+        <a
+          href={`https://www.google.com/maps?q=${lat},${lng}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-blue-600 underline"
+        >
+          {lat?.toFixed(6)}, {lng?.toFixed(6)}
+        </a>
+      );
+    },
+  },
+  {
+    header: "End Time",
+    accessorKey: "endTime",
+    cell: ({ getValue }) =>
+      new Date(getValue<string>()).toLocaleString("en-IN", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: true,
+      }),
+  },
+
+  {
+    header: "End Address",
+    accessorKey: "endAddress",
+    meta: {
+      wrapConfig: { wrap: "wrap", maxWidth: "260px" },
+    },
+  },
+
+  {
+    header: "End Coordinates",
+    accessorFn: (row) => ({
+      lat: row.startLatitude,
+      lng: row.startLongitude,
+    }),
+    cell: ({ getValue }) => {
+      const { lat, lng } = getValue<{ lat: number; lng: number }>();
+      return (
+        <a
+          href={`https://www.google.com/maps?q=${lat},${lng}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-blue-600 underline"
+        >
+          {lat?.toFixed(6)}, {lng?.toFixed(6)}
+        </a>
+      );
+    },
+  },
+  {
+    header: "Duration",
+    accessorKey: "duration",
+  },
+
+  {
+    header: "Distance",
+    accessorKey: "distance",
+  },
+
+  {
+    header: "Max Speed",
+    accessorKey: "maxSpeed",
+    cell: ({ getValue }) => `${getValue<number>()} km/h`,
+  },
 ];

@@ -205,7 +205,7 @@ export const ReportFilter: React.FC<ReportFilterProps> = ({
   const prevBranchRef = useRef<string | undefined>();
   const prevBranchesLengthRef = useRef<number>(0);
 
-  // ⭐ NEW: Ref to store latest deviceItems without causing callback recreation
+  // ⭐ Ref to store latest deviceItems without causing callback recreation
   const deviceItemsRef = useRef<Array<{ label: string; value: string }>>([]);
 
   // Determine active values based on mode
@@ -419,7 +419,7 @@ export const ReportFilter: React.FC<ReportFilterProps> = ({
     [devices]
   );
 
-  // ⭐ NEW: Update deviceItemsRef whenever deviceItems changes
+  // ⭐ Update deviceItemsRef whenever deviceItems changes
   useEffect(() => {
     deviceItemsRef.current = deviceItems;
   }, [deviceItems]);
@@ -559,10 +559,12 @@ export const ReportFilter: React.FC<ReportFilterProps> = ({
     ]
   );
 
+  // ⭐ FIXED: Use deviceItemsRef instead of deviceItems
   const handleDeviceChange = useCallback(
     (value?: string) => {
       const deviceName =
-        deviceItems.find((item) => item.value === value)?.label || null;
+        deviceItemsRef.current.find((item) => item.value === value)?.label ||
+        null;
 
       if (onDeviceChange) {
         onDeviceChange(value || null, deviceName);
@@ -570,13 +572,17 @@ export const ReportFilter: React.FC<ReportFilterProps> = ({
         setInternalDevice(value);
       }
     },
-    [deviceItems, onDeviceChange]
+    [onDeviceChange] // deviceItems removed from dependencies
   );
 
+  // ⭐ FIXED: Use deviceItemsRef instead of deviceItems
   const handleDevicesChange = useCallback(
     (values: string[]) => {
       const deviceNames = values
-        .map((val) => deviceItems.find((item) => item.value === val)?.label)
+        .map(
+          (val) =>
+            deviceItemsRef.current.find((item) => item.value === val)?.label
+        )
         .filter(Boolean) as string[];
 
       if (onDevicesChange) {
@@ -585,7 +591,7 @@ export const ReportFilter: React.FC<ReportFilterProps> = ({
         setInternalDevices(values);
       }
     },
-    [deviceItems, onDevicesChange]
+    [onDevicesChange] // deviceItems removed from dependencies
   );
 
   const handleDateChange = useCallback(
@@ -673,7 +679,7 @@ export const ReportFilter: React.FC<ReportFilterProps> = ({
     dateRange.to,
   ]);
 
-  // ⭐ FIXED: Submit Handler - Now uses deviceItemsRef
+  // ⭐ FIXED: Submit Handler - Uses deviceItemsRef (already correct in your code)
   const handleSubmit = useCallback(() => {
     let deviceIdValue: string | string[] | null = null;
     let deviceNameValue: string | string[] | null = null;
