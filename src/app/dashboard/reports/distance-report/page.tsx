@@ -1,287 +1,179 @@
 "use client";
 
-import React, { useEffect, useState, useMemo, useCallback } from "react";
+import React, { useState, useCallback, useRef } from "react";
 import {
   ReportFilter,
-  DateRange,
   FilterValues,
 } from "@/components/report-filters/Report-Filter";
-import {
-  VisibilityState,
-  type ColumnDef,
-  type SortingState,
-} from "@tanstack/react-table";
+import { VisibilityState } from "@tanstack/react-table";
 import { CustomTableServerSidePagination } from "@/components/ui/customTable(serverSidePagination)";
-import { api } from "@/services/apiService";
 import ResponseLoader from "@/components/ResponseLoader";
-import { useDeviceData } from "@/hooks/useDeviceData";
-
-type DistanceRow = Record<string, any>;
+import { useReport } from "@/hooks/reports/useReport";
+import { id } from "date-fns/locale";
 
 const DistanceReportPage: React.FC = () => {
-  // Filter states
-  const [selectedSchool, setSelectedSchool] = useState<string | null>(null);
-  const [selectedBranch, setSelectedBranch] = useState<string | null>(null);
-  const [selectedDevice, setSelectedDevice] = useState<string | null>(null);
-  const [deviceName, setDeviceName] = useState<string | null>(null);
-  const [dateRange, setDateRange] = useState<DateRange>({
-    startDate: null,
-    endDate: null,
-  });
-
-  // Table states
-  const [data, setData] = useState<DistanceRow[]>([]);
-  const [totalCount, setTotalCount] = useState(0);
-  const [columnVisibility, setColumnVisibility] =
-    useState<VisibilityState>({});
-  const [isLoading, setIsLoading] = useState(false);
+  // Table state
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
   const [showTable, setShowTable] = useState(false);
-  const [pagination, setPagination] = useState({
-    pageIndex: 0,
-    pageSize: 10,
+  const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 10 });
+  const [sorting, setSorting] = useState<any[]>([]);
+
+  // Store stable columns to prevent shifting during loading
+  const stableColumnsRef = useRef<any[]>([]);
+
+  // Filter state for API
+  const [apiFilters, setApiFilters] = useState<Record<string, any>>({
+    schoolId: undefined,
+    branchId: undefined,
+    uniqueId: undefined,
+    from: undefined,
+    to: undefined,
   });
-  const [sorting, setSorting] = useState<SortingState>([]);
-  const [currentFilters, setCurrentFilters] = useState<any>(null);
 
-  // Infinite scroll for vehicles
-  const [searchTerm, setSearchTerm] = useState("");
-  const {
-    data: vehicleData,
-    fetchNextPage,
-    hasNextPage,
-    isFetchingNextPage,
-  } = useDeviceData({ searchTerm });
+  // Fetch report data using the hook
+  const { distanceReport, totalDistanceReport, isFetchingDistanceReport } =
+    useReport(pagination, apiFilters, "distance");
 
-  const allVehicles = useMemo(() => {
-    if (!vehicleData?.pages) return [];
-    return vehicleData.pages.flat();
-  }, [vehicleData]);
+  // Handle filter submission
+  const handleFilterSubmit = useCallback((filters: FilterValues) => {
+    console.log("✅ Filter submitted:", filters);
 
-  const vehicleMetaData = useMemo(() => {
-    if (!Array.isArray(allVehicles)) return [];
-    return allVehicles.map((vehicle) => ({
-      value: vehicle.deviceId.toString(),
-      label: vehicle.name,
-    }));
-  }, [allVehicles]);
+    if (!filters.deviceId || !filters.from || !filters.to) {
+      alert("Please select a vehicle and date range");
+      return;
+    }
 
-  const handleVehicleReachEnd = useCallback(() => {
-    if (hasNextPage && !isFetchingNextPage) fetchNextPage();
-  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+    // Reset pagination when filters change
+    setPagination({ pageIndex: 0, pageSize: 10 });
+    setSorting([]);
 
-  const handleSearchChange = useCallback((search: string) => {
-    setSearchTerm(search);
+    // Set API filters
+    setApiFilters({
+      schoolId: filters.schoolId,
+      branchId: filters.branchId,
+      uniqueId: filters.deviceId,
+      from: filters.from,
+      to: filters.to,
+      period: "Custom",
+    });
+
+    // Show table
+    setShowTable(true);
   }, []);
 
-  // Dynamic table columns
-  const [columns, setColumns] = useState<ColumnDef<DistanceRow>[]>([
-    { accessorKey: "sn", header: "Sr No." },
-    { accessorKey: "deviceName", header: "Vehicle Name", size: 200 },
-    {
-      accessorKey: "totalDistance",
-      header: "Total Distance (km)",
-      size: 200,
-      cell: (info) => ((info.getValue<number>() ?? 0).toFixed(2)),
-    },
-  ]);
+  const columns = React.useMemo(() => {
+    if (isFetchingDistanceReport && stableColumnsRef.current.length > 0) {
+      return stableColumnsRef.current;
+    }
 
-  const formatDate = (date: string) => {
-    const d = new Date(date);
-    return d.toISOString().slice(0, 10);
-  };
-
-  const fetchDistanceReportData = async (
-    filters: any,
-    paginationState: any,
-    sortingState: SortingState
-  ) => {
-    if (!filters) return;
-    setIsLoading(true);
-
-    try {
-      const fromDate = formatDate(filters.startDate);
-      const toDate = formatDate(filters.endDate);
-
-      const requestBody: any = {
-        deviceIds: [filters.deviceId],
-        period: "Custom",
-        from: fromDate,
-        to: toDate,
-        page: String(paginationState.pageIndex + 1),
-        limit: String(paginationState.pageSize),
-      };
-
-      if (sortingState.length > 0) {
-        const sort = sortingState[0];
-        requestBody.sortBy = sort.id;
-        requestBody.sortOrder = sort.desc ? "desc" : "asc";
-      }
-
-      const response = await api.post(`/report/distance-report`, requestBody, {
-        headers: { "Content-Type": "application/json" },
-      });
-
-      const resData = response?.data ?? response;
-
-      let dataArray: any[] = [];
-      if (Array.isArray(resData)) dataArray = resData;
-      else if (Array.isArray(resData.data)) dataArray = resData.data;
-      else if (Array.isArray(resData.result)) dataArray = resData.result;
-      else dataArray = [];
-
-      if (!dataArray || dataArray.length === 0) {
-        setData([]);
-        setTotalCount(0);
-        return;
-      }
-
-      // Extract dynamic date keys
-      let dateKeys = Object.keys(dataArray[0]).filter((k) =>
-        /^\d{4}-\d{2}-\d{2}$/.test(k)
-      );
-      if (dateKeys.length === 0) {
-        dateKeys = Object.keys(dataArray[0]).filter(
-          (k) => k !== "deviceId" && k !== "_id" && k !== "message"
-        );
-      }
-      dateKeys = Array.from(new Set(dateKeys)).sort();
-
-      const dynamicColumns: ColumnDef<DistanceRow>[] = [
-        { accessorKey: "sn", header: "Sr No." },
-        { accessorKey: "deviceName", header: "Vehicle Name", size: 200 },
-        ...dateKeys.map((dateKey) => ({
-          accessorKey: dateKey,
-          header: dateKey,
-          size: 110,
-          cell: (info: any) => {
-            const v = info.getValue();
-            if (v === undefined || v === null) return "0.00";
-            const num = typeof v === "number" ? v : parseFloat(String(v)) || 0;
-            return num.toFixed(2);
-          },
-        })),
+    if (!distanceReport?.[0]) {
+      const fallbackColumns = [
         {
-          accessorKey: "totalDistance",
-          header: "Total Distance (km)",
+          id: "name",
+          accessorKey: "name",
+          header: "Vehicle Name",
           size: 200,
-          cell: (info) => ((info.getValue<number>() ?? 0).toFixed(2)),
+          minSize: 150,
+          maxSize: 300,
         },
       ];
-      setColumns(dynamicColumns);
 
-      const transformed: DistanceRow[] = dataArray.map((item: any, idx: number) => {
-        const row: DistanceRow = {};
-        row.id = item._id ?? item.deviceId ?? `row-${idx}`;
-        row.sn = paginationState.pageIndex * paginationState.pageSize + idx + 1;
-        row.deviceName = filters.deviceName;
-        let totalDistance = 0;
-        dateKeys.forEach((k) => {
-          const raw = item[k];
-          const num =
-            typeof raw === "number" ? raw : parseFloat(String(raw || "0")) || 0;
-          row[k] = num;
-          totalDistance += num;
-        });
-        row.totalDistance = totalDistance;
-        return row;
-      });
-
-      setData(transformed);
-      setTotalCount(resData.total ?? resData.totalCount ?? transformed.length);
-    } catch (error: any) {
-      console.error("Error fetching distance report data:", error);
-      alert(
-        error?.response?.data?.message || error?.message || "Unknown error"
-      );
-      setData([]);
-      setTotalCount(0);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (currentFilters && showTable) {
-      fetchDistanceReportData(currentFilters, pagination, sorting);
-    }
-  }, [pagination, sorting, currentFilters, showTable]);
-
-  // ✅ Unified filter handler (same pattern as StatusReport)
-  const handleFilterSubmit = useCallback(
-    async (filters: FilterValues) => {
-      if (!selectedDevice || !dateRange.startDate || !dateRange.endDate) {
-        alert("Please select a vehicle and both dates");
-        return;
+      if (stableColumnsRef.current.length === 0) {
+        stableColumnsRef.current = fallbackColumns;
       }
 
-      const updatedFilters = {
-        ...filters,
-        deviceId: selectedDevice,
-        deviceName,
-      };
+      return stableColumnsRef.current;
+    }
 
-      setPagination({ pageIndex: 0, pageSize: 10 });
-      setSorting([]);
-      setColumnVisibility({});
-      setCurrentFilters(updatedFilters);
-      setShowTable(true);
+    const rawRow = distanceReport[0];
+    const dateKeys = Object.keys(rawRow).filter(
+      (k) => !["name", "totalKm"].includes(k)
+    );
 
-      await fetchDistanceReportData(updatedFilters, { pageIndex: 0, pageSize: 10 }, []);
-    },
-    [selectedDevice, deviceName, dateRange]
-  );
+    const newColumns = [
+      {
+        id: "name",
+        accessorKey: "name",
+        header: "Vehicle Name",
+        size: 200,
+        minSize: 150,
+        maxSize: 300,
+      },
+      ...dateKeys.map((date) => ({
+        id: date,
+        accessorKey: date,
+        header: date,
+        size: 120,
+        minSize: 100,
+        maxSize: 150,
+      })),
+      {
+        id: "totalKm",
+        accessorKey: "totalKm",
+        header: "Total KM",
+        size: 120,
+        minSize: 100,
+        maxSize: 150,
+      },
+    ];
 
+    stableColumnsRef.current = newColumns;
+    return newColumns;
+  }, [distanceReport, isFetchingDistanceReport]);
+
+  // Table configuration
   const { table, tableElement } = CustomTableServerSidePagination({
-    data,
+    data: distanceReport ?? [],
     columns,
     pagination,
-    totalCount,
-    loading: isLoading,
+    totalCount: totalDistanceReport,
+    loading: isFetchingDistanceReport,
     onPaginationChange: setPagination,
     onSortingChange: setSorting,
     sorting,
     columnVisibility,
     onColumnVisibilityChange: setColumnVisibility,
-    emptyMessage:
-      "No distance reports found. Please check your filters and try again.",
+    emptyMessage: isFetchingDistanceReport
+      ? "Loading report data..."
+      : "No data available for the selected filters",
     pageSizeOptions: [5, 10, 20, 30, 50],
     enableSorting: true,
-    showSerialNumber: false,
+    showSerialNumber: true,
   });
 
   return (
     <div className="p-6">
-      <ResponseLoader isLoading={isLoading} />
-      <header>
-        <h1 className="text-2xl font-bold mb-4">Distance Report</h1>
-      </header>
+      <ResponseLoader isLoading={isFetchingDistanceReport} />
 
-      {/* ✅ Report Filter (same as StatusReportPage) */}
+      {/* Filter Component */}
       <ReportFilter
         onSubmit={handleFilterSubmit}
+        table={table}
         className="mb-6"
-        // Controlled props
-        selectedSchool={selectedSchool}
-        onSchoolChange={setSelectedSchool}
-        selectedBranch={selectedBranch}
-        onBranchChange={setSelectedBranch}
-        selectedDevice={selectedDevice}
-        onDeviceChange={(deviceId, name) => {
-          setSelectedDevice(deviceId);
-          setDeviceName(name);
+        config={{
+          showSchool: true,
+          showBranch: true,
+          showDevice: true,
+          showDateRange: true,
+          showSubmitButton: true,
+          submitButtonText: "Generate",
+          dateRangeTitle: "Select Date Range",
+          dateRangeMaxDays: 300,
+          cardTitle: "Distance Report",
+          arrayFormat: "comma",
+          arraySeparator: ",",
+          multiSelectDevice: true,
+          showBadges: true,
+          maxBadges: 2,
         }}
-        dateRange={dateRange}
-        onDateRangeChange={setDateRange}
-        // Infinite scroll props
-        vehicleMetaData={vehicleMetaData}
-        searchTerm={searchTerm}
-        onSearchChange={handleSearchChange}
-        onVehicleReachEnd={handleVehicleReachEnd}
-        isFetchingNextPage={isFetchingNextPage}
-        hasNextPage={hasNextPage}
       />
 
-      {showTable && <section className="mb-4">{tableElement}</section>}
+      {/* Table - Stable container with fixed dimensions */}
+      {showTable && (
+        <section className="mb-4 min-h-[400px]">
+          <div className="w-full overflow-x-auto">{tableElement}</div>
+        </section>
+      )}
     </div>
   );
 };

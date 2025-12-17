@@ -256,3 +256,28 @@
     min-height: calc(100vh - 120px);
   }
 }
+
+@layer utilities {
+  .filter-card {
+    @apply bg-card rounded-xl border border-border p-6;
+    box-shadow: var(--filter-card-shadow);
+    transition: box-shadow 0.2s ease;
+  }
+
+  .filter-card:hover {
+    box-shadow: var(--filter-card-shadow-hover);
+  }
+
+  .field-group {
+    @apply flex flex-col gap-2;
+  }
+
+  .field-label {
+    @apply text-sm font-medium;
+    color: hsl(var(--field-label));
+  }
+
+  .field-icon {
+    color: hsl(var(--field-icon));
+  }
+}

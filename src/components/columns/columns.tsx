@@ -1,21 +1,26 @@
 import { ColumnDef } from "@tanstack/react-table";
 import {
+  AlertsAndEventsReport,
   Category,
   Device,
   Driver,
   Geofence,
+  GeofenceAlerts,
+  IdleReport,
   LiveTrack,
   Model,
   Parent,
   Route,
+  StatusReport,
   Student,
+  Supervisor,
+  TripReport,
 } from "@/interface/modal";
 import { CellContent } from "@/components/ui/CustomTable";
 import { Eye, EyeOff, Locate } from "lucide-react";
 import { calculateTimeSince } from "@/util/calculateTimeSince";
 import React, { useMemo } from "react";
 import { Button } from "../ui/button";
-import { access } from "fs";
 
 export const getModelColumns = (
   setEditTarget: (row: Model) => void,
@@ -781,7 +786,7 @@ export const getGeofenceCoumns = (
 
 export const getDriverColumns = (
   onEdit: (row: Driver) => void,
-  onDelete: (row: Driver) => void,
+  onDelete: (row: Driver) => void
 ): ColumnDef<Driver>[] => [
   {
     header: "Driver Name",
@@ -806,9 +811,14 @@ export const getDriverColumns = (
     accessorFn: (row: Driver) => row.branchId?.branchName ?? "—",
   },
   {
-    id: "Vehicle No",
-    header: "vehicleNo",
+    id: "vehicleNo",
+    header: "vehicle No",
     accessorFn: (row: Driver) => row.deviceObjId?.name ?? "—",
+  },
+  {
+    id: "route",
+    header: "Route",
+    accessorFn: (row: Driver) => row.routeObjId?.routeNumber ?? "—",
   },
   {
     header: "Username",
@@ -882,4 +892,327 @@ export const getDriverColumns = (
     enableSorting: false,
     enableHiding: false,
   },
+];
+
+export const getSupervisorColumns = (
+  onEdit: (row: Supervisor) => void,
+  onDelete: (row: Supervisor) => void
+): ColumnDef<Supervisor>[] => [
+  { header: "Supervisor Name", accessorKey: "supervisorName" },
+  { header: "Email", accessorKey: "email" },
+  { header: "Mobile No", accessorKey: "mobileNo" },
+  { header: "Username", accessorKey: "username" },
+  {
+    header: "Password",
+    accessorKey: "password",
+    cell: ({ row }) => {
+      const [show, setShow] = React.useState(false);
+      const password = row.original.password;
+
+      return (
+        <div className="flex items-center justify-center gap-2">
+          <span className="font-mono">
+            {show ? password : "•".repeat(password?.length || 8)}
+          </span>
+
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setShow((prev) => !prev);
+            }}
+            className="p-1 hover:bg-gray-200 rounded cursor-pointer"
+          >
+            {show ? (
+              <EyeOff className="h-4 w-4 text-gray-700" />
+            ) : (
+              <Eye className="h-4 w-4 text-gray-700" />
+            )}
+          </button>
+        </div>
+      );
+    },
+  },
+  {
+    id: "school",
+    header: "School",
+    accessorFn: (row: Supervisor) => row.schoolId?.schoolName ?? "—",
+  },
+  {
+    id: "branch",
+    header: "Branch",
+    accessorFn: (row: Supervisor) => row.branchId?.branchName ?? "—",
+  },
+  {
+    id: "route",
+    header: "Route",
+    accessorFn: (row: Supervisor) => row.routeObjId?.routeNumber ?? "—",
+  },
+  {
+    id: "vehicleNo",
+    header: "Vehicle No",
+    accessorFn: (row: Supervisor) => row.deviceObjId?.name ?? "—",
+  },
+  {
+    id: "registrationDate",
+    header: "Registration Date",
+    accessorFn: (row: Supervisor) =>
+      new Date(row.createdAt).toLocaleDateString(),
+  },
+  {
+    id: "actions",
+    header: "Actions",
+    cell: ({ row }) => (
+      <div className="flex items-center justify-center gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={(e) => {
+            e.stopPropagation();
+            onEdit(row.original); // Use the callback
+          }}
+          className="cursor-pointer bg-[#f3c623] hover:bg-[#D3A80C]"
+        >
+          Edit
+        </Button>
+        <Button
+          variant="destructive"
+          size="sm"
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete(row.original); // Use the callback
+          }}
+          className="cursor-pointer hover:bg-red-700"
+        >
+          Delete
+        </Button>
+      </div>
+    ),
+    enableSorting: false,
+    enableHiding: false,
+  },
+];
+
+export const getStatusReportColumns = (): ColumnDef<StatusReport>[] => [
+  {
+    header: "Status",
+    accessorKey: "vehicleStatus",
+  },
+  {
+    header: "Vehicle No",
+    accessorKey: "name",
+  },
+  {
+    header: "Duration",
+    accessorKey: "time",
+  },
+  {
+    header: "Distance",
+    accessorKey: "distance",
+  },
+  {
+    header: "Max Speed",
+    accessorKey: "maxSpeed",
+  },
+  {
+    header: "Start Time",
+    accessorFn: (row: StatusReport) =>
+      new Date(row.startDateTime).toLocaleString("en-IN", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: true,
+      }),
+  },
+  {
+    header: "Start Location",
+    accessorKey: "startLocation",
+  },
+  {
+    header: "End Time",
+    accessorFn: (row: StatusReport) =>
+      new Date(row.endDateTime).toLocaleString("en-IN", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: true,
+      }),
+  },
+  {
+    header: "End Location",
+    accessorKey: "endLocation",
+  },
+];
+
+export const getStopReportColumns = (): ColumnDef<StatusReport>[] => [
+  {
+    header: "Status",
+    accessorKey: "vehicleStatus",
+  },
+  {
+    header: "Vehicle No",
+    accessorKey: "name",
+  },
+  {
+    header: "Duration",
+    accessorKey: "time",
+  },
+  {
+    header: "Distance",
+    accessorKey: "distance",
+  },
+  {
+    header: "Max Speed",
+    accessorKey: "maxSpeed",
+  },
+
+  {
+    header: "Start Time",
+    accessorFn: (row: StatusReport) =>
+      new Date(row.startDateTime).toLocaleString("en-IN", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: true,
+      }),
+  },
+  {
+    header: "Start Location",
+    accessorKey: "startLocation",
+  },
+  {
+    header: "Start Coordinates",
+    accessorKey: "startCoordinates",
+  },
+  {
+    header: "End Time",
+    accessorFn: (row: StatusReport) =>
+      new Date(row.endDateTime).toLocaleString("en-IN", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: true,
+      }),
+  },
+  {
+    header: "End Location",
+    accessorKey: "endLocation",
+  },
+  {
+    header: "End Coordinates",
+    accessorKey: "endCoordinates",
+  },
+];
+
+export const getIdleReportColumns = (): ColumnDef<IdleReport>[] => [
+  {
+    header: "Status",
+    accessorKey: "vehicleStatus",
+  },
+  {
+    header: "Vehicle No",
+    accessorKey: "name",
+  },
+  {
+    header: "Duration",
+    accessorKey: "time",
+  },
+  {
+    header: "Distance",
+    accessorKey: "distance",
+  },
+  {
+    header: "Max Speed",
+    accessorKey: "maxSpeed",
+  },
+
+  {
+    header: "Start Time",
+    accessorFn: (row: StatusReport) =>
+      new Date(row.startDateTime).toLocaleString("en-IN", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: true,
+      }),
+  },
+  {
+    header: "Start Location",
+    accessorKey: "startLocation",
+  },
+  {
+    header: "Start Coordinates",
+    accessorKey: "startCoordinates",
+  },
+  {
+    header: "End Time",
+    accessorFn: (row: StatusReport) =>
+      new Date(row.endDateTime).toLocaleString("en-IN", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: true,
+      }),
+  },
+  {
+    header: "End Location",
+    accessorKey: "endLocation",
+  },
+  {
+    header: "End Coordinates",
+    accessorKey: "endCoordinates",
+  },
+];
+
+export const GetAlertsAndEventsReportColumns =
+  (): ColumnDef<AlertsAndEventsReport>[] => [
+    { header: "Vehicle No", accessorKey: "name" },
+    { header: "Alert Type", accessorKey: "alertType" },
+    { header: "Location", accessorKey: "location" },
+    { header: "Message", accessorKey: "message" },
+    { header: "Address", accessorKey: "address" },
+    { header: "Created At", accessorKey: "createdAt" },
+  ];
+
+export const GetGeofenceAlertsReportColumns =
+  (): ColumnDef<GeofenceAlerts>[] => [
+    { header: "Vehicle No", accessorKey: "name" },
+    { header: "Geofence Name", accessorKey: "geofenceName" },
+    { header: "Location", accessorKey: "location" },
+    { header: "Coordinates", accessorKey: "coordinate" },
+    { header: "In Time", accessorKey: "inTime" },
+    { header: "Out Time", accessorKey: "outTime" },
+    { header: "Halt Time", accessorKey: "haltTime" },
+    { header: "Created At", accessorKey: "createdAt" },
+  ];
+
+export const GetTripReportColumns = (): ColumnDef<TripReport>[] => [
+  { header: "Vehicle No", accessorKey: "name" },
+  { header: "Start Time", accessorKey: "startTime" },
+  { header: "End Time", accessorKey: "endTime" },
+  { header: "Duration", accessorKey: "duration" },
+  { header: "Distance", accessorKey: "distance" },
+  { header: "Max Speed", accessorKey: "maxSpeed" },
+  { header: "Start Location", accessorKey: "startLocation" },
+  { header: "Start Coordinates", accessorKey: "startCoordinates" },
+  { header: "End Location", accessorKey: "endLocation" },
+  { header: "End Coordinates", accessorKey: "endCoordinates" },
 ];

@@ -39,7 +39,7 @@ function HistoryReportContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const vehicleIdFromUrl = searchParams.get("vehicleId");
-  const vehicleNameFromUrl = searchParams.get("vehicleName");
+  const nameFromUrl = searchParams.get("name");
 
   // Track if this is initial load from dashboard
   const isFromDashboardRef = useRef(false);
@@ -144,8 +144,8 @@ function HistoryReportContent() {
       setToDate(formattedEnd + "T23:59:59.000Z");
 
       // Set search term if vehicle name is provided
-      if (vehicleNameFromUrl) {
-        setSearchTerm(vehicleNameFromUrl);
+      if (nameFromUrl) {
+        setSearchTerm(nameFromUrl);
       }
     } else if (!hasInitializedRef.current) {
       // Direct page visit (no vehicleId in URL)
@@ -153,7 +153,7 @@ function HistoryReportContent() {
       hasInitializedRef.current = true;
       console.log("Direct page visit detected");
     }
-  }, [vehicleIdFromUrl, vehicleNameFromUrl]);
+  }, [vehicleIdFromUrl, nameFromUrl]);
 
   // Pre-select vehicle from URL parameter (only when coming from dashboard)
   useEffect(() => {
@@ -198,11 +198,11 @@ function HistoryReportContent() {
     const params = new URLSearchParams(searchParams.toString());
     if (vehicleId) {
       params.set("vehicleId", vehicleId);
-      // Remove vehicleName when manually changing
-      params.delete("vehicleName");
+      // Remove name when manually changing
+      params.delete("name");
     } else {
       params.delete("vehicleId");
-      params.delete("vehicleName");
+      params.delete("name");
     }
     router.replace(`/dashboard/reports/history-report?${params.toString()}`);
   };

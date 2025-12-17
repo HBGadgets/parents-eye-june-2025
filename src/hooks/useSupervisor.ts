@@ -99,7 +99,7 @@ export const useSupervisor = (
 
   return {
     supervisor: getSupervisorQuery.data?.data || [],
-    total: getSupervisorQuery.data?.total || 0,
+    total: getSupervisorQuery.data?.totalCount || 0,
     isLoading: getSupervisorQuery.isLoading,
     isFetching: getSupervisorQuery.isFetching,
 

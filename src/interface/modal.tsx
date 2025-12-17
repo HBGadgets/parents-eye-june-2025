@@ -117,6 +117,7 @@ export interface Driver {
   mobileNo: string;
   schoolId: School;
   branchId: Branch;
+  routeObjId: Route;
   deviceObjId: Device;
   role: string;
   createdAt: string;
@@ -140,9 +141,10 @@ export interface Supervisor {
   username: string;
   password: string;
   email: string;
-  supervisorMobile: string;
+  mobileNo: string;
   schoolId: School;
   branchId: Branch;
+  routeObjId: Route;
   deviceObjId: Device;
   createdAt: string;
 }
@@ -282,4 +284,176 @@ export interface LiveTrack {
   lastUpdate?: string;
   name?: string;
   fuelConsumption?: DoubleRange;
+}
+
+export interface StatusReport {
+  uniqueId: string;
+  name: string;
+  vehicleStatus: string;
+  time: string;
+  startDateTime: string;
+  endDateTime: string;
+  startLocation: string;
+  startCoordinates: string;
+  endLocation: string;
+  endCoordinates: string;
+  distance: number;
+  maxSpeed: number;
+  avgSpeed: number;
+}
+
+export interface GetStatusReportResponse {
+  total: number;
+  page: number;
+  limit: number;
+  data: StatusReport[];
+}
+
+export interface StopReport {
+  uniqueId: string;
+  vehicleStatus: string;
+  name: string;
+  time: string;
+  startDateTime: string;
+  endDateTime: string;
+  startLocation: string;
+  startCoordinates: string;
+  endLocation: string;
+  endCoordinates: string;
+  distance: number;
+  maxSpeed: number;
+  avgSpeed: number;
+}
+
+export interface GetStopReportResponse {
+  total: number;
+  page: number;
+  limit: number;
+  data: StopReport[];
+}
+
+export interface IdleReport {
+  uniqueId: string;
+  vehicleStatus: string;
+  name: string;
+  time: string;
+  startDateTime: string;
+  endDateTime: string;
+  startLocation: string;
+  startCoordinates: string;
+  endLocation: string;
+  endCoordinates: string;
+  distance: number;
+  maxSpeed: number;
+  avgSpeed: number;
+}
+
+export interface GetIdleReportResponse {
+  total: number;
+  page: number;
+  limit: number;
+  data: IdleReport[];
+}
+
+export interface Distance {
+  uniqueId: string;
+  name: string;
+  distance: number;
+  createdAt: string;
+  totalDistance: number;
+}
+
+export interface AlertsAndEventsReport {
+  uniqueId: string;
+  name: string;
+  type: string;
+  coordinate: string;
+  location: string;
+  message: string;
+  createdAt: string;
+}
+
+export interface GetAlertsAndEventsReportResponse {
+  total: number;
+  page: number;
+  limit: number;
+  data: AlertsAndEventsReport[];
+}
+
+export interface GeofenceAlerts {
+  uniqueId: string;
+  name: string;
+  geofenceName: string;
+  location: string;
+  coordinate: string;
+  inTime: string;
+  outTime: string;
+  haltTime: string;
+  createdAt: string;
+}
+
+export interface GetGeofenceAlertsResponse {
+  total: number;
+  page: number;
+  limit: number;
+  data: GeofenceAlerts[];
+}
+
+export interface TripReport {
+  uniqueId: string;
+  name: string;
+  startTime: string;
+  endTime: string;
+  duration: string;
+  maxSpeed: string;
+  avgSpeed: string;
+  distance: string;
+  totalDistance: string;
+  startCoordinates: string;
+  startAddress: string;
+  endCoordinates: string;
+  endAddress: string;
+}
+
+export interface GetTripReportResponse {
+  total: number;
+  page: number;
+  limit: number;
+  data: TripReport[];
+}
+
+export interface DayWiseTrips {
+  date: string;
+  uniqueId: string;
+  startTime: string;
+  endTime: string;
+  maxSpeed: string;
+  avgSpeed: string;
+  distance: string;
+  running: string;
+  idle: string;
+  stopped: string;
+  overspeed: string;
+  startCoordinates: string;
+  startAddress: string;
+  endCoordinates: string;
+  endAddress: string;
+}
+
+export interface TravelSummaryReport {
+  uniqueId: string;
+  name: string;
+  duration: string;
+  maxSpeed: string;
+  avgSpeed: string;
+  distance: string;
+  running: string;
+  idle: string;
+  stopped: string;
+  overspeed: string;
+  startCoordinates: string;
+  startAddress: string;
+  endCoordinates: string;
+  endAddress: string;
+  dayWiseTrips: DayWiseTrips[];
 }

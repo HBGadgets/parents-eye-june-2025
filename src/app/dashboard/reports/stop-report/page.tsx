@@ -1,322 +1,112 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useMemo, useCallback } from "react";
 import {
   ReportFilter,
-  DateRange,
   FilterValues,
 } from "@/components/report-filters/Report-Filter";
-import { VisibilityState, type ColumnDef } from "@tanstack/react-table";
+import { VisibilityState } from "@tanstack/react-table";
 import { CustomTableServerSidePagination } from "@/components/ui/customTable(serverSidePagination)";
-import { api } from "@/services/apiService";
 import ResponseLoader from "@/components/ResponseLoader";
-import { FaPowerOff } from "react-icons/fa";
-import { reverseGeocode } from "@/util/reverse-geocode";
-import { useDeviceData } from "@/hooks/useDeviceData";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-
-interface StopReportData {
-  id: string;
-  sn: number;
-  deviceName: string;
-  stopAddress: string;
-  stopCoordinates: { lat: number; lng: number };
-  duration: string;
-  arrivalTime: string;
-  departureTime: string;
-  ignition: boolean;
-  speed: number;
-}
+import { useReport } from "@/hooks/reports/useReport";
+import { getStopReportColumns } from "@/components/columns/columns";
 
 const StopReportPage: React.FC = () => {
-  // Controlled filter states
-  const [selectedSchool, setSelectedSchool] = useState<string | null>(null);
-  const [selectedBranch, setSelectedBranch] = useState<string | null>(null);
-  const [selectedDevice, setSelectedDevice] = useState<string | null>(null);
-  const [deviceName, setDeviceName] = useState<string | null>(null);
-  const [dateRange, setDateRange] = useState<DateRange>({
-    startDate: null,
-    endDate: null,
-  });
-
-  // Table states
-  const [data, setData] = useState<StopReportData[]>([]);
-  const [totalCount, setTotalCount] = useState(0);
+  // Table state
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
-  const [isLoading, setIsLoading] = useState(false);
   const [showTable, setShowTable] = useState(false);
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 10 });
   const [sorting, setSorting] = useState<any[]>([]);
-  const [currentFilters, setCurrentFilters] = useState<any>(null);
 
-  // Infinite scroll for vehicle selection
-  const [searchTerm, setSearchTerm] = useState("");
+  // Filter state for API
+  const [apiFilters, setApiFilters] = useState<Record<string, any>>({
+    schoolId: undefined,
+    branchId: undefined,
+    uniqueId: undefined,
+    from: undefined,
+    to: undefined,
+  });
 
-  const {
-    data: vehicleData,
-    fetchNextPage,
-    hasNextPage,
-    isFetchingNextPage,
-    isLoading: vehiclesLoading,
-  } = useDeviceData({ searchTerm });
+  // Fetch report data using the hook
+  const { stopReport, totalStopReport, isFetchingStopReport } = useReport(
+    pagination,
+    apiFilters,
+    "stop"
+  );
 
-  // Flatten all pages of vehicle data
-  const allVehicles = useMemo(() => {
-    if (!vehicleData?.pages) return [];
-    return vehicleData.pages.flat();
-  }, [vehicleData]);
+  // Column definitions
+  const columns = getStopReportColumns();
 
-  const vehicleMetaData = useMemo(() => {
-    if (!Array.isArray(allVehicles)) return [];
-    return allVehicles.map((vehicle) => ({
-      value: vehicle.deviceId.toString(),
-      label: vehicle.name,
-    }));
-  }, [allVehicles]);
+  // Handle filter submission
+  const handleFilterSubmit = useCallback((filters: FilterValues) => {
+    console.log("✅ Filter submitted:", filters);
 
-  // Infinite scroll handler
-  const handleVehicleReachEnd = useCallback(() => {
-    if (hasNextPage && !isFetchingNextPage) fetchNextPage();
-  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
-
-  const handleSearchChange = useCallback((search: string) => {
-    setSearchTerm(search);
-  }, []);
-
-  const columns: ColumnDef<StopReportData>[] = [
-    { accessorKey: "sn", header: "SN" },
-    { accessorKey: "deviceName", header: "Vehicle Name", size: 200 },
-    {
-      accessorKey: "ignition",
-      header: "Ignition",
-      size: 120,
-      cell: ({ row }) => {
-        const ignition = row.original.ignition;
-        const iconColor = ignition ? "text-green-500" : "text-red-500";
-        const tooltipText = ignition ? "Ignition On" : "Ignition Off";
-
-        return (
-          <div className="flex justify-center">
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <FaPowerOff className={`text-xl cursor-pointer ${iconColor}`} />
-                </TooltipTrigger>
-                <TooltipContent className="bg-black/80 text-white font-bold rounded-md px-3 py-2 shadow-lg">
-                  <p>{tooltipText}</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          </div>
-        );
-      },
-    },
-    { accessorKey: "arrivalTime", header: "Start Time", size: 200 },
-    { accessorKey: "departureTime", header: "End Time", size: 200 },
-    { accessorKey: "duration", header: "Duration", size: 180 },
-    {
-      accessorKey: "speed",
-      header: "Speed (km/h)",
-      size: 150,
-      cell: ({ row }) => row.original.speed?.toFixed(2) ?? "0.00",
-    },
-    {
-      accessorKey: "stopAddress",
-      header: "Location",
-      size: 300,
-      cell: ({ row }) =>
-        row.original.stopAddress && row.original.stopAddress !== "Loading..."
-          ? row.original.stopAddress
-          : "-",
-    },
-    {
-      accessorKey: "stopCoordinates",
-      header: "Coordinates",
-      size: 180,
-      cell: ({ row }) => {
-        const coords = row.original.stopCoordinates;
-        if (!coords) return "-";
-        return `${coords.lat.toFixed(6)}, ${coords.lng.toFixed(6)}`;
-      },
-    },
-  ];
-
-  const calculateDuration = (start: string, end: string): string => {
-    const startTime = new Date(start).getTime();
-    const endTime = new Date(end).getTime();
-    const diff = endTime - startTime;
-    if (diff <= 0) return "0s";
-
-    const seconds = Math.floor(diff / 1000);
-    const h = Math.floor(seconds / 3600);
-    const m = Math.floor((seconds % 3600) / 60);
-    const s = seconds % 60;
-
-    return `${h}H ${m}M ${s}S`;
-  };
-
-  const fetchStopReportData = async (
-    filters: any,
-    paginationState: any,
-    sortingState: any
-  ) => {
-    if (!filters) return;
-    setIsLoading(true);
-
-    try {
-      const fromDate = new Date(filters.startDate).toISOString();
-      const toDate = new Date(filters.endDate).toISOString();
-
-      const queryParams = new URLSearchParams({
-        deviceId: filters.deviceId,
-        from: fromDate,
-        to: toDate,
-        page: (paginationState.pageIndex + 1).toString(),
-        limit: paginationState.pageSize.toString(),
-      });
-
-      if (sortingState?.length) {
-        const sort = sortingState[0];
-        queryParams.append("sortBy", sort.id);
-        queryParams.append("sortOrder", sort.desc ? "desc" : "asc");
-      }
-
-      const response = await api.get(`/report/stop-report?${queryParams}`);
-      const json = response.data;
-
-      if (!json || (Array.isArray(json) && json.length === 0)) {
-        setData([]);
-        setTotalCount(0);
-        return;
-      }
-
-      const dataArray = Array.isArray(json) ? json : [json];
-
-      const initialTransformed: StopReportData[] = dataArray.map(
-        (item: any, index: number) => {
-          const sn =
-            paginationState.pageIndex * paginationState.pageSize + index + 1;
-          return {
-            id: item._id || `row-${index}`,
-            sn,
-            deviceName: filters.deviceName,
-            stopAddress: "Loading...",
-            stopCoordinates: { lat: item.latitude, lng: item.longitude },
-            arrivalTime: new Date(item.arrivalTime).toLocaleString(),
-            departureTime: new Date(item.departureTime).toLocaleString(),
-            duration: calculateDuration(item.arrivalTime, item.departureTime),
-            ignition: item.ignition,
-            speed: item.speed || 0,
-          };
-        }
-      );
-
-      setData(initialTransformed);
-      setTotalCount(response.total || initialTransformed.length);
-
-      const transformedWithAddresses = await Promise.all(
-        initialTransformed.map(async (item) => {
-          try {
-            const address = await reverseGeocode(
-              item.stopCoordinates.lat,
-              item.stopCoordinates.lng
-            );
-            return { ...item, stopAddress: address };
-          } catch {
-            return { ...item, stopAddress: "Address not found" };
-          }
-        })
-      );
-
-      setData(transformedWithAddresses);
-    } catch (error: any) {
-      console.error("Error fetching stop report data:", error);
-      alert(error.response?.data?.error || error.message || "Network error");
-      setData([]);
-      setTotalCount(0);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (currentFilters && showTable) {
-      fetchStopReportData(currentFilters, pagination, sorting);
-    }
-  }, [pagination, sorting, currentFilters, showTable]);
-
-  const handleFilterSubmit = async (filters: FilterValues) => {
-    if (!selectedDevice || !dateRange.startDate || !dateRange.endDate) {
-      alert("Please select a vehicle and both dates");
+    if (!filters.deviceId || !filters.from || !filters.to) {
+      alert("Please select a vehicle and date range");
       return;
     }
 
-    const updatedFilters = {
-      ...filters,
-      deviceId: selectedDevice,
-      deviceName,
-    };
-
+    // Reset pagination when filters change
     setPagination({ pageIndex: 0, pageSize: 10 });
     setSorting([]);
-    setCurrentFilters(updatedFilters);
+
+    // Set API filters
+    setApiFilters({
+      schoolId: filters.schoolId,
+      branchId: filters.branchId,
+      uniqueId: filters.deviceId,
+      from: filters.from,
+      to: filters.to,
+      period: "Custom",
+    });
+
+    // Show table
     setShowTable(true);
+  }, []);
 
-    await fetchStopReportData(updatedFilters, { pageIndex: 0, pageSize: 10 }, []);
-  };
-
+  // Table configuration
   const { table, tableElement } = CustomTableServerSidePagination({
-    data,
+    data: stopReport,
     columns,
     pagination,
-    totalCount,
-    loading: isLoading,
+    totalCount: totalStopReport,
+    loading: isFetchingStopReport,
     onPaginationChange: setPagination,
     onSortingChange: setSorting,
     sorting,
     columnVisibility,
     onColumnVisibilityChange: setColumnVisibility,
-    emptyMessage: "No stop reports found",
+    emptyMessage: isFetchingStopReport
+      ? "Loading report data..."
+      : "No data available for the selected filters",
     pageSizeOptions: [5, 10, 20, 30, 50],
     enableSorting: true,
-    showSerialNumber: false,
+    showSerialNumber: true,
   });
 
   return (
     <div className="p-6">
-      <ResponseLoader isLoading={isLoading} />
-      <header>
-        <h1 className="text-2xl font-bold mb-4">Stop Report</h1>
-      </header>
+      <ResponseLoader isLoading={isFetchingStopReport} />
 
-      {/* Reused ReportFilter like in StatusReportPage */}
+      {/* Filter Component */}
       <ReportFilter
         onSubmit={handleFilterSubmit}
+        table={table}
         className="mb-6"
-        selectedSchool={selectedSchool}
-        onSchoolChange={setSelectedSchool}
-        selectedBranch={selectedBranch}
-        onBranchChange={setSelectedBranch}
-        selectedDevice={selectedDevice}
-        onDeviceChange={(deviceId, name) => {
-          setSelectedDevice(deviceId);
-          setDeviceName(name);
+        config={{
+          showSchool: true,
+          showBranch: true,
+          showDevice: true,
+          showDateRange: true,
+          showSubmitButton: true,
+          submitButtonText: "Generate",
+          dateRangeTitle: "Select Date Range",
+          dateRangeMaxDays: 300,
+          cardTitle: "Stop Report",
         }}
-        dateRange={dateRange}
-        onDateRangeChange={setDateRange}
-        vehicleMetaData={vehicleMetaData}
-        searchTerm={searchTerm}
-        onSearchChange={handleSearchChange}
-        onVehicleReachEnd={handleVehicleReachEnd}
-        isFetchingNextPage={isFetchingNextPage}
-        hasNextPage={hasNextPage}
       />
 
+      {/* Table - Always render when showTable is true */}
       {showTable && <section className="mb-4">{tableElement}</section>}
     </div>
   );
