@@ -351,7 +351,7 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
 
     // Create map
     const map = L.map(mapContainerRef.current, {
-      center: [currentPoint.latitude, currentPoint.longitude],
+      center: [currentPoint?.latitude, currentPoint?.longitude],
       zoom: 15,
       zoomControl: false,
     });
@@ -525,33 +525,47 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
   }, [isRouteDrawn, data]);
 
   // Update marker position after route is drawn
+  // Update marker position and rotation with smooth animation
   useEffect(() => {
     if (!mapRef.current || !isRouteDrawn || !currentPoint) return;
 
     const map = mapRef.current;
 
-    // --- Vehicle Icon ---
-    const vehicleIcon = L.divIcon({
-      className: "vehicle-marker",
-      html: `
-      <div style="
-        transform: rotate(${currentPoint.course}deg); 
-        width: 32px; 
-        height: 32px; 
-        display: flex; 
-        align-items: center; 
-        justify-content: center;
-        z-index: 1000;
-      ">
-        <img src="/Top Y.svg" width="32" height="32" />
-      </div>
-    `,
-      iconSize: [32, 32],
-      iconAnchor: [16, 16],
-    });
+    // Helper function to calculate shortest rotation path
+    const getShortestRotation = (from: number, to: number): number => {
+      let diff = to - from;
+      // Normalize to -180 to 180 range
+      while (diff > 180) diff -= 360;
+      while (diff < -180) diff += 360;
+      return diff;
+    };
 
-    // Create marker if not already present
+    // Easing function for smoother animation (ease-out)
+    const easeOutCubic = (t: number): number => {
+      return 1 - Math.pow(1 - t, 3);
+    };
+
+    // Create initial marker if not present
     if (!markerRef.current) {
+      const vehicleIcon = L.divIcon({
+        className: "vehicle-marker",
+        html: `
+        <div class="vehicle-icon-wrapper" style="
+          transform: rotate(${currentPoint.course}deg); 
+          width: 32px; 
+          height: 32px; 
+          display: flex; 
+          align-items: center; 
+          justify-content: center;
+          transition: transform 0.1s linear;
+        ">
+          <img src="/Top Y.svg" width="32" height="32" style="display: block;" />
+        </div>
+      `,
+        iconSize: [32, 32],
+        iconAnchor: [16, 16],
+      });
+
       markerRef.current = L.marker(
         [currentPoint.latitude, currentPoint.longitude],
         {
@@ -559,6 +573,9 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
           zIndexOffset: 1000,
         }
       ).addTo(map);
+
+      // Store current rotation for interpolation
+      (markerRef.current as any)._currentRotation = currentPoint.course;
       return;
     }
 
@@ -566,43 +583,96 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
     const startLatLng = marker.getLatLng();
     const endLatLng = L.latLng(currentPoint.latitude, currentPoint.longitude);
 
-    // --- Animation Config ---
-    const duration = 0; // ms (time to move between points)
+    // Get previous rotation and calculate shortest path to new rotation
+    const startRotation =
+      (marker as any)._currentRotation || currentPoint.course;
+    const rotationDiff = getShortestRotation(
+      startRotation,
+      currentPoint.course
+    );
+    const endRotation = startRotation + rotationDiff;
+
+    // Animation configuration
+    const duration = 500; // milliseconds
     const startTime = performance.now();
-
-    // Linear interpolation (no easing)
-    const linear = (t: number) => t;
-
-    // Capture current camera position
     const startCenter = map.getCenter();
 
     let animationFrame: number;
 
     const animate = (time: number) => {
       const elapsed = time - startTime;
-      const t = Math.min(elapsed / duration, 1); // Normalize 0 → 1
-      const progress = linear(t);
+      const rawProgress = Math.min(elapsed / duration, 1);
+      const progress = easeOutCubic(rawProgress);
 
-      // Interpolate marker position (constant speed)
+      // Interpolate position
       const nextLat =
         startLatLng.lat + (endLatLng.lat - startLatLng.lat) * progress;
       const nextLng =
         startLatLng.lng + (endLatLng.lng - startLatLng.lng) * progress;
+
+      // Interpolate rotation
+      const currentRotation = startRotation + rotationDiff * progress;
+
+      // Update marker position
       marker.setLatLng([nextLat, nextLng]);
 
-      // Move camera continuously with marker
+      // Update marker icon with new rotation
+      const vehicleIcon = L.divIcon({
+        className: "vehicle-marker",
+        html: `
+        <div class="vehicle-icon-wrapper" style="
+          transform: rotate(${currentRotation}deg); 
+          width: 32px; 
+          height: 32px; 
+          display: flex; 
+          align-items: center; 
+          justify-content: center;
+        ">
+          <img src="/Top Y.svg" width="32" height="32" style="display: block;" />
+        </div>
+      `,
+        iconSize: [32, 32],
+        iconAnchor: [16, 16],
+      });
+      marker.setIcon(vehicleIcon);
+
+      // Smoothly pan camera to follow marker
       const nextCenterLat =
         startCenter.lat + (endLatLng.lat - startCenter.lat) * progress;
       const nextCenterLng =
         startCenter.lng + (endLatLng.lng - startCenter.lng) * progress;
       map.panTo([nextCenterLat, nextCenterLng], { animate: false });
 
-      if (t < 1) {
+      if (rawProgress < 1) {
         animationFrame = requestAnimationFrame(animate);
       } else {
-        // Finish cleanly without pause
+        // Animation complete - set final values
         marker.setLatLng(endLatLng);
-        marker.setIcon(vehicleIcon);
+
+        // Normalize final rotation to 0-360 range
+        let normalizedRotation = endRotation % 360;
+        if (normalizedRotation < 0) normalizedRotation += 360;
+
+        (marker as any)._currentRotation = normalizedRotation;
+
+        const finalIcon = L.divIcon({
+          className: "vehicle-marker",
+          html: `
+          <div class="vehicle-icon-wrapper" style="
+            transform: rotate(${normalizedRotation}deg); 
+            width: 32px; 
+            height: 32px; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center;
+          ">
+            <img src="/Top Y.svg" width="32" height="32" style="display: block;" />
+          </div>
+        `,
+          iconSize: [32, 32],
+          iconAnchor: [16, 16],
+        });
+        marker.setIcon(finalIcon);
         map.panTo(endLatLng, { animate: false });
       }
     };
