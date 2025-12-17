@@ -16,7 +16,7 @@ interface BottomDrawerProps {
   addresses: any;
   loadingAddresses: any;
   handleOpenLiveTrack: (imei: string, name: string) => void;
-
+  handleHistoryClick: (uniqueId: number) => void;
   onOpenRouteTimeline: (uniqueId: string, deviceName: string) => void;
 }
 
@@ -27,7 +27,7 @@ export const BottomDrawer = ({
   addresses,
   loadingAddresses,
   handleOpenLiveTrack,
-
+  handleHistoryClick,
   onOpenRouteTimeline,
 }: BottomDrawerProps) => {
   return (
@@ -106,6 +106,18 @@ export const BottomDrawer = ({
                   }
                 >
                   History
+                </button>
+                <button
+                  className="rounded-sm mr-1 text-black border border-black px-2 py-1 hover:bg-black hover:text-white transition-colors duration-200 cursor-pointer"
+                  onClick={() =>
+                    selectedDevice?.uniqueId !== undefined &&
+                    onOpenRouteTimeline(
+                      selectedDevice.uniqueId,
+                      selectedDevice.name
+                    )
+                  }
+                >
+                  Timeline
                 </button>
                 <DrawerClose
                   className="rounded-sm text-white border border-black px-2 py-1 bg-black cursor-pointer"

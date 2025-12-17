@@ -33,6 +33,7 @@ import { Alert } from "@/components/Alert";
 import ResponseLoader from "@/components/ResponseLoader";
 // import { CustomFilter } from "@/components/ui/CustomFilter";
 import { ColumnVisibilitySelector } from "@/components/column-visibility-selector";
+import { Eye, EyeOff } from "lucide-react";
 
 declare module "@tanstack/react-table" {
   interface ColumnMeta<TData, TValue> {
@@ -109,12 +110,35 @@ export default function SchoolMaster() {
     },
     {
       header: "Password",
-      accessorFn: (row) => ({
-        type: "text",
-        value: row.password ?? "",
-      }),
+      accessorKey: "password",
+      cell: ({ row }) => {
+        const [show, setShow] = React.useState(false);
+        const password = row.original.password;
+
+        return (
+          <div className="flex items-center justify-center gap-2">
+            <span className="font-mono">
+              {show ? password : "•".repeat(password?.length || 8)}
+            </span>
+
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setShow((prev) => !prev);
+              }}
+              className="p-1 hover:bg-gray-200 rounded cursor-pointer"
+            >
+              {show ? (
+                <EyeOff className="h-4 w-4 text-gray-700" />
+              ) : (
+                <Eye className="h-4 w-4 text-gray-700" />
+              )}
+            </button>
+          </div>
+        );
+      },
       meta: { flex: 1, minWidth: 150, maxWidth: 300 },
-      enableHiding: true,
     },
     {
       header: "Registration Date",

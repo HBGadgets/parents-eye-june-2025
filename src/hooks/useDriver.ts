@@ -45,6 +45,8 @@ export const useDriver = (
         isApproved: filters.isApproved,
       }),
     placeholderData: keepPreviousData,
+    refetchOnWindowFocus: false,
+    retry: false,
   });
 
   const createDriverMutation = useMutation({
