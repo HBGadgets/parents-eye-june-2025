@@ -56,6 +56,18 @@ export const useDeviceDropdown = (
   });
 };
 
+export const useDeviceDropdownWithUniqueId = (
+  branchId?: string,
+  shouldFetch: boolean = true
+) => {
+  return useQuery<DropdownResponse<DropdownItem>>({
+    queryKey: ["device-dropdown-uniqueId", branchId],
+    queryFn: () => dropdownService.getDevicesWithUniqueId(branchId),
+    enabled: !!branchId,
+    select: (res) => res.data.data,
+  });
+};
+
 export const useRouteDropdown = (
   branchId?: string,
   shouldFetch: boolean = true

@@ -1,10 +1,10 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useMemo, useCallback } from "react";
 import {
   ReportFilter,
-  DateRange,
   FilterValues,
+  DateRange,
 } from "@/components/report-filters/Report-Filter";
 import {
   VisibilityState,
@@ -14,7 +14,7 @@ import {
 } from "@tanstack/react-table";
 import { CustomTableServerSidePagination } from "@/components/ui/customTable(serverSidePagination)";
 import ResponseLoader from "@/components/ResponseLoader";
-import { reverseGeocode } from "@/util/reverse-geocode";
+import { useReport } from "@/hooks/reports/useReport";
 import { FaPlay, FaPlus, FaMinus } from "react-icons/fa";
 import { TravelTable } from "@/components/travel-summary/TravelTable";
 import {
@@ -23,44 +23,10 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { DayWiseTrips, TravelSummaryReport } from "@/interface/modal";
 
-interface DayWiseTrip {
-  date: string;
-  deviceId: number;
-  startTime: string;
-  endTime: string;
-  distance: string;
-  startLatitude: number;
-  startLongitude: number;
-  endLatitude: number;
-  endLongitude: number;
-  maxSpeed: number;
-  avgSpeed: number;
-  workingHours: string;
-  runningTime: string;
-  stopTime: string;
-  idleTime: string;
-}
-
-interface TravelReportData {
-  id: string;
-  sn: number;
-  vehicleNumber: string;
-  startAddress: string;
-  startCoordinates: { lat: number; lng: number };
-  totalDistance: number;
-  runningTime: string;
-  idleTime: string;
-  stopTime: string;
-  endAddress: string;
-  endCoordinates: { lat: number; lng: number };
-  maxSpeed: number;
-  avgSpeed: number;
-  deviceId: string;
-  dayWiseTrips: DayWiseTrip[];
-}
-
-interface TravelTableData {
+// Interface for nested table data (transformed from DayWiseTrips)
+interface TravelDetailTableData {
   id: string;
   reportDate: string;
   ignitionStart: string;
@@ -69,8 +35,8 @@ interface TravelTableData {
   distance: string;
   running: string;
   idle: string;
-  stop: string;
-  totalWorkingHours: string;
+  stopped: string;
+  overspeed: string;
   maxSpeed: string;
   avgSpeed: string;
   endLocation: string;
@@ -79,15 +45,18 @@ interface TravelTableData {
   play?: string;
 }
 
-interface ExpandedRowData extends TravelReportData {
+// Extended interface for expanded row data
+interface ExpandedRowData extends TravelSummaryReport {
+  id: string;
+  sn: number;
   isLoading?: boolean;
   isDetailTable?: boolean;
   isEmpty?: boolean;
-  detailData?: TravelTableData[];
+  detailData?: TravelDetailTableData[];
 }
 
-const TravelReportPage: React.FC = () => {
-  // Filter state (controlled by parent)
+const TravelSummaryReportPage: React.FC = () => {
+  // Filter state
   const [selectedSchool, setSelectedSchool] = useState<string | null>(null);
   const [selectedBranch, setSelectedBranch] = useState<string | null>(null);
   const [selectedDevice, setSelectedDevice] = useState<string | null>(null);
@@ -97,11 +66,8 @@ const TravelReportPage: React.FC = () => {
     endDate: null,
   });
 
-  // Main table state
-  const [data, setData] = useState<TravelReportData[]>([]);
-  const [totalCount, setTotalCount] = useState(0);
+  // Table state
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
-  const [isLoading, setIsLoading] = useState(false);
   const [showTable, setShowTable] = useState(false);
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
@@ -112,7 +78,7 @@ const TravelReportPage: React.FC = () => {
   // Expansion state
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [detailedData, setDetailedData] = useState<
-    Record<string, TravelTableData[]>
+    Record<string, TravelDetailTableData[]>
   >({});
 
   // Detail table pagination & sorting state per expanded row
@@ -126,67 +92,245 @@ const TravelReportPage: React.FC = () => {
     >
   >({});
 
-  // Transform dayWiseTrips data for TravelTable component
+  // Filter state for API
+  const [apiFilters, setApiFilters] = useState<Record<string, any>>({
+    schoolId: undefined,
+    branchId: undefined,
+    uniqueId: undefined,
+    from: undefined,
+    to: undefined,
+  });
+
+  // Demo data for testing
+  const DEMO_TRAVEL_SUMMARY_DATA: TravelSummaryReport[] = [
+    {
+      uniqueId: "MH12AB1234",
+      name: "MH 12 AB 1234",
+      duration: "7D, 14H, 30M",
+      maxSpeed: "95.5 km/h",
+      avgSpeed: "42.3 km/h",
+      distance: "1,245.67 km",
+      running: "5D, 8H, 45M",
+      idle: "1D, 2H, 15M",
+      stopped: "1D, 3H, 30M",
+      overspeed: "0D, 0H, 45M",
+      startCoordinates: "21.1458, 79.0882",
+      startAddress: "Sitabuldi, Nagpur, Maharashtra 440012",
+      endCoordinates: "19.0760, 72.8777",
+      endAddress: "Mumbai Central, Mumbai, Maharashtra 400008",
+      dayWiseTrips: [
+        {
+          date: "2025-12-10",
+          uniqueId: "MH12AB1234",
+          startTime: "2025-12-10T06:30:00.000Z",
+          endTime: "2025-12-10T18:45:00.000Z",
+          maxSpeed: "88.5 km/h",
+          avgSpeed: "45.2 km/h",
+          distance: "185.5 km",
+          running: "0D, 4H, 15M",
+          idle: "0D, 0H, 30M",
+          stopped: "0D, 7H, 30M",
+          overspeed: "0D, 0H, 8M",
+          startCoordinates: "21.1458, 79.0882",
+          startAddress: "Sitabuldi, Nagpur, Maharashtra 440012",
+          endCoordinates: "20.9320, 77.7523",
+          endAddress: "Akola, Maharashtra 444001",
+        },
+        {
+          date: "2025-12-11",
+          uniqueId: "MH12AB1234",
+          startTime: "2025-12-11T07:00:00.000Z",
+          endTime: "2025-12-11T19:30:00.000Z",
+          maxSpeed: "95.5 km/h",
+          avgSpeed: "48.7 km/h",
+          distance: "245.3 km",
+          running: "0D, 5H, 20M",
+          idle: "0D, 0H, 45M",
+          stopped: "0D, 6H, 25M",
+          overspeed: "0D, 0H, 15M",
+          startCoordinates: "20.9320, 77.7523",
+          startAddress: "Akola, Maharashtra 444001",
+          endCoordinates: "20.0063, 73.7868",
+          endAddress: "Nashik, Maharashtra 422001",
+        },
+        {
+          date: "2025-12-12",
+          uniqueId: "MH12AB1234",
+          startTime: "2025-12-12T08:15:00.000Z",
+          endTime: "2025-12-12T16:20:00.000Z",
+          maxSpeed: "82.3 km/h",
+          avgSpeed: "39.8 km/h",
+          distance: "178.9 km",
+          running: "0D, 4H, 30M",
+          idle: "0D, 0H, 25M",
+          stopped: "0D, 3H, 10M",
+          overspeed: "0D, 0H, 5M",
+          startCoordinates: "20.0063, 73.7868",
+          startAddress: "Nashik, Maharashtra 422001",
+          endCoordinates: "19.0760, 72.8777",
+          endAddress: "Mumbai Central, Mumbai, Maharashtra 400008",
+        },
+      ],
+    },
+    {
+      uniqueId: "MH20CD5678",
+      name: "MH 20 CD 5678",
+      duration: "5D, 10H, 15M",
+      maxSpeed: "78.9 km/h",
+      avgSpeed: "38.5 km/h",
+      distance: "856.42 km",
+      running: "3D, 12H, 30M",
+      idle: "0D, 18H, 45M",
+      stopped: "1D, 3H, 0M",
+      overspeed: "0D, 0H, 12M",
+      startCoordinates: "18.5204, 73.8567",
+      startAddress: "Pune Railway Station, Pune, Maharashtra 411001",
+      endCoordinates: "21.1458, 79.0882",
+      endAddress: "Sitabuldi, Nagpur, Maharashtra 440012",
+      dayWiseTrips: [
+        {
+          date: "2025-12-10",
+          uniqueId: "MH20CD5678",
+          startTime: "2025-12-10T09:00:00.000Z",
+          endTime: "2025-12-10T17:30:00.000Z",
+          maxSpeed: "72.4 km/h",
+          avgSpeed: "42.1 km/h",
+          distance: "156.8 km",
+          running: "0D, 3H, 45M",
+          idle: "0D, 0H, 20M",
+          stopped: "0D, 4H, 25M",
+          overspeed: "0D, 0H, 0M",
+          startCoordinates: "18.5204, 73.8567",
+          startAddress: "Pune Railway Station, Pune, Maharashtra 411001",
+          endCoordinates: "19.8762, 75.3433",
+          endAddress: "Aurangabad, Maharashtra 431001",
+        },
+        {
+          date: "2025-12-11",
+          uniqueId: "MH20CD5678",
+          startTime: "2025-12-11T08:30:00.000Z",
+          endTime: "2025-12-11T20:15:00.000Z",
+          maxSpeed: "78.9 km/h",
+          avgSpeed: "36.2 km/h",
+          distance: "210.5 km",
+          running: "0D, 5H, 50M",
+          idle: "0D, 0H, 35M",
+          stopped: "0D, 5H, 20M",
+          overspeed: "0D, 0H, 8M",
+          startCoordinates: "19.8762, 75.3433",
+          startAddress: "Aurangabad, Maharashtra 431001",
+          endCoordinates: "20.5937, 78.9629",
+          endAddress: "Chandrapur, Maharashtra 442401",
+        },
+      ],
+    },
+    {
+      uniqueId: "MH31EF9012",
+      name: "MH 31 EF 9012",
+      duration: "3D, 8H, 20M",
+      maxSpeed: "105.2 km/h",
+      avgSpeed: "52.8 km/h",
+      distance: "624.18 km",
+      running: "2D, 4H, 10M",
+      idle: "0D, 12H, 30M",
+      stopped: "0D, 15H, 40M",
+      overspeed: "0D, 1H, 5M",
+      startCoordinates: "19.0760, 72.8777",
+      startAddress: "Dadar, Mumbai, Maharashtra 400014",
+      endCoordinates: "15.2993, 74.1240",
+      endAddress: "Panaji, Goa 403001",
+      dayWiseTrips: [
+        {
+          date: "2025-12-13",
+          uniqueId: "MH31EF9012",
+          startTime: "2025-12-13T05:45:00.000Z",
+          endTime: "2025-12-13T14:30:00.000Z",
+          maxSpeed: "105.2 km/h",
+          avgSpeed: "58.3 km/h",
+          distance: "342.7 km",
+          running: "0D, 5H, 52M",
+          idle: "0D, 0H, 15M",
+          stopped: "0D, 2H, 38M",
+          overspeed: "0D, 0H, 42M",
+          startCoordinates: "19.0760, 72.8777",
+          startAddress: "Dadar, Mumbai, Maharashtra 400014",
+          endCoordinates: "16.7050, 74.2433",
+          endAddress: "Kolhapur, Maharashtra 416001",
+        },
+        {
+          date: "2025-12-14",
+          uniqueId: "MH31EF9012",
+          startTime: "2025-12-14T10:00:00.000Z",
+          endTime: "2025-12-14T18:45:00.000Z",
+          maxSpeed: "92.7 km/h",
+          avgSpeed: "47.5 km/h",
+          distance: "281.5 km",
+          running: "0D, 5H, 55M",
+          idle: "0D, 0H, 28M",
+          stopped: "0D, 2H, 22M",
+          overspeed: "0D, 0H, 23M",
+          startCoordinates: "16.7050, 74.2433",
+          startAddress: "Kolhapur, Maharashtra 416001",
+          endCoordinates: "15.2993, 74.1240",
+          endAddress: "Panaji, Goa 403001",
+        },
+      ],
+    },
+  ];
+
+  // Fetch report data using the hook
+  // const {
+  //   travelSummaryReport,
+  //   totalTravelSummaryReport,
+  //   isFetchingTravelSummaryReport,
+  // } = useReport(pagination, apiFilters, "travel-summary");
+
+  // Use demo data instead
+  const travelSummaryReport = DEMO_TRAVEL_SUMMARY_DATA;
+  const totalTravelSummaryReport = DEMO_TRAVEL_SUMMARY_DATA.length;
+  const isFetchingTravelSummaryReport = false;
+
+  // Transform day-wise trips data for nested table
   const transformDayWiseData = useCallback(
-    async (dayWiseTrips: DayWiseTrip[]): Promise<TravelTableData[]> => {
-      const transformedData = await Promise.all(
-        dayWiseTrips.map(async (trip, index) => {
-          let startLocation = "Loading...";
-          let endLocation = "Loading...";
-
-          try {
-            [startLocation, endLocation] = await Promise.all([
-              reverseGeocode(trip.startLatitude, trip.startLongitude),
-              reverseGeocode(trip.endLatitude, trip.endLongitude),
-            ]);
-          } catch (error) {
-            startLocation = `${trip.startLatitude.toFixed(
-              6
-            )}, ${trip.startLongitude.toFixed(6)}`;
-            endLocation = `${trip.endLatitude.toFixed(
-              6
-            )}, ${trip.endLongitude.toFixed(6)}`;
-          }
-
-          return {
-            id: `day-${trip.date}-${index}`,
-            reportDate: new Date(trip.date).toLocaleDateString(),
-            ignitionStart: new Date(trip.startTime).toLocaleString(),
-            startLocation,
-            startCoordinates: `${trip.startLatitude.toFixed(
-              6
-            )}, ${trip.startLongitude.toFixed(6)}`,
-            distance: trip.distance,
-            running: trip.runningTime,
-            idle: trip.idleTime,
-            stop: trip.stopTime,
-            totalWorkingHours: trip.workingHours,
-            maxSpeed: `${trip.maxSpeed.toFixed(2)} km/h`,
-            avgSpeed: `${trip.avgSpeed.toFixed(2)} km/h`,
-            endLocation,
-            endCoordinates: `${trip.endLatitude.toFixed(
-              6
-            )}, ${trip.endLongitude.toFixed(6)}`,
-            ignitionStop: new Date(trip.endTime).toLocaleString(),
-            play: "▶",
-          };
-        })
-      );
-
-      return transformedData;
+    (dayWiseTrips: DayWiseTrips[]): TravelDetailTableData[] => {
+      return dayWiseTrips.map((trip, index) => ({
+        id: `day-${trip.date}-${index}`,
+        reportDate: new Date(trip.date).toLocaleDateString(),
+        ignitionStart: new Date(trip.startTime).toLocaleString(),
+        startLocation: trip.startAddress || "-",
+        startCoordinates: trip.startCoordinates,
+        distance: trip.distance,
+        running: trip.running,
+        idle: trip.idle,
+        stopped: trip.stopped,
+        overspeed: trip.overspeed,
+        maxSpeed: trip.maxSpeed,
+        avgSpeed: trip.avgSpeed,
+        endLocation: trip.endAddress || "-",
+        endCoordinates: trip.endCoordinates,
+        ignitionStop: new Date(trip.endTime).toLocaleString(),
+        play: "▶",
+      }));
     },
     []
   );
 
+  // Toggle row expansion
   const toggleRowExpansion = useCallback(
-    async (rowId: string, rowData: TravelReportData) => {
+    (rowId: string, rowData: TravelSummaryReport) => {
+      console.log("🔄 Toggling row expansion for:", rowId);
       const newExpandedRows = new Set(expandedRows);
 
       if (expandedRows.has(rowId)) {
+        // Collapse row
+        console.log("➖ Collapsing row:", rowId);
         newExpandedRows.delete(rowId);
       } else {
+        // Expand row
+        console.log("➕ Expanding row:", rowId);
         newExpandedRows.add(rowId);
 
+        // Initialize detail table state if not exists
         if (!detailTableStates[rowId]) {
           setDetailTableStates((prev) => ({
             ...prev,
@@ -197,30 +341,37 @@ const TravelReportPage: React.FC = () => {
           }));
         }
 
-        if (!detailedData[rowId]) {
+        // Load detailed data if not already loaded
+        if (!detailedData[rowId] && rowData.dayWiseTrips) {
           try {
-            const transformedDetails = await transformDayWiseData(
-              rowData.dayWiseTrips || []
+            console.log("🔄 Transforming dayWiseTrips:", rowData.dayWiseTrips);
+            const transformedDetails = transformDayWiseData(
+              rowData.dayWiseTrips
             );
+            console.log("✅ Transformed details:", transformedDetails);
             setDetailedData((prev) => ({
               ...prev,
               [rowId]: transformedDetails,
             }));
           } catch (error) {
-            console.error("Error transforming day-wise data:", error);
+            console.error("❌ Error transforming day-wise data:", error);
             setDetailedData((prev) => ({
               ...prev,
               [rowId]: [],
             }));
           }
+        } else {
+          console.log("ℹ️ Detail data already exists for:", rowId);
         }
       }
 
       setExpandedRows(newExpandedRows);
+      console.log("✅ Updated expandedRows:", Array.from(newExpandedRows));
     },
     [expandedRows, detailedData, transformDayWiseData, detailTableStates]
   );
 
+  // Handle detail table pagination change
   const handleDetailPaginationChange = useCallback(
     (rowId: string, pagination: PaginationState) => {
       setDetailTableStates((prev) => ({
@@ -234,6 +385,7 @@ const TravelReportPage: React.FC = () => {
     []
   );
 
+  // Handle detail table sorting change
   const handleDetailSortingChange = useCallback(
     (rowId: string, sorting: SortingState) => {
       setDetailTableStates((prev) => ({
@@ -247,12 +399,32 @@ const TravelReportPage: React.FC = () => {
     []
   );
 
+  // Transform API data to include row IDs and serial numbers
+  const transformedReportData = useMemo(() => {
+    const transformed = travelSummaryReport.map(
+      (item: TravelSummaryReport, index: number) => ({
+        ...item,
+        id: `row-${item.uniqueId}-${index}`,
+        sn: pagination.pageIndex * pagination.pageSize + index + 1,
+      })
+    );
+    console.log("📊 Transformed report data:", transformed);
+    return transformed;
+  }, [travelSummaryReport, pagination]);
+
+  // Create expanded data array with detail rows injected
   const createExpandedData = useCallback((): ExpandedRowData[] => {
     const expandedDataArray: ExpandedRowData[] = [];
-    data.forEach((row) => {
+
+    transformedReportData.forEach((row) => {
+      // Add main row
       expandedDataArray.push(row);
+
+      // Add detail row if expanded
       if (expandedRows.has(row.id)) {
+        console.log(`🔍 Row ${row.id} is expanded, checking detail data...`);
         if (detailedData[row.id]?.length) {
+          console.log(`✅ Adding detail table for ${row.id}`);
           expandedDataArray.push({
             ...row,
             id: `${row.id}-details`,
@@ -260,6 +432,7 @@ const TravelReportPage: React.FC = () => {
             detailData: detailedData[row.id],
           });
         } else {
+          console.log(`⚠️ No detail data for ${row.id}`);
           expandedDataArray.push({
             ...row,
             id: `${row.id}-empty`,
@@ -268,10 +441,13 @@ const TravelReportPage: React.FC = () => {
         }
       }
     });
-    return expandedDataArray;
-  }, [data, expandedRows, detailedData]);
 
-  const travelTableColumns: ColumnDef<TravelTableData>[] = useMemo(
+    console.log("📋 Final expanded data array:", expandedDataArray);
+    return expandedDataArray;
+  }, [transformedReportData, expandedRows, detailedData]);
+
+  // Column definitions for nested detail table
+  const travelDetailColumns: ColumnDef<TravelDetailTableData>[] = useMemo(
     () => [
       { accessorKey: "reportDate", header: "Report Date", size: 120 },
       { accessorKey: "ignitionStart", header: "Ignition Start", size: 180 },
@@ -284,12 +460,8 @@ const TravelReportPage: React.FC = () => {
       { accessorKey: "distance", header: "Distance", size: 100 },
       { accessorKey: "running", header: "Running", size: 120 },
       { accessorKey: "idle", header: "Idle", size: 120 },
-      { accessorKey: "stop", header: "Stop", size: 120 },
-      {
-        accessorKey: "totalWorkingHours",
-        header: "Total Working Hours",
-        size: 150,
-      },
+      { accessorKey: "stopped", header: "Stopped", size: 120 },
+      { accessorKey: "overspeed", header: "Overspeed", size: 120 },
       { accessorKey: "maxSpeed", header: "Max Speed", size: 120 },
       { accessorKey: "avgSpeed", header: "Avg Speed", size: 120 },
       { accessorKey: "endLocation", header: "End Location", size: 250 },
@@ -321,6 +493,7 @@ const TravelReportPage: React.FC = () => {
     []
   );
 
+  // Main table column definitions with expansion capability
   const columns: ColumnDef<ExpandedRowData>[] = useMemo(
     () => [
       {
@@ -336,6 +509,10 @@ const TravelReportPage: React.FC = () => {
             return null;
 
           const isExpanded = expandedRows.has(row.original.id);
+          const hasDayWiseTrips = row.original.dayWiseTrips?.length > 0;
+
+          // Don't show expand button if no day-wise trips
+          if (!hasDayWiseTrips) return null;
 
           return (
             <div className="flex justify-center">
@@ -367,18 +544,56 @@ const TravelReportPage: React.FC = () => {
             row.original.isDetailTable ||
             row.original.isEmpty
           )
-            return "";
+            return null;
           return row.original.sn;
         },
       },
       {
-        accessorKey: "vehicleNumber",
+        id: "vehicleNumber",
+        accessorKey: "name",
         header: "Vehicle Number",
         size: 200,
         cell: ({ row }) => {
+          // Detail table rendering
+          if (row.original.isDetailTable && row.original.detailData) {
+            const parentRowId = row.original.id.replace("-details", "");
+            const detailState = detailTableStates[parentRowId] || {
+              pagination: { pageIndex: 0, pageSize: 10 },
+              sorting: [],
+            };
+
+            return (
+              <div className="col-span-full w-full">
+                <div className="w-full bg-gray-50 rounded p-4 my-2">
+                  <h3 className="text-sm font-semibold mb-2 text-gray-700">
+                    Day-Wise Travel Details for {row.original.name}
+                  </h3>
+                  <TravelTable
+                    data={row.original.detailData}
+                    columns={travelDetailColumns}
+                    pagination={detailState.pagination}
+                    totalCount={row.original.detailData.length}
+                    onPaginationChange={(newPagination) =>
+                      handleDetailPaginationChange(parentRowId, newPagination)
+                    }
+                    onSortingChange={(newSorting) =>
+                      handleDetailSortingChange(parentRowId, newSorting)
+                    }
+                    sorting={detailState.sorting}
+                    emptyMessage="No detailed data available"
+                    pageSizeOptions={[10, 20, 30]}
+                    showSerialNumber={true}
+                    maxHeight="400px"
+                  />
+                </div>
+              </div>
+            );
+          }
+
+          // Loading state
           if (row.original.isLoading) {
             return (
-              <div className="w-full">
+              <div className="col-span-full w-full">
                 <div className="p-4 bg-gray-50 rounded">
                   <div className="flex justify-center py-4">
                     <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500"></div>
@@ -391,51 +606,19 @@ const TravelReportPage: React.FC = () => {
             );
           }
 
-          if (row.original.isDetailTable && row.original.detailData) {
-            const parentRowId = row.original.id.replace("-details", "");
-            const detailState = detailTableStates[parentRowId] || {
-              pagination: { pageIndex: 0, pageSize: 10 },
-              sorting: [],
-            };
-
-            return (
-              <div className="w-full">
-                <div className="w-full bg-gray-50 rounded p-4">
-                  <div className="w-full">
-                    <TravelTable
-                      data={row.original.detailData}
-                      columns={travelTableColumns}
-                      pagination={detailState.pagination}
-                      totalCount={row.original.detailData.length}
-                      onPaginationChange={(newPagination) =>
-                        handleDetailPaginationChange(parentRowId, newPagination)
-                      }
-                      onSortingChange={(newSorting) =>
-                        handleDetailSortingChange(parentRowId, newSorting)
-                      }
-                      sorting={detailState.sorting}
-                      emptyMessage="No detailed data available"
-                      pageSizeOptions={[10, 20, 30]}
-                      showSerialNumber={true}
-                      maxHeight="400px"
-                    />
-                  </div>
-                </div>
-              </div>
-            );
-          }
-
+          // Empty state
           if (row.original.isEmpty) {
             return (
-              <div className="w-full">
+              <div className="col-span-full w-full">
                 <div className="p-4 bg-gray-50 rounded text-center text-gray-500">
-                  No detailed data available for {row.original.vehicleNumber}
+                  No detailed data available for {row.original.name}
                 </div>
               </div>
             );
           }
 
-          return row.original.vehicleNumber;
+          // Normal cell rendering
+          return row.original.name;
         },
       },
       {
@@ -448,11 +631,8 @@ const TravelReportPage: React.FC = () => {
             row.original.isDetailTable ||
             row.original.isEmpty
           )
-            return "";
-          return row.original.startAddress &&
-            row.original.startAddress !== "Loading..."
-            ? row.original.startAddress
-            : "-";
+            return null;
+          return row.original.startAddress || "-";
         },
       },
       {
@@ -465,15 +645,13 @@ const TravelReportPage: React.FC = () => {
             row.original.isDetailTable ||
             row.original.isEmpty
           )
-            return "";
-          const coords = row.original.startCoordinates;
-          if (!coords) return "-";
-          return `${coords.lat.toFixed(6)}, ${coords.lng.toFixed(6)}`;
+            return null;
+          return row.original.startCoordinates || "-";
         },
       },
       {
-        accessorKey: "totalDistance",
-        header: "Total Distance (km)",
+        accessorKey: "distance",
+        header: "Distance",
         size: 150,
         cell: ({ row }) => {
           if (
@@ -481,14 +659,12 @@ const TravelReportPage: React.FC = () => {
             row.original.isDetailTable ||
             row.original.isEmpty
           )
-            return "";
-          return typeof row.original.totalDistance === "number"
-            ? row.original.totalDistance.toFixed(2)
-            : row.original.totalDistance ?? "0.00";
+            return null;
+          return row.original.distance || "0.00";
         },
       },
       {
-        accessorKey: "runningTime",
+        accessorKey: "running",
         header: "Running Time",
         size: 180,
         cell: ({ row }) => {
@@ -497,12 +673,12 @@ const TravelReportPage: React.FC = () => {
             row.original.isDetailTable ||
             row.original.isEmpty
           )
-            return "";
-          return row.original.runningTime ?? "0s";
+            return null;
+          return row.original.running || "0s";
         },
       },
       {
-        accessorKey: "idleTime",
+        accessorKey: "idle",
         header: "Idle Time",
         size: 180,
         cell: ({ row }) => {
@@ -511,12 +687,12 @@ const TravelReportPage: React.FC = () => {
             row.original.isDetailTable ||
             row.original.isEmpty
           )
-            return "";
-          return row.original.idleTime ?? "0s";
+            return null;
+          return row.original.idle || "0s";
         },
       },
       {
-        accessorKey: "stopTime",
+        accessorKey: "stopped",
         header: "Stop Time",
         size: 180,
         cell: ({ row }) => {
@@ -525,8 +701,22 @@ const TravelReportPage: React.FC = () => {
             row.original.isDetailTable ||
             row.original.isEmpty
           )
-            return "";
-          return row.original.stopTime ?? "0s";
+            return null;
+          return row.original.stopped || "0s";
+        },
+      },
+      {
+        accessorKey: "overspeed",
+        header: "Overspeed",
+        size: 150,
+        cell: ({ row }) => {
+          if (
+            row.original.isLoading ||
+            row.original.isDetailTable ||
+            row.original.isEmpty
+          )
+            return null;
+          return row.original.overspeed || "0s";
         },
       },
       {
@@ -539,11 +729,8 @@ const TravelReportPage: React.FC = () => {
             row.original.isDetailTable ||
             row.original.isEmpty
           )
-            return "";
-          return row.original.endAddress &&
-            row.original.endAddress !== "Loading..."
-            ? row.original.endAddress
-            : "-";
+            return null;
+          return row.original.endAddress || "-";
         },
       },
       {
@@ -556,15 +743,13 @@ const TravelReportPage: React.FC = () => {
             row.original.isDetailTable ||
             row.original.isEmpty
           )
-            return "";
-          const coords = row.original.endCoordinates;
-          if (!coords) return "-";
-          return `${coords.lat.toFixed(6)}, ${coords.lng.toFixed(6)}`;
+            return null;
+          return row.original.endCoordinates || "-";
         },
       },
       {
         accessorKey: "maxSpeed",
-        header: "Max Speed (km/h)",
+        header: "Max Speed",
         size: 150,
         cell: ({ row }) => {
           if (
@@ -572,15 +757,13 @@ const TravelReportPage: React.FC = () => {
             row.original.isDetailTable ||
             row.original.isEmpty
           )
-            return "";
-          return typeof row.original.maxSpeed === "number"
-            ? row.original.maxSpeed.toFixed(2)
-            : row.original.maxSpeed ?? "0.00";
+            return null;
+          return row.original.maxSpeed || "0.00";
         },
       },
       {
         accessorKey: "avgSpeed",
-        header: "Avg Speed (km/h)",
+        header: "Avg Speed",
         size: 150,
         cell: ({ row }) => {
           if (
@@ -588,10 +771,22 @@ const TravelReportPage: React.FC = () => {
             row.original.isDetailTable ||
             row.original.isEmpty
           )
-            return "";
-          return typeof row.original.avgSpeed === "number"
-            ? row.original.avgSpeed.toFixed(2)
-            : row.original.avgSpeed ?? "0.00";
+            return null;
+          return row.original.avgSpeed || "0.00";
+        },
+      },
+      {
+        accessorKey: "duration",
+        header: "Duration",
+        size: 180,
+        cell: ({ row }) => {
+          if (
+            row.original.isLoading ||
+            row.original.isDetailTable ||
+            row.original.isEmpty
+          )
+            return null;
+          return row.original.duration || "-";
         },
       },
       {
@@ -604,7 +799,7 @@ const TravelReportPage: React.FC = () => {
             row.original.isDetailTable ||
             row.original.isEmpty
           )
-            return "";
+            return null;
           return (
             <div className="flex justify-center">
               <TooltipProvider>
@@ -632,203 +827,73 @@ const TravelReportPage: React.FC = () => {
       toggleRowExpansion,
       handleDetailPaginationChange,
       handleDetailSortingChange,
-      travelTableColumns,
+      travelDetailColumns,
     ]
-  );
-
-  // Fetch data function
-  const fetchTravelReportData = useCallback(
-    async (
-      filters: FilterValues,
-      paginationState: PaginationState,
-      sortingState: SortingState
-    ) => {
-      if (!filters) return;
-      setIsLoading(true);
-
-      try {
-        // TODO: Replace with actual API call
-        // const response = await api.get(`/travel-summary-report`, {
-        //   params: {
-        //     deviceIds: filters.deviceId,
-        //     from: filters.startDate,
-        //     to: filters.endDate,
-        //   },
-        // });
-
-        // Demo data for now
-        const demoData = [
-          {
-            name: deviceName || "MH35AG1931_",
-            startLat: 21.423808888888892,
-            startLong: 80.195455,
-            endLat: 21.44083388888889,
-            endLong: 80.21754222222222,
-            distance: "1096.47",
-            running: "5D, 14H, 0M, 20S",
-            idle: "0D, 1H, 56M, 0S",
-            stop: "1D, 22H, 35M, 10S",
-            maxSpeed: 86.393,
-            avgSpeed: 30.82203952,
-            dayWiseTrips: [
-              {
-                date: "2025-09-10",
-                deviceId: 6394,
-                startTime: "2025-09-10T18:19:07.417Z",
-                endTime: "2025-09-10T23:52:37.752Z",
-                distance: "15.77 KM",
-                startLatitude: 21.423808888888892,
-                startLongitude: 80.195455,
-                endLatitude: 21.463776111111112,
-                endLongitude: 80.18173611111112,
-                maxSpeed: 44.2764,
-                avgSpeed: 24.98625294117649,
-                workingHours: "5h 33m",
-                runningTime: "0D, 0H, 34M, 0S",
-                stopTime: "0D, 4H, 51M, 20S",
-                idleTime: "0D, 0H, 8M, 20S",
-              },
-              {
-                date: "2025-09-11",
-                deviceId: 6394,
-                startTime: "2025-09-11T00:08:17.737Z",
-                endTime: "2025-09-11T17:51:04.017Z",
-                distance: "153.18 KM",
-                startLatitude: 21.46374888888889,
-                startLongitude: 80.18145277777778,
-                endLatitude: 21.44003888888889,
-                endLongitude: 80.21658277777777,
-                maxSpeed: 86.3932,
-                avgSpeed: 29.784208307692417,
-                workingHours: "17h 42m",
-                runningTime: "0D, 6H, 51M, 40S",
-                stopTime: "0D, 10H, 41M, 20S",
-                idleTime: "0D, 0H, 9M, 40S",
-              },
-            ],
-          },
-        ];
-
-        const transformedData: TravelReportData[] = await Promise.all(
-          demoData.map(async (item, index) => {
-            const sn =
-              paginationState.pageIndex * paginationState.pageSize + index + 1;
-            let startAddress = "Loading...";
-            let endAddress = "Loading...";
-            try {
-              [startAddress, endAddress] = await Promise.all([
-                reverseGeocode(item.startLat, item.startLong),
-                reverseGeocode(item.endLat, item.endLong),
-              ]);
-            } catch {
-              startAddress = "Address not found";
-              endAddress = "Address not found";
-            }
-
-            return {
-              id: `row-${index}`,
-              sn,
-              vehicleNumber: item.name,
-              startAddress,
-              startCoordinates: { lat: item.startLat, lng: item.startLong },
-              totalDistance: parseFloat(item.distance),
-              runningTime: item.running,
-              idleTime: item.idle,
-              stopTime: item.stop,
-              endAddress,
-              endCoordinates: { lat: item.endLat, lng: item.endLong },
-              maxSpeed: item.maxSpeed,
-              avgSpeed: item.avgSpeed,
-              deviceId: filters.deviceId || `device-${index}`,
-              dayWiseTrips: item.dayWiseTrips,
-            };
-          })
-        );
-
-        setData(transformedData);
-        setTotalCount(transformedData.length);
-      } catch (error) {
-        console.error("Error fetching travel report data:", error);
-        setData([]);
-        setTotalCount(0);
-      } finally {
-        setIsLoading(false);
-      }
-    },
-    [deviceName]
   );
 
   // Handle filter submission
-  const handleFilterSubmit = useCallback(
-    async (filters: FilterValues) => {
-      console.log("✅ Filter submitted:", filters);
-      console.log("📊 Current selections:", {
-        school: selectedSchool,
-        branch: selectedBranch,
-        device: selectedDevice,
-        deviceName,
-        dateRange,
-      });
+  const handleFilterSubmit = useCallback((filters: FilterValues) => {
+    console.log("✅ Filter submitted:", filters);
 
-      // Reset table state
-      setPagination({ pageIndex: 0, pageSize: 10 });
-      setSorting([]);
-      setShowTable(true);
-      setExpandedRows(new Set());
-      setDetailedData({});
-      setDetailTableStates({});
+    // For demo purposes, just show the table
+    // if (!filters.deviceId || !filters.from || !filters.to) {
+    //   alert("Please select a vehicle and date range");
+    //   return;
+    // }
 
-      // Fetch data
-      await fetchTravelReportData(filters, { pageIndex: 0, pageSize: 10 }, []);
-    },
-    [
-      selectedSchool,
-      selectedBranch,
-      selectedDevice,
-      deviceName,
-      dateRange,
-      fetchTravelReportData,
-    ]
-  );
+    // Reset all states
+    setPagination({ pageIndex: 0, pageSize: 10 });
+    setSorting([]);
+    setExpandedRows(new Set());
+    setDetailedData({});
+    setDetailTableStates({});
 
-  // Refetch when pagination or sorting changes
-  useEffect(() => {
-    if (
-      showTable &&
-      selectedDevice &&
-      dateRange.startDate &&
-      dateRange.endDate
-    ) {
-      const filters: FilterValues = {
-        schoolId: selectedSchool,
-        branchId: selectedBranch,
-        deviceId: selectedDevice,
-        deviceName,
-        startDate: dateRange.startDate
-          ? new Date(dateRange.startDate).toISOString().split("T")[0]
-          : null,
-        endDate: dateRange.endDate
-          ? new Date(dateRange.endDate).toISOString().split("T")[0]
-          : null,
-      };
-      fetchTravelReportData(filters, pagination, sorting);
-    }
-  }, [pagination, sorting]);
+    // Set API filters
+    setApiFilters({
+      schoolId: filters.schoolId,
+      branchId: filters.branchId,
+      uniqueId: filters.deviceId,
+      from: filters.from,
+      to: filters.to,
+      period: "Custom",
+    });
 
+    // Show table
+    setShowTable(true);
+  }, []);
+
+  // Create expanded data array
   const expandedDataArray = createExpandedData();
 
+  // Debug log
+  console.log("🔍 Debug Info:", {
+    expandedRows: Array.from(expandedRows),
+    expandedDataArrayLength: expandedDataArray.length,
+    detailedDataKeys: Object.keys(detailedData),
+    expandedDataSummary: expandedDataArray.map((row) => ({
+      id: row.id,
+      name: row.name,
+      isDetailTable: row.isDetailTable,
+      isEmpty: row.isEmpty,
+      hasDetailData: row.detailData?.length,
+    })),
+  });
+
+  // Table configuration
   const { table, tableElement } = CustomTableServerSidePagination({
     data: expandedDataArray,
     columns,
     pagination,
-    totalCount,
-    loading: isLoading,
+    totalCount: totalTravelSummaryReport,
+    loading: isFetchingTravelSummaryReport,
     onPaginationChange: setPagination,
     onSortingChange: setSorting,
     sorting,
     columnVisibility,
     onColumnVisibilityChange: setColumnVisibility,
-    emptyMessage: "No travel reports found",
+    emptyMessage: isFetchingTravelSummaryReport
+      ? "Loading report data..."
+      : "No data available for the selected filters",
     pageSizeOptions: [5, 10, 20, 30, 50],
     enableSorting: true,
     showSerialNumber: false,
@@ -836,15 +901,13 @@ const TravelReportPage: React.FC = () => {
 
   return (
     <div className="p-6">
-      <ResponseLoader isLoading={isLoading} />
-      <header>
-        <h1 className="text-2xl font-bold mb-4">Travel Summary Report</h1>
-      </header>
+      <ResponseLoader isLoading={isFetchingTravelSummaryReport} />
+
       {/* Filter Component */}
       <ReportFilter
         onSubmit={handleFilterSubmit}
+        table={table}
         className="mb-6"
-        // Controlled props
         selectedSchool={selectedSchool}
         onSchoolChange={setSelectedSchool}
         selectedBranch={selectedBranch}
@@ -856,6 +919,22 @@ const TravelReportPage: React.FC = () => {
         }}
         dateRange={dateRange}
         onDateRangeChange={setDateRange}
+        config={{
+          showSchool: true,
+          showBranch: true,
+          showDevice: true,
+          showDateRange: true,
+          showSubmitButton: true,
+          submitButtonText: "Generate",
+          dateRangeTitle: "Select Date Range",
+          dateRangeMaxDays: 300,
+          cardTitle: "Travel Summary",
+          arrayFormat: "comma",
+          arraySeparator: ",",
+          multiSelectDevice: true,
+          showBadges: true,
+          maxBadges: 2,
+        }}
       />
 
       {/* Table */}
@@ -864,4 +943,4 @@ const TravelReportPage: React.FC = () => {
   );
 };
 
-export default TravelReportPage;
+export default TravelSummaryReportPage;

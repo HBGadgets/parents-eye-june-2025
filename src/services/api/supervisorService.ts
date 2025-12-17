@@ -22,7 +22,7 @@ export const supervisorService = {
     },
 
     supervisorApprove: async (id: string, status: string) => {
-        const res = await api.put(`/supervisor/approve/${id}`, { status });
+        const res = await api.post(`/supervisor/approve/${id}`, { status });
         return res.data;
     },
 };

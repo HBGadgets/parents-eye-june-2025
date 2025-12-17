@@ -13,6 +13,11 @@ export const dropdownService = {
       params: branchId ? { branchId } : {},
     }),
 
+    getDevicesWithUniqueId: (branchId?: string) =>
+    api.get("/device/dropdown/uniqueId", {
+      params: branchId ? { branchId } : {},
+    }),
+
   getRoutes: (branchId?: string) =>
     api.get("/route/dropdown", {
       params: branchId ? { branchId } : {},
