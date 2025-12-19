@@ -393,7 +393,7 @@ const DateRangeFilter: React.FC<DateRangeFilterProps> = ({
         </Button>
       </PopoverTrigger>
 
-      <PopoverContent className="w-auto p-0" align="start">
+      <PopoverContent className="w-auto p-0 z-[9999]" align="start">
         <div className="flex">
           <div className="border-r p-4 w-48">
             <div className="space-y-1">

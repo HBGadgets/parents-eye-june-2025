@@ -1,12 +1,23 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, {
+  useEffect,
+  useRef,
+  useState,
+  useMemo,
+  useCallback,
+} from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { DeviceHistoryItem } from "@/data/sampleData";
 import { reverseGeocode } from "@/util/reverse-geocode";
-// import { MapPin } from "lucide-react";
+import { MarkerPlayer } from "@/lib/leaflet-marker-player";
+import type { Point } from "@/types/marker-player.types";
+import { toast } from "sonner";
+import { PlaybackControls } from "./playback-controls";
+import { LiaTrafficLightSolid } from "react-icons/lia";
+import { Satellite } from "lucide-react";
 
 // Fix for default markers
-delete (L.Icon.Default.prototype as unknown)._getIconUrl;
+delete (L.Icon.Default.prototype as any)._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconRetinaUrl:
     "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png",
@@ -20,16 +31,25 @@ interface VehicleMapProps {
   data: DeviceHistoryItem[];
   currentIndex: number;
   isExpanded: boolean;
+  onProgressChange?: (progress: number) => void;
 }
+
+type RoutePoint = {
+  coordinates: [number, number];
+  course: number;
+};
 
 const VehicleMap: React.FC<VehicleMapProps> = ({
   data,
-  currentIndex,
   isExpanded,
+  onProgressChange,
 }) => {
+  const BASE_PLAYBACK_SECONDS = 1000000;
+
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
-  const markerRef = useRef<L.Marker | null>(null);
+  const markerPlayerRef = useRef<MarkerPlayer | null>(null);
+  const tileLayerRef = useRef<L.TileLayer | null>(null);
   const polylineRef = useRef<L.Polyline | null>(null);
   const arrowLayerRef = useRef<L.LayerGroup | null>(null);
   const allArrowMarkersRef = useRef<L.Marker[]>([]);
@@ -38,33 +58,49 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
   const [isRouteDrawn, setIsRouteDrawn] = useState(false);
   const [startAddress, setStartAddress] = useState<string>("");
   const [endAddress, setEndAddress] = useState<string>("");
-  const speedCache = new Map<number, string>();
-  const currentPoint = data[currentIndex];
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [playbackSpeed, setPlaybackSpeed] = useState(1);
+  const [progress, setProgress] = useState(0);
+  const [isSatelliteView, setIsSatelliteView] = useState(false);
+  const [showTraffic, setShowTraffic] = useState(false);
+  const speedCache = useRef(new Map<number, string>());
+  const currentAngleRef = useRef(0);
 
-  // Complete route using all data points
-  const completeRoute = data.map(
-    (item) => [item.latitude, item.longitude] as [number, number]
-  );
+  // Memoize completeRoute to prevent recalculation on every render
+  const completeRoute: RoutePoint[] = useMemo(() => {
+    return data.map((item) => ({
+      coordinates: [item.latitude, item.longitude] as [number, number],
+      course: item.course,
+    }));
+  }, [data]);
 
-  // Function to create flag icon
+  // Vehicle icon
+  const createVehicleIcon = () => {
+    return L.divIcon({
+      className: "vehicle-marker",
+      html: `
+      <div class="vehicle-rotator" style="
+        width: 32px;
+        height: 32px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      ">
+        <img src="/Top Y.svg" width="32" height="32" />
+      </div>
+    `,
+      iconSize: [32, 32],
+      iconAnchor: [16, 16],
+    });
+  };
+
   const createFlagIcon = (color: "green" | "red", size: number = 24) => {
     const flagColor = color === "green" ? "#10b981" : "#ef4444";
     return L.divIcon({
       className: `${color}-flag`,
       html: `
-        <div style="
-          width: ${size}px; 
-          height: ${size}px; 
-          display: flex; 
-          align-items: center; 
-          justify-content: center;
-        ">
-          <svg viewBox="0 0 24 24" style="
-            width: ${size}px; 
-            height: ${size}px; 
-            fill: ${flagColor};
-            filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.3));
-          ">
+        <div style="width: ${size}px; height: ${size}px; display: flex; align-items: center; justify-content: center;">
+          <svg viewBox="0 0 24 24" style="width: ${size}px; height: ${size}px; fill: ${flagColor}; filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.3));">
             <path d="M14.4 6L14 4H5v17h2v-7h5.6l.4 2h7V6z"/>
           </svg>
         </div>
@@ -74,129 +110,38 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
     });
   };
 
-  // Function to create double arrow icon with course direction
-  // const createArrowIcon = (course: number, size: number = 30) => {
-  //   return L.divIcon({
-  //     className: "course-arrow",
-  //     html: `
-  //   <div style="
-  //     transform: rotate(${course}deg);
-  //     width: ${size}px;
-  //     height: ${size}px;
-  //     display: flex;
-  //     align-items: center;
-  //     justify-content: center;
-  //   ">
-  //     <div style="
-  //       display: flex;
-  //       flex-direction: column;
-  //       align-items: center;
-  //       margin-top: -3px;
-  //     ">
-  //       <svg
-  //         width="${Math.round(size * 0.75)}"
-  //         height="${Math.round(size * 0.75)}"
-  //         viewBox="0 0 24 24"
-  //         fill="none"
-  //         style="filter: drop-shadow(1px 1px 2px rgba(0,0,0,0.3));"
-  //       >
-  //         <path
-  //           d="M7 10L12 15L17 10"
-  //           stroke="white"
-  //           strokeWidth="3"
-  //           strokeLinecap="round"
-  //           strokeLinejoin="round"
-  //         />
-  //       </svg>
-  //       <svg
-  //         width="${Math.round(size * 0.75)}"
-  //         height="${Math.round(size * 0.75)}"
-  //         viewBox="0 0 24 24"
-  //         fill="none"
-  //         style="margin-top: -10px; filter: drop-shadow(1px 1px 2px rgba(0,0,0,0.3));"
-  //       >
-  //         <path
-  //           d="M7 10L12 15L17 10"
-  //           stroke="white"
-  //           strokeWidth="3"
-  //           strokeLinecap="round"
-  //           strokeLinejoin="round"
-  //         />
-  //       </svg>
-  //     </div>
-  //   </div>
-  // `,
-  //     iconSize: [size, size],
-  //     iconAnchor: [size / 2, size / 2],
-  //   });
-  // };
-
   const createArrowIcon = (course: number, size: number = 16) => {
     return L.divIcon({
       className: "course-arrow",
       html: `
-    <div style="
-      transform: rotate(${course}deg); 
-      width: ${size}px; 
-      height: ${size}px; 
-      display: flex; 
-      align-items: center; 
-      justify-content: center;
-    ">
-      <div style="
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        margin-top: -3px;
-      ">
-        <svg 
-          width="${Math.round(size * 0.75)}" 
-          height="${Math.round(size * 0.75)}" 
-          viewBox="0 0 24 24" 
-          fill="none"
-          style="filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.7));"
-        >
-          <path
-            d="M7 10L12 15L17 10"
-            stroke="white"
-            stroke-width="4"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          />
-        </svg>
-        <svg 
-          width="${Math.round(size * 0.75)}" 
-          height="${Math.round(size * 0.75)}" 
-          viewBox="0 0 24 24" 
-          fill="none"
-          style="margin-top: -10px; filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.7));"
-        >
-          <path
-            d="M7 10L12 15L17 10"
-            stroke="white"
-            stroke-width="4"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          />
-        </svg>
-      </div>
-    </div>
-  `,
+        <div style="transform: rotate(${course}deg); width: ${size}px; height: ${size}px; display: flex; align-items: center; justify-content: center;">
+          <div style="display: flex; flex-direction: column; align-items: center; margin-top: -3px;">
+            <svg width="${Math.round(size * 0.75)}" height="${Math.round(
+        size * 0.75
+      )}" viewBox="0 0 24 24" fill="none" style="filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.7));">
+              <path d="M7 10L12 15L17 10" stroke="white" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <svg width="${Math.round(size * 0.75)}" height="${Math.round(
+        size * 0.75
+      )}" viewBox="0 0 24 24" fill="none" style="margin-top: -10px; filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.7));">
+              <path d="M7 10L12 15L17 10" stroke="white" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+        </div>
+      `,
       iconSize: [size, size],
       iconAnchor: [size / 2, size / 2],
     });
   };
 
-  // Function to calculate arrow density based on zoom level
   const getArrowDensity = (zoom: number): number => {
-    if (zoom >= 16) return 0.03; // More arrows at high zoom
-    if (zoom >= 14) return 0.02; // Medium arrows
-    if (zoom >= 12) return 0.01; // Fewer arrows
-    if (zoom >= 10) return 0.005; // Very few arrows
-    return 0.0; // No arrows at very low zoom
+    if (zoom >= 16) return 0.03;
+    if (zoom >= 14) return 0.02;
+    if (zoom >= 12) return 0.01;
+    if (zoom >= 10) return 0.005;
+    return 0.0;
   };
 
-  // Function to create all arrow markers initially
   const createAllArrowMarkers = (zoom: number) => {
     if (!mapRef.current || !data || data.length === 0) return;
 
@@ -205,9 +150,7 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
     const arrowSize = zoom >= 14 ? 14 : zoom >= 12 ? 12 : 10;
 
     allArrowMarkersRef.current.forEach((marker) => {
-      if (marker && marker.remove) {
-        marker.remove();
-      }
+      if (marker && marker.remove) marker.remove();
     });
     allArrowMarkersRef.current = [];
 
@@ -217,22 +160,19 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
 
     for (let i = 0; i < data.length; i += step) {
       const point = data[i];
-
       const arrowIcon = createArrowIcon(point.course, arrowSize);
       const marker = L.marker([point.latitude, point.longitude], {
         icon: arrowIcon,
-        interactive: true, // Enable interaction for tooltip and popup
+        interactive: true,
         zIndexOffset: -1000,
       });
 
-      // Bind tooltip with speed on hover
       marker.bindTooltip(`Speed: ${point.speed?.toFixed(1) || "N/A"} km/h`, {
         permanent: false,
         direction: "top",
         offset: [0, -10],
       });
 
-      // Add click handler for popup with address, speed, createdAt
       marker.on("click", () => {
         const formattedTime = new Date(point.createdAt).toLocaleString(
           "en-US",
@@ -247,32 +187,29 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
           }
         );
 
-        // Check cache for address to avoid repeat calls
-        if (speedCache.has(i)) {
-          const cachedAddress = speedCache.get(i);
+        if (speedCache.current.has(i)) {
           marker
             .bindPopup(
               `
-          <b>Vehicle Info</b><br/>
-          Speed: ${point.speed?.toFixed(1) || "N/A"} km/h<br/>
-          Time: ${formattedTime}<br/>
-          Address: ${cachedAddress}
-        `
+            <b>Vehicle Info</b><br/>
+            Speed: ${point.speed?.toFixed(1) || "N/A"} km/h<br/>
+            Time: ${formattedTime}<br/>
+            Address: ${speedCache.current.get(i)}
+          `
             )
             .openPopup();
         } else {
-          // Fetch address and then show popup
           reverseGeocode(point.latitude, point.longitude)
             .then((address) => {
-              speedCache.set(i, address);
+              speedCache.current.set(i, address);
               marker
                 .bindPopup(
                   `
-            
-            Speed: ${point.speed?.toFixed(1) || "N/A"} km/h<br/>
-            Time: ${formattedTime}<br/>
-            Address: ${address}
-          `
+                <b>Vehicle Info</b><br/>
+                Speed: ${point.speed?.toFixed(1) || "N/A"} km/h<br/>
+                Time: ${formattedTime}<br/>
+                Address: ${address}
+              `
                 )
                 .openPopup();
             })
@@ -280,11 +217,11 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
               marker
                 .bindPopup(
                   `
-            <b>Vehicle Info</b><br/>
-            Speed: ${point.speed?.toFixed(1) || "N/A"} km/h<br/>
-            Time: ${formattedTime}<br/>
-            Address: Not available
-          `
+                <b>Vehicle Info</b><br/>
+                Speed: ${point.speed?.toFixed(1) || "N/A"} km/h<br/>
+                Time: ${formattedTime}<br/>
+                Address: Not available
+              `
                 )
                 .openPopup();
             });
@@ -294,79 +231,87 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
       allArrowMarkersRef.current.push(marker);
     }
 
-    setTimeout(() => {
-      updateArrowVisibility();
-    }, 0);
+    setTimeout(() => updateArrowVisibility(), 0);
   };
 
-  // Function to update arrow visibility based on viewport
   const updateArrowVisibility = () => {
     if (!mapRef.current || !arrowLayerRef.current) return;
-
     const bounds = mapRef.current.getBounds();
-
-    // Clear the layer group
     arrowLayerRef.current.clearLayers();
-
-    // Add only visible arrows to the layer group
     allArrowMarkersRef.current.forEach((marker) => {
-      const position = marker.getLatLng();
-      if (bounds.contains(position)) {
-        marker.addTo(arrowLayerRef.current);
+      if (bounds.contains(marker.getLatLng())) {
+        marker.addTo(arrowLayerRef.current!);
       }
     });
-
-    // Debug info
-    const visibleCount = allArrowMarkersRef.current.filter((marker) =>
-      bounds.contains(marker.getLatLng())
-    ).length;
-
-    console.log(
-      `Total arrows: ${allArrowMarkersRef.current.length}, Visible: ${visibleCount}`
-    );
   };
 
-  // Function to handle zoom changes
   const handleZoomEnd = () => {
     if (!mapRef.current) return;
-
     const zoom = mapRef.current.getZoom();
-
-    // Recreate arrows with new density and size
     createAllArrowMarkers(zoom);
-
-    // Update visibility
     updateArrowVisibility();
   };
 
-  // Function to handle pan/move changes
   const handleMoveEnd = () => {
-    // Only update visibility, don't recreate arrows
     updateArrowVisibility();
   };
+
+  // Smooth rotation function with proper interpolation
+  const smoothRotateVehicle = useCallback(
+    (marker: L.Marker, targetAngle: number) => {
+      const el = marker.getElement();
+      if (!el) return;
+
+      const rotator = el.querySelector(
+        ".vehicle-rotator"
+      ) as HTMLElement | null;
+      if (!rotator) return;
+
+      let diff = targetAngle - currentAngleRef.current;
+      if (diff > 180) diff -= 360;
+      if (diff < -180) diff += 360;
+
+      // ✅ Reduce smoothing threshold and increase interpolation
+      if (Math.abs(diff) < 5) {
+        // Only smooth very small GPS jitter
+        currentAngleRef.current += diff * 0.5; // 95% instead of 80%
+      } else {
+        currentAngleRef.current += diff; // Immediate for turns
+      }
+
+      currentAngleRef.current = ((currentAngleRef.current % 360) + 360) % 360;
+      rotator.style.transform = `rotate(${currentAngleRef.current}deg)`;
+    },
+    []
+  );
 
   // Initialize map
   useEffect(() => {
-    if (!mapContainerRef.current || mapRef.current) return;
+    if (
+      !mapContainerRef.current ||
+      mapRef.current ||
+      !data ||
+      data.length === 0
+    )
+      return;
 
-    // Create map
     const map = L.map(mapContainerRef.current, {
-      center: [currentPoint?.latitude, currentPoint?.longitude],
+      center: [data[0].latitude, data[0].longitude],
       zoom: 15,
       zoomControl: false,
     });
 
-    // Add tile layer
-    L.tileLayer("https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}", {
-      subdomains: ["mt0", "mt1", "mt2", "mt3"],
-    }).addTo(map);
+    // ✅ Add initial tile layer (normal map without traffic)
+    tileLayerRef.current = L.tileLayer(
+      "https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}",
+      {
+        subdomains: ["mt0", "mt1", "mt2", "mt3"],
+      }
+    ).addTo(map);
 
     mapRef.current = map;
-
-    // Create arrow layer group
     arrowLayerRef.current = L.layerGroup().addTo(map);
 
-    // Add event listeners
     map.on("zoomend", handleZoomEnd);
     map.on("moveend", handleMoveEnd);
     map.on("resize", updateArrowVisibility);
@@ -376,52 +321,67 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
         mapRef.current.off("zoomend", handleZoomEnd);
         mapRef.current.off("moveend", handleMoveEnd);
         mapRef.current.off("resize", updateArrowVisibility);
-
-        // Clean up arrow markers
         allArrowMarkersRef.current.forEach((marker) => marker.remove());
         allArrowMarkersRef.current = [];
-
-        // Clean up flag markers
-        if (startFlagRef.current) {
-          startFlagRef.current.remove();
-          startFlagRef.current = null;
-        }
-        if (endFlagRef.current) {
-          endFlagRef.current.remove();
-          endFlagRef.current = null;
-        }
-
+        if (startFlagRef.current) startFlagRef.current.remove();
+        if (endFlagRef.current) endFlagRef.current.remove();
+        if (markerPlayerRef.current) markerPlayerRef.current.remove();
         mapRef.current.remove();
         mapRef.current = null;
       }
     };
   }, [data]);
 
-  // Draw complete route with start and end flags
+  useEffect(() => {
+    if (!mapRef.current || !tileLayerRef.current) return;
+
+    // Remove old tile layer
+    tileLayerRef.current.remove();
+
+    // Determine layer type based on settings
+    let lyrsParam = isSatelliteView ? "s" : "m"; // s = satellite, m = map
+    if (showTraffic) {
+      lyrsParam += ",traffic"; // Add traffic overlay
+    }
+
+    // Add new tile layer
+    tileLayerRef.current = L.tileLayer(
+      `https://{s}.google.com/vt/lyrs=${lyrsParam}&x={x}&y={y}&z={z}`,
+      {
+        subdomains: ["mt0", "mt1", "mt2", "mt3"],
+      }
+    ).addTo(mapRef.current);
+
+    console.log("Tile layer updated:", {
+      isSatelliteView,
+      showTraffic,
+      lyrsParam,
+    });
+  }, [isSatelliteView, showTraffic]);
+
+  // Draw route with flags
   useEffect(() => {
     if (!mapRef.current || !data || data.length === 0) return;
-
     const map = mapRef.current;
 
-    // Draw complete polyline
     if (completeRoute.length > 1) {
-      if (polylineRef.current) {
-        polylineRef.current.remove();
-      }
+      if (polylineRef.current) polylineRef.current.remove();
 
-      polylineRef.current = L.polyline(completeRoute, {
+      const routeCoordinates = completeRoute.map((point) => point.coordinates);
+
+      polylineRef.current = L.polyline(routeCoordinates, {
         color: "#0ea5e9",
         weight: 4,
         opacity: 0.8,
       }).addTo(map);
 
-      // Add start flag (green) at first point
       const startPoint = data[0];
+      const startLat = startPoint.latitude;
+      const startLng = startPoint.longitude;
       const startFlagIcon = createFlagIcon("green", 40);
 
-      if (startFlagRef.current) {
-        startFlagRef.current.remove();
-      }
+      if (startFlagRef.current) startFlagRef.current.remove();
+
       const startDate = new Date(startPoint.createdAt).toLocaleString("en-US", {
         year: "numeric",
         month: "short",
@@ -432,42 +392,24 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
         hour12: true,
       });
 
-      startFlagRef.current = L.marker(
-        [startPoint.latitude, startPoint.longitude],
-        {
-          icon: startFlagIcon,
-          zIndexOffset: 500,
-        }
-      ).addTo(map).bindPopup(`
-    <b>Start Point</b><br/>
+      startFlagRef.current = L.marker([startLat, startLng], {
+        icon: startFlagIcon,
+        zIndexOffset: 500,
+      }).addTo(map).bindPopup(`
+        <b>Start Point</b><br/>
+        <div style="margin-top: 4px;">
+          ${startLat.toFixed(6)}, ${startLng.toFixed(6)}<br/>
+          ${startAddress || "Loading address..."}<br/>
+          ${startDate}
+        </div>
+      `);
 
-    <div style="display: flex; align-items: center; gap: 4px; margin-top: 4px;">
-      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="black" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-map-pin-icon lucide-map-pin"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></svg>
-      ${startPoint.latitude.toFixed(6)}, ${startPoint.longitude.toFixed(6)}
-    </div>
-    <div style="display: flex; align-items: center; gap: 4px; margin-top: 4px;">
-      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="black" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-navigation-icon lucide-navigation"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg> 
-      ${startAddress || "Loading address..."}
-    </div>
-    <div style="display: flex; align-items: center; gap: 4px; margin-top: 4px;">
-      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="black" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-calendar-icon lucide-calendar"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></svg>
-      ${startDate}
-    </div>
-    <div style="display: flex; align-items: center; gap: 4px; margin-top: 4px;">
-      <div style="width: 15px; height: 15px; background-color: green; border-radius: 50%; margin-top: 4px;">
-      </div>: 
-      Start Point
-    </div>
-    
-  `);
-
-      // Add end flag (red) at last point
       const endPoint = data[data.length - 1];
+      const endLat = endPoint.latitude;
+      const endLng = endPoint.longitude;
       const endFlagIcon = createFlagIcon("red", 40);
 
-      if (endFlagRef.current) {
-        endFlagRef.current.remove();
-      }
+      if (endFlagRef.current) endFlagRef.current.remove();
 
       const endDate = new Date(endPoint.createdAt).toLocaleString("en-US", {
         year: "numeric",
@@ -479,37 +421,20 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
         hour12: true,
       });
 
-      endFlagRef.current = L.marker([endPoint.latitude, endPoint.longitude], {
+      endFlagRef.current = L.marker([endLat, endLng], {
         icon: endFlagIcon,
         zIndexOffset: 500,
       }).addTo(map).bindPopup(`
-    <b>End Point</b><br/>
-    <div style="margin-top: 4px;">
-      <div style="display: flex; align-items: center; gap: 4px; margin-bottom: 4px;">
-      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="black" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-map-pin-icon lucide-map-pin"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></svg> ${endPoint.latitude.toFixed(
-        6
-      )}, ${endPoint.longitude.toFixed(6)}
-      </div>
-       <div style="display: flex; align-items: center; gap: 4px; margin-bottom: 4px;">
-      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="black" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-navigation-icon lucide-navigation"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg> 
-      ${endAddress || "Loading address..."}
-      </div>
-      <div style="display: flex; align-items: center; gap: 4px;">
-      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="black" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-calendar-icon lucide-calendar"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></svg>
-      ${endDate}
-      </div>
-      <div style="display: flex; align-items: center; gap: 4px;">
-      <div style="width: 15px; height: 15px; background-color: red; border-radius: 50%; margin-top: 4px;">
-      </div>: 
-      End Point
-      </div>
-    </div>
-  `);
+        <b>End Point</b><br/>
+        <div style="margin-top: 4px;">
+          ${endLat.toFixed(6)}, ${endLng.toFixed(6)}<br/>
+          ${endAddress || "Loading address..."}<br/>
+          ${endDate}
+        </div>
+      `);
 
-      reverseGeocode(startPoint.latitude, startPoint.longitude).then(
-        setStartAddress
-      );
-      reverseGeocode(endPoint.latitude, endPoint.longitude).then(setEndAddress);
+      reverseGeocode(startLat, startLng).then(setStartAddress);
+      reverseGeocode(endLat, endLng).then(setEndAddress);
 
       setIsRouteDrawn(true);
     }
@@ -524,163 +449,88 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
     }
   }, [isRouteDrawn, data]);
 
-  // Update marker position after route is drawn
-  // Update marker position and rotation with smooth animation
+  // Create MarkerPlayer - ONLY depends on data and isRouteDrawn
   useEffect(() => {
-    if (!mapRef.current || !isRouteDrawn || !currentPoint) return;
+    if (!mapRef.current || !isRouteDrawn || data.length < 2) return;
 
-    const map = mapRef.current;
-
-    // Helper function to calculate shortest rotation path
-    const getShortestRotation = (from: number, to: number): number => {
-      let diff = to - from;
-      // Normalize to -180 to 180 range
-      while (diff > 180) diff -= 360;
-      while (diff < -180) diff += 360;
-      return diff;
-    };
-
-    // Easing function for smoother animation (ease-out)
-    const easeOutCubic = (t: number): number => {
-      return 1 - Math.pow(1 - t, 3);
-    };
-
-    // Create initial marker if not present
-    if (!markerRef.current) {
-      const vehicleIcon = L.divIcon({
-        className: "vehicle-marker",
-        html: `
-        <div class="vehicle-icon-wrapper" style="
-          transform: rotate(${currentPoint.course}deg); 
-          width: 32px; 
-          height: 32px; 
-          display: flex; 
-          align-items: center; 
-          justify-content: center;
-          transition: transform 0.1s linear;
-        ">
-          <img src="/Top Y.svg" width="32" height="32" style="display: block;" />
-        </div>
-      `,
-        iconSize: [32, 32],
-        iconAnchor: [16, 16],
-      });
-
-      markerRef.current = L.marker(
-        [currentPoint.latitude, currentPoint.longitude],
-        {
-          icon: vehicleIcon,
-          zIndexOffset: 1000,
-        }
-      ).addTo(map);
-
-      // Store current rotation for interpolation
-      (markerRef.current as any)._currentRotation = currentPoint.course;
-      return;
+    if (markerPlayerRef.current) {
+      markerPlayerRef.current.remove();
     }
 
-    const marker = markerRef.current;
-    const startLatLng = marker.getLatLng();
-    const endLatLng = L.latLng(currentPoint.latitude, currentPoint.longitude);
+    const points: Point[] = data.map((d) => ({
+      latlng: [d.latitude, d.longitude],
+      course: d.course,
+    }));
 
-    // Get previous rotation and calculate shortest path to new rotation
-    const startRotation =
-      (marker as any)._currentRotation || currentPoint.course;
-    const rotationDiff = getShortestRotation(
-      startRotation,
-      currentPoint.course
-    );
-    const endRotation = startRotation + rotationDiff;
+    // ✅ Use BASE_PLAYBACK_SECONDS from the start with uniform durations
+    const totalDuration = BASE_PLAYBACK_SECONDS / playbackSpeed;
+    const segmentCount = points.length - 1;
+    const uniformDuration = Math.max(totalDuration / segmentCount, 0.1);
+    const durations = Array(segmentCount).fill(uniformDuration);
 
-    // Animation configuration
-    const duration = 500; // milliseconds
-    const startTime = performance.now();
-    const startCenter = map.getCenter();
+    const player = new MarkerPlayer(mapRef.current, points, durations, {
+      icon: createVehicleIcon(),
+    });
 
-    let animationFrame: number;
+    markerPlayerRef.current = player;
+    currentAngleRef.current = data[0]?.course ?? 0;
 
-    const animate = (time: number) => {
-      const elapsed = time - startTime;
-      const rawProgress = Math.min(elapsed / duration, 1);
-      const progress = easeOutCubic(rawProgress);
-
-      // Interpolate position
-      const nextLat =
-        startLatLng.lat + (endLatLng.lat - startLatLng.lat) * progress;
-      const nextLng =
-        startLatLng.lng + (endLatLng.lng - startLatLng.lng) * progress;
-
-      // Interpolate rotation
-      const currentRotation = startRotation + rotationDiff * progress;
-
-      // Update marker position
-      marker.setLatLng([nextLat, nextLng]);
-
-      // Update marker icon with new rotation
-      const vehicleIcon = L.divIcon({
-        className: "vehicle-marker",
-        html: `
-        <div class="vehicle-icon-wrapper" style="
-          transform: rotate(${currentRotation}deg); 
-          width: 32px; 
-          height: 32px; 
-          display: flex; 
-          align-items: center; 
-          justify-content: center;
-        ">
-          <img src="/Top Y.svg" width="32" height="32" style="display: block;" />
-        </div>
-      `,
-        iconSize: [32, 32],
-        iconAnchor: [16, 16],
+    player.setOnUpdate((latlng, index) => {
+      mapRef.current!.panTo(latlng, {
+        animate: true,
+        duration: 0.15,
+        noMoveStart: true,
       });
-      marker.setIcon(vehicleIcon);
 
-      // Smoothly pan camera to follow marker
-      const nextCenterLat =
-        startCenter.lat + (endLatLng.lat - startCenter.lat) * progress;
-      const nextCenterLng =
-        startCenter.lng + (endLatLng.lng - startCenter.lng) * progress;
-      map.panTo([nextCenterLat, nextCenterLng], { animate: false });
+      const targetAngle = data[index]?.course ?? currentAngleRef.current;
+      smoothRotateVehicle((player as any).marker, targetAngle);
 
-      if (rawProgress < 1) {
-        animationFrame = requestAnimationFrame(animate);
-      } else {
-        // Animation complete - set final values
-        marker.setLatLng(endLatLng);
+      const percent = (index / (data.length - 1)) * 100;
+      setProgress(percent);
 
-        // Normalize final rotation to 0-360 range
-        let normalizedRotation = endRotation % 360;
-        if (normalizedRotation < 0) normalizedRotation += 360;
-
-        (marker as any)._currentRotation = normalizedRotation;
-
-        const finalIcon = L.divIcon({
-          className: "vehicle-marker",
-          html: `
-          <div class="vehicle-icon-wrapper" style="
-            transform: rotate(${normalizedRotation}deg); 
-            width: 32px; 
-            height: 32px; 
-            display: flex; 
-            align-items: center; 
-            justify-content: center;
-          ">
-            <img src="/Top Y.svg" width="32" height="32" style="display: block;" />
-          </div>
-        `,
-          iconSize: [32, 32],
-          iconAnchor: [16, 16],
-        });
-        marker.setIcon(finalIcon);
-        map.panTo(endLatLng, { animate: false });
+      if (onProgressChange) {
+        onProgressChange(percent);
       }
+    });
+
+    player.setOnComplete(() => {
+      setIsPlaying(false);
+      setProgress(0);
+      currentAngleRef.current = data[0]?.course ?? 0;
+    });
+
+    setIsPlaying(false);
+    setProgress(0);
+
+    return () => {
+      if (player) {
+        player.remove();
+      }
+      markerPlayerRef.current = null;
     };
+  }, [isRouteDrawn, data, smoothRotateVehicle]);
 
-    animationFrame = requestAnimationFrame(animate);
+  // ✅ FIXED: Handle speed changes with proper pause/resume
+  useEffect(() => {
+    if (!markerPlayerRef.current || data.length < 2) return;
 
-    return () => cancelAnimationFrame(animationFrame);
-  }, [currentPoint, isRouteDrawn]);
+    const totalDuration = BASE_PLAYBACK_SECONDS / playbackSpeed;
+    const pointCount = markerPlayerRef.current["points"]?.length || data.length;
+    const segmentCount = pointCount - 1;
+
+    if (segmentCount > 0) {
+      const uniformDuration = Math.max(totalDuration / segmentCount, 0.1);
+      const durations = Array(segmentCount).fill(uniformDuration);
+
+      console.log(
+        "Updating speed to",
+        playbackSpeed,
+        "- Durations:",
+        uniformDuration
+      );
+      markerPlayerRef.current.setDuration(durations);
+    }
+  }, [playbackSpeed, data]);
 
   // Enhanced resize handler
   useEffect(() => {
@@ -688,26 +538,83 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
 
     const handleResize = () => {
       if (mapRef.current) {
-        // Immediate resize
         mapRef.current.invalidateSize();
-
-        // Delayed resize after transition
-        setTimeout(() => {
-          mapRef.current!.invalidateSize();
-        }, 350);
+        setTimeout(() => mapRef.current!.invalidateSize(), 350);
       }
     };
 
-    // Listen for window resize events
     window.addEventListener("resize", handleResize);
-
-    // Also handle when expansion state changes
     handleResize();
 
-    return () => {
-      window.removeEventListener("resize", handleResize);
-    };
-  }, [isExpanded, data]);
+    return () => window.removeEventListener("resize", handleResize);
+  }, [isExpanded]);
+
+  // Playback controls
+  const handlePlayPause = () => {
+    if (!markerPlayerRef.current) {
+      alert("Select vehicle and date range first.");
+      return;
+    }
+
+    if (isPlaying) {
+      markerPlayerRef.current.pause();
+      setIsPlaying(false);
+    } else {
+      markerPlayerRef.current.start();
+      setIsPlaying(true);
+    }
+  };
+
+  const handleStop = () => {
+    if (!markerPlayerRef.current) {
+      alert("Select vehicle and date range first.");
+      return;
+    }
+    markerPlayerRef.current.stop();
+    setIsPlaying(false);
+    setProgress(0);
+    currentAngleRef.current = data[0]?.course ?? 0;
+  };
+
+  // ✅ FIXED: Speed change with pause/resume logic
+  const handleSpeedChange = (speed: number) => {
+    if (!markerPlayerRef.current) return;
+
+    const wasPlaying = isPlaying;
+
+    // Pause if playing
+    if (wasPlaying) {
+      markerPlayerRef.current.pause();
+      setIsPlaying(false);
+    }
+
+    // Update speed (triggers useEffect)
+    setPlaybackSpeed(speed);
+
+    // Resume after duration update
+    if (wasPlaying) {
+      setTimeout(() => {
+        if (markerPlayerRef.current) {
+          markerPlayerRef.current.start();
+          setIsPlaying(true);
+        }
+      }, 100);
+    }
+  };
+
+  const handleProgressChange = (value: number) => {
+    if (!markerPlayerRef.current || !data.length) {
+      alert("Select vehicle and date range first.");
+      return;
+    }
+
+    markerPlayerRef.current.setProgress(value);
+    setProgress(value);
+
+    const currentIdx = Math.round((value / 100) * (data.length - 1));
+    const safeIdx = Math.min(Math.max(currentIdx, 0), data.length - 1);
+    currentAngleRef.current = data[safeIdx].course;
+  };
 
   if (!data || data.length === 0) {
     return (
@@ -720,65 +627,144 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
   return (
     <div className="relative w-full h-full rounded-t-lg overflow-hidden border border-border bg-card shadow-[var(--shadow-panel)]">
       <div ref={mapContainerRef} className="w-full h-full" />
-
-      {/* Custom zoom controls */}
-      <div className="absolute top-4 right-4 flex flex-col gap-2 z-[1000]">
+      <PlaybackControls
+        handlePlayPause={handlePlayPause}
+        handleProgressChange={handleProgressChange}
+        handleSpeedChange={handleSpeedChange}
+        playbackSpeed={playbackSpeed}
+        progress={progress}
+        handleStop={handleStop}
+        isPlaying={isPlaying}
+        historyData={data}
+        isExpanded={isExpanded}
+      />
+      <div className="absolute top-20 left-4 flex flex-col gap-2 z-[1000]">
+        {/* Satellite Toggle */}
         <button
-          className="w-8 h-8 bg-card border border-border rounded flex items-center justify-center hover:bg-secondary transition-colors"
-          onClick={() => {
-            if (mapRef.current) {
-              mapRef.current.zoomIn();
-            }
-          }}
+          className={`w-10 h-10 bg-card cursor-pointer border border-border rounded flex items-center justify-center hover:bg-secondary transition-colors ${
+            isSatelliteView ? "bg-primary text-primary-foreground" : ""
+          }`}
+          onClick={() => setIsSatelliteView(!isSatelliteView)}
+          title={isSatelliteView ? "Normal Map" : "Satellite View"}
         >
-          +
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            {isSatelliteView ? (
+              // Map icon
+              <>
+                <path d="M3 6h4l2 2h8l2-2h2v10H3V6z" />
+                <path d="M7 6v12" />
+                <path d="M11 6v12" />
+                <path d="M15 6v12" />
+              </>
+            ) : (
+              // Satellite icon
+              <Satellite />
+            )}
+          </svg>
         </button>
+
+        {/* Traffic Toggle */}
         <button
-          className="w-8 h-8 bg-card border border-border rounded flex items-center justify-center hover:bg-secondary transition-colors"
-          onClick={() => {
-            if (mapRef.current) {
-              mapRef.current.zoomOut();
-            }
-          }}
+          className={`w-10 h-10 bg-card cursor-pointer border border-border rounded flex items-center justify-center hover:bg-secondary transition-colors ${
+            showTraffic ? "bg-primary text-primary-foreground" : ""
+          }`}
+          onClick={() => setShowTraffic(!showTraffic)}
+          title={showTraffic ? "Hide Traffic" : "Show Traffic"}
         >
-          -
+          <LiaTrafficLightSolid className="w-6 h-6" />
+        </button>
+
+        {/* Divider */}
+        <div className="w-full h-px bg-border" />
+
+        {/* Zoom In */}
+        <button
+          className="w-10 h-10 bg-card cursor-pointer border border-border rounded flex items-center justify-center hover:bg-secondary transition-colors"
+          onClick={() => mapRef.current?.zoomIn()}
+          title="Zoom In"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <line x1="12" y1="5" x2="12" y2="19" />
+            <line x1="5" y1="12" x2="19" y2="12" />
+          </svg>
+        </button>
+
+        {/* Zoom Out */}
+        <button
+          className="w-10 h-10 bg-card cursor-pointer border border-border rounded flex items-center justify-center hover:bg-secondary transition-colors"
+          onClick={() => mapRef.current?.zoomOut()}
+          title="Zoom Out"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <line x1="5" y1="12" x2="19" y2="12" />
+          </svg>
         </button>
       </div>
-
       <style jsx>{`
         .course-arrow {
           background: transparent !important;
           border: none !important;
         }
-        .course-arrow svg {
-          display: block !important;
-        }
-        .course-arrow path {
-          stroke: white !important;
-          stroke-width: 4 !important;
-          stroke-linecap: round !important;
-          stroke-linejoin: round !important;
-        }
         .vehicle-marker {
           background: transparent !important;
           border: none !important;
         }
-        .green-flag {
-          background: transparent !important;
-          border: none !important;
-        }
+        .green-flag,
         .red-flag {
           background: transparent !important;
           border: none !important;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+          appearance: none;
+          width: 16px;
+          height: 16px;
+          background: #0ea5e9;
+          border-radius: 50%;
+          cursor: pointer;
+          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+        input[type="range"]::-moz-range-thumb {
+          width: 16px;
+          height: 16px;
+          background: #0ea5e9;
+          border-radius: 50%;
+          cursor: pointer;
+          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+          border: none;
         }
       `}</style>
     </div>
   );
 };
 
-export default React.memo(VehicleMap, (prevProps, nextProps) => {
-  return (
-    prevProps.currentIndex === nextProps.currentIndex &&
-    prevProps.data === nextProps.data
-  );
-});
+export default React.memo(VehicleMap);
