@@ -253,7 +253,7 @@ function HistoryReportContent() {
     () => ({
       responsive: true,
       maintainAspectRatio: false,
-      animation: true, // ✅ Completely disable animations
+      // animation: true, // ✅ Completely disable animations
       animations: false,
       transitions: {
         active: {

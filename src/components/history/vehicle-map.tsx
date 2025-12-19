@@ -478,7 +478,7 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
     player.setOnUpdate((latlng, index) => {
       mapRef.current!.panTo(latlng, {
         animate: true,
-        duration: 0.15,
+        duration: 0.95,
         noMoveStart: true,
       });
 
