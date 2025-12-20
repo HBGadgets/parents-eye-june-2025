@@ -685,7 +685,7 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
         </button>
 
         {/* Divider */}
-        <div className="w-full h-px bg-border" />
+        <div className="w-full h-px bg-black" />
 
         {/* Zoom In */}
         <button

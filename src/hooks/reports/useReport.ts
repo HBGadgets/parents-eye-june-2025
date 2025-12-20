@@ -17,6 +17,9 @@ export const useReport = (
     | "trip"
     | "travel-summary"
 ) => {
+
+  const isAll = pagination.pageSize === "all";
+
   const getStatusQuery = useQuery({
     queryKey: [
       "status-report",
@@ -50,22 +53,29 @@ export const useReport = (
   const getStopReportQuery = useQuery({
     queryKey: [
       "stop-report",
-      pagination.pageIndex,
-      pagination.pageSize,
+      // pagination.pageIndex,
+      // pagination.pageSize,
       filters?.uniqueId,
       filters?.period,
       filters?.from,
       filters?.to,
+      ...(isAll ? ["all"] : [pagination.pageIndex, pagination.pageSize]),
     ],
 
     queryFn: () =>
       reportService.getStopReport({
-        page: pagination.pageIndex + 1,
-        limit: pagination.pageSize,
+        // page: pagination.pageIndex + 1,
+        // limit: pagination.pageSize,
         uniqueId: filters?.uniqueId,
         period: filters?.period || "Custom",
         from: filters?.from,
         to: filters?.to,
+        ...(isAll
+          ? { limit: "all" }
+          : {
+              page: pagination.pageIndex + 1,
+              limit: pagination.pageSize,
+            }),
       }),
     placeholderData: keepPreviousData,
     enabled:
