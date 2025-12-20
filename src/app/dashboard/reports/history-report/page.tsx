@@ -3,7 +3,6 @@ import {
   useMemo,
   useEffect,
   useState,
-  useCallback,
   useRef,
   Suspense,
 } from "react";
@@ -30,6 +29,7 @@ import {
   Tooltip,
   Legend,
 } from "chart.js";
+import { deviceWithTrip } from "@/data/playback-nested";
 
 // Register Chart.js components
 ChartJS.register(
@@ -56,6 +56,15 @@ const VehicleMap = dynamic(() => import("@/components/history/vehicle-map"), {
 });
 
 function HistoryReportContent() {
+  // Trip-wise source data
+  const [trips, setTrips] = useState<any[][]>([]);
+  // What map is currently playing
+  const [activePlayback, setActivePlayback] = useState<any[]>([]);
+  // null = overall playback
+  // number = trip index
+  const [selectedTripIndex, setSelectedTripIndex] = useState<number | null>(
+    null
+  );
   const searchParams = useSearchParams();
   const router = useRouter();
   const vehicleIdFromUrl = searchParams.get("vehicleId");
@@ -70,8 +79,8 @@ function HistoryReportContent() {
 
   const [selectedVehicle, setSelectedVehicle] = useState("");
   const [isMapExpanded, setIsMapExpanded] = useState(true);
-  const [fromDate, setFromDate] = useState<String | null>(null);
-  const [toDate, setToDate] = useState<String | null>(null);
+  const [fromDate, setFromDate] = useState<string | null>(null);
+  const [toDate, setToDate] = useState<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   // ✅ Track raw progress and throttled progress separately
@@ -87,11 +96,9 @@ function HistoryReportContent() {
   const [data, setData] = useState([
     {
       attributes: {
-        ignition: true,
         distance: 0.0,
         totalDistance: 0.0,
       },
-      deviceId: 2730,
       latitude: 21.10755111111111,
       longitude: 79.10318222222223,
       speed: 0.0,
@@ -136,17 +143,17 @@ function HistoryReportContent() {
 
   // ✅ Use throttled progress for chart rendering
   const currentIndex = useMemo(() => {
-    if (!data || data.length === 0) return 0;
-    return Math.round((throttledProgress / 100) * (data.length - 1));
-  }, [throttledProgress, data]);
+    if (!activePlayback || activePlayback.length === 0) return 0;
+    return Math.round((throttledProgress / 100) * (activePlayback.length - 1));
+  }, [throttledProgress, activePlayback]);
 
   // ✅ But use real progress for current data display
   const displayIndex = useMemo(() => {
-    if (!data || data.length === 0) return 0;
-    return Math.round((playbackProgress / 100) * (data.length - 1));
-  }, [playbackProgress, data]);
+    if (!activePlayback || activePlayback.length === 0) return 0;
+    return Math.round((playbackProgress / 100) * (activePlayback.length - 1));
+  }, [playbackProgress, activePlayback]);
 
-  const currentData = data[displayIndex];
+  const currentData = activePlayback[displayIndex];
 
   const vehicleMetaData = useMemo(() => {
     if (!vehicleData || !Array.isArray(vehicleData)) return [];
@@ -175,7 +182,7 @@ function HistoryReportContent() {
     : { date: "-- : --", time: "-- : --" };
 
   const baseChartData = useMemo(() => {
-    if (!data || data.length === 0) {
+    if (!activePlayback || activePlayback.length === 0) {
       return {
         labels: [],
         speeds: [],
@@ -193,7 +200,7 @@ function HistoryReportContent() {
       };
     }
 
-    const labels = data.map((item) => {
+    const labels = activePlayback.map((item) => {
       const date = new Date(item.createdAt);
       return date.toLocaleTimeString("en-US", {
         hour: "2-digit",
@@ -201,7 +208,7 @@ function HistoryReportContent() {
       });
     });
 
-    const speeds = data.map((item) => item.speed);
+    const speeds = activePlayback.map((item) => item.speed);
 
     return {
       labels,
@@ -218,9 +225,8 @@ function HistoryReportContent() {
         fill: true,
       },
     };
-  }, [data]);
+  }, [activePlayback]);
 
-  // ✅ Optimized chart data - only updates when throttled index changes
   const chartData = useMemo(
     () => ({
       labels: baseChartData.labels,
@@ -281,12 +287,12 @@ function HistoryReportContent() {
           enabled: true,
           mode: "index" as const,
           intersect: false,
-          
+
           callbacks: {
             title: (context: any) => {
               const index = context[0].dataIndex;
-              if (!data[index]) return "";
-              const date = new Date(data[index].createdAt);
+              if (!activePlayback[index]) return "";
+              const date = new Date(activePlayback[index].createdAt);
               return date.toLocaleString();
             },
             label: (context: any) => {
@@ -344,12 +350,12 @@ function HistoryReportContent() {
       onClick: (event: any, elements: any[]) => {
         if (elements.length > 0) {
           const index = elements[0].index;
-          const newProgress = (index / (data.length - 1)) * 100;
+          const newProgress = (index / (activePlayback.length - 1)) * 100;
           setPlaybackProgress(newProgress);
         }
       },
     }),
-    [data]
+    [activePlayback]
   );
 
   useEffect(() => {
@@ -444,10 +450,19 @@ function HistoryReportContent() {
         `/device-history-playback?uniqueId=${selectedVehicle}&from=${fromDate}&to=${toDate}`
       );
 
-      const history = response.deviceHistory || [];
-      setData(history);
+      // const history = response.deviceHistory || [];
+      const history = deviceWithTrip || []; // Array<Array<Point>>
+      setTrips(history);
+      // setData(history.flat());
+
+      // Default to overall playback
+      const overall = history.flat();
+      setActivePlayback(overall);
+      setSelectedTripIndex(null);
+
+
       setPlaybackProgress(0);
-      setThrottledProgress(0); // ✅ Reset both progress states
+      setThrottledProgress(0);
     } catch (error) {
       console.error("Error fetching history data:", error);
       alert("Failed to fetch data. Please try again.");
@@ -579,11 +594,12 @@ function HistoryReportContent() {
                 style={{ zIndex: 0 }}
               >
                 <VehicleMap
-                  data={data}
+                  data={activePlayback}
                   currentIndex={displayIndex}
                   isExpanded={isMapExpanded}
                   onProgressChange={setPlaybackProgress}
                 />
+
                 <div>
                   <div
                     onClick={handleMapExpand}
@@ -642,7 +658,7 @@ function HistoryReportContent() {
             <div className="lg:col-span-2">
               <Card className="p-4 bg-[var(--gradient-panel)] rounded-t-none border-border shadow-[var(--shadow-panel)] space-y-3">
                 {/* Info Row */}
-                {currentData && data.length > 1 && (
+                {currentData && activePlayback.length > 1 && (
                   <div className="flex gap-5 items-center">
                     <div className="flex items-center gap-2 text-muted-foreground text-sm">
                       <Gauge className="w-4 h-4" />
@@ -664,12 +680,12 @@ function HistoryReportContent() {
                   </div>
                 )}
 
-                {data.length > 1 && (
+                {activePlayback.length > 1 && (
                   <div className="w-full h-[1px] bg-gray-300"></div>
                 )}
 
                 {/* Speed vs Timeline Graph */}
-                {!isMapExpanded && data && data.length > 1 && (
+                {!isMapExpanded && activePlayback && activePlayback.length > 1 && (
                   <div style={{ height: "150px" }}>
                     <SpeedTimelineGraph
                       data={chartData}
@@ -685,10 +701,19 @@ function HistoryReportContent() {
 
           {/* Sliding Side Bar */}
           <TripsSidebar
-            data={data}
-            currentIndex={displayIndex}
+            trips={trips}
             isOpen={isSidebarOpen}
             onClose={() => setIsSidebarOpen(false)}
+            onTripSelect={(index) => {
+              setSelectedTripIndex(index);
+              setActivePlayback(trips[index]);
+              setPlaybackProgress(0);
+            }}
+            onOverallSelect={() => {
+              setSelectedTripIndex(null);
+              setActivePlayback(trips.flat());
+              setPlaybackProgress(0);
+            }}
           />
         </div>
       </section>

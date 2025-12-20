@@ -69,6 +69,13 @@ const EyeCareBot = () => {
 
   // ========== MAP BACKEND DATA TO UI FORMAT ==========
 
+  console.log("Rendering EyeCareBot with state:", {
+    backendContacts,
+    activeContact,
+    activeMessages,
+    currentUserId,
+  });
+
   // Map backend contacts to UI format
   const contacts: Contact[] = backendContacts.map((c) => ({
     id: c._id,
