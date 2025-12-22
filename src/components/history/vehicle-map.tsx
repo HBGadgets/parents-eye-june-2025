@@ -479,11 +479,12 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
     }));
 
     const totalDuration = BASE_PLAYBACK_SECONDS / playbackSpeed;
+    const baseTotalDuration = BASE_PLAYBACK_SECONDS;
     const segmentCount = points.length - 1;
     const uniformDuration = Math.max(totalDuration / segmentCount, 0.1);
     const durations = Array(segmentCount).fill(uniformDuration);
 
-    const player = new MarkerPlayer(mapRef.current, points, durations, {
+    const player = new MarkerPlayer(mapRef.current!, points, baseTotalDuration, {
       icon: createVehicleIcon(),
     });
 
@@ -533,27 +534,58 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
   }, [
     isRouteDrawn,
     data,
-    playbackSpeed,
+    // playbackSpeed,
     smoothRotateVehicle,
     createVehicleIcon,
     onProgressChange,
   ]);
 
   // Handle speed changes
+  // useEffect(() => {
+  //   if (!markerPlayerRef.current || data.length < 2) return;
+
+  //   const totalDuration = BASE_PLAYBACK_SECONDS / playbackSpeed;
+  //   const pointCount = markerPlayerRef.current["points"]?.length || data.length;
+  //   const segmentCount = pointCount - 1;
+
+  //   if (segmentCount > 0) {
+  //     const uniformDuration = Math.max(totalDuration / segmentCount, 0.1);
+  //     const durations = Array(segmentCount).fill(uniformDuration);
+
+  //     markerPlayerRef.current.setDuration(durations);
+  //   }
+  // }, [playbackSpeed, data]);
+
   useEffect(() => {
     if (!markerPlayerRef.current || data.length < 2) return;
 
-    const totalDuration = BASE_PLAYBACK_SECONDS / playbackSpeed;
-    const pointCount = markerPlayerRef.current["points"]?.length || data.length;
-    const segmentCount = pointCount - 1;
+    // Shorter total time => faster movement
+    const scaledTotalDuration = BASE_PLAYBACK_SECONDS / playbackSpeed;
 
-    if (segmentCount > 0) {
-      const uniformDuration = Math.max(totalDuration / segmentCount, 0.1);
-      const durations = Array(segmentCount).fill(uniformDuration);
+    // Recreate distance-based durations for this shorter/longer total time
+    const points: Point[] = data.map((d) => ({
+      latlng: { lat: d.latitude, lng: d.longitude },
+      course: d.course,
+    }));
 
-      markerPlayerRef.current.setDuration(durations);
+    // Use the same logic as createDurations(distance-based)
+    let totalDistance = 0;
+    const distances: number[] = [];
+
+    for (let i = 0; i < points.length - 1; i++) {
+      const d = L.latLng(points[i].latlng).distanceTo(points[i + 1].latlng);
+      distances.push(d);
+      totalDistance += d;
     }
+
+    if (totalDistance === 0 || distances.length === 0) return;
+
+    const ratio = scaledTotalDuration / totalDistance;
+    const durations = distances.map((d) => Math.max(d * ratio, 0.1));
+
+    markerPlayerRef.current.setDuration(durations);
   }, [playbackSpeed, data]);
+
 
   // Enhanced resize handler
   useEffect(() => {
