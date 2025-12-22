@@ -11,7 +11,6 @@ import { DeviceHistoryItem } from "@/data/sampleData";
 import { reverseGeocode } from "@/util/reverse-geocode";
 import { MarkerPlayer } from "@/lib/leaflet-marker-player";
 import type { Point } from "@/types/marker-player.types";
-import { toast } from "sonner";
 import { PlaybackControls } from "./playback-controls";
 import { LiaTrafficLightSolid } from "react-icons/lia";
 import { Satellite } from "lucide-react";
@@ -44,7 +43,7 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
   isExpanded,
   onProgressChange,
 }) => {
-  const BASE_PLAYBACK_SECONDS = 1000000;
+  const BASE_PLAYBACK_SECONDS = 60000; // 60 seconds at 1x speed
 
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
@@ -55,6 +54,8 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
   const allArrowMarkersRef = useRef<L.Marker[]>([]);
   const startFlagRef = useRef<L.Marker | null>(null);
   const endFlagRef = useRef<L.Marker | null>(null);
+  const lastPanTimeRef = useRef(0);
+
   const [isRouteDrawn, setIsRouteDrawn] = useState(false);
   const [startAddress, setStartAddress] = useState<string>("");
   const [endAddress, setEndAddress] = useState<string>("");
@@ -63,6 +64,7 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
   const [progress, setProgress] = useState(0);
   const [isSatelliteView, setIsSatelliteView] = useState(false);
   const [showTraffic, setShowTraffic] = useState(false);
+
   const speedCache = useRef(new Map<number, string>());
   const currentAngleRef = useRef(0);
 
@@ -75,7 +77,7 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
   }, [data]);
 
   // Vehicle icon
-  const createVehicleIcon = () => {
+  const createVehicleIcon = useCallback(() => {
     return L.divIcon({
       className: "vehicle-marker",
       html: `
@@ -92,25 +94,28 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
       iconSize: [32, 32],
       iconAnchor: [16, 16],
     });
-  };
+  }, []);
 
-  const createFlagIcon = (color: "green" | "red", size: number = 24) => {
-    const flagColor = color === "green" ? "#10b981" : "#ef4444";
-    return L.divIcon({
-      className: `${color}-flag`,
-      html: `
+  const createFlagIcon = useCallback(
+    (color: "green" | "red", size: number = 24) => {
+      const flagColor = color === "green" ? "#10b981" : "#ef4444";
+      return L.divIcon({
+        className: `${color}-flag`,
+        html: `
         <div style="width: ${size}px; height: ${size}px; display: flex; align-items: center; justify-content: center;">
           <svg viewBox="0 0 24 24" style="width: ${size}px; height: ${size}px; fill: ${flagColor}; filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.3));">
             <path d="M14.4 6L14 4H5v17h2v-7h5.6l.4 2h7V6z"/>
           </svg>
         </div>
       `,
-      iconSize: [size, size],
-      iconAnchor: [size / 2, size - 2],
-    });
-  };
+        iconSize: [size, size],
+        iconAnchor: [size / 2, size - 2],
+      });
+    },
+    []
+  );
 
-  const createArrowIcon = (course: number, size: number = 16) => {
+  const createArrowIcon = useCallback((course: number, size: number = 16) => {
     return L.divIcon({
       className: "course-arrow",
       html: `
@@ -132,109 +137,17 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
       iconSize: [size, size],
       iconAnchor: [size / 2, size / 2],
     });
-  };
+  }, []);
 
-  const getArrowDensity = (zoom: number): number => {
+  const getArrowDensity = useCallback((zoom: number): number => {
     if (zoom >= 16) return 0.03;
     if (zoom >= 14) return 0.02;
     if (zoom >= 12) return 0.01;
     if (zoom >= 10) return 0.005;
     return 0.0;
-  };
+  }, []);
 
-  const createAllArrowMarkers = (zoom: number) => {
-    if (!mapRef.current || !data || data.length === 0) return;
-
-    const density = getArrowDensity(zoom);
-    const step = Math.max(1, Math.floor(1 / density));
-    const arrowSize = zoom >= 14 ? 14 : zoom >= 12 ? 12 : 10;
-
-    allArrowMarkersRef.current.forEach((marker) => {
-      if (marker && marker.remove) marker.remove();
-    });
-    allArrowMarkersRef.current = [];
-
-    if (arrowLayerRef.current) {
-      arrowLayerRef.current.clearLayers();
-    }
-
-    for (let i = 0; i < data.length; i += step) {
-      const point = data[i];
-      const arrowIcon = createArrowIcon(point.course, arrowSize);
-      const marker = L.marker([point.latitude, point.longitude], {
-        icon: arrowIcon,
-        interactive: true,
-        zIndexOffset: -1000,
-      });
-
-      marker.bindTooltip(`Speed: ${point.speed?.toFixed(1) || "N/A"} km/h`, {
-        permanent: false,
-        direction: "top",
-        offset: [0, -10],
-      });
-
-      marker.on("click", () => {
-        const formattedTime = new Date(point.createdAt).toLocaleString(
-          "en-US",
-          {
-            year: "numeric",
-            month: "short",
-            day: "numeric",
-            hour: "2-digit",
-            minute: "2-digit",
-            second: "2-digit",
-            hour12: true,
-          }
-        );
-
-        if (speedCache.current.has(i)) {
-          marker
-            .bindPopup(
-              `
-            <b>Vehicle Info</b><br/>
-            Speed: ${point.speed?.toFixed(1) || "N/A"} km/h<br/>
-            Time: ${formattedTime}<br/>
-            Address: ${speedCache.current.get(i)}
-          `
-            )
-            .openPopup();
-        } else {
-          reverseGeocode(point.latitude, point.longitude)
-            .then((address) => {
-              speedCache.current.set(i, address);
-              marker
-                .bindPopup(
-                  `
-                <b>Vehicle Info</b><br/>
-                Speed: ${point.speed?.toFixed(1) || "N/A"} km/h<br/>
-                Time: ${formattedTime}<br/>
-                Address: ${address}
-              `
-                )
-                .openPopup();
-            })
-            .catch(() => {
-              marker
-                .bindPopup(
-                  `
-                <b>Vehicle Info</b><br/>
-                Speed: ${point.speed?.toFixed(1) || "N/A"} km/h<br/>
-                Time: ${formattedTime}<br/>
-                Address: Not available
-              `
-                )
-                .openPopup();
-            });
-        }
-      });
-
-      allArrowMarkersRef.current.push(marker);
-    }
-
-    setTimeout(() => updateArrowVisibility(), 0);
-  };
-
-  const updateArrowVisibility = () => {
+  const updateArrowVisibility = useCallback(() => {
     if (!mapRef.current || !arrowLayerRef.current) return;
     const bounds = mapRef.current.getBounds();
     arrowLayerRef.current.clearLayers();
@@ -243,20 +156,129 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
         marker.addTo(arrowLayerRef.current!);
       }
     });
-  };
+  }, []);
 
-  const handleZoomEnd = () => {
+  const createAllArrowMarkers = useCallback(
+    (zoom: number) => {
+      if (!mapRef.current || !data || data.length === 0) return;
+
+      const density = getArrowDensity(zoom);
+      const step = Math.max(1, Math.floor(1 / density));
+      const arrowSize = zoom >= 14 ? 14 : zoom >= 12 ? 12 : 10;
+
+      allArrowMarkersRef.current.forEach((marker) => {
+        if (marker && marker.remove) marker.remove();
+      });
+      allArrowMarkersRef.current = [];
+
+      if (arrowLayerRef.current) {
+        arrowLayerRef.current.clearLayers();
+      }
+
+      for (let i = 0; i < data.length; i += step) {
+        const point = data[i];
+        const arrowIcon = createArrowIcon(point.course, arrowSize);
+        const marker = L.marker([point.latitude, point.longitude], {
+          icon: arrowIcon,
+          interactive: true,
+          zIndexOffset: -1000,
+        });
+
+        marker.bindTooltip(`Speed: ${point.speed?.toFixed(1) || "N/A"} km/h`, {
+          permanent: false,
+          direction: "top",
+          offset: [0, -10],
+        });
+
+        marker.on("click", () => {
+          const formattedTime = new Date(point.createdAt).toLocaleString(
+            "en-US",
+            {
+              year: "numeric",
+              month: "short",
+              day: "numeric",
+              hour: "2-digit",
+              minute: "2-digit",
+              second: "2-digit",
+              hour12: true,
+            }
+          );
+
+          if (speedCache.current.has(i)) {
+            marker
+              .bindPopup(
+                `
+            <b>Vehicle Info</b><br/>
+            Speed: ${point.speed?.toFixed(1) || "N/A"} km/h<br/>
+            Time: ${formattedTime}<br/>
+            Address: ${speedCache.current.get(i)}
+          `
+              )
+              .openPopup();
+          } else {
+            reverseGeocode(point.latitude, point.longitude)
+              .then((address) => {
+                speedCache.current.set(i, address);
+                marker
+                  .bindPopup(
+                    `
+                <b>Vehicle Info</b><br/>
+                Speed: ${point.speed?.toFixed(1) || "N/A"} km/h<br/>
+                Time: ${formattedTime}<br/>
+                Address: ${address}
+              `
+                  )
+                  .openPopup();
+              })
+              .catch(() => {
+                marker
+                  .bindPopup(
+                    `
+                <b>Vehicle Info</b><br/>
+                Speed: ${point.speed?.toFixed(1) || "N/A"} km/h<br/>
+                Time: ${formattedTime}<br/>
+                Address: Not available
+              `
+                  )
+                  .openPopup();
+              });
+          }
+        });
+
+        allArrowMarkersRef.current.push(marker);
+      }
+
+      setTimeout(() => updateArrowVisibility(), 0);
+    },
+    [data, createArrowIcon, getArrowDensity, updateArrowVisibility]
+  );
+
+  // ✅ Debounced arrow visibility update
+  const updateArrowVisibilityDebounced = useCallback(
+    (() => {
+      let timeoutId: NodeJS.Timeout;
+      return () => {
+        clearTimeout(timeoutId);
+        timeoutId = setTimeout(() => {
+          updateArrowVisibility();
+        }, 150);
+      };
+    })(),
+    [updateArrowVisibility]
+  );
+
+  const handleZoomEnd = useCallback(() => {
     if (!mapRef.current) return;
     const zoom = mapRef.current.getZoom();
     createAllArrowMarkers(zoom);
     updateArrowVisibility();
-  };
+  }, [createAllArrowMarkers, updateArrowVisibility]);
 
-  const handleMoveEnd = () => {
-    updateArrowVisibility();
-  };
+  const handleMoveEnd = useCallback(() => {
+    updateArrowVisibilityDebounced();
+  }, [updateArrowVisibilityDebounced]);
 
-  // Smooth rotation function with proper interpolation
+  // ✅ Optimized smooth rotation function
   const smoothRotateVehicle = useCallback(
     (marker: L.Marker, targetAngle: number) => {
       const el = marker.getElement();
@@ -268,18 +290,21 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
       if (!rotator) return;
 
       let diff = targetAngle - currentAngleRef.current;
-      if (diff > 180) diff -= 360;
-      if (diff < -180) diff += 360;
 
-      // ✅ Reduce smoothing threshold and increase interpolation
-      if (Math.abs(diff) < 5) {
-        // Only smooth very small GPS jitter
-        currentAngleRef.current += diff * 0.5; // 95% instead of 80%
-      } else {
-        currentAngleRef.current += diff; // Immediate for turns
-      }
+      // Skip update if angle is essentially the same
+      if (Math.abs(diff) < 0.5) return;
 
+      // Normalize to -180 to 180 range
+      while (diff > 180) diff -= 360;
+      while (diff < -180) diff += 360;
+
+      // Apply easing based on difference magnitude
+      const easingFactor = Math.abs(diff) > 15 ? 0.3 : 0.6;
+      currentAngleRef.current += diff * easingFactor;
+
+      // Normalize angle
       currentAngleRef.current = ((currentAngleRef.current % 360) + 360) % 360;
+
       rotator.style.transform = `rotate(${currentAngleRef.current}deg)`;
     },
     []
@@ -301,7 +326,6 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
       zoomControl: false,
     });
 
-    // ✅ Add initial tile layer (normal map without traffic)
     tileLayerRef.current = L.tileLayer(
       "https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}",
       {
@@ -330,33 +354,25 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
         mapRef.current = null;
       }
     };
-  }, [data]);
+  }, [data, handleZoomEnd, handleMoveEnd, updateArrowVisibility]);
 
+  // Handle tile layer changes
   useEffect(() => {
     if (!mapRef.current || !tileLayerRef.current) return;
 
-    // Remove old tile layer
     tileLayerRef.current.remove();
 
-    // Determine layer type based on settings
-    let lyrsParam = isSatelliteView ? "s" : "m"; // s = satellite, m = map
+    let lyrsParam = isSatelliteView ? "s" : "m";
     if (showTraffic) {
-      lyrsParam += ",traffic"; // Add traffic overlay
+      lyrsParam += ",traffic";
     }
 
-    // Add new tile layer
     tileLayerRef.current = L.tileLayer(
       `https://{s}.google.com/vt/lyrs=${lyrsParam}&x={x}&y={y}&z={z}`,
       {
         subdomains: ["mt0", "mt1", "mt2", "mt3"],
       }
     ).addTo(mapRef.current);
-
-    console.log("Tile layer updated:", {
-      isSatelliteView,
-      showTraffic,
-      lyrsParam,
-    });
   }, [isSatelliteView, showTraffic]);
 
   // Draw route with flags
@@ -438,7 +454,7 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
 
       setIsRouteDrawn(true);
     }
-  }, [data, completeRoute, startAddress, endAddress]);
+  }, [data, completeRoute, startAddress, endAddress, createFlagIcon]);
 
   // Create arrows when route is drawn
   useEffect(() => {
@@ -447,9 +463,9 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
       createAllArrowMarkers(zoom);
       updateArrowVisibility();
     }
-  }, [isRouteDrawn, data]);
+  }, [isRouteDrawn, data, createAllArrowMarkers, updateArrowVisibility]);
 
-  // Create MarkerPlayer - ONLY depends on data and isRouteDrawn
+  // Create MarkerPlayer
   useEffect(() => {
     if (!mapRef.current || !isRouteDrawn || data.length < 2) return;
 
@@ -462,7 +478,6 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
       course: d.course,
     }));
 
-    // ✅ Use BASE_PLAYBACK_SECONDS from the start with uniform durations
     const totalDuration = BASE_PLAYBACK_SECONDS / playbackSpeed;
     const segmentCount = points.length - 1;
     const uniformDuration = Math.max(totalDuration / segmentCount, 0.1);
@@ -476,16 +491,23 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
     currentAngleRef.current = data[0]?.course ?? 0;
 
     player.setOnUpdate((latlng, index) => {
-      mapRef.current!.panTo(latlng, {
-        animate: true,
-        duration: 0.95,
-        noMoveStart: true,
-      });
+      // ✅ Throttle map panning to every 100ms
+      const now = performance.now();
+      if (now - lastPanTimeRef.current > 100) {
+        mapRef.current!.panTo(latlng, {
+          animate: true,
+          duration: 0.3,
+          easeLinearity: 0.25,
+          noMoveStart: true,
+        });
+        lastPanTimeRef.current = now;
+      }
 
       const targetAngle = data[index]?.course ?? currentAngleRef.current;
       smoothRotateVehicle((player as any).marker, targetAngle);
 
-      const percent = (index / (data.length - 1)) * 100;
+      // ✅ Get accurate progress from player
+      const percent = player.getProgress();
       setProgress(percent);
 
       if (onProgressChange) {
@@ -508,9 +530,16 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
       }
       markerPlayerRef.current = null;
     };
-  }, [isRouteDrawn, data, smoothRotateVehicle]);
+  }, [
+    isRouteDrawn,
+    data,
+    playbackSpeed,
+    smoothRotateVehicle,
+    createVehicleIcon,
+    onProgressChange,
+  ]);
 
-  // ✅ FIXED: Handle speed changes with proper pause/resume
+  // Handle speed changes
   useEffect(() => {
     if (!markerPlayerRef.current || data.length < 2) return;
 
@@ -522,12 +551,6 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
       const uniformDuration = Math.max(totalDuration / segmentCount, 0.1);
       const durations = Array(segmentCount).fill(uniformDuration);
 
-      console.log(
-        "Updating speed to",
-        playbackSpeed,
-        "- Durations:",
-        uniformDuration
-      );
       markerPlayerRef.current.setDuration(durations);
     }
   }, [playbackSpeed, data]);
@@ -550,7 +573,7 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
   }, [isExpanded]);
 
   // Playback controls
-  const handlePlayPause = () => {
+  const handlePlayPause = useCallback(() => {
     if (!markerPlayerRef.current) {
       alert("Select vehicle and date range first.");
       return;
@@ -563,9 +586,9 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
       markerPlayerRef.current.start();
       setIsPlaying(true);
     }
-  };
+  }, [isPlaying]);
 
-  const handleStop = () => {
+  const handleStop = useCallback(() => {
     if (!markerPlayerRef.current) {
       alert("Select vehicle and date range first.");
       return;
@@ -574,47 +597,43 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
     setIsPlaying(false);
     setProgress(0);
     currentAngleRef.current = data[0]?.course ?? 0;
-  };
+  }, [data]);
 
-  // ✅ FIXED: Speed change with pause/resume logic
-  const handleSpeedChange = (speed: number) => {
+  const handleSpeedChange = useCallback((speed: number) => {
     if (!markerPlayerRef.current) return;
-
-    const wasPlaying = isPlaying;
-
-    // Pause if playing
-    if (wasPlaying) {
-      markerPlayerRef.current.pause();
-      setIsPlaying(false);
-    }
-
-    // Update speed (triggers useEffect)
     setPlaybackSpeed(speed);
+  }, []);
 
-    // Resume after duration update
-    if (wasPlaying) {
-      setTimeout(() => {
-        if (markerPlayerRef.current) {
-          markerPlayerRef.current.start();
-          setIsPlaying(true);
+  const handleProgressChange = useCallback(
+    (value: number) => {
+      if (!markerPlayerRef.current || !data.length) {
+        alert("Select vehicle and date range first.");
+        return;
+      }
+
+      markerPlayerRef.current.setProgress(value);
+      setProgress(value);
+
+      // ✅ Get the actual marker position and find nearest data point
+      const markerPos = markerPlayerRef.current["marker"].getLatLng();
+
+      let closestIndex = 0;
+      let minDist = Infinity;
+
+      for (let i = 0; i < data.length; i++) {
+        const dist = L.latLng(data[i].latitude, data[i].longitude).distanceTo(
+          markerPos
+        );
+        if (dist < minDist) {
+          minDist = dist;
+          closestIndex = i;
         }
-      }, 100);
-    }
-  };
+      }
 
-  const handleProgressChange = (value: number) => {
-    if (!markerPlayerRef.current || !data.length) {
-      alert("Select vehicle and date range first.");
-      return;
-    }
-
-    markerPlayerRef.current.setProgress(value);
-    setProgress(value);
-
-    const currentIdx = Math.round((value / 100) * (data.length - 1));
-    const safeIdx = Math.min(Math.max(currentIdx, 0), data.length - 1);
-    currentAngleRef.current = data[safeIdx].course;
-  };
+      currentAngleRef.current = data[closestIndex].course;
+    },
+    [data]
+  );
 
   if (!data || data.length === 0) {
     return (
@@ -659,7 +678,6 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
             strokeLinejoin="round"
           >
             {isSatelliteView ? (
-              // Map icon
               <>
                 <path d="M3 6h4l2 2h8l2-2h2v10H3V6z" />
                 <path d="M7 6v12" />
@@ -667,7 +685,6 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
                 <path d="M15 6v12" />
               </>
             ) : (
-              // Satellite icon
               <Satellite />
             )}
           </svg>
@@ -685,7 +702,7 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
         </button>
 
         {/* Divider */}
-        <div className="w-full h-px bg-black" />
+        <div className="w-full h-px bg-border" />
 
         {/* Zoom In */}
         <button
@@ -738,6 +755,10 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
         .vehicle-marker {
           background: transparent !important;
           border: none !important;
+          transition: transform 0.1s linear !important;
+        }
+        .vehicle-rotator {
+          transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
         }
         .green-flag,
         .red-flag {
@@ -752,6 +773,10 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
           border-radius: 50%;
           cursor: pointer;
           box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+          transition: transform 0.2s;
+        }
+        input[type="range"]::-webkit-slider-thumb:hover {
+          transform: scale(1.1);
         }
         input[type="range"]::-moz-range-thumb {
           width: 16px;

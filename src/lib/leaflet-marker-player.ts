@@ -2,7 +2,6 @@
 import L, { Marker, latLng, Util } from "leaflet";
 import type { Map, MarkerOptions, LatLng } from "leaflet";
 import { PlayerState, Point, Duration } from "@/types/marker-player.types";
-import { downsamplePoints } from "@/util/downsample";
 
 export class MarkerPlayer {
   private marker: Marker;
@@ -25,9 +24,11 @@ export class MarkerPlayer {
 
   private onUpdate?: (latlng: L.LatLng, index: number) => void;
   private onComplete?: () => void;
+
   setOnUpdate(cb: (latlng: L.LatLng, index: number) => void) {
     this.onUpdate = cb;
   }
+
   setOnComplete(cb: () => void) {
     this.onComplete = cb;
   }
@@ -39,12 +40,9 @@ export class MarkerPlayer {
     options?: MarkerOptions
   ) {
     this.map = map;
-
     this.points = rawPoints;
-
     this.marker = L.marker(this.points[0].latlng, options).addTo(map);
 
-    // ✅ Create durations based on DOWNSAMPLED points
     [this.durations, this.accDurations, this.totalDuration] =
       this.createDurations(this.points, duration);
 
@@ -86,11 +84,9 @@ export class MarkerPlayer {
     if (this.state !== PlayerState.PAUSED) return;
 
     this.state = PlayerState.RUNNING;
-
-    // Reset timestamp for smooth resume
     this.startTimestamp = 0;
-
     this.animRequested = true;
+
     this.animId = Util.requestAnimFrame(this.animate, this);
   }
 
@@ -119,8 +115,30 @@ export class MarkerPlayer {
     }
 
     this.currentIndex = Math.min(index, this.points.length - 1);
-    this.startTimestamp = 0;
-    this.marker.setLatLng(this.points[this.currentIndex].latlng);
+
+    // ✅ Calculate interpolated position within segment
+    const prevAccTime = index > 0 ? this.accDurations[index - 1] : 0;
+    const segmentElapsed = targetTime - prevAccTime;
+    const segmentDuration = this.durations[this.currentIndex];
+
+    if (segmentDuration > 0 && this.currentIndex < this.points.length - 1) {
+      const progress = Math.min(segmentElapsed / segmentDuration, 1);
+      const eased = this.easeInOutQuad(progress);
+
+      const p1 = latLng(this.points[this.currentIndex].latlng);
+      const p2 = latLng(this.points[this.currentIndex + 1].latlng);
+
+      const pos = latLng(
+        p1.lat + eased * (p2.lat - p1.lat),
+        p1.lng + eased * (p2.lng - p1.lng)
+      );
+
+      this.marker.setLatLng(pos);
+      this.startTimestamp = performance.now() - segmentElapsed;
+    } else {
+      this.marker.setLatLng(this.points[this.currentIndex].latlng);
+      this.startTimestamp = 0;
+    }
 
     this.onUpdate?.(this.marker.getLatLng(), this.currentIndex);
   }
@@ -128,16 +146,12 @@ export class MarkerPlayer {
   setDuration(newDurations: number[]) {
     if (!newDurations || newDurations.length === 0) return;
 
-    // ✅ Preserve running state
     const wasRunning = this.state === PlayerState.RUNNING;
-    const currentProgressPercent = this.getProgress();
 
-    // ✅ Pause if running
     if (wasRunning) {
       this.pause();
     }
 
-    // Ensure durations match points length
     const expectedLength = this.points.length - 1;
     if (newDurations.length !== expectedLength) {
       console.warn(
@@ -150,7 +164,6 @@ export class MarkerPlayer {
 
     this.durations = newDurations;
 
-    // Rebuild accumulated durations
     this.accDurations = [];
     let sum = 0;
     for (let i = 0; i < newDurations.length; i++) {
@@ -159,13 +172,9 @@ export class MarkerPlayer {
     }
 
     this.totalDuration = sum;
-
-    // Reset animation timing
     this.startTimestamp = 0;
 
-    // ✅ Resume if it was playing
     if (wasRunning) {
-      // Small delay to ensure state is updated
       setTimeout(() => {
         if (this.state === PlayerState.PAUSED) {
           this.resume();
@@ -178,9 +187,20 @@ export class MarkerPlayer {
     if (this.currentIndex === 0 && !this.startTimestamp) return 0;
     if (this.currentIndex >= this.points.length - 1) return 100;
 
+    // ✅ Include elapsed time in current segment for accurate progress
     const accTime =
       this.currentIndex > 0 ? this.accDurations[this.currentIndex - 1] : 0;
-    return (accTime / this.totalDuration) * 100;
+
+    const currentElapsed = this.startTimestamp
+      ? performance.now() - this.startTimestamp
+      : 0;
+    const currentSegmentProgress = Math.min(
+      currentElapsed,
+      this.durations[this.currentIndex] || 0
+    );
+
+    const totalElapsed = accTime + currentSegmentProgress;
+    return Math.min(100, (totalElapsed / this.totalDuration) * 100);
   }
 
   remove() {
@@ -195,7 +215,6 @@ export class MarkerPlayer {
 
     if (!this.startTimestamp) {
       this.startTimestamp = timestamp;
-      this.startTime = Date.now();
     }
 
     const elapsed = timestamp - this.startTimestamp;
@@ -211,7 +230,6 @@ export class MarkerPlayer {
         return;
       }
 
-      // ✅ Smooth jump with CSS transition
       this.marker.setLatLng(this.points[this.currentIndex].latlng);
       this.onUpdate?.(this.marker.getLatLng(), this.currentIndex);
       this.animId = Util.requestAnimFrame(this.animate, this);
@@ -223,26 +241,71 @@ export class MarkerPlayer {
       this.startTimestamp = timestamp;
 
       if (this.currentIndex >= this.points.length - 1) {
-        if (this.onComplete) {
-          this.onComplete();
-        }
+        this.marker.setLatLng(this.points[this.currentIndex].latlng);
+        this.onUpdate?.(this.marker.getLatLng(), this.currentIndex);
+        this.onComplete?.();
         this.stop();
         return;
       }
 
-      // ✅ Jump to exact GPS point (no interpolation)
       this.marker.setLatLng(this.points[this.currentIndex].latlng);
       this.onUpdate?.(this.marker.getLatLng(), this.currentIndex);
+    } else {
+      // ✅ Smooth interpolation with easing
+      const nextIndex = this.currentIndex + 1;
+      if (nextIndex < this.points.length) {
+        const p1 = latLng(this.points[this.currentIndex].latlng);
+        const p2 = latLng(this.points[nextIndex].latlng);
+
+        const progress = elapsed / duration;
+        const eased = this.easeInOutQuad(progress);
+
+        const pos = latLng(
+          p1.lat + eased * (p2.lat - p1.lat),
+          p1.lng + eased * (p2.lng - p1.lng)
+        );
+
+        this.marker.setLatLng(pos);
+        this.onUpdate?.(pos, this.currentIndex);
+      }
     }
 
     this.animId = Util.requestAnimFrame(this.animate, this);
   };
 
+  /* ---------------- EASING FUNCTIONS ---------------- */
+
+  private easeInOutQuad(t: number): number {
+    return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+  }
+
+  private easeInOutCubic(t: number): number {
+    return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+  }
+
+  private easeOutExpo(t: number): number {
+    return t === 1 ? 1 : 1 - Math.pow(2, -10 * t);
+  }
+
+  private vehicleEasing(t: number): number {
+    if (t < 0.1) {
+      return 5 * t * t;
+    } else if (t > 0.9) {
+      const x = (t - 0.9) / 0.1;
+      return 0.95 + 0.05 * (2 * x - x * x);
+    } else {
+      return 0.05 + 0.9 * ((t - 0.1) / 0.8);
+    }
+  }
+
+  private linear(t: number): number {
+    return t;
+  }
+
   /* ---------------- DURATION UTILS ---------------- */
 
   private createDurations(points: Point[], duration: Duration) {
     if (Array.isArray(duration)) {
-      // ✅ Ensure duration array matches points length
       const expectedLength = points.length - 1;
       let adjustedDuration = duration;
 
@@ -250,7 +313,6 @@ export class MarkerPlayer {
         console.warn(
           `Duration array length mismatch: expected ${expectedLength}, got ${duration.length}`
         );
-        // Pad or trim to match
         if (duration.length < expectedLength) {
           const avgDuration =
             duration.reduce((a, b) => a + b, 0) / duration.length;
@@ -279,8 +341,7 @@ export class MarkerPlayer {
     }
 
     const ratio = totalDistance === 0 ? 0 : duration / totalDistance;
-
-    const durs = distances.map((d) => Math.max(d * ratio, 0.1)); // ✅ Minimum 0.1s per segment
+    const durs = distances.map((d) => Math.max(d * ratio, 0.1));
     const acc: number[] = [];
     let sum = 0;
 
