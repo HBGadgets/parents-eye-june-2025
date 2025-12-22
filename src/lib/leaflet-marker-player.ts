@@ -199,13 +199,10 @@ export class MarkerPlayer {
     }
 
     const elapsed = timestamp - this.startTimestamp;
-
-    // ✅ Add safety check for undefined duration
     const duration = this.durations[this.currentIndex];
 
     if (duration === undefined || duration === 0) {
       console.warn(`Invalid duration at index ${this.currentIndex}:`, duration);
-      // Skip to next point
       this.currentIndex++;
       this.startTimestamp = timestamp;
 
@@ -214,6 +211,7 @@ export class MarkerPlayer {
         return;
       }
 
+      // ✅ Smooth jump with CSS transition
       this.marker.setLatLng(this.points[this.currentIndex].latlng);
       this.onUpdate?.(this.marker.getLatLng(), this.currentIndex);
       this.animId = Util.requestAnimFrame(this.animate, this);
@@ -225,33 +223,15 @@ export class MarkerPlayer {
       this.startTimestamp = timestamp;
 
       if (this.currentIndex >= this.points.length - 1) {
-         if (this.onComplete) {
-           this.onComplete();
-         }
+        if (this.onComplete) {
+          this.onComplete();
+        }
         this.stop();
         return;
       }
 
+      // ✅ Jump to exact GPS point (no interpolation)
       this.marker.setLatLng(this.points[this.currentIndex].latlng);
-      this.onUpdate?.(this.marker.getLatLng(), this.currentIndex);
-    } else {
-      // ✅ Add safety checks for interpolation
-      const nextIndex = this.currentIndex + 1;
-      if (nextIndex >= this.points.length) {
-        this.stop();
-        return;
-      }
-
-      const p1 = latLng(this.points[this.currentIndex].latlng);
-      const p2 = latLng(this.points[nextIndex].latlng);
-
-      const r = elapsed / duration;
-      const pos = latLng(
-        p1.lat + r * (p2.lat - p1.lat),
-        p1.lng + r * (p2.lng - p1.lng)
-      );
-
-      this.marker.setLatLng(pos);
       this.onUpdate?.(this.marker.getLatLng(), this.currentIndex);
     }
 
