@@ -64,11 +64,17 @@ export class MarkerPlayer {
       return;
     }
 
-    this.state = PlayerState.RUNNING;
-    this.currentIndex = 0;
-    this.startTimestamp = 0;
-    this.animRequested = true;
+    // Only when starting the first time or after stop, reset to 0
+    if (
+      this.state === PlayerState.NOT_STARTED ||
+      this.state === PlayerState.ENDED
+    ) {
+      this.currentIndex = 0;
+      this.startTimestamp = 0;
+    }
 
+    this.state = PlayerState.RUNNING;
+    this.animRequested = true;
     this.animId = Util.requestAnimFrame(this.animate, this);
   }
 
@@ -146,7 +152,9 @@ export class MarkerPlayer {
   setDuration(newDurations: number[]) {
     if (!newDurations || newDurations.length === 0) return;
 
+    // Preserve running state AND current progress
     const wasRunning = this.state === PlayerState.RUNNING;
+    const currentProgressPercent = this.getProgress();
 
     if (wasRunning) {
       this.pause();
@@ -170,16 +178,18 @@ export class MarkerPlayer {
       sum += newDurations[i];
       this.accDurations.push(sum);
     }
-
     this.totalDuration = sum;
+
+    // Reset timing base
     this.startTimestamp = 0;
 
+    // ✅ Restore previous progress (repositions marker correctly)
+    if (!isNaN(currentProgressPercent)) {
+      this.setProgress(currentProgressPercent);
+    }
+
     if (wasRunning) {
-      setTimeout(() => {
-        if (this.state === PlayerState.PAUSED) {
-          this.resume();
-        }
-      }, 10);
+      this.resume();
     }
   }
 
