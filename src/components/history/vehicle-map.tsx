@@ -482,19 +482,15 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
     }));
 
     const totalDuration = BASE_PLAYBACK_SECONDS / playbackSpeed;
-    const baseTotalDuration = BASE_PLAYBACK_SECONDS;
+    // const baseTotalDuration = BASE_PLAYBACK_SECONDS;
     const segmentCount = points.length - 1;
     const uniformDuration = Math.max(totalDuration / segmentCount, 0.1);
     const durations = Array(segmentCount).fill(uniformDuration);
 
-    const player = new MarkerPlayer(
-      mapRef.current!,
-      points,
-      baseTotalDuration,
-      {
-        icon: createVehicleIcon(),
-      }
-    );
+    const player = new MarkerPlayer(mapRef.current!, points, totalDuration, {
+      icon: createVehicleIcon(),
+    });
+    player.setDuration && player.setDuration(durations);
 
     markerPlayerRef.current = player;
     currentAngleRef.current = data[0]?.course ?? 0;
@@ -794,7 +790,7 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
         .vehicle-marker {
           background: transparent !important;
           border: none !important;
-          transition: transform 0.1s linear !important;
+          transition: none !important;
         }
         .vehicle-rotator {
           transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
