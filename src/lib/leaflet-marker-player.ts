@@ -107,6 +107,9 @@ export class MarkerPlayer {
       this.onComplete();
     }
   }
+  setEasing(easingFn: (t: number) => number): void {
+    this.easeInOutQuad = easingFn;
+  }
 
   setProgress(percent: number) {
     percent = Math.min(100, Math.max(0, percent));
@@ -268,7 +271,7 @@ export class MarkerPlayer {
         const p2 = latLng(this.points[nextIndex].latlng);
 
         const progress = elapsed / duration;
-        const eased = this.easeInOutQuad(progress);
+        const eased = this.vehicleEasing(progress);
 
         const pos = latLng(
           p1.lat + eased * (p2.lat - p1.lat),
@@ -288,6 +291,7 @@ export class MarkerPlayer {
   private easeInOutQuad(t: number): number {
     return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
   }
+
 
   private easeInOutCubic(t: number): number {
     return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
