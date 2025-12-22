@@ -467,6 +467,9 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
 
   // Create MarkerPlayer
   useEffect(() => {
+    console.log(
+      "🎅🎅🎅🎅🎅🎅🎅🎅🎅🎅🎅🎅🎅🎅🎅🎅🎅🎅🎅🎅🎅🎅🎅🎅🎅🎅🎅🎅🎅🎅🎅🎅🎅🎅🎅🎅🎅🎅🎅🎅🎅🎅🎅🎅🎅🎅🎅🎅🎅🎅"
+    );
     if (!mapRef.current || !isRouteDrawn || data.length < 2) return;
 
     if (markerPlayerRef.current) {
@@ -484,9 +487,14 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
     const uniformDuration = Math.max(totalDuration / segmentCount, 0.1);
     const durations = Array(segmentCount).fill(uniformDuration);
 
-    const player = new MarkerPlayer(mapRef.current!, points, baseTotalDuration, {
-      icon: createVehicleIcon(),
-    });
+    const player = new MarkerPlayer(
+      mapRef.current!,
+      points,
+      baseTotalDuration,
+      {
+        icon: createVehicleIcon(),
+      }
+    );
 
     markerPlayerRef.current = player;
     currentAngleRef.current = data[0]?.course ?? 0;
@@ -585,7 +593,6 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
 
     markerPlayerRef.current.setDuration(durations);
   }, [playbackSpeed, data]);
-
 
   // Enhanced resize handler
   useEffect(() => {
