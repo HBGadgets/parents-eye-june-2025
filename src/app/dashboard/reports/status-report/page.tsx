@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, useCallback } from "react";
+import React, { useState, useMemo, useCallback, useEffect } from "react";
 import {
   ReportFilter,
   FilterValues,
@@ -10,9 +10,13 @@ import { CustomTableServerSidePagination } from "@/components/ui/customTable(ser
 import ResponseLoader from "@/components/ResponseLoader";
 import { getStatusReportColumns } from "@/components/columns/columns";
 import { useReport } from "@/hooks/reports/useReport";
+import { useQueryClient } from "@tanstack/react-query";
 
 const StatusReportPage: React.FC = () => {
   // Table state
+  const queryClient = useQueryClient();
+  const [shouldFetch, setShouldFetch] = useState(false);
+  const [hasGenerated, setHasGenerated] = useState(false);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
   const [showTable, setShowTable] = useState(false);
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 10 });
@@ -31,7 +35,8 @@ const StatusReportPage: React.FC = () => {
   const { statusReport, totalStatusReport, isFetchingStatusReport } = useReport(
     pagination,
     apiFilters,
-    "status"
+    "status",
+    hasGenerated
   );
 
   // Column definitions
@@ -59,10 +64,26 @@ const StatusReportPage: React.FC = () => {
       to: filters.to,
       period: "Custom",
     });
+    setShouldFetch(true);
+    setHasGenerated(true);
 
     // Show table
     setShowTable(true);
   }, []);
+
+  useEffect(() => {
+    if (!isFetchingStatusReport && shouldFetch) {
+      setShouldFetch(false);
+    }
+  }, [isFetchingStatusReport, shouldFetch]);
+
+  useEffect(() => {
+    if (shouldFetch && hasGenerated) {
+      queryClient.invalidateQueries({
+        queryKey: ["status-report"],
+      });
+    }
+  }, [shouldFetch, hasGenerated, queryClient]);
 
   // Table configuration
   const { table, tableElement } = CustomTableServerSidePagination({
@@ -99,7 +120,10 @@ const StatusReportPage: React.FC = () => {
           showDevice: true,
           showDateRange: true,
           showSubmitButton: true,
-          submitButtonText: "Generate",
+          submitButtonText: isFetchingStatusReport
+            ? "Generating..."
+            : "Generate",
+          submitButtonDisabled: isFetchingStatusReport,
           dateRangeTitle: "Select Date Range",
           dateRangeMaxDays: 300,
           cardTitle: "Status Report",

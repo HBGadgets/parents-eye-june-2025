@@ -15,7 +15,8 @@ export const useReport = (
     | "alerts-events"
     | "geofence-alerts"
     | "trip"
-    | "travel-summary"
+    | "travel-summary",
+  hasGenerated?: boolean,
 ) => {
   const isAll = pagination.pageSize === "all";
 
@@ -40,10 +41,14 @@ export const useReport = (
         to: filters?.to,
       }),
     enabled:
+      hasGenerated &&
       reportType === "status" &&
       !!filters?.uniqueId &&
       !!filters?.from &&
       !!filters?.to,
+
+    staleTime: 10 * 60 * 1000,
+
     refetchOnWindowFocus: false,
     retry: false,
     placeholderData: keepPreviousData,

@@ -43,7 +43,12 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
   isExpanded,
   onProgressChange,
 }) => {
-  const BASE_PLAYBACK_SECONDS = 60000; // 60 seconds at 1x speed
+  const MIN_BASE_SECONDS = 2;
+
+  const BASE_PLAYBACK_SECONDS = Math.max(
+    MIN_BASE_SECONDS,
+    Math.ceil(data.length / 100)
+  );
 
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
@@ -81,7 +86,7 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
     return L.divIcon({
       className: "vehicle-marker",
       html: `
-      <div class="vehicle-rotator" style="
+      <div style="
         width: 32px;
         height: 32px;
         display: flex;
@@ -292,7 +297,11 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
       let diff = targetAngle - currentAngleRef.current;
 
       // Skip update if angle is essentially the same
-      if (Math.abs(diff) < 0.5) return;
+      if (Math.abs(diff) < 3) {
+        currentAngleRef.current += diff;
+      } else {
+        currentAngleRef.current = targetAngle;
+      }
 
       // Normalize to -180 to 180 range
       while (diff > 180) diff -= 360;
@@ -499,29 +508,49 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
     markerPlayerRef.current = player;
     currentAngleRef.current = data[0]?.course ?? 0;
 
+    // player.setOnUpdate((latlng, index) => {
+    //   // ✅ Throttle map panning to every 100ms
+    //   const now = performance.now();
+    //   if (now - lastPanTimeRef.current > 100) {
+    //     // mapRef.current!.panTo(latlng, {
+    //     //   animate: true,
+    //     //   duration: 0.3,
+    //     //   easeLinearity: 0.25,
+    //     //   noMoveStart: true,
+    //     // });
+    //     const bounds = mapRef.current!.getBounds();
+    //     if (!bounds.pad(-0.2).contains(latlng)) {
+    //       mapRef.current!.panTo(latlng, { animate: false });
+    //     }
+
+    //     lastPanTimeRef.current = now;
+    //   }
+
+    //   const targetAngle = data[index]?.course ?? currentAngleRef.current;
+    //   smoothRotateVehicle((player as any).marker, targetAngle);
+
+    //   // ✅ Get accurate progress from player
+    //   const percent = player.getProgress();
+    //   setProgress(percent);
+
+    //   if (onProgressChange) {
+    //     onProgressChange(percent);
+    //   }
+    // });
+
     player.setOnUpdate((latlng, index) => {
-      // ✅ Throttle map panning to every 100ms
-      const now = performance.now();
-      if (now - lastPanTimeRef.current > 100) {
-        mapRef.current!.panTo(latlng, {
-          animate: true,
-          duration: 0.3,
-          easeLinearity: 0.25,
-          noMoveStart: true,
-        });
-        lastPanTimeRef.current = now;
+      // keep marker locked to polyline
+      const bounds = mapRef.current!.getBounds();
+      if (!bounds.pad(-0.2).contains(latlng)) {
+        mapRef.current!.panTo(latlng, { animate: true, duration: 0.3 });
       }
 
       const targetAngle = data[index]?.course ?? currentAngleRef.current;
       smoothRotateVehicle((player as any).marker, targetAngle);
 
-      // ✅ Get accurate progress from player
-      const percent = player.getProgress();
+      const percent = (index / (data.length - 1)) * 100;
       setProgress(percent);
-
-      if (onProgressChange) {
-        onProgressChange(percent);
-      }
+      onProgressChange?.(percent);
     });
 
     player.setOnComplete(() => {
@@ -791,11 +820,13 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
           background: transparent !important;
           border: none !important;
         }
-        .vehicle-marker {
-          background: transparent !important;
-          border: none !important;
-          transition: transform 0.1s linear !important;
+        .vehicle-marker,
+        .vehicle-marker * {
+          transition: none !important;
+          animation: none !important;
+          will-change: auto !important;
         }
+
         .vehicle-rotator {
           transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
         }

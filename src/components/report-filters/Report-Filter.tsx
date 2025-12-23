@@ -21,8 +21,6 @@ import { Button } from "../ui/button";
 import {
   Card,
   CardContent,
-  CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -50,6 +48,7 @@ export interface ReportFilterConfig {
   showDateRange?: boolean;
   showSubmitButton?: boolean;
   submitButtonText?: string;
+  submitButtonDisabled?: boolean;
   dateRangeMaxDays?: number;
   dateRangeTitle?: string;
   customValidation?: (filters: FilterValues) => string | null;
@@ -979,7 +978,7 @@ export const ReportFilter: React.FC<ReportFilterProps> = ({
           {mergedConfig.showSubmitButton && (
             <Button
               onClick={handleSubmit}
-              disabled={!isValid}
+              disabled={!isValid || mergedConfig.submitButtonDisabled}
               className="px-6 cursor-pointer mt-6"
               size="lg"
             >
