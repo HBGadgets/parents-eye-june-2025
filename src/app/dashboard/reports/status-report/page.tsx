@@ -64,8 +64,6 @@ const StatusReportPage: React.FC = () => {
     setShowTable(true);
   }, []);
 
-  console.log("🚀 Status Report Data:", statusReport);
-
   // Table configuration
   const { table, tableElement } = CustomTableServerSidePagination({
     data: statusReport,

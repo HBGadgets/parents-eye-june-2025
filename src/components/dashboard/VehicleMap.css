@@ -1,9 +1,9 @@
 /* Smooth marker movement animation - 10s second duration */
-.smooth-marker {
+/* .smooth-marker {
     transition: transform 10s linear,
         margin-left 10s linear,
         margin-top 10s linear !important;
-}
+} */
 
 .custom-single-vehicle-marker {
     transition: all 10s linear;

@@ -1007,8 +1007,9 @@ export const getStatusReportColumns = (): ColumnDef<StatusReport>[] => [
     accessorKey: "time",
   },
   {
-    header: "Distance",
-    accessorKey: "distance",
+    header: "Distance (km)",
+    accessorFn: (row: StatusReport) =>
+      row.distance != null ? (row.distance / 1000).toFixed(2) : "0.00",
   },
   {
     header: "Max Speed",

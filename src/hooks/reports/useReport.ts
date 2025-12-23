@@ -17,7 +17,6 @@ export const useReport = (
     | "trip"
     | "travel-summary"
 ) => {
-
   const isAll = pagination.pageSize === "all";
 
   const getStatusQuery = useQuery({
@@ -40,7 +39,6 @@ export const useReport = (
         from: filters?.from,
         to: filters?.to,
       }),
-    placeholderData: keepPreviousData,
     enabled:
       reportType === "status" &&
       !!filters?.uniqueId &&
@@ -48,6 +46,7 @@ export const useReport = (
       !!filters?.to,
     refetchOnWindowFocus: false,
     retry: false,
+    placeholderData: keepPreviousData,
   });
 
   const getStopReportQuery = useQuery({
@@ -237,36 +236,35 @@ export const useReport = (
     retry: false,
   });
 
-   const getTravelSummaryReportQuery = useQuery({
-     queryKey: [
-       "travel-summary",
-       pagination.pageIndex,
-       pagination.pageSize,
-       filters?.uniqueId,
-       filters?.period,
-       filters?.from,
-       filters?.to,
-     ],
+  const getTravelSummaryReportQuery = useQuery({
+    queryKey: [
+      "travel-summary",
+      pagination.pageIndex,
+      pagination.pageSize,
+      filters?.uniqueId,
+      filters?.period,
+      filters?.from,
+      filters?.to,
+    ],
 
-     queryFn: () =>
-       reportService.getTripReport({
-         page: pagination.pageIndex + 1,
-         limit: pagination.pageSize,
-         uniqueId: filters?.uniqueId,
-         period: filters?.period || "Custom",
-         from: filters?.from,
-         to: filters?.to,
-       }),
-     placeholderData: keepPreviousData,
-     enabled:
-       reportType === "travel-summary" &&
-       !!filters?.uniqueId &&
-       !!filters?.from &&
-       !!filters?.to,
-     refetchOnWindowFocus: false,
-     retry: false,
-   });
-
+    queryFn: () =>
+      reportService.getTripReport({
+        page: pagination.pageIndex + 1,
+        limit: pagination.pageSize,
+        uniqueId: filters?.uniqueId,
+        period: filters?.period || "Custom",
+        from: filters?.from,
+        to: filters?.to,
+      }),
+    placeholderData: keepPreviousData,
+    enabled:
+      reportType === "travel-summary" &&
+      !!filters?.uniqueId &&
+      !!filters?.from &&
+      !!filters?.to,
+    refetchOnWindowFocus: false,
+    retry: false,
+  });
 
   return {
     statusReport: getStatusQuery.data?.data || [],

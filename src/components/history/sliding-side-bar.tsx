@@ -56,6 +56,9 @@ const TripsSidebar: React.FC<TripsSidebarProps> = ({
     const avgSpeed =
       trip.reduce((sum, p) => sum + (p.speed || 0), 0) / trip.length;
 
+    const latitudes = trip.map((p) => p.latitude);
+    const longitudes = trip.map((p) => p.longitude);
+
     return {
       id: index,
       startTime: start.createdAt,
@@ -79,6 +82,8 @@ const TripsSidebar: React.FC<TripsSidebarProps> = ({
       hour: "2-digit",
       minute: "2-digit",
     });
+
+  console.log("Rendering TripsSidebar with trips:", trips);
 
   return (
     <>
@@ -134,6 +139,14 @@ const TripsSidebar: React.FC<TripsSidebarProps> = ({
                       {formatTime(trip.startTime)} – {formatTime(trip.endTime)}
                     </div>
 
+                    <div className="flex items-center gap-2">
+                      <MapPin className="w-3 h-3" />
+                      {trip.distance.toFixed(1)} km
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <MapPin className="w-3 h-3" />
+                      {trip.distance.toFixed(1)}
+                    </div>
                     <div className="flex items-center gap-2">
                       <MapPin className="w-3 h-3" />
                       {trip.distance.toFixed(1)} km
