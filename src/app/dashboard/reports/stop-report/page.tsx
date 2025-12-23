@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, useCallback } from "react";
+import React, { useState, useMemo, useCallback, useEffect } from "react";
 import {
   ReportFilter,
   FilterValues,
@@ -10,9 +10,13 @@ import { CustomTableServerSidePagination } from "@/components/ui/customTable(ser
 import ResponseLoader from "@/components/ResponseLoader";
 import { useReport } from "@/hooks/reports/useReport";
 import { getStopReportColumns } from "@/components/columns/columns";
+import { useQueryClient } from "@tanstack/react-query";
 
 const StopReportPage: React.FC = () => {
   // Table state
+  const queryClient = useQueryClient();
+  const [shouldFetch, setShouldFetch] = useState(false);
+  const [hasGenerated, setHasGenerated] = useState(false);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
   const [showTable, setShowTable] = useState(false);
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 10 });
@@ -31,7 +35,8 @@ const StopReportPage: React.FC = () => {
   const { stopReport, totalStopReport, isFetchingStopReport } = useReport(
     pagination,
     apiFilters,
-    "stop"
+    "stop",
+    hasGenerated
   );
 
   // Column definitions
@@ -39,7 +44,7 @@ const StopReportPage: React.FC = () => {
 
   // Handle filter submission
   const handleFilterSubmit = useCallback((filters: FilterValues) => {
-    console.log("✅ Filter submitted:", filters);
+    // console.log("✅ Filter submitted:", filters);
 
     if (!filters.deviceId || !filters.from || !filters.to) {
       alert("Please select a vehicle and date range");
@@ -60,9 +65,27 @@ const StopReportPage: React.FC = () => {
       period: "Custom",
     });
 
+    setShouldFetch(true);
+    setHasGenerated(true);
+
+
     // Show table
     setShowTable(true);
   }, []);
+
+   useEffect(() => {
+      if (!isFetchingStopReport && shouldFetch) {
+        setShouldFetch(false);
+      }
+    }, [isFetchingStopReport, shouldFetch]);
+  
+    useEffect(() => {
+      if (shouldFetch && hasGenerated) {
+        queryClient.invalidateQueries({
+          queryKey: ["stop-report"],
+        });
+      }
+    }, [shouldFetch, hasGenerated, queryClient]);
 
   // Table configuration
   const { table, tableElement } = CustomTableServerSidePagination({
@@ -99,7 +122,10 @@ const StopReportPage: React.FC = () => {
           showDevice: true,
           showDateRange: true,
           showSubmitButton: true,
-          submitButtonText: "Generate",
+          submitButtonText: isFetchingStopReport
+            ? "Generating..."
+            : "Generate",
+          submitButtonDisabled: isFetchingStopReport,
           dateRangeTitle: "Select Date Range",
           dateRangeMaxDays: 300,
           cardTitle: "Stop Report",

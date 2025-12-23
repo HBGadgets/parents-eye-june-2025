@@ -16,7 +16,7 @@ export const useReport = (
     | "geofence-alerts"
     | "trip"
     | "travel-summary",
-  hasGenerated?: boolean,
+  hasGenerated?: boolean
 ) => {
   const isAll = pagination.pageSize === "all";
 
@@ -81,14 +81,17 @@ export const useReport = (
               limit: pagination.pageSize,
             }),
       }),
-    placeholderData: keepPreviousData,
     enabled:
+      hasGenerated &&
       reportType === "stop" &&
       !!filters?.uniqueId &&
       !!filters?.from &&
       !!filters?.to,
+
+    staleTime: 10 * 60 * 1000,
     refetchOnWindowFocus: false,
     retry: false,
+    placeholderData: keepPreviousData,
   });
 
   const getIdleReportQuery = useQuery({
@@ -111,14 +114,16 @@ export const useReport = (
         from: filters?.from,
         to: filters?.to,
       }),
-    placeholderData: keepPreviousData,
     enabled:
+      hasGenerated &&
       reportType === "idle" &&
       !!filters?.uniqueId &&
       !!filters?.from &&
       !!filters?.to,
+    staleTime: 10 * 60 * 1000,
     refetchOnWindowFocus: false,
     retry: false,
+    placeholderData: keepPreviousData,
   });
 
   const getDistanceReportQuery = useQuery({
@@ -141,14 +146,16 @@ export const useReport = (
         from: filters?.from,
         to: filters?.to,
       }),
-    placeholderData: keepPreviousData,
     enabled:
+      hasGenerated &&
       reportType === "distance" &&
       !!filters?.uniqueId &&
       !!filters?.from &&
       !!filters?.to,
+    staleTime: 10 * 60 * 1000,
     refetchOnWindowFocus: false,
     retry: false,
+    placeholderData: keepPreviousData,
   });
 
   const getAertsAndEventsReportQuery = useQuery({
@@ -171,14 +178,16 @@ export const useReport = (
         from: filters?.from,
         to: filters?.to,
       }),
-    placeholderData: keepPreviousData,
     enabled:
+      hasGenerated &&
       reportType === "alerts-events" &&
       !!filters?.uniqueId &&
       !!filters?.from &&
       !!filters?.to,
+    staleTime: 10 * 60 * 1000,
     refetchOnWindowFocus: false,
     retry: false,
+    placeholderData: keepPreviousData,
   });
 
   const getGeofenceAlertsReportQuery = useQuery({
@@ -201,14 +210,16 @@ export const useReport = (
         from: filters?.from,
         to: filters?.to,
       }),
-    placeholderData: keepPreviousData,
     enabled:
+      hasGenerated &&
       reportType === "geofence-alerts" &&
       !!filters?.uniqueId &&
       !!filters?.from &&
       !!filters?.to,
+    staleTime: 10 * 60 * 1000,
     refetchOnWindowFocus: false,
     retry: false,
+    placeholderData: keepPreviousData,
   });
 
   const getTripReportQuery = useQuery({
@@ -231,14 +242,17 @@ export const useReport = (
         from: filters?.from,
         to: filters?.to,
       }),
-    placeholderData: keepPreviousData,
     enabled:
+      hasGenerated &&
       reportType === "trip" &&
       !!filters?.uniqueId &&
       !!filters?.from &&
       !!filters?.to,
+
+    staleTime: 10 * 60 * 1000,
     refetchOnWindowFocus: false,
     retry: false,
+    placeholderData: keepPreviousData,
   });
 
   const getTravelSummaryReportQuery = useQuery({
@@ -261,14 +275,16 @@ export const useReport = (
         from: filters?.from,
         to: filters?.to,
       }),
-    placeholderData: keepPreviousData,
     enabled:
+      hasGenerated &&
       reportType === "travel-summary" &&
       !!filters?.uniqueId &&
       !!filters?.from &&
       !!filters?.to,
+    staleTime: 10 * 60 * 1000,
     refetchOnWindowFocus: false,
     retry: false,
+    placeholderData: keepPreviousData,
   });
 
   return {

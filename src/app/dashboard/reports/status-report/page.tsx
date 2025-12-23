@@ -44,7 +44,7 @@ const StatusReportPage: React.FC = () => {
 
   // Handle filter submission
   const handleFilterSubmit = useCallback((filters: FilterValues) => {
-    console.log("✅ Filter submitted:", filters);
+    // console.log("✅ Filter submitted:", filters);
 
     if (!filters.deviceId || !filters.from || !filters.to) {
       alert("Please select a vehicle and date range");
