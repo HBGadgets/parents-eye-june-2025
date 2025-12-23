@@ -101,6 +101,7 @@ type StreamingMode = "all" | "single" | null;
 
 class DeviceService {
   private static instance: DeviceService;
+  private token = Cookies.get("token");
   private socket: Socket | null = null;
   private isConnected = false;
   private isAuthenticated = false;
@@ -142,6 +143,9 @@ class DeviceService {
         timeout: 20000,
         forceNew: false,
         transports: ["websocket", "polling"],
+              auth: {
+        token: `Bearer ${this.token}`,
+      },
       });
 
       this.setupEventListeners(callbacks);
@@ -320,9 +324,8 @@ class DeviceService {
   }
 
   private authenticateIfTokenExists(): void {
-    const token = Cookies.get("token");
-    if (token && this.isConnected && !this.isAuthenticated) {
-      this.authenticate(token);
+    if (this.token && this.isConnected && !this.isAuthenticated) {
+      this.authenticate(this.token);
     }
   }
 
