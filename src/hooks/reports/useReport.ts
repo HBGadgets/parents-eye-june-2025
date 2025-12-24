@@ -267,10 +267,10 @@ export const useReport = (
     ],
 
     queryFn: () =>
-      reportService.getTripReport({
+      reportService.getTravelSummaryReport({
         page: pagination.pageIndex + 1,
         limit: pagination.pageSize,
-        uniqueId: filters?.uniqueId,
+        uniqueIds: filters?.uniqueId,
         period: filters?.period || "Custom",
         from: filters?.from,
         to: filters?.to,
@@ -295,7 +295,7 @@ export const useReport = (
     alertsAndEventsReport: getAertsAndEventsReportQuery.data?.data || [],
     geofenceAlertsReport: getGeofenceAlertsReportQuery.data?.data || [],
     tripReport: getTripReportQuery.data?.data || [],
-    travelSummaryReport: getTravelSummaryReportQuery.data?.data || [],
+    travelSummaryReport: getTravelSummaryReportQuery.data?.reportData || [],
 
     totalStatusReport: getStatusQuery.data?.total || 0,
     totalStopReport: getStopReportQuery.data?.total || 0,

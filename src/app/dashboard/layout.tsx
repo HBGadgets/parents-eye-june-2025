@@ -1,5 +1,5 @@
 "use client";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import Cookies from "js-cookie";
 import { useDeviceStore } from "@/store/deviceStore";
 import { AppSidebar } from "@/components/app-sidebar";
@@ -13,12 +13,14 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { useNavigationStore } from "@/store/navigationStore";
 
 export default function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const activeSection = useNavigationStore((state) => state.activeSection);
   useEffect(() => {
     const token = Cookies.get("token");
 
@@ -29,15 +31,15 @@ export default function DashboardLayout({
     }
 
     // Cleanup on app unmount
-    return () => {
-      const disconnect = useDeviceStore.getState().disconnect;
-      disconnect();
-    };
+    // return () => {
+    //   const disconnect = useDeviceStore.getState().disconnect;
+    //   disconnect();
+    // };
   }, []);
   return (
     <TooltipProvider delayDuration={0}>
-      <SidebarProvider>
-        <AppSidebar />
+      <SidebarProvider defaultOpen={false}>
+        {activeSection !== "Dashboard" && <AppSidebar />}
         <SidebarInset className="overflow-hidden flex flex-col h-screen">
           <header className="sticky top-0 z-20 flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear overflow-hidden bg-background border-b">
             <div className="flex items-center gap-2 px-4 min-w-0 relative z-20">

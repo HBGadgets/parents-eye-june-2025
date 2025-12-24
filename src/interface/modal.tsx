@@ -314,15 +314,13 @@ export interface StopReport {
   vehicleStatus: string;
   name: string;
   time: string;
-  startDateTime: string;
-  endDateTime: string;
+  arrivalTime: string;
+  departureTime: string;
   startLocation: string;
   startCoordinates: string;
   endLocation: string;
   endCoordinates: string;
   distance: number;
-  maxSpeed: number;
-  avgSpeed: number;
 }
 
 export interface GetStopReportResponse {

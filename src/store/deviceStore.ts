@@ -162,6 +162,8 @@ export const useDeviceStore = create<DeviceState>()(
               });
             },
 
+            
+
             // ========== AUTH SUCCESS - EXTRACT USERID FROM JWT ==========
             onAuthSuccess: (authData?: AuthData) => {
               // console.log("[DeviceStore] Auth success:", authData);
@@ -517,8 +519,6 @@ export const useDeviceStore = create<DeviceState>()(
           }
         }
       },
-
-      // ... (rest of your device streaming methods remain unchanged)
 
       startSingleDeviceStream: (uniqueId: string | number) => {
         const deviceService = DeviceService.getInstance();

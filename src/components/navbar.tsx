@@ -19,13 +19,13 @@ export function Navbar() {
     (state) => state.setActiveSection
   );
   const { setOpen, setOpenMobile, isMobile } = useSidebar();
-  const { notifications, clearNotifications } = useNotificationStore();
+  const { notifications } = useNotificationStore();
 
-  React.useEffect(() => {
-    console.log("Notifications: ", notifications);
-  }, [notifications]);
+  // React.useEffect(() => {
+  //   console.log("Notifications: ", notifications);
+  // }, [notifications]);
 
-  const navigationMap = {
+  const navigationMap: Record<string, string> = {
     Dashboard: "/dashboard",
     Maintenance: "https://maintenance.credencetracker.com/#/login",
     Geofence: "/dashboard/school/geofence",
@@ -34,13 +34,14 @@ export function Navbar() {
 
   const handleNavClick = React.useCallback(
     (section: string) => {
-      if (
-        section !== "Dashboard"
-        // section !== "Notifications" &&
-        // section !== "Geofence"
-      ) {
+      if (section === "Dashboard") {
+        // Close sidebar on both mobile and desktop when Dashboard is clicked
         setActiveSection(section);
-        // Open sidebar based on device type
+        setOpenMobile(false);
+        setOpen(false);
+      } else {
+        setActiveSection(section);
+        // Open sidebar based on device type for other sections
         if (isMobile) {
           setOpenMobile(true);
         } else {
@@ -73,7 +74,6 @@ export function Navbar() {
                     className="text-xs sm:text-sm px-1.5 sm:px-3 py-1 sm:py-2 whitespace-nowrap font-semibold hover:font-bold transition-colors duration-200 focus:font-bold hover:bg-yellow-500/20 rounded-md"
                   >
                     <Link
-                      // href={section === "Dashboard" ? "/dashboard" : "#"}
                       href={navigationMap[section] || "#"}
                       onClick={() => handleNavClick(section)}
                     >
@@ -89,11 +89,7 @@ export function Navbar() {
 
       {/* Right: Profile dropdown positioned at the right edge */}
       <div className="absolute right-2 sm:right-4 top-1/2 transform -translate-y-1/2 flex-shrink-0 z-[9999] h-full flex items-center gap-4">
-        {/* <div className="cursor-pointer">
-          <Bell />
-        </div> */}
         <NotificationSheet />
-
         <ProfileDropdown />
       </div>
     </div>

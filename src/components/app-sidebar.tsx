@@ -113,7 +113,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
     setIsLoading(false);
   }, []);
-
+  
   const getSidebarData = React.useCallback(
     (section: string, role: UserRole) => {
       switch (section) {
@@ -303,14 +303,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               {!isCollapsed && (
                 <div className="w-full px-3 animate-in fade-in duration-200">
                   <div className="relative">
-                    {/* <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-yellow-800/60 z-10" />
-                    <Input
-                      type="text"
-                      placeholder="Search..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="w-full bg-white/90 pl-9 pr-3 h-9 text-sm placeholder:text-yellow-800/50 focus-visible:ring-2 focus-visible:ring-yellow-600 border-yellow-600/30 hover:bg-white transition-all duration-200"
-                    /> */}
                     <Image
                       width={150}
                       height={150}

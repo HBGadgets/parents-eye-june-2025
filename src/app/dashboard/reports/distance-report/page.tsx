@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useCallback, useRef } from "react";
+import React, { useState, useCallback, useRef, useEffect } from "react";
 import {
   ReportFilter,
   FilterValues,
@@ -10,9 +10,13 @@ import { CustomTableServerSidePagination } from "@/components/ui/customTable(ser
 import ResponseLoader from "@/components/ResponseLoader";
 import { useReport } from "@/hooks/reports/useReport";
 import { id } from "date-fns/locale";
+import { useQueryClient } from "@tanstack/react-query";
 
 const DistanceReportPage: React.FC = () => {
   // Table state
+  const queryClient = useQueryClient();
+  const [shouldFetch, setShouldFetch] = useState(false);
+  const [hasGenerated, setHasGenerated] = useState(false);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
   const [showTable, setShowTable] = useState(false);
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 10 });
@@ -32,7 +36,7 @@ const DistanceReportPage: React.FC = () => {
 
   // Fetch report data using the hook
   const { distanceReport, totalDistanceReport, isFetchingDistanceReport } =
-    useReport(pagination, apiFilters, "distance");
+    useReport(pagination, apiFilters, "distance", hasGenerated);
 
   // Handle filter submission
   const handleFilterSubmit = useCallback((filters: FilterValues) => {
@@ -57,9 +61,27 @@ const DistanceReportPage: React.FC = () => {
       period: "Custom",
     });
 
+    setShouldFetch(true);
+    setHasGenerated(true);
+
     // Show table
     setShowTable(true);
   }, []);
+
+    useEffect(() => {
+      if (!isFetchingDistanceReport && shouldFetch) {
+        setShouldFetch(false);
+      }
+    }, [isFetchingDistanceReport, shouldFetch]);
+  
+    useEffect(() => {
+      if (shouldFetch && hasGenerated) {
+        queryClient.invalidateQueries({
+          queryKey: ["distance-report"],
+        });
+      }
+    }, [shouldFetch, hasGenerated, queryClient]);
+  
 
   const columns = React.useMemo(() => {
     if (isFetchingDistanceReport && stableColumnsRef.current.length > 0) {
@@ -156,7 +178,10 @@ const DistanceReportPage: React.FC = () => {
           showDevice: true,
           showDateRange: true,
           showSubmitButton: true,
-          submitButtonText: "Generate",
+          submitButtonText: isFetchingDistanceReport
+            ? "Generating..."
+            : "Generate",
+          submitButtonDisabled: isFetchingDistanceReport,
           dateRangeTitle: "Select Date Range",
           dateRangeMaxDays: 300,
           cardTitle: "Distance Report",

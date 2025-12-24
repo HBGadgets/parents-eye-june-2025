@@ -21,10 +21,15 @@ export const useLiveDeviceData = () => {
     }
 
     // Cleanup on unmount - ALWAYS disconnect
+    // return () => {
+    //   store.disconnect();
+    //   hasInitialized.current = false;
+    // };
+    // Cleanup all device streams on unmount
     return () => {
-      store.disconnect();
+      store.stopAllSingleDeviceStreams();
       hasInitialized.current = false;
-    };
+    }
   }, []);
 
   return {

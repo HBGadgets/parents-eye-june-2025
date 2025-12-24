@@ -2,7 +2,13 @@ import { io, Socket } from "socket.io-client";
 import Cookies from "js-cookie";
 import { AllDeviceResponse, DeviceFilters } from "@/types/socket";
 
-// Add interface for single device data
+// ============================================================
+// Type Definitions
+// ============================================================
+
+/**
+ * Represents data for a single GPS tracking device
+ */
 export interface SingleDeviceData {
   imei: string;
   uniqueId: number;
@@ -19,6 +25,9 @@ export interface SingleDeviceData {
   [key: string]: unknown;
 }
 
+/**
+ * Event callbacks for device service socket events
+ */
 export interface DeviceServiceEvents {
   onDataReceived: (data: AllDeviceResponse) => void;
   onSingleDeviceDataReceived: (data: SingleDeviceData) => void;
@@ -49,29 +58,38 @@ export interface DeviceServiceEvents {
   }) => void;
 }
 
+/**
+ * Chat contact information
+ */
 export interface ChatContact {
-  _id: string; // other userId
-  role: string; // other userModel
+  _id: string;
+  role: string;
   name: string;
   email?: string | null;
   mobileNo?: string | null;
   lastMessage?: string;
   lastMessageTime?: string | null;
-  chatId?: string; // Server should include this
+  chatId?: string;
 }
 
+/**
+ * Server message structure
+ */
 export interface ServerMessage {
   _id: string;
   chatId: string;
   text: string;
   mediaUrl?: string | null;
-  mediaType?: string; // "none" | "image" | "file"
+  mediaType?: string;
   sender: { userId: string; userModel: string };
   deliveredTo: string[];
   readBy: string[];
   createdAt: string;
 }
 
+/**
+ * Chat conversation structure
+ */
 export interface Chat {
   _id: string;
   participants: Array<{
@@ -84,6 +102,9 @@ export interface Chat {
   updatedAt: string;
 }
 
+/**
+ * Message structure (simplified)
+ */
 export interface Message {
   _id: string;
   chatId: string;
@@ -96,29 +117,57 @@ export interface Message {
   read: boolean;
 }
 
-// Streaming modes
 type StreamingMode = "all" | "single" | null;
 
+// ============================================================
+// Device Service Singleton Class
+// ============================================================
+
+/**
+ * Singleton service for managing WebSocket connections to handle:
+ * - Real-time GPS device tracking data
+ * - Chat messaging functionality
+ * - Authentication and connection management
+ *
+ * @example
+ * const deviceService = DeviceService.getInstance();
+ * await deviceService.connect({
+ *   onDataReceived: (data) => console.log(data),
+ *   onError: (error) => console.error(error),
+ *   // ... other callbacks
+ * });
+ */
 class DeviceService {
   private static instance: DeviceService;
-  private token = Cookies.get("token");
+
+  // Connection properties
   private socket: Socket | null = null;
+  private token = Cookies.get("token");
+  private baseUrl: string;
   private isConnected = false;
   private isAuthenticated = false;
-  private baseUrl: string;
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 5;
-  private activeSingleDeviceStreams = new Set<string>();
+
+  // Device streaming state
   private streamingMode: StreamingMode = null;
   private activeDeviceId: string | null = null;
-  private callbacks: DeviceServiceEvents | null = null;
+  private activeSingleDeviceStreams = new Set<string>();
+
+  // Chat state
   private currentChatId: string | null = null;
   private activeContactInfo: { userId: string; userRole: string } | null = null;
+
+  // Callbacks
+  private callbacks: DeviceServiceEvents | null = null;
 
   private constructor() {
     this.baseUrl = process.env.NEXT_PUBLIC_SOCKET_BASE_URL || "";
   }
 
+  /**
+   * Get singleton instance of DeviceService
+   */
   public static getInstance(): DeviceService {
     if (!DeviceService.instance) {
       DeviceService.instance = new DeviceService();
@@ -126,11 +175,18 @@ class DeviceService {
     return DeviceService.instance;
   }
 
+  // ============================================================
+  // Connection Management
+  // ============================================================
+
+  /**
+   * Initialize and connect to the WebSocket server
+   * @param callbacks - Event callbacks for handling socket events
+   */
   public async connect(callbacks: DeviceServiceEvents): Promise<void> {
     this.callbacks = callbacks;
 
     if (this.socket) {
-      // console.log("[DeviceService] Socket instance already exists");
       return;
     }
 
@@ -144,43 +200,93 @@ class DeviceService {
         forceNew: false,
         transports: ["websocket", "polling"],
         auth: {
-        token: `Bearer ${this.token}`,
-      },
+          token: `Bearer ${this.token}`,
+        },
       });
 
       this.setupEventListeners(callbacks);
       this.socket.connect();
     } catch (error) {
-      // console.error("[DeviceService] Failed to connect to socket:", error);
       callbacks.onError("Failed to connect to server");
     }
   }
 
+  /**
+   * Disconnect from the WebSocket server and cleanup resources
+   */
+  public disconnect(): void {
+    if (this.socket) {
+      this.socket.disconnect();
+      this.socket.removeAllListeners();
+      this.socket = null;
+    }
+
+    this.isConnected = false;
+    this.isAuthenticated = false;
+    this.cleanup();
+    this.callbacks = null;
+  }
+
+  /**
+   * Authenticate with the server using a token
+   * @param token - JWT authentication token
+   */
+  public authenticate(token: string): void {
+    if (!this.socket?.connected) {
+      return;
+    }
+
+    this.socket.emit("credentials", token);
+  }
+
+  // ============================================================
+  // Event Listeners Setup
+  // ============================================================
+
+  /**
+   * Setup all socket event listeners
+   */
   private setupEventListeners(callbacks: DeviceServiceEvents): void {
     if (!this.socket) return;
 
-    // Connection events
+    // Connection event handlers
+    this.setupConnectionListeners(callbacks);
+
+    // Authentication event handlers
+    this.setupAuthListeners(callbacks);
+
+    // Device data event handlers
+    this.setupDeviceDataListeners(callbacks);
+
+    // Chat event handlers
+    this.setupChatListeners();
+
+    // Error event handlers
+    this.setupErrorListeners(callbacks);
+  }
+
+  /**
+   * Setup connection-related event listeners
+   */
+  private setupConnectionListeners(callbacks: DeviceServiceEvents): void {
+    if (!this.socket) return;
+
     this.socket.on("connect", () => {
-      // console.log("[DeviceService] Socket connected");
       this.isConnected = true;
       this.reconnectAttempts = 0;
       callbacks.onConnectionChange(true);
-      // this.authenticateIfTokenExists();
     });
 
     this.socket.on("disconnect", (reason) => {
-      // console.log("[DeviceService] Socket disconnected:", reason);
       this.isConnected = false;
       this.isAuthenticated = false;
       this.streamingMode = null;
       this.activeDeviceId = null;
       callbacks.onConnectionChange(false);
-      // Clear tracking since backend cleans up automatically on disconnect
       this.activeSingleDeviceStreams.clear();
     });
 
     this.socket.on("connect_error", (error) => {
-      // console.error("[DeviceService] Socket connection error:", error);
       this.reconnectAttempts++;
       if (this.reconnectAttempts >= this.maxReconnectAttempts) {
         callbacks.onError("Failed to connect after multiple attempts");
@@ -189,129 +295,107 @@ class DeviceService {
     });
 
     this.socket.on("reconnect", (attemptNumber) => {
-      // console.log(
-      //   "[DeviceService] Socket reconnected after",
-      //   attemptNumber,
-      //   "attempts"
-      // );
       this.restoreActiveStreams();
     });
+  }
 
-    // Authentication events
+  /**
+   * Setup authentication event listeners
+   */
+  private setupAuthListeners(callbacks: DeviceServiceEvents): void {
+    if (!this.socket) return;
+
     this.socket.on("auth-success", (authData) => {
-      // console.log(
-      //   "[DeviceService] Authentication successful:",
-      //   authData?.role || "Unknown role"
-      // );
       this.isAuthenticated = true;
       callbacks.onAuthSuccess(authData);
     });
+  }
 
-    // All device data events
+  /**
+   * Setup device data event listeners
+   */
+  private setupDeviceDataListeners(callbacks: DeviceServiceEvents): void {
+    if (!this.socket) return;
+
     this.socket.on("all-device-data", (data: AllDeviceResponse) => {
       if (this.streamingMode !== "all") {
         this.streamingMode = "all";
-        // console.log("[DeviceService] Switched to all device streaming mode");
       }
       callbacks.onDataReceived(data);
     });
 
-    // Single device data events
     this.socket.on("single-device-data", (data: SingleDeviceData) => {
       const deviceKey = this.getDeviceKey(data);
-      // console.log(
-      //   "[DeviceService] Received single device data:",
-      //   data.uniqueId || data.imei
-      // );
       if (this.streamingMode !== "single") {
         this.streamingMode = "single";
         this.activeDeviceId = deviceKey;
-        // console.log("[DeviceService] Switched to single device streaming mode");
       }
       callbacks.onSingleDeviceDataReceived(data);
     });
+  }
 
-    // ========== CHAT EVENT LISTENERS ==========
+  /**
+   * Setup chat-related event listeners
+   */
+  private setupChatListeners(): void {
+    if (!this.socket) return;
 
-    // Receive contact list
     this.socket.on("chatList", (contacts: ChatContact[]) => {
-      // console.log(
-      //   "[DeviceService] Received chat list:",
-      //   contacts.length,
-      //   "contacts"
-      // );
       this.callbacks?.onChatListReceived?.(contacts);
     });
 
-    // Receive chat history after joining
     this.socket.on("chatHistory", (messages: ServerMessage[]) => {
-      // console.log(
-      //   "[DeviceService] Received chat history:",
-      //   messages.length,
-      //   "messages"
-      // );
-      // Infer chatId from first message if not set
       if (!this.currentChatId && messages[0]?.chatId) {
         this.currentChatId = messages[0].chatId;
-        // console.log(
-        //   "[DeviceService] Inferred chatId from history:",
-        //   this.currentChatId
-        // );
       }
       this.callbacks?.onChatHistoryReceived?.(messages);
     });
 
-    // Receive new message (real-time)
     this.socket.on("newMessage", (message: ServerMessage) => {
-      // console.log("[DeviceService] Received new message:", message._id);
       this.callbacks?.onNewMessage?.(message);
     });
 
-    // Optional: Chat joined confirmation (if backend sends it)
     this.socket.on(
       "chatJoined",
       (data: { chatId: string; receiverId: string; receiverRole: string }) => {
-        // console.log("[DeviceService] Chat joined confirmed:", data.chatId);
         this.currentChatId = data.chatId;
         this.callbacks?.onChatJoined?.(data);
       }
     );
 
-    // Optional: Typing indicator
     this.socket.on(
       "userTyping",
       (data: { userId: string; userRole: string; isTyping: boolean }) => {
-        // console.log("[DeviceService] User typing:", data.userId, data.isTyping);
         this.callbacks?.onUserTyping?.(data);
       }
     );
 
-    // Optional: Messages read receipt
     this.socket.on(
       "messagesRead",
       (data: { chatId: string; messageIds: string[]; readBy: string }) => {
-        // console.log("[DeviceService] Messages read:", data.messageIds.length);
         this.callbacks?.onMessagesRead?.(data);
       }
     );
 
-    // Optional: Delivery update
     this.socket.on(
       "deliveryUpdate",
       (data: { messageId: string; deliveredTo: string[] }) => {
-        // console.log("[DeviceService] Delivery update:", data.messageId);
         this.callbacks?.onDeliveryUpdate?.(data);
       }
     );
+  }
 
-    // Error events
+  /**
+   * Setup error event listeners
+   */
+  private setupErrorListeners(callbacks: DeviceServiceEvents): void {
+    if (!this.socket) return;
+
     this.socket.on(
       "error",
       (errorData: { message: string; details?: string }) => {
-        // console.error("[DeviceService] Server error:", errorData);
         callbacks.onError(errorData.message);
 
-        // Handle authentication errors
         if (
           errorData.message.includes("token") ||
           errorData.message.includes("auth")
@@ -323,246 +407,42 @@ class DeviceService {
     );
   }
 
-  private authenticateIfTokenExists(): void {
-    if (this.token && this.isConnected && !this.isAuthenticated) {
-      this.authenticate(this.token);
-    }
-  }
-
-  private getDeviceKey(data: SingleDeviceData): string {
-    // Always convert to string for consistent Map key usage
-    return String(data.uniqueId || data.imei);
-  }
-
-  private restoreActiveStreams(): void {
-    if (!this.isAuthenticated) {
-      // Wait for authentication before restoring
-      const authHandler = () => {
-        this.socket?.off("auth-success", authHandler);
-        this.performStreamRestore();
-      };
-      this.socket?.on("auth-success", authHandler);
-      return;
-    }
-
-    // Restore active chat if exists
-    if (this.activeContactInfo) {
-      // console.log(
-      //   "[DeviceService] Restoring chat with:",
-      //   this.activeContactInfo
-      // );
-      this.joinChatWithContact(
-        this.activeContactInfo.userId,
-        this.activeContactInfo.userRole
-      );
-    }
-
-    this.performStreamRestore();
-  }
-
-  private performStreamRestore(): void {
-    // Restore single device streams after reconnection
-    if (this.activeSingleDeviceStreams.size > 0) {
-      // console.log(
-      //   "[DeviceService] Restoring single device streams:",
-      //   Array.from(this.activeSingleDeviceStreams)
-      // );
-      for (const uniqueId of this.activeSingleDeviceStreams) {
-        this.requestSingleDeviceData(uniqueId, false); // Don't add to set again
-      }
-    }
-  }
-
-  // ========== CHAT METHODS ==========
+  // ============================================================
+  // Device Data Streaming Methods
+  // ============================================================
 
   /**
-   * Fetch list of chat contacts
+   * Request real-time data for all devices with filters
+   * @param filters - Device filtering criteria
    */
-  public fetchChatList(): void {
-    if (!this.socket?.connected || !this.isAuthenticated) {
-      // console.warn(
-      //   "[DeviceService] Cannot fetch chat list: Not connected or authenticated"
-      // );
-      return;
-    }
-
-    // console.log("[DeviceService] Fetching chat list");
-    this.socket.emit("fetchChatList");
-  }
-
-  /**
-   * Join a chat with a specific contact (by userId + role)
-   * This matches your backend's joinChat handler signature
-   */
-  public joinChatWithContact(userId: string, userRole: string): void {
-    if (!this.socket?.connected || !this.isAuthenticated) {
-      // console.warn(
-      //   "[DeviceService] Cannot join chat: Not connected or authenticated"
-      // );
-      return;
-    }
-
-    if (!userId?.trim() || !userRole?.trim()) {
-      // console.error("[DeviceService] Invalid userId or userRole provided");
-      return;
-    }
-
-    // console.log(`[DeviceService] Joining chat with ${userRole}: ${userId}`);
-    this.socket.emit("joinChat", userId, userRole);
-
-    // Store for reconnection
-    this.activeContactInfo = { userId, userRole };
-  }
-
-  /**
-   * Send a message to a contact
-   * This matches your backend's sendMessage handler signature
-   */
-  public sendMessageToContact(
-    userId: string,
-    userRole: string,
-    text: string,
-    media?: { url?: string; type?: string }
-  ): void {
-    if (!this.socket?.connected || !this.isAuthenticated) {
-      // console.warn(
-      //   "[DeviceService] Cannot send message: Not connected or authenticated"
-      // );
-      return;
-    }
-
-    if (!text?.trim()) {
-      // console.error("[DeviceService] Cannot send empty message");
-      return;
-    }
-
-    // console.log(`[DeviceService] Sending message to ${userRole}: ${userId}`);
-    this.socket.emit("sendMessage", {
-      chatUserId: userId,
-      chatUserRole: userRole,
-      text: text.trim(),
-      mediaUrl: media?.url || null,
-      mediaType: media?.type || "none",
-    });
-  }
-
-  /**
-   * Leave the current chat
-   */
-  public leaveChat(): void {
-    // console.log("[DeviceService] Leaving current chat");
-    this.currentChatId = null;
-    this.activeContactInfo = null;
-  }
-
-  // ========== OPTIONAL CHAT FEATURES ==========
-
-  /**
-   * Emit typing indicator
-   */
-  // DeviceService.ts - Add this method
-
-  public emitTyping(
-    chatUserId: string,
-    chatUserRole: string,
-    isTyping: boolean
-  ): void {
-    if (!this.socket?.connected || !this.authenticated) {
-      // console.warn(
-      //   "[DeviceService] Cannot emit typing: Not connected/authenticated"
-      // );
-      return;
-    }
-
-    // console.log("[DeviceService] Emitting typing:", {
-    //   chatUserId,
-    //   chatUserRole,
-    //   isTyping,
-    // });
-
-    this.socket.emit("typing", {
-      chatUserId,
-      chatUserRole,
-      isTyping,
-    });
-  }
-
-  /**
-   * Mark messages as read
-   */
-  public markMessagesAsRead(chatId: string, messageIds: string[]): void {
-    if (!this.socket?.connected || !this.isAuthenticated) return;
-
-    this.socket.emit("markAsRead", {
-      chatId,
-      messageIds,
-    });
-  }
-
-  /**
-   * Confirm message delivery
-   */
-  public confirmMessageDelivery(messageId: string): void {
-    if (!this.socket?.connected || !this.isAuthenticated) return;
-
-    this.socket.emit("messageDelivered", { messageId });
-  }
-
-  // ========== DEVICE DATA METHODS ==========
-
-  private cleanup(): void {
-    this.streamingMode = null;
-    this.activeDeviceId = null;
-    this.activeSingleDeviceStreams.clear();
-    this.currentChatId = null;
-    this.activeContactInfo = null;
-  }
-
-  public authenticate(token: string): void {
-    if (!this.socket?.connected) {
-      // console.warn("[DeviceService] Cannot authenticate: Socket not connected");
-      return;
-    }
-
-    // console.log("[DeviceService] Sending authentication credentials");
-    this.socket.emit("credentials", token);
-  }
-
   public requestDeviceData(filters: DeviceFilters): void {
     if (!this.socket?.connected) {
-      // console.warn(
-      //   "[DeviceService] Cannot request data: Not connected or authenticated"
-      // );
       return;
     }
 
-    // Stop single device streaming if active
     if (this.streamingMode === "single") {
       this.stopAllSingleDeviceStreams();
     }
 
-    // console.log(
-    //   "[DeviceService] Requesting all device data with filters:",
-    //   filters
-    // );
     this.socket.emit("request-all-device-data", filters);
   }
 
+  /**
+   * Request real-time data for a single device
+   * @param uniqueId - Device unique identifier
+   * @param addToActiveSet - Whether to track this stream (default: true)
+   */
   public requestSingleDeviceData(
     uniqueId: string | number,
     addToActiveSet: boolean = true
   ): void {
     if (!this.socket?.connected || !this.isAuthenticated) {
-      // console.warn(
-      //   "[DeviceService] Cannot request single device data: Not connected or authenticated"
-      // );
       return;
     }
 
     const deviceKey = String(uniqueId).trim();
 
     if (!deviceKey) {
-      // console.error("[DeviceService] Invalid uniqueId provided");
       this.callbacks?.onError("Device ID is required");
       return;
     }
@@ -579,50 +459,44 @@ class DeviceService {
       return;
     }
 
-    // console.log(
-    //   "[DeviceService] Requesting single device data for:",
-    //   deviceKey
-    // );
+    this.socket.emit("request-single-device-data", deviceKey);
 
     if (addToActiveSet) {
       this.activeSingleDeviceStreams.add(deviceKey);
-      // console.log(
-      //   "[DeviceService] Active streams:",
-      //   Array.from(this.activeSingleDeviceStreams)
-      // );
     }
   }
 
+  /**
+   * Stop streaming all device data
+   */
   public stopAllDeviceData(): void {
     if (!this.socket?.connected || !this.isAuthenticated) {
-      // console.warn(
-      //   "[DeviceService] Cannot stop all device data: Not connected or authenticated"
-      // );
       return;
     }
 
-    // console.log("[DeviceService] Stopping all device data streaming");
     this.socket.emit("stop-all-device-data");
     this.streamingMode = null;
   }
 
+  /**
+   * Stop streaming single device data
+   */
   public stopSingleDeviceData(): void {
     if (!this.socket?.connected || !this.isAuthenticated) {
-      // console.warn(
-      //   "[DeviceService] Cannot stop single device data: Not connected or authenticated"
-      // );
       return;
     }
 
-    // console.log("[DeviceService] Stopping single device data streaming");
     this.socket.emit("stop-single-device-data");
     this.streamingMode = null;
   }
 
+  /**
+   * Stop streaming for a specific device
+   * @param uniqueId - Device unique identifier
+   */
   public stopSingleDeviceStream(uniqueId: string): void {
     if (this.activeSingleDeviceStreams.has(uniqueId)) {
       this.activeSingleDeviceStreams.delete(uniqueId);
-      // console.log("[DeviceService] Removed single device stream:", uniqueId);
 
       if (this.activeSingleDeviceStreams.size === 0) {
         this.streamingMode = null;
@@ -631,29 +505,191 @@ class DeviceService {
     }
   }
 
+  /**
+   * Stop all single device streams
+   */
   public stopAllSingleDeviceStreams(): void {
-    // console.log("[DeviceService] Stopping all single device streams");
     this.activeSingleDeviceStreams.clear();
     this.streamingMode = null;
     this.activeDeviceId = null;
   }
 
-  public disconnect(): void {
-    // console.log("[DeviceService] Disconnecting socket");
+  // ============================================================
+  // Chat Methods
+  // ============================================================
 
-    if (this.socket) {
-      this.socket.disconnect();
-      this.socket.removeAllListeners();
-      this.socket = null;
+  /**
+   * Fetch the list of chat contacts
+   */
+  public fetchChatList(): void {
+    if (!this.socket?.connected || !this.isAuthenticated) {
+      return;
     }
 
-    this.isConnected = false;
-    this.isAuthenticated = false;
-    this.cleanup();
-    this.callbacks = null;
+    this.socket.emit("fetchChatList");
   }
 
-  // ========== GETTERS ==========
+  /**
+   * Join a chat with a specific contact
+   * @param userId - Contact user ID
+   * @param userRole - Contact user role
+   */
+  public joinChatWithContact(userId: string, userRole: string): void {
+    if (!this.socket?.connected || !this.isAuthenticated) {
+      return;
+    }
+
+    if (!userId?.trim() || !userRole?.trim()) {
+      return;
+    }
+
+    this.socket.emit("joinChat", userId, userRole);
+    this.activeContactInfo = { userId, userRole };
+  }
+
+  /**
+   * Send a message to a contact
+   * @param userId - Recipient user ID
+   * @param userRole - Recipient user role
+   * @param text - Message text content
+   * @param media - Optional media attachment
+   */
+  public sendMessageToContact(
+    userId: string,
+    userRole: string,
+    text: string,
+    media?: { url?: string; type?: string }
+  ): void {
+    if (!this.socket?.connected || !this.isAuthenticated) {
+      return;
+    }
+
+    if (!text?.trim()) {
+      return;
+    }
+
+    this.socket.emit("sendMessage", {
+      chatUserId: userId,
+      chatUserRole: userRole,
+      text: text.trim(),
+      mediaUrl: media?.url || null,
+      mediaType: media?.type || "none",
+    });
+  }
+
+  /**
+   * Leave the current active chat
+   */
+  public leaveChat(): void {
+    this.currentChatId = null;
+    this.activeContactInfo = null;
+  }
+
+  /**
+   * Emit typing indicator to other participants
+   * @param chatUserId - User ID in chat
+   * @param chatUserRole - User role in chat
+   * @param isTyping - Whether user is currently typing
+   */
+  public emitTyping(
+    chatUserId: string,
+    chatUserRole: string,
+    isTyping: boolean
+  ): void {
+    if (!this.socket?.connected || !this.isAuthenticated) {
+      return;
+    }
+
+    this.socket.emit("typing", {
+      chatUserId,
+      chatUserRole,
+      isTyping,
+    });
+  }
+
+  /**
+   * Mark messages as read
+   * @param chatId - Chat ID
+   * @param messageIds - Array of message IDs to mark as read
+   */
+  public markMessagesAsRead(chatId: string, messageIds: string[]): void {
+    if (!this.socket?.connected || !this.isAuthenticated) return;
+
+    this.socket.emit("markAsRead", {
+      chatId,
+      messageIds,
+    });
+  }
+
+  /**
+   * Confirm message delivery
+   * @param messageId - Message ID to confirm delivery
+   */
+  public confirmMessageDelivery(messageId: string): void {
+    if (!this.socket?.connected || !this.isAuthenticated) return;
+
+    this.socket.emit("messageDelivered", { messageId });
+  }
+
+  // ============================================================
+  // Utility Methods
+  // ============================================================
+
+  /**
+   * Get unique device key from device data
+   */
+  private getDeviceKey(data: SingleDeviceData): string {
+    return String(data.uniqueId || data.imei);
+  }
+
+  /**
+   * Restore active streams after reconnection
+   */
+  private restoreActiveStreams(): void {
+    if (!this.isAuthenticated) {
+      const authHandler = () => {
+        this.socket?.off("auth-success", authHandler);
+        this.performStreamRestore();
+      };
+      this.socket?.on("auth-success", authHandler);
+      return;
+    }
+
+    if (this.activeContactInfo) {
+      this.joinChatWithContact(
+        this.activeContactInfo.userId,
+        this.activeContactInfo.userRole
+      );
+    }
+
+    this.performStreamRestore();
+  }
+
+  /**
+   * Perform actual stream restoration
+   */
+  private performStreamRestore(): void {
+    if (this.activeSingleDeviceStreams.size > 0) {
+      for (const uniqueId of this.activeSingleDeviceStreams) {
+        this.requestSingleDeviceData(uniqueId, false);
+      }
+    }
+  }
+
+  /**
+   * Cleanup service state
+   */
+  private cleanup(): void {
+    this.streamingMode = null;
+    this.activeDeviceId = null;
+    this.activeSingleDeviceStreams.clear();
+    this.currentChatId = null;
+    this.activeContactInfo = null;
+  }
+
+  // ============================================================
+  // Getters
+  // ============================================================
 
   public get connected(): boolean {
     return this.isConnected;
@@ -683,19 +719,30 @@ class DeviceService {
     return this.activeDeviceId;
   }
 
+  /**
+   * Check if a specific device stream is active
+   */
   public isSingleDeviceActive(uniqueId: string): boolean {
     return this.activeSingleDeviceStreams.has(uniqueId);
   }
 
+  /**
+   * Check if all device streaming is active
+   */
   public isAllDeviceStreamingActive(): boolean {
     return this.streamingMode === "all";
   }
 
+  /**
+   * Check if single device streaming is active
+   */
   public isSingleDeviceStreamingActive(): boolean {
     return this.streamingMode === "single";
   }
 
-  // Utility methods
+  /**
+   * Get complete connection status
+   */
   public getConnectionStatus(): {
     connected: boolean;
     authenticated: boolean;

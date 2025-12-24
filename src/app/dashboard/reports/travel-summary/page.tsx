@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, useCallback } from "react";
+import React, { useState, useMemo, useCallback, useEffect } from "react";
 import {
   ReportFilter,
   FilterValues,
@@ -24,6 +24,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { DayWiseTrips, TravelSummaryReport } from "@/interface/modal";
+import { useQueryClient } from "@tanstack/react-query";
 
 // Interface for nested table data (transformed from DayWiseTrips)
 interface TravelDetailTableData {
@@ -57,6 +58,9 @@ interface ExpandedRowData extends TravelSummaryReport {
 
 const TravelSummaryReportPage: React.FC = () => {
   // Filter state
+  const queryClient = useQueryClient();
+  const [shouldFetch, setShouldFetch] = useState(false);
+  const [hasGenerated, setHasGenerated] = useState(false);
   const [selectedSchool, setSelectedSchool] = useState<string | null>(null);
   const [selectedBranch, setSelectedBranch] = useState<string | null>(null);
   const [selectedDevice, setSelectedDevice] = useState<string | null>(null);
@@ -102,193 +106,193 @@ const TravelSummaryReportPage: React.FC = () => {
   });
 
   // Demo data for testing
-  const DEMO_TRAVEL_SUMMARY_DATA: TravelSummaryReport[] = [
-    {
-      uniqueId: "MH12AB1234",
-      name: "MH 12 AB 1234",
-      duration: "7D, 14H, 30M",
-      maxSpeed: "95.5 km/h",
-      avgSpeed: "42.3 km/h",
-      distance: "1,245.67 km",
-      running: "5D, 8H, 45M",
-      idle: "1D, 2H, 15M",
-      stopped: "1D, 3H, 30M",
-      overspeed: "0D, 0H, 45M",
-      startCoordinates: "21.1458, 79.0882",
-      startAddress: "Sitabuldi, Nagpur, Maharashtra 440012",
-      endCoordinates: "19.0760, 72.8777",
-      endAddress: "Mumbai Central, Mumbai, Maharashtra 400008",
-      dayWiseTrips: [
-        {
-          date: "2025-12-10",
-          uniqueId: "MH12AB1234",
-          startTime: "2025-12-10T06:30:00.000Z",
-          endTime: "2025-12-10T18:45:00.000Z",
-          maxSpeed: "88.5 km/h",
-          avgSpeed: "45.2 km/h",
-          distance: "185.5 km",
-          running: "0D, 4H, 15M",
-          idle: "0D, 0H, 30M",
-          stopped: "0D, 7H, 30M",
-          overspeed: "0D, 0H, 8M",
-          startCoordinates: "21.1458, 79.0882",
-          startAddress: "Sitabuldi, Nagpur, Maharashtra 440012",
-          endCoordinates: "20.9320, 77.7523",
-          endAddress: "Akola, Maharashtra 444001",
-        },
-        {
-          date: "2025-12-11",
-          uniqueId: "MH12AB1234",
-          startTime: "2025-12-11T07:00:00.000Z",
-          endTime: "2025-12-11T19:30:00.000Z",
-          maxSpeed: "95.5 km/h",
-          avgSpeed: "48.7 km/h",
-          distance: "245.3 km",
-          running: "0D, 5H, 20M",
-          idle: "0D, 0H, 45M",
-          stopped: "0D, 6H, 25M",
-          overspeed: "0D, 0H, 15M",
-          startCoordinates: "20.9320, 77.7523",
-          startAddress: "Akola, Maharashtra 444001",
-          endCoordinates: "20.0063, 73.7868",
-          endAddress: "Nashik, Maharashtra 422001",
-        },
-        {
-          date: "2025-12-12",
-          uniqueId: "MH12AB1234",
-          startTime: "2025-12-12T08:15:00.000Z",
-          endTime: "2025-12-12T16:20:00.000Z",
-          maxSpeed: "82.3 km/h",
-          avgSpeed: "39.8 km/h",
-          distance: "178.9 km",
-          running: "0D, 4H, 30M",
-          idle: "0D, 0H, 25M",
-          stopped: "0D, 3H, 10M",
-          overspeed: "0D, 0H, 5M",
-          startCoordinates: "20.0063, 73.7868",
-          startAddress: "Nashik, Maharashtra 422001",
-          endCoordinates: "19.0760, 72.8777",
-          endAddress: "Mumbai Central, Mumbai, Maharashtra 400008",
-        },
-      ],
-    },
-    {
-      uniqueId: "MH20CD5678",
-      name: "MH 20 CD 5678",
-      duration: "5D, 10H, 15M",
-      maxSpeed: "78.9 km/h",
-      avgSpeed: "38.5 km/h",
-      distance: "856.42 km",
-      running: "3D, 12H, 30M",
-      idle: "0D, 18H, 45M",
-      stopped: "1D, 3H, 0M",
-      overspeed: "0D, 0H, 12M",
-      startCoordinates: "18.5204, 73.8567",
-      startAddress: "Pune Railway Station, Pune, Maharashtra 411001",
-      endCoordinates: "21.1458, 79.0882",
-      endAddress: "Sitabuldi, Nagpur, Maharashtra 440012",
-      dayWiseTrips: [
-        {
-          date: "2025-12-10",
-          uniqueId: "MH20CD5678",
-          startTime: "2025-12-10T09:00:00.000Z",
-          endTime: "2025-12-10T17:30:00.000Z",
-          maxSpeed: "72.4 km/h",
-          avgSpeed: "42.1 km/h",
-          distance: "156.8 km",
-          running: "0D, 3H, 45M",
-          idle: "0D, 0H, 20M",
-          stopped: "0D, 4H, 25M",
-          overspeed: "0D, 0H, 0M",
-          startCoordinates: "18.5204, 73.8567",
-          startAddress: "Pune Railway Station, Pune, Maharashtra 411001",
-          endCoordinates: "19.8762, 75.3433",
-          endAddress: "Aurangabad, Maharashtra 431001",
-        },
-        {
-          date: "2025-12-11",
-          uniqueId: "MH20CD5678",
-          startTime: "2025-12-11T08:30:00.000Z",
-          endTime: "2025-12-11T20:15:00.000Z",
-          maxSpeed: "78.9 km/h",
-          avgSpeed: "36.2 km/h",
-          distance: "210.5 km",
-          running: "0D, 5H, 50M",
-          idle: "0D, 0H, 35M",
-          stopped: "0D, 5H, 20M",
-          overspeed: "0D, 0H, 8M",
-          startCoordinates: "19.8762, 75.3433",
-          startAddress: "Aurangabad, Maharashtra 431001",
-          endCoordinates: "20.5937, 78.9629",
-          endAddress: "Chandrapur, Maharashtra 442401",
-        },
-      ],
-    },
-    {
-      uniqueId: "MH31EF9012",
-      name: "MH 31 EF 9012",
-      duration: "3D, 8H, 20M",
-      maxSpeed: "105.2 km/h",
-      avgSpeed: "52.8 km/h",
-      distance: "624.18 km",
-      running: "2D, 4H, 10M",
-      idle: "0D, 12H, 30M",
-      stopped: "0D, 15H, 40M",
-      overspeed: "0D, 1H, 5M",
-      startCoordinates: "19.0760, 72.8777",
-      startAddress: "Dadar, Mumbai, Maharashtra 400014",
-      endCoordinates: "15.2993, 74.1240",
-      endAddress: "Panaji, Goa 403001",
-      dayWiseTrips: [
-        {
-          date: "2025-12-13",
-          uniqueId: "MH31EF9012",
-          startTime: "2025-12-13T05:45:00.000Z",
-          endTime: "2025-12-13T14:30:00.000Z",
-          maxSpeed: "105.2 km/h",
-          avgSpeed: "58.3 km/h",
-          distance: "342.7 km",
-          running: "0D, 5H, 52M",
-          idle: "0D, 0H, 15M",
-          stopped: "0D, 2H, 38M",
-          overspeed: "0D, 0H, 42M",
-          startCoordinates: "19.0760, 72.8777",
-          startAddress: "Dadar, Mumbai, Maharashtra 400014",
-          endCoordinates: "16.7050, 74.2433",
-          endAddress: "Kolhapur, Maharashtra 416001",
-        },
-        {
-          date: "2025-12-14",
-          uniqueId: "MH31EF9012",
-          startTime: "2025-12-14T10:00:00.000Z",
-          endTime: "2025-12-14T18:45:00.000Z",
-          maxSpeed: "92.7 km/h",
-          avgSpeed: "47.5 km/h",
-          distance: "281.5 km",
-          running: "0D, 5H, 55M",
-          idle: "0D, 0H, 28M",
-          stopped: "0D, 2H, 22M",
-          overspeed: "0D, 0H, 23M",
-          startCoordinates: "16.7050, 74.2433",
-          startAddress: "Kolhapur, Maharashtra 416001",
-          endCoordinates: "15.2993, 74.1240",
-          endAddress: "Panaji, Goa 403001",
-        },
-      ],
-    },
-  ];
+  // const DEMO_TRAVEL_SUMMARY_DATA: TravelSummaryReport[] = [
+  //   {
+  //     uniqueId: "MH12AB1234",
+  //     name: "MH 12 AB 1234",
+  //     duration: "7D, 14H, 30M",
+  //     maxSpeed: "95.5 km/h",
+  //     avgSpeed: "42.3 km/h",
+  //     distance: "1,245.67 km",
+  //     running: "5D, 8H, 45M",
+  //     idle: "1D, 2H, 15M",
+  //     stopped: "1D, 3H, 30M",
+  //     overspeed: "0D, 0H, 45M",
+  //     startCoordinates: "21.1458, 79.0882",
+  //     startAddress: "Sitabuldi, Nagpur, Maharashtra 440012",
+  //     endCoordinates: "19.0760, 72.8777",
+  //     endAddress: "Mumbai Central, Mumbai, Maharashtra 400008",
+  //     dayWiseTrips: [
+  //       {
+  //         date: "2025-12-10",
+  //         uniqueId: "MH12AB1234",
+  //         startTime: "2025-12-10T06:30:00.000Z",
+  //         endTime: "2025-12-10T18:45:00.000Z",
+  //         maxSpeed: "88.5 km/h",
+  //         avgSpeed: "45.2 km/h",
+  //         distance: "185.5 km",
+  //         running: "0D, 4H, 15M",
+  //         idle: "0D, 0H, 30M",
+  //         stopped: "0D, 7H, 30M",
+  //         overspeed: "0D, 0H, 8M",
+  //         startCoordinates: "21.1458, 79.0882",
+  //         startAddress: "Sitabuldi, Nagpur, Maharashtra 440012",
+  //         endCoordinates: "20.9320, 77.7523",
+  //         endAddress: "Akola, Maharashtra 444001",
+  //       },
+  //       {
+  //         date: "2025-12-11",
+  //         uniqueId: "MH12AB1234",
+  //         startTime: "2025-12-11T07:00:00.000Z",
+  //         endTime: "2025-12-11T19:30:00.000Z",
+  //         maxSpeed: "95.5 km/h",
+  //         avgSpeed: "48.7 km/h",
+  //         distance: "245.3 km",
+  //         running: "0D, 5H, 20M",
+  //         idle: "0D, 0H, 45M",
+  //         stopped: "0D, 6H, 25M",
+  //         overspeed: "0D, 0H, 15M",
+  //         startCoordinates: "20.9320, 77.7523",
+  //         startAddress: "Akola, Maharashtra 444001",
+  //         endCoordinates: "20.0063, 73.7868",
+  //         endAddress: "Nashik, Maharashtra 422001",
+  //       },
+  //       {
+  //         date: "2025-12-12",
+  //         uniqueId: "MH12AB1234",
+  //         startTime: "2025-12-12T08:15:00.000Z",
+  //         endTime: "2025-12-12T16:20:00.000Z",
+  //         maxSpeed: "82.3 km/h",
+  //         avgSpeed: "39.8 km/h",
+  //         distance: "178.9 km",
+  //         running: "0D, 4H, 30M",
+  //         idle: "0D, 0H, 25M",
+  //         stopped: "0D, 3H, 10M",
+  //         overspeed: "0D, 0H, 5M",
+  //         startCoordinates: "20.0063, 73.7868",
+  //         startAddress: "Nashik, Maharashtra 422001",
+  //         endCoordinates: "19.0760, 72.8777",
+  //         endAddress: "Mumbai Central, Mumbai, Maharashtra 400008",
+  //       },
+  //     ],
+  //   },
+  //   {
+  //     uniqueId: "MH20CD5678",
+  //     name: "MH 20 CD 5678",
+  //     duration: "5D, 10H, 15M",
+  //     maxSpeed: "78.9 km/h",
+  //     avgSpeed: "38.5 km/h",
+  //     distance: "856.42 km",
+  //     running: "3D, 12H, 30M",
+  //     idle: "0D, 18H, 45M",
+  //     stopped: "1D, 3H, 0M",
+  //     overspeed: "0D, 0H, 12M",
+  //     startCoordinates: "18.5204, 73.8567",
+  //     startAddress: "Pune Railway Station, Pune, Maharashtra 411001",
+  //     endCoordinates: "21.1458, 79.0882",
+  //     endAddress: "Sitabuldi, Nagpur, Maharashtra 440012",
+  //     dayWiseTrips: [
+  //       {
+  //         date: "2025-12-10",
+  //         uniqueId: "MH20CD5678",
+  //         startTime: "2025-12-10T09:00:00.000Z",
+  //         endTime: "2025-12-10T17:30:00.000Z",
+  //         maxSpeed: "72.4 km/h",
+  //         avgSpeed: "42.1 km/h",
+  //         distance: "156.8 km",
+  //         running: "0D, 3H, 45M",
+  //         idle: "0D, 0H, 20M",
+  //         stopped: "0D, 4H, 25M",
+  //         overspeed: "0D, 0H, 0M",
+  //         startCoordinates: "18.5204, 73.8567",
+  //         startAddress: "Pune Railway Station, Pune, Maharashtra 411001",
+  //         endCoordinates: "19.8762, 75.3433",
+  //         endAddress: "Aurangabad, Maharashtra 431001",
+  //       },
+  //       {
+  //         date: "2025-12-11",
+  //         uniqueId: "MH20CD5678",
+  //         startTime: "2025-12-11T08:30:00.000Z",
+  //         endTime: "2025-12-11T20:15:00.000Z",
+  //         maxSpeed: "78.9 km/h",
+  //         avgSpeed: "36.2 km/h",
+  //         distance: "210.5 km",
+  //         running: "0D, 5H, 50M",
+  //         idle: "0D, 0H, 35M",
+  //         stopped: "0D, 5H, 20M",
+  //         overspeed: "0D, 0H, 8M",
+  //         startCoordinates: "19.8762, 75.3433",
+  //         startAddress: "Aurangabad, Maharashtra 431001",
+  //         endCoordinates: "20.5937, 78.9629",
+  //         endAddress: "Chandrapur, Maharashtra 442401",
+  //       },
+  //     ],
+  //   },
+  //   {
+  //     uniqueId: "MH31EF9012",
+  //     name: "MH 31 EF 9012",
+  //     duration: "3D, 8H, 20M",
+  //     maxSpeed: "105.2 km/h",
+  //     avgSpeed: "52.8 km/h",
+  //     distance: "624.18 km",
+  //     running: "2D, 4H, 10M",
+  //     idle: "0D, 12H, 30M",
+  //     stopped: "0D, 15H, 40M",
+  //     overspeed: "0D, 1H, 5M",
+  //     startCoordinates: "19.0760, 72.8777",
+  //     startAddress: "Dadar, Mumbai, Maharashtra 400014",
+  //     endCoordinates: "15.2993, 74.1240",
+  //     endAddress: "Panaji, Goa 403001",
+  //     dayWiseTrips: [
+  //       {
+  //         date: "2025-12-13",
+  //         uniqueId: "MH31EF9012",
+  //         startTime: "2025-12-13T05:45:00.000Z",
+  //         endTime: "2025-12-13T14:30:00.000Z",
+  //         maxSpeed: "105.2 km/h",
+  //         avgSpeed: "58.3 km/h",
+  //         distance: "342.7 km",
+  //         running: "0D, 5H, 52M",
+  //         idle: "0D, 0H, 15M",
+  //         stopped: "0D, 2H, 38M",
+  //         overspeed: "0D, 0H, 42M",
+  //         startCoordinates: "19.0760, 72.8777",
+  //         startAddress: "Dadar, Mumbai, Maharashtra 400014",
+  //         endCoordinates: "16.7050, 74.2433",
+  //         endAddress: "Kolhapur, Maharashtra 416001",
+  //       },
+  //       {
+  //         date: "2025-12-14",
+  //         uniqueId: "MH31EF9012",
+  //         startTime: "2025-12-14T10:00:00.000Z",
+  //         endTime: "2025-12-14T18:45:00.000Z",
+  //         maxSpeed: "92.7 km/h",
+  //         avgSpeed: "47.5 km/h",
+  //         distance: "281.5 km",
+  //         running: "0D, 5H, 55M",
+  //         idle: "0D, 0H, 28M",
+  //         stopped: "0D, 2H, 22M",
+  //         overspeed: "0D, 0H, 23M",
+  //         startCoordinates: "16.7050, 74.2433",
+  //         startAddress: "Kolhapur, Maharashtra 416001",
+  //         endCoordinates: "15.2993, 74.1240",
+  //         endAddress: "Panaji, Goa 403001",
+  //       },
+  //     ],
+  //   },
+  // ];
 
   // Fetch report data using the hook
-  // const {
-  //   travelSummaryReport,
-  //   totalTravelSummaryReport,
-  //   isFetchingTravelSummaryReport,
-  // } = useReport(pagination, apiFilters, "travel-summary");
+  const {
+    travelSummaryReport,
+    totalTravelSummaryReport,
+    isFetchingTravelSummaryReport,
+  } = useReport(pagination, apiFilters, "travel-summary", hasGenerated);
 
-  // Use demo data instead
-  const travelSummaryReport = DEMO_TRAVEL_SUMMARY_DATA;
-  const totalTravelSummaryReport = DEMO_TRAVEL_SUMMARY_DATA.length;
-  const isFetchingTravelSummaryReport = false;
+  // // Use demo data instead
+  // const travelSummaryReport = DEMO_TRAVEL_SUMMARY_DATA;
+  // const totalTravelSummaryReport = DEMO_TRAVEL_SUMMARY_DATA.length;
+  // const isFetchingTravelSummaryReport = false;
 
   // Transform day-wise trips data for nested table
   const transformDayWiseData = useCallback(
@@ -296,7 +300,18 @@ const TravelSummaryReportPage: React.FC = () => {
       return dayWiseTrips.map((trip, index) => ({
         id: `day-${trip.date}-${index}`,
         reportDate: new Date(trip.date).toLocaleDateString(),
-        ignitionStart: new Date(trip.startTime).toLocaleString(),
+        ignitionStart: trip.startTime
+          ? new Date(trip.startTime).toLocaleString("en-IN", {
+              timeZone: "Asia/Kolkata",
+              day: "2-digit",
+              month: "short",
+              year: "numeric",
+              hour: "numeric",
+              minute: "2-digit",
+              second: "2-digit",
+              hour12: true,
+            })
+          : "-",
         startLocation: trip.startAddress || "-",
         startCoordinates: trip.startCoordinates,
         distance: trip.distance,
@@ -308,7 +323,19 @@ const TravelSummaryReportPage: React.FC = () => {
         avgSpeed: trip.avgSpeed,
         endLocation: trip.endAddress || "-",
         endCoordinates: trip.endCoordinates,
-        ignitionStop: new Date(trip.endTime).toLocaleString(),
+        ignitionStop: trip.endTime
+          ? new Date(trip.endTime).toLocaleString("en-IN", {
+              timeZone: "Asia/Kolkata",
+              day: "2-digit",
+              month: "short",
+              year: "numeric",
+              hour: "numeric",
+              minute: "2-digit",
+              second: "2-digit",
+              hour12: true,
+            })
+          : "-",
+
         play: "▶",
       }));
     },
@@ -408,7 +435,7 @@ const TravelSummaryReportPage: React.FC = () => {
         sn: pagination.pageIndex * pagination.pageSize + index + 1,
       })
     );
-    console.log("📊 Transformed report data:", transformed);
+    // console.log("📊 Transformed report data:", transformed);
     return transformed;
   }, [travelSummaryReport, pagination]);
 
@@ -462,8 +489,36 @@ const TravelSummaryReportPage: React.FC = () => {
       { accessorKey: "idle", header: "Idle", size: 120 },
       { accessorKey: "stopped", header: "Stopped", size: 120 },
       { accessorKey: "overspeed", header: "Overspeed", size: 120 },
-      { accessorKey: "maxSpeed", header: "Max Speed", size: 120 },
-      { accessorKey: "avgSpeed", header: "Avg Speed", size: 120 },
+      {
+        accessorKey: "maxSpeed",
+        cell: ({ row }) => {
+          if (
+            row.original.isLoading ||
+            row.original.isDetailTable ||
+            row.original.isEmpty
+          )
+            return null;
+          const maxSpeed = Number(row.original.maxSpeed);
+          return Number.isFinite(maxSpeed) ? maxSpeed.toFixed(2) : "0.00";
+        },
+        header: "Max Speed",
+        size: 120,
+      },
+      {
+        accessorKey: "avgSpeed",
+        cell: ({ row }) => {
+          if (
+            row.original.isLoading ||
+            row.original.isDetailTable ||
+            row.original.isEmpty
+          )
+            return null;
+          const avgSpeed = Number(row.original.avgSpeed);
+          return Number.isFinite(avgSpeed) ? avgSpeed.toFixed(2) : "0.00";
+        },
+        header: "Avg Speed",
+        size: 120,
+      },
       { accessorKey: "endLocation", header: "End Location", size: 250 },
       { accessorKey: "endCoordinates", header: "End Co-ordinate", size: 180 },
       { accessorKey: "ignitionStop", header: "Ignition Stop", size: 180 },
@@ -660,11 +715,14 @@ const TravelSummaryReportPage: React.FC = () => {
             row.original.isEmpty
           )
             return null;
-          return row.original.distance || "0.00";
+
+          const distance = Number(row.original.distance);
+
+          return Number.isFinite(distance) ? distance.toFixed(2) : "0.00";
         },
       },
       {
-        accessorKey: "running",
+        accessorKey: "runningTime",
         header: "Running Time",
         size: 180,
         cell: ({ row }) => {
@@ -674,11 +732,11 @@ const TravelSummaryReportPage: React.FC = () => {
             row.original.isEmpty
           )
             return null;
-          return row.original.running || "0s";
+          return row.original.runningTime || "0D, 0H, 0M, 0S";
         },
       },
       {
-        accessorKey: "idle",
+        accessorKey: "idleTime",
         header: "Idle Time",
         size: 180,
         cell: ({ row }) => {
@@ -688,11 +746,11 @@ const TravelSummaryReportPage: React.FC = () => {
             row.original.isEmpty
           )
             return null;
-          return row.original.idle || "0s";
+          return row.original.idleTime || "0D, 0H, 0M, 0S";
         },
       },
       {
-        accessorKey: "stopped",
+        accessorKey: "stopTime",
         header: "Stop Time",
         size: 180,
         cell: ({ row }) => {
@@ -702,12 +760,12 @@ const TravelSummaryReportPage: React.FC = () => {
             row.original.isEmpty
           )
             return null;
-          return row.original.stopped || "0s";
+          return row.original.stopTime || "0D, 0H, 0M, 0S";
         },
       },
       {
-        accessorKey: "overspeed",
-        header: "Overspeed",
+        accessorKey: "overspeedTime",
+        header: "Overspeed Time",
         size: 150,
         cell: ({ row }) => {
           if (
@@ -716,7 +774,52 @@ const TravelSummaryReportPage: React.FC = () => {
             row.original.isEmpty
           )
             return null;
-          return row.original.overspeed || "0s";
+          return row.original.overspeedTime || "0D, 0H, 0M, 0S";
+        },
+      },
+      {
+        accessorKey: "workingHours",
+        header: "Working Hours",
+        size: 150,
+        cell: ({ row }) => {
+          if (
+            row.original.isLoading ||
+            row.original.isDetailTable ||
+            row.original.isEmpty
+          )
+            return null;
+          return row.original.workingHours || "0D, 0H, 0M, 0S";
+        },
+      },
+
+      {
+        accessorKey: "maxSpeed",
+        header: "Max Speed",
+        size: 150,
+        cell: ({ row }) => {
+          if (
+            row.original.isLoading ||
+            row.original.isDetailTable ||
+            row.original.isEmpty
+          )
+            return null;
+          const maxSpeed = Number(row.original.maxSpeed);
+          return Number.isFinite(maxSpeed) ? maxSpeed.toFixed(2) : "0.00";
+        },
+      },
+      {
+        accessorKey: "avgSpeed",
+        header: "Avg Speed",
+        size: 150,
+        cell: ({ row }) => {
+          if (
+            row.original.isLoading ||
+            row.original.isDetailTable ||
+            row.original.isEmpty
+          )
+            return null;
+          const avgSpeed = Number(row.original.avgSpeed);
+          return Number.isFinite(avgSpeed) ? avgSpeed.toFixed(2) : "0.00";
         },
       },
       {
@@ -747,48 +850,21 @@ const TravelSummaryReportPage: React.FC = () => {
           return row.original.endCoordinates || "-";
         },
       },
-      {
-        accessorKey: "maxSpeed",
-        header: "Max Speed",
-        size: 150,
-        cell: ({ row }) => {
-          if (
-            row.original.isLoading ||
-            row.original.isDetailTable ||
-            row.original.isEmpty
-          )
-            return null;
-          return row.original.maxSpeed || "0.00";
-        },
-      },
-      {
-        accessorKey: "avgSpeed",
-        header: "Avg Speed",
-        size: 150,
-        cell: ({ row }) => {
-          if (
-            row.original.isLoading ||
-            row.original.isDetailTable ||
-            row.original.isEmpty
-          )
-            return null;
-          return row.original.avgSpeed || "0.00";
-        },
-      },
-      {
-        accessorKey: "duration",
-        header: "Duration",
-        size: 180,
-        cell: ({ row }) => {
-          if (
-            row.original.isLoading ||
-            row.original.isDetailTable ||
-            row.original.isEmpty
-          )
-            return null;
-          return row.original.duration || "-";
-        },
-      },
+
+      // {
+      //   accessorKey: "duration",
+      //   header: "Duration",
+      //   size: 180,
+      //   cell: ({ row }) => {
+      //     if (
+      //       row.original.isLoading ||
+      //       row.original.isDetailTable ||
+      //       row.original.isEmpty
+      //     )
+      //       return null;
+      //     return row.original.duration || "-";
+      //   },
+      // },
       {
         id: "play",
         header: "Play",
@@ -833,7 +909,7 @@ const TravelSummaryReportPage: React.FC = () => {
 
   // Handle filter submission
   const handleFilterSubmit = useCallback((filters: FilterValues) => {
-    console.log("✅ Filter submitted:", filters);
+    // console.log("✅ Filter submitted:", filters);
 
     // For demo purposes, just show the table
     // if (!filters.deviceId || !filters.from || !filters.to) {
@@ -857,7 +933,8 @@ const TravelSummaryReportPage: React.FC = () => {
       to: filters.to,
       period: "Custom",
     });
-
+    setShouldFetch(true);
+    setHasGenerated(true);
     // Show table
     setShowTable(true);
   }, []);
@@ -865,19 +942,33 @@ const TravelSummaryReportPage: React.FC = () => {
   // Create expanded data array
   const expandedDataArray = createExpandedData();
 
+  useEffect(() => {
+    if (!isFetchingTravelSummaryReport && shouldFetch) {
+      setShouldFetch(false);
+    }
+  }, [isFetchingTravelSummaryReport, shouldFetch]);
+
+  useEffect(() => {
+    if (shouldFetch && hasGenerated) {
+      queryClient.invalidateQueries({
+        queryKey: ["travel-summary"],
+      });
+    }
+  }, [shouldFetch, hasGenerated, queryClient]);
+
   // Debug log
-  console.log("🔍 Debug Info:", {
-    expandedRows: Array.from(expandedRows),
-    expandedDataArrayLength: expandedDataArray.length,
-    detailedDataKeys: Object.keys(detailedData),
-    expandedDataSummary: expandedDataArray.map((row) => ({
-      id: row.id,
-      name: row.name,
-      isDetailTable: row.isDetailTable,
-      isEmpty: row.isEmpty,
-      hasDetailData: row.detailData?.length,
-    })),
-  });
+  // console.log("🔍 Debug Info:", {
+  //   expandedRows: Array.from(expandedRows),
+  //   expandedDataArrayLength: expandedDataArray.length,
+  //   detailedDataKeys: Object.keys(detailedData),
+  //   expandedDataSummary: expandedDataArray.map((row) => ({
+  //     id: row.id,
+  //     name: row.name,
+  //     isDetailTable: row.isDetailTable,
+  //     isEmpty: row.isEmpty,
+  //     hasDetailData: row.detailData?.length,
+  //   })),
+  // });
 
   // Table configuration
   const { table, tableElement } = CustomTableServerSidePagination({
@@ -925,7 +1016,10 @@ const TravelSummaryReportPage: React.FC = () => {
           showDevice: true,
           showDateRange: true,
           showSubmitButton: true,
-          submitButtonText: "Generate",
+          submitButtonText: isFetchingTravelSummaryReport
+            ? "Generating..."
+            : "Generate",
+          submitButtonDisabled: isFetchingTravelSummaryReport,
           dateRangeTitle: "Select Date Range",
           dateRangeMaxDays: 300,
           cardTitle: "Travel Summary",

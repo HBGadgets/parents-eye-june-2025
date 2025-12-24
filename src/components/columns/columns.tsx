@@ -12,6 +12,7 @@ import {
   Parent,
   Route,
   StatusReport,
+  StopReport,
   Student,
   Supervisor,
   TripReport,
@@ -21,6 +22,8 @@ import { Eye, EyeOff, Locate } from "lucide-react";
 import { calculateTimeSince } from "@/util/calculateTimeSince";
 import React, { useMemo } from "react";
 import { Button } from "../ui/button";
+import Image from "next/image";
+import { statusIconMap } from "@/components/statusIconMap";
 
 export const getModelColumns = (
   setEditTarget: (row: Model) => void,
@@ -997,27 +1000,34 @@ export const getStatusReportColumns = (): ColumnDef<StatusReport>[] => [
   {
     header: "Status",
     accessorKey: "vehicleStatus",
+    cell: ({ getValue }) => {
+      const status = getValue<VehicleStatus>();
+      const config = statusIconMap[status];
+
+      if (!config) return "-";
+
+      return (
+        <div className="flex justify-center">
+          <Image
+            src={config.src}
+            alt={config.label}
+            title={config.label}
+            width={40}
+            height={40}
+            className="cursor-pointer"
+          />
+        </div>
+      );
+    },
   },
+
   {
     header: "Vehicle No",
     accessorKey: "name",
   },
   {
-    header: "Duration",
-    accessorKey: "time",
-  },
-  {
-    header: "Distance (km)",
-    accessorFn: (row: StatusReport) =>
-      row.distance != null ? (row.distance / 1000).toFixed(2) : "0.00",
-  },
-  {
-    header: "Max Speed",
-    accessorKey: "maxSpeed",
-  },
-  {
     header: "Start Time",
-    accessorFn: (row: StatusReport) =>
+    accessorFn: (row) =>
       new Date(row.startDateTime).toLocaleString("en-IN", {
         day: "2-digit",
         month: "short",
@@ -1033,8 +1043,22 @@ export const getStatusReportColumns = (): ColumnDef<StatusReport>[] => [
     accessorKey: "startLocation",
   },
   {
+    header: "Duration",
+    accessorKey: "time",
+  },
+  {
+    header: "Distance (km)",
+    accessorFn: (row) =>
+      row.distance != null ? (row.distance / 1000).toFixed(2) : "0.00",
+  },
+  {
+    header: "Max Speed",
+    accessorKey: "maxSpeed",
+  },
+
+  {
     header: "End Time",
-    accessorFn: (row: StatusReport) =>
+    accessorFn: (row) =>
       new Date(row.endDateTime).toLocaleString("en-IN", {
         day: "2-digit",
         month: "short",
@@ -1055,28 +1079,35 @@ export const getStopReportColumns = (): ColumnDef<StatusReport>[] => [
   {
     header: "Status",
     accessorKey: "vehicleStatus",
+
+    cell: () => {
+      const status = "Ignition Off";
+      const config = statusIconMap[status];
+
+      if (!config) return "-";
+
+      return (
+        <div className="flex justify-center">
+          <Image
+            src={config.src}
+            alt={config.label}
+            title={config.label}
+            width={40}
+            height={40}
+            className="cursor-pointer"
+          />
+        </div>
+      );
+    },
   },
   {
     header: "Vehicle No",
     accessorKey: "name",
   },
   {
-    header: "Duration",
-    accessorKey: "time",
-  },
-  {
-    header: "Distance",
-    accessorKey: "distance",
-  },
-  {
-    header: "Max Speed",
-    accessorKey: "maxSpeed",
-  },
-
-  {
     header: "Start Time",
-    accessorFn: (row: StatusReport) =>
-      new Date(row.startDateTime).toLocaleString("en-IN", {
+    accessorFn: (row: StopReport) =>
+      new Date(row.arrivalTime).toLocaleString("en-IN", {
         day: "2-digit",
         month: "short",
         year: "numeric",
@@ -1095,9 +1126,17 @@ export const getStopReportColumns = (): ColumnDef<StatusReport>[] => [
     accessorKey: "startCoordinates",
   },
   {
+    header: "Duration",
+    accessorKey: "time",
+  },
+  {
+    header: "Distance",
+    accessorKey: "distance",
+  },
+  {
     header: "End Time",
-    accessorFn: (row: StatusReport) =>
-      new Date(row.endDateTime).toLocaleString("en-IN", {
+    accessorFn: (row: StopReport) =>
+      new Date(row.departureTime).toLocaleString("en-IN", {
         day: "2-digit",
         month: "short",
         year: "numeric",
