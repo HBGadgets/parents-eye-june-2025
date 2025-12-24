@@ -62,6 +62,7 @@ interface DeviceState {
   setPage: (page: number) => void;
   clearError: () => void;
   refreshData: () => void;
+  stopAllDeviceData: () => void;
 
   // Single device actions
   startSingleDeviceStream: (uniqueId: string) => void;
@@ -162,8 +163,6 @@ export const useDeviceStore = create<DeviceState>()(
               });
             },
 
-            
-
             // ========== AUTH SUCCESS - EXTRACT USERID FROM JWT ==========
             onAuthSuccess: (authData?: AuthData) => {
               // console.log("[DeviceStore] Auth success:", authData);
@@ -240,7 +239,7 @@ export const useDeviceStore = create<DeviceState>()(
 
               // Request initial data
               const state = get();
-              if (state.streamingMode !== "single") {
+              if (window.location.pathname === "/dashboard") {
                 deviceService.requestDeviceData(state.filters);
               }
 
@@ -585,6 +584,18 @@ export const useDeviceStore = create<DeviceState>()(
         if (updatedState.activeSingleDevices.size === 0) {
           updatedState.switchToAllDevices();
         }
+      },
+
+      stopAllDeviceData: () => {
+        const deviceService = DeviceService.getInstance();
+        if (deviceService.authenticated) {
+          deviceService.stopAllDeviceData();
+        }
+
+        set({
+          streamingMode: null,
+          isLoading: false,
+        });
       },
 
       stopAllSingleDeviceStreams: () => {

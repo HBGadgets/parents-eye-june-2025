@@ -1,6 +1,7 @@
 import { getQueryClient } from "@/lib/queryClient";
 import { create } from "zustand";
 import { jwtDecode } from "jwt-decode";
+import { useDeviceStore } from "./deviceStore";
 
 interface DecodedToken {
   id: string;
@@ -49,6 +50,8 @@ export const useAuthStore = create<AuthState>((set) => ({
     // Clear cookie & localStorage
     document.cookie = "token=; Max-Age=0; path=/";
     localStorage.removeItem("token");
+    const disconnect = useDeviceStore.getState().disconnect;
+    disconnect();
 
     // Clear react-query cache
     getQueryClient().clear();

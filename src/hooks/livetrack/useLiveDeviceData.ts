@@ -7,30 +7,30 @@ import Cookies from "js-cookie";
 // Hook for all device data streaming
 export const useLiveDeviceData = () => {
   const store = useDeviceStore();
-  const hasInitialized = useRef(false);
+  // const hasInitialized = useRef(false);
 
   // Auto-connect on mount if token exists
-  useEffect(() => {
-    const token = Cookies.get("token");
+  // useEffect(() => {
+  //   const token = Cookies.get("token");
 
-    if (token && !hasInitialized.current) {
-      hasInitialized.current = true;
+  //   if (token && !hasInitialized.current) {
+  //     hasInitialized.current = true;
 
-      // Always connect regardless of current connection state
-      store.connect();
-    }
+  //     // Always connect regardless of current connection state
+  //     store.connect();
+  //   }
 
-    // Cleanup on unmount - ALWAYS disconnect
-    // return () => {
-    //   store.disconnect();
-    //   hasInitialized.current = false;
-    // };
-    // Cleanup all device streams on unmount
-    return () => {
-      store.stopAllSingleDeviceStreams();
-      hasInitialized.current = false;
-    }
-  }, []);
+  //   // Cleanup on unmount - ALWAYS disconnect
+  //   // return () => {
+  //   //   store.disconnect();
+  //   //   hasInitialized.current = false;
+  //   // };
+  //   // Cleanup all device streams on unmount
+  //   return () => {
+  //     // store.stopAllSingleDeviceStreams();
+  //     // hasInitialized.current = false;
+  //   };
+  // }, []);
 
   return {
     // Data

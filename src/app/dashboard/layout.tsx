@@ -1,6 +1,5 @@
 "use client";
-import { useEffect } from "react";
-import Cookies from "js-cookie";
+import { useEffect, useRef } from "react";
 import { useDeviceStore } from "@/store/deviceStore";
 import { AppSidebar } from "@/components/app-sidebar";
 import FCMHandler from "@/components/FCMHandler";
@@ -14,6 +13,8 @@ import {
 } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useNavigationStore } from "@/store/navigationStore";
+import Cookies from "js-cookie";
+import { usePathname } from "next/navigation";
 
 export default function DashboardLayout({
   children,
@@ -28,25 +29,39 @@ export default function DashboardLayout({
     "Reports",
     "Support",
   ];
+
+  const store = useDeviceStore();
+  const pathname = usePathname();
+  const isDashboard = pathname === "/dashboard";
+  const hasConnected = useRef(false);
+
+  useEffect(() => {
+    if (!store.isConnected) return;
+
+    if (isDashboard) {
+      console.log("[Dashboard] Subscribing to all device data");
+      store.switchToAllDevices(); // emit / subscribe
+    } else {
+      console.log("[Dashboard] Unsubscribing from all device data");
+      store.stopAllDeviceData(); // stop emits / listeners
+    }
+  }, [isDashboard, store.isConnected]);
+
   useEffect(() => {
     const token = Cookies.get("token");
 
-    // Auto-connect if user is logged in
-    if (token) {
-      const connectToDevice = useDeviceStore.getState().connect;
-      connectToDevice();
-    }
+    if (!token) return;
 
-    // Cleanup on app unmount
-    // return () => {
-    //   const disconnect = useDeviceStore.getState().disconnect;
-    //   disconnect();
-    // };
+    if (!hasConnected.current && !store.isConnected) {
+      hasConnected.current = true;
+      console.log("[Socket] Connecting once on app load");
+      store.connect();
+    }
   }, []);
   return (
     <TooltipProvider delayDuration={0}>
       <SidebarProvider defaultOpen={false}>
-        {activeSection !== "Dashboard" && <AppSidebar />}
+        {SHOW_SIDEBAR_SECTIONS.includes(activeSection) && <AppSidebar />}
         <SidebarInset className="overflow-hidden flex flex-col h-screen">
           <header className="sticky top-0 z-20 flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear overflow-hidden bg-background border-b">
             <div className="flex items-center gap-2 px-4 min-w-0 relative z-20">
