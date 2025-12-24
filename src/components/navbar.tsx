@@ -41,7 +41,6 @@ export function Navbar() {
         setOpen(false);
       } else {
         setActiveSection(section);
-        // Open sidebar based on device type for other sections
         if (isMobile) {
           setOpenMobile(true);
         } else {
