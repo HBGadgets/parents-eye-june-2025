@@ -143,7 +143,7 @@ class DeviceService {
         timeout: 20000,
         forceNew: false,
         transports: ["websocket", "polling"],
-              auth: {
+        auth: {
         token: `Bearer ${this.token}`,
       },
       });
@@ -165,7 +165,7 @@ class DeviceService {
       this.isConnected = true;
       this.reconnectAttempts = 0;
       callbacks.onConnectionChange(true);
-      this.authenticateIfTokenExists();
+      // this.authenticateIfTokenExists();
     });
 
     this.socket.on("disconnect", (reason) => {
@@ -529,7 +529,7 @@ class DeviceService {
   }
 
   public requestDeviceData(filters: DeviceFilters): void {
-    if (!this.socket?.connected || !this.isAuthenticated) {
+    if (!this.socket?.connected) {
       // console.warn(
       //   "[DeviceService] Cannot request data: Not connected or authenticated"
       // );
