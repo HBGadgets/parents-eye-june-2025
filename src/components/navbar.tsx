@@ -39,6 +39,10 @@ export function Navbar() {
         setActiveSection(section);
         setOpenMobile(false);
         setOpen(false);
+      } else if (section === "Maintenance") {
+        setActiveSection(section);
+        setOpenMobile(false);
+        setOpen(false);
       } else {
         setActiveSection(section);
         if (isMobile) {
