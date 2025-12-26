@@ -25,10 +25,13 @@ import {
 } from "@/components/ui/tooltip";
 import { DayWiseTrips, TravelSummaryReport } from "@/interface/modal";
 import { useQueryClient } from "@tanstack/react-query";
+import { uniqueId } from "lodash";
+import { PlaybackHistoryDrawer } from "@/components/travel-summary/playback-history-drawer";
 
 // Interface for nested table data (transformed from DayWiseTrips)
 interface TravelDetailTableData {
   id: string;
+  uniqueId: number;
   reportDate: string;
   ignitionStart: string;
   startLocation: string;
@@ -69,6 +72,12 @@ const TravelSummaryReportPage: React.FC = () => {
     startDate: null,
     endDate: null,
   });
+  const [playbackOpen, setPlaybackOpen] = useState(false);
+  const [playbackPayload, setPlaybackPayload] = useState<{
+    uniqueId: number;
+    startDate: string;
+    endDate: string;
+  } | null>(null);
 
   // Table state
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
@@ -283,23 +292,25 @@ const TravelSummaryReportPage: React.FC = () => {
   // ];
 
   // Fetch report data using the hook
-  
+
   const {
     travelSummaryReport,
     totalTravelSummaryReport,
     isFetchingTravelSummaryReport,
-  } = useReport(pagination, apiFilters, "travel-summary", hasGenerated);
-
-  // // Use demo data instead
-  // const travelSummaryReport = DEMO_TRAVEL_SUMMARY_DATA;
-  // const totalTravelSummaryReport = DEMO_TRAVEL_SUMMARY_DATA.length;
-  // const isFetchingTravelSummaryReport = false;
+  } = useReport(
+    pagination,
+    apiFilters,
+    sorting,
+    "travel-summary",
+    hasGenerated
+  );
 
   // Transform day-wise trips data for nested table
   const transformDayWiseData = useCallback(
     (dayWiseTrips: DayWiseTrips[]): TravelDetailTableData[] => {
       return dayWiseTrips.map((trip, index) => ({
         id: `day-${trip.date}-${index}`,
+        uniqueId: trip.uniqueId,
         reportDate: new Date(trip.date).toLocaleDateString(),
         ignitionStart: trip.startTime
           ? new Date(trip.startTime).toLocaleString("en-IN", {
@@ -314,16 +325,16 @@ const TravelSummaryReportPage: React.FC = () => {
             })
           : "-",
         startLocation: trip.startAddress || "-",
-        startCoordinates: trip.startCoordinates,
+        startCoordinates: `${trip.startLatitude}, ${trip.startLongitude}`,
         distance: trip.distance,
-        running: trip.running,
-        idle: trip.idle,
-        stopped: trip.stopped,
-        overspeed: trip.overspeed,
+        running: trip.runningTime,
+        idle: trip.idleTime,
+        stopped: trip.stopTime,
+        overspeed: trip.overspeedTime,
         maxSpeed: trip.maxSpeed,
         avgSpeed: trip.avgSpeed,
         endLocation: trip.endAddress || "-",
-        endCoordinates: trip.endCoordinates,
+        endCoordinates: `${trip.endLatitude}, ${trip.endLongitude}`,
         ignitionStop: trip.endTime
           ? new Date(trip.endTime).toLocaleString("en-IN", {
               timeZone: "Asia/Kolkata",
@@ -346,7 +357,7 @@ const TravelSummaryReportPage: React.FC = () => {
   // Toggle row expansion
   const toggleRowExpansion = useCallback(
     (rowId: string, rowData: TravelSummaryReport) => {
-      console.log("🔄 Toggling row expansion for:", rowId);
+      // console.log("🔄 Toggling row expansion for:", rowId);
       const newExpandedRows = new Set(expandedRows);
 
       if (expandedRows.has(rowId)) {
@@ -372,29 +383,29 @@ const TravelSummaryReportPage: React.FC = () => {
         // Load detailed data if not already loaded
         if (!detailedData[rowId] && rowData.dayWiseTrips) {
           try {
-            console.log("🔄 Transforming dayWiseTrips:", rowData.dayWiseTrips);
+            // console.log("🔄 Transforming dayWiseTrips:", rowData.dayWiseTrips);
             const transformedDetails = transformDayWiseData(
               rowData.dayWiseTrips
             );
-            console.log("✅ Transformed details:", transformedDetails);
+            // console.log("✅ Transformed details:", transformedDetails);
             setDetailedData((prev) => ({
               ...prev,
               [rowId]: transformedDetails,
             }));
           } catch (error) {
-            console.error("❌ Error transforming day-wise data:", error);
+            // console.error("❌ Error transforming day-wise data:", error);
             setDetailedData((prev) => ({
               ...prev,
               [rowId]: [],
             }));
           }
         } else {
-          console.log("ℹ️ Detail data already exists for:", rowId);
+          // console.log("ℹ️ Detail data already exists for:", rowId);
         }
       }
 
       setExpandedRows(newExpandedRows);
-      console.log("✅ Updated expandedRows:", Array.from(newExpandedRows));
+      // console.log("✅ Updated expandedRows:", Array.from(newExpandedRows));
     },
     [expandedRows, detailedData, transformDayWiseData, detailTableStates]
   );
@@ -432,6 +443,7 @@ const TravelSummaryReportPage: React.FC = () => {
     const transformed = travelSummaryReport.map(
       (item: TravelSummaryReport, index: number) => ({
         ...item,
+        uniqueId: item.dayWiseTrips?.[0]?.uniqueId,
         id: `row-${item.uniqueId}-${index}`,
         sn: pagination.pageIndex * pagination.pageSize + index + 1,
       })
@@ -445,6 +457,7 @@ const TravelSummaryReportPage: React.FC = () => {
     const expandedDataArray: ExpandedRowData[] = [];
 
     transformedReportData.forEach((row) => {
+      console.log(`➡️ Processing row: ${row.id}`);
       // Add main row
       expandedDataArray.push(row);
 
@@ -470,7 +483,7 @@ const TravelSummaryReportPage: React.FC = () => {
       }
     });
 
-    console.log("📋 Final expanded data array:", expandedDataArray);
+    // console.log("📋 Final expanded data array:", expandedDataArray);
     return expandedDataArray;
   }, [transformedReportData, expandedRows, detailedData]);
 
@@ -527,12 +540,15 @@ const TravelSummaryReportPage: React.FC = () => {
         accessorKey: "play",
         header: "Play",
         size: 80,
-        cell: () => (
+        cell: ({ row }) => (
           <div className="flex justify-center">
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <FaPlay className="text-green-600 text-xl cursor-pointer" />
+                  <FaPlay
+                    className="text-green-600 text-xl cursor-pointer"
+                    onClick={() => handlePlayback(row.original)}
+                  />
                 </TooltipTrigger>
                 <TooltipContent
                   side="top"
@@ -576,14 +592,19 @@ const TravelSummaryReportPage: React.FC = () => {
                 onClick={() =>
                   toggleRowExpansion(row.original.id, row.original)
                 }
-                className="p-1 hover:bg-gray-100 rounded transition-colors"
+                className="p-1 hover:bg-gray-100 rounded transition-colors cursor-pointer"
                 aria-label={isExpanded ? "Collapse row" : "Expand row"}
               >
-                {isExpanded ? (
-                  <FaMinus className="text-red-500 text-sm" />
-                ) : (
-                  <FaPlus className="text-green-500 text-sm" />
-                )}
+                <span
+                  className={`inline-flex items-center justify-center transition-all duration-300 ease-in-out
+      ${isExpanded ? "rotate-180 scale-110" : "rotate-0 scale-100"}`}
+                >
+                  {isExpanded ? (
+                    <FaMinus className="text-red-500 text-sm transition-opacity duration-200" />
+                  ) : (
+                    <FaPlus className="text-green-500 text-sm transition-opacity duration-200" />
+                  )}
+                </span>
               </button>
             </div>
           );
@@ -695,14 +716,14 @@ const TravelSummaryReportPage: React.FC = () => {
         accessorKey: "startCoordinates",
         header: "Start Coordinate",
         size: 180,
-        cell: ({ row }) => {
+        cell: ({ row }: { row: any }) => {
           if (
             row.original.isLoading ||
             row.original.isDetailTable ||
             row.original.isEmpty
           )
             return null;
-          return row.original.startCoordinates || "-";
+          return `${row.original.startLat}, ${row.original.startLong}` || "-";
         },
       },
       {
@@ -723,7 +744,7 @@ const TravelSummaryReportPage: React.FC = () => {
         },
       },
       {
-        accessorKey: "runningTime",
+        accessorKey: "running",
         header: "Running Time",
         size: 180,
         cell: ({ row }) => {
@@ -733,11 +754,11 @@ const TravelSummaryReportPage: React.FC = () => {
             row.original.isEmpty
           )
             return null;
-          return row.original.runningTime || "0D, 0H, 0M, 0S";
+          return row.original.running || "0D, 0H, 0M, 0S";
         },
       },
       {
-        accessorKey: "idleTime",
+        accessorKey: "idle",
         header: "Idle Time",
         size: 180,
         cell: ({ row }) => {
@@ -747,13 +768,14 @@ const TravelSummaryReportPage: React.FC = () => {
             row.original.isEmpty
           )
             return null;
-          return row.original.idleTime || "0D, 0H, 0M, 0S";
+          return row.original.idle || "0D, 0H, 0M, 0S";
         },
       },
       {
-        accessorKey: "stopTime",
+        accessorKey: "stop",
         header: "Stop Time",
         size: 180,
+
         cell: ({ row }) => {
           if (
             row.original.isLoading ||
@@ -761,11 +783,11 @@ const TravelSummaryReportPage: React.FC = () => {
             row.original.isEmpty
           )
             return null;
-          return row.original.stopTime || "0D, 0H, 0M, 0S";
+          return row.original.stop || "0D, 0H, 0M, 0S";
         },
       },
       {
-        accessorKey: "overspeedTime",
+        accessorKey: "overspeed",
         header: "Overspeed Time",
         size: 150,
         cell: ({ row }) => {
@@ -775,7 +797,7 @@ const TravelSummaryReportPage: React.FC = () => {
             row.original.isEmpty
           )
             return null;
-          return row.original.overspeedTime || "0D, 0H, 0M, 0S";
+          return row.original.overspeed || "0D, 0H, 0M, 0S";
         },
       },
       {
@@ -848,24 +870,9 @@ const TravelSummaryReportPage: React.FC = () => {
             row.original.isEmpty
           )
             return null;
-          return row.original.endCoordinates || "-";
+          return `${row.original.endLat}, ${row.original.endLong}` || "-";
         },
       },
-
-      // {
-      //   accessorKey: "duration",
-      //   header: "Duration",
-      //   size: 180,
-      //   cell: ({ row }) => {
-      //     if (
-      //       row.original.isLoading ||
-      //       row.original.isDetailTable ||
-      //       row.original.isEmpty
-      //     )
-      //       return null;
-      //     return row.original.duration || "-";
-      //   },
-      // },
       {
         id: "play",
         header: "Play",
@@ -882,7 +889,10 @@ const TravelSummaryReportPage: React.FC = () => {
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <FaPlay className="text-green-600 text-xl cursor-pointer" />
+                    <FaPlay
+                      className="text-green-600 text-xl cursor-pointer"
+                      onClick={() => handlePlayback(row.original)}
+                    />
                   </TooltipTrigger>
                   <TooltipContent
                     side="top"
@@ -957,22 +967,19 @@ const TravelSummaryReportPage: React.FC = () => {
     }
   }, [shouldFetch, hasGenerated, queryClient]);
 
-  // Debug log
-  // console.log("🔍 Debug Info:", {
-  //   expandedRows: Array.from(expandedRows),
-  //   expandedDataArrayLength: expandedDataArray.length,
-  //   detailedDataKeys: Object.keys(detailedData),
-  //   expandedDataSummary: expandedDataArray.map((row) => ({
-  //     id: row.id,
-  //     name: row.name,
-  //     isDetailTable: row.isDetailTable,
-  //     isEmpty: row.isEmpty,
-  //     hasDetailData: row.detailData?.length,
-  //   })),
-  // });
+  // Handle playback click
+  const handlePlayback = (row: any) => {
+    console.log("▶️ Playback clicked for row:", row);
+    setPlaybackPayload({
+      uniqueId: row.uniqueId,
+      startDate: row.reportDate || apiFilters.from,
+      endDate: row.reportDate || apiFilters.to,
+    });
+
+    setPlaybackOpen(true);
+  };
 
   // Table configuration
-  
   const { table, tableElement } = CustomTableServerSidePagination({
     data: expandedDataArray,
     columns,
@@ -988,7 +995,7 @@ const TravelSummaryReportPage: React.FC = () => {
       ? "Loading report data..."
       : "No data available for the selected filters",
     pageSizeOptions: [5, 10, 20, 30, 50],
-    enableSorting: true,
+    enableSorting: false,
     showSerialNumber: false,
   });
 
@@ -1035,6 +1042,15 @@ const TravelSummaryReportPage: React.FC = () => {
 
       {/* Table */}
       {showTable && <section className="mb-4">{tableElement}</section>}
+      {playbackPayload && (
+        <PlaybackHistoryDrawer
+          open={playbackOpen}
+          onOpenChange={setPlaybackOpen}
+          uniqueId={playbackPayload.uniqueId}
+          startDate={playbackPayload.startDate}
+          endDate={playbackPayload.endDate}
+        />
+      )}
     </div>
   );
 };

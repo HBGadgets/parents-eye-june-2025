@@ -35,6 +35,7 @@ const StatusReportPage: React.FC = () => {
   const { statusReport, totalStatusReport, isFetchingStatusReport } = useReport(
     pagination,
     apiFilters,
+    sorting,
     "status",
     hasGenerated
   );

@@ -2,7 +2,6 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useDeviceStore } from "@/store/deviceStore";
-import { count } from "console";
 
 // Hook for all device data streaming
 export const useLiveDeviceData = () => {

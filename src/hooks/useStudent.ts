@@ -9,7 +9,6 @@ import {
 import { studentService } from "@/services/api/studentService";
 import { PaginationState, SortingState } from "@tanstack/react-table";
 import { toast } from "sonner";
-import { is } from "date-fns/locale";
 
 export const useStudent = (
   pagination: PaginationState,

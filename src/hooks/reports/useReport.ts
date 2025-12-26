@@ -2,11 +2,12 @@
 
 import { reportService } from "@/services/api/reportService";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
-import { PaginationState } from "@tanstack/react-table";
+import { PaginationState, SortingState } from "@tanstack/react-table";
 
 export const useReport = (
   pagination: PaginationState,
   filters: Record<string, any>,
+  sorting?: SortingState,
   reportType?:
     | "status"
     | "stop"
@@ -25,6 +26,7 @@ export const useReport = (
       "status-report",
       pagination.pageIndex,
       pagination.pageSize,
+      sorting,
       filters?.uniqueId,
       filters?.period,
       filters?.from,
@@ -35,6 +37,8 @@ export const useReport = (
       reportService.getStatusReport({
         page: pagination.pageIndex + 1,
         limit: pagination.pageSize,
+        sortBy: sorting?.[0]?.id,
+        sortOrder: sorting?.[0]?.desc ? "desc" : "asc",
         uniqueId: filters?.uniqueId,
         period: filters?.period || "Custom",
         from: filters?.from,
@@ -59,6 +63,7 @@ export const useReport = (
       "stop-report",
       // pagination.pageIndex,
       // pagination.pageSize,
+      sorting,
       filters?.uniqueId,
       filters?.period,
       filters?.from,
@@ -68,8 +73,8 @@ export const useReport = (
 
     queryFn: () =>
       reportService.getStopReport({
-        // page: pagination.pageIndex + 1,
-        // limit: pagination.pageSize,
+        sortBy: sorting?.[0]?.id,
+        sortOrder: sorting?.[0]?.desc ? "desc" : "asc",
         uniqueId: filters?.uniqueId,
         period: filters?.period || "Custom",
         from: filters?.from,
@@ -260,6 +265,7 @@ export const useReport = (
       "travel-summary",
       pagination.pageIndex,
       pagination.pageSize,
+      sorting,
       filters?.uniqueId,
       filters?.period,
       filters?.from,
@@ -270,6 +276,8 @@ export const useReport = (
       reportService.getTravelSummaryReport({
         page: pagination.pageIndex + 1,
         limit: pagination.pageSize,
+        sortBy: sorting?.[0]?.id,
+        sortOrder: sorting?.[0]?.desc ? "desc" : "asc",
         uniqueIds: filters?.uniqueId,
         period: filters?.period || "Custom",
         from: filters?.from,

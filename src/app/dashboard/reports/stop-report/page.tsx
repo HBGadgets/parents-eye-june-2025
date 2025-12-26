@@ -35,6 +35,7 @@ const StopReportPage: React.FC = () => {
   const { stopReport, totalStopReport, isFetchingStopReport } = useReport(
     pagination,
     apiFilters,
+    sorting,
     "stop",
     hasGenerated
   );
@@ -64,7 +65,6 @@ const StopReportPage: React.FC = () => {
       to: filters.to,
       period: "Custom",
     });
-
     setShouldFetch(true);
     setHasGenerated(true);
 

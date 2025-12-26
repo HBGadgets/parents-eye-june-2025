@@ -412,9 +412,28 @@ export const getLiveVehicleColumns = (): ColumnDef<LiveTrack>[] => [
     id: "lastUpdate",
     header: "Last Update",
     cell: ({ row }: any) => {
-      const date = new Date(row.original.lastUpdate);
-      return <div>{date.toLocaleString("en-US")}</div>;
+      const value = row.original.lastUpdate;
+
+      if (!value) return "-";
+
+      const date = new Date(value);
+
+      return (
+        <div>
+          {date.toLocaleString("en-GB", {
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+            hour12: true,
+            timeZone: "UTC",
+          })}
+        </div>
+      );
     },
+
     meta: {
       wrapConfig: {
         wrap: "break-word",
@@ -1118,20 +1137,8 @@ export const getStopReportColumns = (): ColumnDef<StatusReport>[] => [
       }),
   },
   {
-    header: "Start Location",
-    accessorKey: "startLocation",
-  },
-  {
-    header: "Start Coordinates",
-    accessorKey: "startCoordinates",
-  },
-  {
     header: "Duration",
     accessorKey: "time",
-  },
-  {
-    header: "Distance",
-    accessorKey: "distance",
   },
   {
     header: "End Time",
@@ -1147,12 +1154,16 @@ export const getStopReportColumns = (): ColumnDef<StatusReport>[] => [
       }),
   },
   {
-    header: "End Location",
-    accessorKey: "endLocation",
+    header: "Address",
+    accessorKey: "address",
   },
   {
-    header: "End Coordinates",
-    accessorKey: "endCoordinates",
+    header: "Coordinates",
+    cell: ({ row }: { row: any }) => {
+      const latitude = row.original.latitude;
+      const longitude = row.original.longitude;
+      return `${latitude}, ${longitude}`;
+    },
   },
 ];
 

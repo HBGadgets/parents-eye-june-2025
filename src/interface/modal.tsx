@@ -428,13 +428,15 @@ export interface DayWiseTrips {
   maxSpeed: string;
   avgSpeed: string;
   distance: string;
-  running: string;
-  idle: string;
-  stopped: string;
-  overspeed: string;
-  startCoordinates: string;
+  runningTime: string;
+  idleTime: string;
+  stopTime: string;
+  overspeedTime: string;
+  startLatitude: string;
+  startLongitude: string;
   startAddress: string;
-  endCoordinates: string;
+  endLatitude: string;
+  endLongitude: string;
   endAddress: string;
 }
 
