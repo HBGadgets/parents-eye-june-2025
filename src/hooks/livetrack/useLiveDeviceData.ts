@@ -1,36 +1,12 @@
 // hooks/useLiveDeviceData.ts
 "use client";
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useDeviceStore } from "@/store/deviceStore";
-import Cookies from "js-cookie";
+import { count } from "console";
 
 // Hook for all device data streaming
 export const useLiveDeviceData = () => {
   const store = useDeviceStore();
-  // const hasInitialized = useRef(false);
-
-  // Auto-connect on mount if token exists
-  // useEffect(() => {
-  //   const token = Cookies.get("token");
-
-  //   if (token && !hasInitialized.current) {
-  //     hasInitialized.current = true;
-
-  //     // Always connect regardless of current connection state
-  //     store.connect();
-  //   }
-
-  //   // Cleanup on unmount - ALWAYS disconnect
-  //   // return () => {
-  //   //   store.disconnect();
-  //   //   hasInitialized.current = false;
-  //   // };
-  //   // Cleanup all device streams on unmount
-  //   return () => {
-  //     // store.stopAllSingleDeviceStreams();
-  //     // hasInitialized.current = false;
-  //   };
-  // }, []);
 
   return {
     // Data

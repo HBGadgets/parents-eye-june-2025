@@ -1,6 +1,7 @@
 import { io, Socket } from "socket.io-client";
 import Cookies from "js-cookie";
 import { AllDeviceResponse, DeviceFilters } from "@/types/socket";
+import { useEffect } from "react";
 
 // ============================================================
 // Type Definitions
@@ -189,8 +190,9 @@ class DeviceService {
     if (this.socket) {
       return;
     }
-
     try {
+
+      console.log("Connecting to WebSocket server... [TOKEN]: ", this.token);
       this.socket = io(this.baseUrl, {
         autoConnect: false,
         reconnection: true,

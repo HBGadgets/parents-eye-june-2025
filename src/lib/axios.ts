@@ -13,6 +13,8 @@ axiosInstance.interceptors.request.use(
     const token = Cookies.get("token");
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
+    } else {
+      delete config.headers.Authorization;
     }
     return config;
   },

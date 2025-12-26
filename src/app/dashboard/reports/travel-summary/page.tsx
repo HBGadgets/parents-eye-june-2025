@@ -283,6 +283,7 @@ const TravelSummaryReportPage: React.FC = () => {
   // ];
 
   // Fetch report data using the hook
+  
   const {
     travelSummaryReport,
     totalTravelSummaryReport,
@@ -971,6 +972,7 @@ const TravelSummaryReportPage: React.FC = () => {
   // });
 
   // Table configuration
+  
   const { table, tableElement } = CustomTableServerSidePagination({
     data: expandedDataArray,
     columns,

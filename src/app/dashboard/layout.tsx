@@ -15,6 +15,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { useNavigationStore } from "@/store/navigationStore";
 import Cookies from "js-cookie";
 import { usePathname } from "next/navigation";
+import { redirect } from "next/navigation";
 
 export default function DashboardLayout({
   children,
@@ -49,9 +50,9 @@ export default function DashboardLayout({
 
   useEffect(() => {
     const token = Cookies.get("token");
-
-    if (!token) return;
-
+    if (!token) {
+      redirect("/login");
+    }
     if (!hasConnected.current && !store.isConnected) {
       hasConnected.current = true;
       console.log("[Socket] Connecting once on app load");
