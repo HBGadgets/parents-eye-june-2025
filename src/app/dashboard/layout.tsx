@@ -16,6 +16,7 @@ import { useNavigationStore } from "@/store/navigationStore";
 import Cookies from "js-cookie";
 import { usePathname } from "next/navigation";
 import { redirect } from "next/navigation";
+import { useRouter } from "next/navigation";
 
 export default function DashboardLayout({
   children,
@@ -30,6 +31,7 @@ export default function DashboardLayout({
     "Reports",
     "Support",
   ];
+  const router = useRouter();
 
   const store = useDeviceStore();
   const pathname = usePathname();
@@ -51,7 +53,8 @@ export default function DashboardLayout({
   useEffect(() => {
     const token = Cookies.get("token");
     if (!token) {
-      redirect("/login");
+      // redirect("/login");
+      router.replace("/login");
     }
     if (!hasConnected.current && !store.isConnected) {
       hasConnected.current = true;
