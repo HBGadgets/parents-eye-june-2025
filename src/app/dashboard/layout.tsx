@@ -53,8 +53,7 @@ export default function DashboardLayout({
   useEffect(() => {
     const token = Cookies.get("token");
     if (!token) {
-      // redirect("/login");
-      router.replace("/login");
+      redirect("/login");
     }
     if (!hasConnected.current && !store.isConnected) {
       hasConnected.current = true;
