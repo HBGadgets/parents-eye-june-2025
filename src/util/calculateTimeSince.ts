@@ -1,43 +1,71 @@
+// export const calculateTimeSince = (lastUpdateString: string): string => {
+//   if (!lastUpdateString) return "00S";
+
+//   const lastUpdate = new Date(lastUpdateString);
+//   if (Number.isNaN(lastUpdate.getTime())) return "00S";
+
+//   let diffInMs = Date.now() - lastUpdate.getTime();
+
+//   // Do NOT do timezone math
+//   // Just guard against bad future values
+//   if (diffInMs < 0) diffInMs = 0;
+
+//   const totalSeconds = Math.floor(diffInMs / 1000);
+
+//   const days = Math.floor(totalSeconds / 86400);
+//   const hours = Math.floor((totalSeconds % 86400) / 3600);
+//   const minutes = Math.floor((totalSeconds % 3600) / 60);
+//   const seconds = totalSeconds % 60;
+
+//   if (days === 0 && hours === 0 && minutes === 0)
+//     return `${seconds.toString().padStart(2, "0")}S`;
+
+//   if (days === 0 && hours === 0)
+//     return `${minutes.toString().padStart(2, "0")}M`;
+
+//   if (days === 0)
+//     return `${hours.toString().padStart(2, "0")}H ${minutes
+//       .toString()
+//       .padStart(2, "0")}M`;
+
+//   return `${days.toString().padStart(2, "0")}D ${hours
+//     .toString()
+//     .padStart(2, "0")}H ${minutes.toString().padStart(2, "0")}M`;
+// };
+
 export const calculateTimeSince = (lastUpdateString: string): string => {
-  const lastUpdate = new Date(lastUpdateString);
-  const now = new Date();
-  const diffInMs = now.getTime() - lastUpdate.getTime();
+  if (!lastUpdateString) return "00S";
 
-  // Handle invalid dates or future dates
-  if (isNaN(lastUpdate.getTime()) || diffInMs < 0) {
-    return "00S";
-  }
+  // 👇 Z hata diya, ab IST treat hoga
+  const cleaned = lastUpdateString.replace("Z", "");
 
-  const diffInSeconds = Math.floor(diffInMs / 1000);
+  const lastUpdate = new Date(cleaned);
+  if (Number.isNaN(lastUpdate.getTime())) return "00S";
 
-  // Calculate days, hours, minutes, and seconds
-  const days = Math.floor(diffInSeconds / (24 * 60 * 60));
-  const remainingAfterDays = diffInSeconds % (24 * 60 * 60);
+  let diffInMs = Date.now() - lastUpdate.getTime();
 
-  const hours = Math.floor(remainingAfterDays / (60 * 60));
-  const remainingAfterHours = remainingAfterDays % (60 * 60);
+  // agar thoda future aa bhi jaye to clamp
+  if (diffInMs < 0) diffInMs = 0;
 
-  const minutes = Math.floor(remainingAfterHours / 60);
-  const seconds = remainingAfterHours % 60;
+  const totalSeconds = Math.floor(diffInMs / 1000);
 
-  // Format with leading zeros
-  const formattedDays = days.toString().padStart(2, "0");
-  const formattedHours = hours.toString().padStart(2, "0");
-  const formattedMinutes = minutes.toString().padStart(2, "0");
-  const formattedSeconds = seconds.toString().padStart(2, "0");
+  const days = Math.floor(totalSeconds / 86400);
+  const hours = Math.floor((totalSeconds % 86400) / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
 
-  // Conditional formatting based on values
-  if (days === 0 && hours === 0 && minutes === 0) {
-    // Only show seconds when days, hours, and minutes are all 0
-    return `${formattedSeconds}S`;
-  } else if (days === 0 && hours === 0) {
-    // Only show minutes when days and hours are 0
-    return `${formattedMinutes}M`;
-  } else if (days === 0) {
-    // Show hours and minutes when days are 0
-    return `${formattedHours}H ${formattedMinutes}M`;
-  } else {
-    // Show full format when days are not 0
-    return `${formattedDays}D ${formattedHours}H ${formattedMinutes}M`;
-  }
+  if (days === 0 && hours === 0 && minutes === 0)
+    return `${seconds.toString().padStart(2, "0")}S`;
+
+  if (days === 0 && hours === 0)
+    return `${minutes.toString().padStart(2, "0")}M`;
+
+  if (days === 0)
+    return `${hours.toString().padStart(2, "0")}H ${minutes
+      .toString()
+      .padStart(2, "0")}M`;
+
+  return `${days.toString().padStart(2, "0")}D ${hours
+    .toString()
+    .padStart(2, "0")}H ${minutes.toString().padStart(2, "0")}M`;
 };
