@@ -356,7 +356,6 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
     []
   );
 
-
   // Initialize map
   useEffect(() => {
     if (
@@ -580,7 +579,6 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
       if (!bounds.pad(-0.2).contains(latlng)) {
         // mapRef.current!.panTo(latlng, { animate: true, duration: 0.3 });
         mapRef.current!.panTo(latlng, { animate: true, duration: 0.3 });
-
       }
 
       // ⬇️ BEARING BASED ROTATION
