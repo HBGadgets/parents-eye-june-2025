@@ -269,12 +269,6 @@ export default function DashboardClient() {
     setSelectedImei({ uniqueId, name });
   };
 
-  const handleHistoryClick = (deviceId: number) => {
-    router.push(
-      `/dashboard/reports/history-report?vehicleId=${deviceId}&vehicleName=${selectedDevice?.name}`
-    );
-  };
-
   useEffect(() => {
     queueVisibleDevicesForGeocoding();
   }, [queueVisibleDevicesForGeocoding]);
@@ -599,7 +593,6 @@ export default function DashboardClient() {
           onOpenChange={setIsRouteTimelineOpen}
           uniqueId={routeTimelineData?.uniqueId}
           deviceName={routeTimelineData?.deviceName}
-          handleHistoryClick={handleHistoryClick}
         />
 
         {/* Subscription Expiry Popup - Fixed to bottom-right corner */}

@@ -359,51 +359,6 @@ function HistoryReportContent() {
   );
 
   useEffect(() => {
-    if (!hasInitializedRef.current && vehicleIdFromUrl) {
-      isFromDashboardRef.current = true;
-      hasInitializedRef.current = true;
-
-      console.log(
-        "Detected redirect from dashboard with vehicle unique ID:",
-        vehicleIdFromUrl
-      );
-
-      const today = new Date();
-      setDefaultDateRange({
-        startDate: today,
-        endDate: today,
-      });
-
-      const formattedStart = formatDateToYYYYMMDD(today);
-      const formattedEnd = formatDateToYYYYMMDD(today);
-      setFromDate(formattedStart + "T00:00:00.000Z");
-      setToDate(formattedEnd + "T23:59:59.000Z");
-    } else if (!hasInitializedRef.current) {
-      isFromDashboardRef.current = false;
-      hasInitializedRef.current = true;
-      console.log("Direct page visit detected");
-    }
-  }, [vehicleIdFromUrl, nameFromUrl]);
-
-  useEffect(() => {
-    if (
-      vehicleIdFromUrl &&
-      vehicleData &&
-      vehicleData.length > 0 &&
-      isFromDashboardRef.current &&
-      !selectedVehicle
-    ) {
-      const vehicleExists = vehicleData.find(
-        (vehicle) => vehicle.value.toString() === vehicleIdFromUrl
-      );
-      if (vehicleExists) {
-        console.log("Auto-selecting vehicle:", vehicleExists.label);
-        setSelectedVehicle(vehicleIdFromUrl);
-      }
-    }
-  }, [vehicleIdFromUrl, vehicleData, selectedVehicle]);
-
-  useEffect(() => {
     if (
       selectedVehicle &&
       fromDate &&
@@ -443,7 +398,7 @@ function HistoryReportContent() {
     }
 
     try {
-      console.log("Manual show button clicked");
+      console.log("Manual show button clicked", {selectedVehicle, fromDate, toDate});
       setLoading(true);
 
       const response = await api.get(

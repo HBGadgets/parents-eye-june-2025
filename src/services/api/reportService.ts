@@ -45,4 +45,9 @@ export const reportService = {
     const res = await api.get("/report/route-report", { params }); 
     return res.data;
   },
+
+  getHistoryReport: async (params: Record<string, any>): Promise<any> => {
+    const res = await api.get("/device-trips-with-route", { params }); 
+    return res.data;
+  }
 };

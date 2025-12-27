@@ -17,7 +17,8 @@ export const useReport = (
     | "geofence-alerts"
     | "trip"
     | "travel-summary"
-    | "route",
+    | "route"
+    | "history",
   hasGenerated?: boolean
 ) => {
   const isAll = pagination.pageSize === "all";
@@ -337,6 +338,33 @@ export const useReport = (
     placeholderData: keepPreviousData,
   });
 
+  const getHistoryReportQuery = useQuery({
+    queryKey: [
+      "history-report",
+      filters?.uniqueId,
+      filters?.period,
+      filters?.from,
+      filters?.to,
+    ],
+
+    queryFn: () =>
+      reportService.getHistoryReport({
+        uniqueId: filters?.uniqueId,
+        period: filters?.period || "Custom",
+        from: filters?.from,
+        to: filters?.to,
+      }),
+    enabled:
+      hasGenerated &&
+      reportType === "history" &&
+      !!filters?.uniqueId &&
+      !!filters?.from &&
+      !!filters?.to,
+    staleTime: 10 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    retry: false,
+  });
+
   return {
     statusReport: getStatusQuery.data?.data || [],
     stopReport: getStopReportQuery.data?.data || [],
@@ -347,6 +375,7 @@ export const useReport = (
     tripReport: getTripReportQuery.data?.data || [],
     travelSummaryReport: getTravelSummaryReportQuery.data?.reportData || [],
     routeReport: getRouteReportQuery.data?.data || [],
+    historyReport: getHistoryReportQuery.data?.data || [],
 
     totalStatusReport: getStatusQuery.data?.total || 0,
     totalStopReport: getStopReportQuery.data?.total || 0,
@@ -367,5 +396,6 @@ export const useReport = (
     isFetchingTripReport: getTripReportQuery.isFetching,
     isFetchingTravelSummaryReport: getTravelSummaryReportQuery.isFetching,
     isFetchingRouteReport: getRouteReportQuery.isFetching,
+    isFetchingHistoryReport: getHistoryReportQuery.isFetching,
   };
 };
