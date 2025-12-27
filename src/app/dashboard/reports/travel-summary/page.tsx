@@ -25,8 +25,11 @@ import {
 } from "@/components/ui/tooltip";
 import { DayWiseTrips, TravelSummaryReport } from "@/interface/modal";
 import { useQueryClient } from "@tanstack/react-query";
-import { uniqueId } from "lodash";
 import { PlaybackHistoryDrawer } from "@/components/travel-summary/playback-history-drawer";
+
+///////////////////////////////DEMO DATA INTERFACES///////////////////////////////
+import { deviceWithTrip } from "@/data/playback-nested";
+///////////////////////////////DEMO DATA INTERFACES///////////////////////////////
 
 // Interface for nested table data (transformed from DayWiseTrips)
 interface TravelDetailTableData {
@@ -77,6 +80,7 @@ const TravelSummaryReportPage: React.FC = () => {
     uniqueId: number;
     startDate: string;
     endDate: string;
+    flatHistory: any[];
   } | null>(null);
 
   // Table state
@@ -970,10 +974,13 @@ const TravelSummaryReportPage: React.FC = () => {
   // Handle playback click
   const handlePlayback = (row: any) => {
     console.log("▶️ Playback clicked for row:", row);
+    const history = deviceWithTrip || [];
+    const flatHistory = history.flat();
     setPlaybackPayload({
       uniqueId: row.uniqueId,
       startDate: row.reportDate || apiFilters.from,
       endDate: row.reportDate || apiFilters.to,
+      flatHistory: flatHistory,
     });
 
     setPlaybackOpen(true);
@@ -1049,6 +1056,7 @@ const TravelSummaryReportPage: React.FC = () => {
           uniqueId={playbackPayload.uniqueId}
           startDate={playbackPayload.startDate}
           endDate={playbackPayload.endDate}
+          flatHistory={playbackPayload.flatHistory}
         />
       )}
     </div>

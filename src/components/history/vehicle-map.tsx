@@ -28,8 +28,8 @@ L.Icon.Default.mergeOptions({
 
 interface VehicleMapProps {
   data: DeviceHistoryItem[];
-  currentIndex: number;
-  isExpanded: boolean;
+  currentIndex?: number;
+  isExpanded?: boolean;
   onProgressChange?: (progress: number) => void;
 }
 
@@ -43,7 +43,7 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
   isExpanded,
   onProgressChange,
 }) => {
-  const MIN_BASE_SECONDS = 2;
+  const MIN_BASE_SECONDS = 100000;
 
   const BASE_PLAYBACK_SECONDS = Math.max(
     MIN_BASE_SECONDS,
@@ -86,12 +86,13 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
     return L.divIcon({
       className: "vehicle-marker",
       html: `
-      <div style="
+      <div class="vehicle-rotator" style="
         width: 32px;
         height: 32px;
         display: flex;
         align-items: center;
         justify-content: center;
+        transform-origin: center center;
       ">
         <img src="/Top Y.svg" width="32" height="32" />
       </div>
@@ -271,6 +272,20 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
     })(),
     [updateArrowVisibility]
   );
+
+  const getBearing = (from: L.LatLng, to: L.LatLng): number => {
+    const lat1 = (from.lat * Math.PI) / 180;
+    const lat2 = (to.lat * Math.PI) / 180;
+    const dLng = ((to.lng - from.lng) * Math.PI) / 180;
+
+    const y = Math.sin(dLng) * Math.cos(lat2);
+    const x =
+      Math.cos(lat1) * Math.sin(lat2) -
+      Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLng);
+
+    let brng = (Math.atan2(y, x) * 180) / Math.PI;
+    return (brng + 360) % 360;
+  };
 
   const handleZoomEnd = useCallback(() => {
     if (!mapRef.current) return;
@@ -535,14 +550,20 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
     // });
 
     player.setOnUpdate((latlng, index) => {
-      // keep marker locked to polyline
       const bounds = mapRef.current!.getBounds();
       if (!bounds.pad(-0.2).contains(latlng)) {
         mapRef.current!.panTo(latlng, { animate: true, duration: 0.3 });
       }
 
-      const targetAngle = data[index]?.course ?? currentAngleRef.current;
-      smoothRotateVehicle((player as any).marker, targetAngle);
+      // ⬇️ BEARING BASED ROTATION
+      const curr = L.latLng(latlng);
+      const nextPoint = data[index + 1];
+
+      if (nextPoint) {
+        const next = L.latLng(nextPoint.latitude, nextPoint.longitude);
+        const bearing = getBearing(curr, next);
+        smoothRotateVehicle((player as any).marker, bearing);
+      }
 
       const percent = (index / (data.length - 1)) * 100;
       setProgress(percent);

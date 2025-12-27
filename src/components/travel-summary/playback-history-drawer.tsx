@@ -12,6 +12,10 @@ import {
   DrawerTitle,
 } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
+import { useDeviceDropdownWithUniqueIdForHistory } from "@/hooks/useDropdown";
+import dynamic from "next/dynamic";
+import HistoryReportPage from "@/app/dashboard/reports/history-report/page";
+import HistoryReport from "../history/HistoryReportTravelSummary";
 
 interface PlaybackHistoryDrawerProps {
   open: boolean;
@@ -19,7 +23,26 @@ interface PlaybackHistoryDrawerProps {
   uniqueId?: number;
   startDate?: string;
   endDate?: string;
+  flatHistory: any[];
 }
+
+type UTCRange = {
+  from?: string;
+  to?: string;
+};
+
+// Dynamically import VehicleMap with SSR disabled
+const VehicleMap = dynamic(() => import("@/components/history/vehicle-map"), {
+  ssr: false,
+  loading: () => (
+    <div className="w-full h-[50vh] flex items-center justify-center bg-gray-100">
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
+        <p className="mt-2 text-gray-600">Loading map...</p>
+      </div>
+    </div>
+  ),
+});
 
 export function PlaybackHistoryDrawer({
   open,
@@ -27,77 +50,73 @@ export function PlaybackHistoryDrawer({
   uniqueId,
   startDate,
   endDate,
+  flatHistory,
 }: PlaybackHistoryDrawerProps) {
-  console.log("PlaybackHistoryDrawer props:", {
-    open,
-    uniqueId,
-    startDate,
-    endDate,
-  });
-   const toUTCDayRange = (
-     dateInput: string
-   ): {
-     from: string;
-     to: string;
-   } => {
-     let year: number, month: number, day: number;
+  const toUTCRange = (start?: string, end?: string): UTCRange => {
+    if (!start) return {};
 
-     // Case 1: dd/MM/yyyy
-     if (dateInput.includes("/")) {
-       const [d, m, y] = dateInput.split("/").map(Number);
-       day = d;
-       month = m - 1;
-       year = y;
-     }
-     // Case 2: yyyy-MM-dd
-     else {
-       const [y, m, d] = dateInput.split("-").map(Number);
-       day = d;
-       month = m - 1;
-       year = y;
-     }
+    const parse = (date: string) => {
+      let year: number, month: number, day: number;
 
-     const from = new Date(Date.UTC(year, month, day, 0, 0, 0, 0));
-     const to = new Date(Date.UTC(year, month, day, 23, 59, 59, 999));
+      if (date.includes("/")) {
+        const [d, m, y] = date.split("/").map(Number);
+        day = d;
+        month = m - 1;
+        year = y;
+      } else {
+        const [y, m, d] = date.split("-").map(Number);
+        day = d;
+        month = m - 1;
+        year = y;
+      }
 
-     return {
-       from: from.toISOString(),
-       to: to.toISOString(),
-     };
-   };
-  const {from, to} = toUTCDayRange(startDate, endDate);
- 
+      return { year, month, day };
+    };
+
+    const startParsed = parse(start);
+    const endParsed = parse(end ?? start);
+
+    const from = new Date(
+      Date.UTC(startParsed.year, startParsed.month, startParsed.day, 0, 0, 0, 0)
+    );
+
+    const to = new Date(
+      Date.UTC(endParsed.year, endParsed.month, endParsed.day, 23, 59, 59, 999)
+    );
+
+    return {
+      from: from.toISOString(),
+      to: to.toISOString(),
+    };
+  };
+  const { from, to } = toUTCRange(startDate, endDate);
+  console.log("flatHistory:", flatHistory);
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
-      <DrawerContent>
-        <div className="mx-auto w-full max-w-lg">
+      <DrawerContent className="h-[95vh]">
+        <div className="mx-auto h-screen w-screen px-4">
           <DrawerHeader>
             <DrawerTitle>Playback History</DrawerTitle>
-            <DrawerDescription>
-              Vehicle ID: <b>{uniqueId ?? "-"}</b>
+            <DrawerDescription className="font-mono text-xs">
+              Vehicle Number: <b>{uniqueId ?? "-"}</b>
             </DrawerDescription>
           </DrawerHeader>
 
-          <div className="p-4">
-            <div className="text-sm text-muted-foreground mb-2">
-              Date Range: from {startDate} → to {endDate}
-            </div>
-
-            <div className="h-[200px] border rounded-md flex items-center justify-center">
-              <ResponsiveContainer width="100%" height="100%">
-                <div>
-                  <h1 className="font-semibold">PLAYBACK HISTORY</h1>
-                </div>
-              </ResponsiveContainer>
-            </div>
+          <div
+            className="p-4"
+            onPointerDown={(e) => e.stopPropagation()}
+            onPointerMove={(e) => e.stopPropagation()}
+            onTouchStart={(e) => e.stopPropagation()}
+            onTouchMove={(e) => e.stopPropagation()}
+          >
+            <HistoryReport
+              trips={[flatHistory]}
+              flatHistory={flatHistory}
+              showFilters={false}
+              showTripsSidebar={false}
+            />
           </div>
-
-          <DrawerFooter>
-            <DrawerClose asChild>
-              <Button variant="outline">Close</Button>
-            </DrawerClose>
-          </DrawerFooter>
         </div>
       </DrawerContent>
     </Drawer>
