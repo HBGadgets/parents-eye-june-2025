@@ -65,6 +65,7 @@ const StatusReportPage: React.FC = () => {
       to: filters.to,
       period: "Custom",
     });
+    
     setShouldFetch(true);
     setHasGenerated(true);
 

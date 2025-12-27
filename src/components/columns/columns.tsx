@@ -1171,6 +1171,25 @@ export const getIdleReportColumns = (): ColumnDef<IdleReport>[] => [
   {
     header: "Status",
     accessorKey: "vehicleStatus",
+    cell: () => {
+      const status = "Idle";
+      const config = statusIconMap[status];
+
+      if (!config) return "-";
+
+      return (
+        <div className="flex justify-center">
+          <Image
+            src={config.src}
+            alt={config.label}
+            title={config.label}
+            width={40}
+            height={40}
+            className="cursor-pointer"
+          />
+        </div>
+      );
+    },
   },
   {
     header: "Vehicle No",
@@ -1363,3 +1382,15 @@ export const GetTripReportColumns = (): ColumnDef<TripReport>[] => [
     cell: ({ getValue }) => `${getValue<number>()} km/h`,
   },
 ];
+
+export const getRouteReportColumns =
+  (): ColumnDef<GeofenceAlerts>[] => [
+    { header: "Vehicle No", accessorKey: "name" },
+    { header: "Geofence Name", accessorKey: "geofenceName" },
+    { header: "Location", accessorKey: "location" },
+    { header: "Coordinates", accessorKey: "coordinate" },
+    { header: "In Time", accessorKey: "inTime" },
+    { header: "Out Time", accessorKey: "outTime" },
+    { header: "Halt Time", accessorKey: "haltTime" },
+    { header: "Created At", accessorKey: "createdAt" },
+  ];

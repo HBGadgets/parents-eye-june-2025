@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, useCallback } from "react";
+import React, { useState, useMemo, useCallback, useEffect } from "react";
 import {
   ReportFilter,
   FilterValues,
@@ -10,9 +10,13 @@ import { CustomTableServerSidePagination } from "@/components/ui/customTable(ser
 import ResponseLoader from "@/components/ResponseLoader";
 import { useReport } from "@/hooks/reports/useReport";
 import { GetTripReportColumns } from "@/components/columns/columns";
+import { useQueryClient } from "@tanstack/react-query";
 
 const TripReportPage: React.FC = () => {
   // Table state
+  const queryClient = useQueryClient();
+  const [shouldFetch, setShouldFetch] = useState(false);
+  const [hasGenerated, setHasGenerated] = useState(false);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
   const [showTable, setShowTable] = useState(false);
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 10 });
@@ -31,7 +35,9 @@ const TripReportPage: React.FC = () => {
   const { tripReport, totalTripReport, isFetchingTripReport } = useReport(
     pagination,
     apiFilters,
-    "trip"
+    sorting,
+    "trip",
+    hasGenerated
   );
 
   // Handle filter submission
@@ -57,9 +63,27 @@ const TripReportPage: React.FC = () => {
       period: "Custom",
     });
 
+    setShouldFetch(true);
+    setHasGenerated(true);
+
+
     // Show table
     setShowTable(true);
   }, []);
+
+    useEffect(() => {
+      if (!isFetchingTripReport && shouldFetch) {
+        setShouldFetch(false);
+      }
+    }, [isFetchingTripReport, shouldFetch]);
+  
+    useEffect(() => {
+      if (shouldFetch && hasGenerated) {
+        queryClient.invalidateQueries({
+          queryKey: ["trip-report"],
+        });
+      }
+    }, [shouldFetch, hasGenerated, queryClient]);
 
   // Column definitions
   const columns = GetTripReportColumns();
@@ -99,7 +123,10 @@ const TripReportPage: React.FC = () => {
           showDevice: true,
           showDateRange: true,
           showSubmitButton: true,
-          submitButtonText: "Generate",
+          submitButtonText: isFetchingTripReport
+            ? "Generating..."
+            : "Generate",
+          submitButtonDisabled: isFetchingTripReport,
           dateRangeTitle: "Select Date Range",
           dateRangeMaxDays: 300,
           cardTitle: "Trip Report",

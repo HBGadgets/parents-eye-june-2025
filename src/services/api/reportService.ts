@@ -40,4 +40,9 @@ export const reportService = {
     const res = await api.get("/report/travel-summary-report", { params }); 
     return res.data;
   },
+
+  getRouteReport: async (params: Record<string, any>): Promise<any> => {
+    const res = await api.get("/report/route-report", { params }); 
+    return res.data;
+  },
 };

@@ -16,7 +16,8 @@ export const useReport = (
     | "alerts-events"
     | "geofence-alerts"
     | "trip"
-    | "travel-summary",
+    | "travel-summary"
+    | "route",
   hasGenerated?: boolean
 ) => {
   const isAll = pagination.pageSize === "all";
@@ -104,6 +105,7 @@ export const useReport = (
       "idle-report",
       pagination.pageIndex,
       pagination.pageSize,
+      sorting,
       filters?.uniqueId,
       filters?.period,
       filters?.from,
@@ -114,6 +116,8 @@ export const useReport = (
       reportService.getIdleReport({
         page: pagination.pageIndex + 1,
         limit: pagination.pageSize,
+        sortBy: sorting?.[0]?.id,
+        sortOrder: sorting?.[0]?.desc ? "desc" : "asc",
         uniqueId: filters?.uniqueId,
         period: filters?.period || "Custom",
         from: filters?.from,
@@ -232,6 +236,7 @@ export const useReport = (
       "trip-report",
       pagination.pageIndex,
       pagination.pageSize,
+      sorting,
       filters?.uniqueId,
       filters?.period,
       filters?.from,
@@ -242,6 +247,8 @@ export const useReport = (
       reportService.getTripReport({
         page: pagination.pageIndex + 1,
         limit: pagination.pageSize,
+        sortBy: sorting?.[0]?.id,
+        sortOrder: sorting?.[0]?.desc ? "desc" : "asc",
         uniqueId: filters?.uniqueId,
         period: filters?.period || "Custom",
         from: filters?.from,
@@ -295,6 +302,41 @@ export const useReport = (
     placeholderData: keepPreviousData,
   });
 
+  const getRouteReportQuery = useQuery({
+    queryKey: [
+      "route-report",
+      pagination.pageIndex,
+      pagination.pageSize,
+      sorting,
+      filters?.uniqueId,
+      filters?.period,
+      filters?.from,
+      filters?.to,
+    ],
+
+    queryFn: () =>
+      reportService.getRouteReport({
+        page: pagination.pageIndex + 1,
+        limit: pagination.pageSize,
+        sortBy: sorting?.[0]?.id,
+        sortOrder: sorting?.[0]?.desc ? "desc" : "asc",
+        uniqueId: filters?.uniqueId,
+        period: filters?.period || "Custom",
+        from: filters?.from,
+        to: filters?.to,
+      }),
+    enabled:
+      hasGenerated &&
+      reportType === "route" &&
+      !!filters?.uniqueId &&
+      !!filters?.from &&
+      !!filters?.to,
+    staleTime: 10 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    retry: false,
+    placeholderData: keepPreviousData,
+  });
+
   return {
     statusReport: getStatusQuery.data?.data || [],
     stopReport: getStopReportQuery.data?.data || [],
@@ -304,6 +346,7 @@ export const useReport = (
     geofenceAlertsReport: getGeofenceAlertsReportQuery.data?.data || [],
     tripReport: getTripReportQuery.data?.data || [],
     travelSummaryReport: getTravelSummaryReportQuery.data?.reportData || [],
+    routeReport: getRouteReportQuery.data?.data || [],
 
     totalStatusReport: getStatusQuery.data?.total || 0,
     totalStopReport: getStopReportQuery.data?.total || 0,
@@ -313,6 +356,7 @@ export const useReport = (
     totalGeofenceAlertsReport: getGeofenceAlertsReportQuery.data?.total || 0,
     totalTripReport: getTripReportQuery.data?.total || 0,
     totalTravelSummaryReport: getTravelSummaryReportQuery.data?.total || 0,
+    totalRouteReport: getRouteReportQuery.data?.total || 0,
 
     isFetchingStatusReport: getStatusQuery.isFetching,
     isFetchingStopReport: getStopReportQuery.isFetching,
@@ -322,5 +366,6 @@ export const useReport = (
     isFetchingGeofenceAlertsReport: getGeofenceAlertsReportQuery.isFetching,
     isFetchingTripReport: getTripReportQuery.isFetching,
     isFetchingTravelSummaryReport: getTravelSummaryReportQuery.isFetching,
+    isFetchingRouteReport: getRouteReportQuery.isFetching,
   };
 };

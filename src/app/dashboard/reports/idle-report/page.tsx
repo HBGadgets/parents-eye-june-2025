@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, useCallback } from "react";
+import React, { useState, useMemo, useCallback, useEffect } from "react";
 import {
   ReportFilter,
   FilterValues,
@@ -10,9 +10,13 @@ import { CustomTableServerSidePagination } from "@/components/ui/customTable(ser
 import ResponseLoader from "@/components/ResponseLoader";
 import { useReport } from "@/hooks/reports/useReport";
 import { getIdleReportColumns } from "@/components/columns/columns";
+import { useQueryClient } from "@tanstack/react-query";
 
 const IdleReportPage: React.FC = () => {
   // Table state
+  const queryClient = useQueryClient();
+    const [shouldFetch, setShouldFetch] = useState(false);
+    const [hasGenerated, setHasGenerated] = useState(false);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
   const [showTable, setShowTable] = useState(false);
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 10 });
@@ -31,7 +35,9 @@ const IdleReportPage: React.FC = () => {
   const { idleReport, totalIdleReport, isFetchingIdleReport } = useReport(
     pagination,
     apiFilters,
-    "idle"
+    sorting,
+    "idle",
+    hasGenerated
   );
 
   // Column definitions
@@ -60,9 +66,28 @@ const IdleReportPage: React.FC = () => {
       period: "Custom",
     });
 
+    setShouldFetch(true);
+    setHasGenerated(true);
+
+
     // Show table
     setShowTable(true);
   }, []);
+
+   useEffect(() => {
+      if (!isFetchingIdleReport && shouldFetch) {
+        setShouldFetch(false);
+      }
+    }, [isFetchingIdleReport, shouldFetch]);
+  
+    useEffect(() => {
+      if (shouldFetch && hasGenerated) {
+        queryClient.invalidateQueries({
+          queryKey: ["idle-report"],
+        });
+      }
+    }, [shouldFetch, hasGenerated, queryClient]);
+
 
   // Table configuration
   const { table, tableElement } = CustomTableServerSidePagination({
@@ -99,7 +124,10 @@ const IdleReportPage: React.FC = () => {
           showDevice: true,
           showDateRange: true,
           showSubmitButton: true,
-          submitButtonText: "Generate",
+          submitButtonText: isFetchingIdleReport
+            ? "Generating..."
+            : "Generate",
+          submitButtonDisabled: isFetchingIdleReport,
           dateRangeTitle: "Select Date Range",
           dateRangeMaxDays: 300,
           cardTitle: "Idle Report",
