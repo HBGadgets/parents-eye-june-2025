@@ -21,6 +21,7 @@ interface PlaybackHistoryDrawerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   uniqueId?: number;
+  vehicleName?: string;
   startDate?: string;
   endDate?: string;
   flatHistory: any[];
@@ -51,6 +52,7 @@ export function PlaybackHistoryDrawer({
   startDate,
   endDate,
   flatHistory,
+  vehicleName,
 }: PlaybackHistoryDrawerProps) {
   const toUTCRange = (start?: string, end?: string): UTCRange => {
     if (!start) return {};
@@ -99,7 +101,7 @@ export function PlaybackHistoryDrawer({
           <DrawerHeader>
             <DrawerTitle>Playback History</DrawerTitle>
             <DrawerDescription className="font-mono text-xs">
-              Vehicle Number: <b>{uniqueId ?? "-"}</b>
+              Vehicle Number: <b>{vehicleName ?? "-"}</b>
             </DrawerDescription>
           </DrawerHeader>
 

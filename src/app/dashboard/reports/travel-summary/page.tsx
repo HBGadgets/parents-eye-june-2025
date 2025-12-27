@@ -78,6 +78,7 @@ const TravelSummaryReportPage: React.FC = () => {
   const [playbackOpen, setPlaybackOpen] = useState(false);
   const [playbackPayload, setPlaybackPayload] = useState<{
     uniqueId: number;
+    vehicleName: string;
     startDate: string;
     endDate: string;
     flatHistory: any[];
@@ -727,7 +728,7 @@ const TravelSummaryReportPage: React.FC = () => {
             row.original.isEmpty
           )
             return null;
-          return `${row.original.startLat}, ${row.original.startLong}` || "-";
+          return `${row.original.startLat || "--"}, ${row.original.startLong || "--"}`;
         },
       },
       {
@@ -874,7 +875,7 @@ const TravelSummaryReportPage: React.FC = () => {
             row.original.isEmpty
           )
             return null;
-          return `${row.original.endLat}, ${row.original.endLong}` || "-";
+          return `${row.original.endLat || "--"}, ${row.original.endLong || "--"}`;
         },
       },
       {
@@ -973,11 +974,11 @@ const TravelSummaryReportPage: React.FC = () => {
 
   // Handle playback click
   const handlePlayback = (row: any) => {
-    console.log("▶️ Playback clicked for row:", row);
     const history = deviceWithTrip || [];
     const flatHistory = history.flat();
     setPlaybackPayload({
       uniqueId: row.uniqueId,
+      vehicleName: row.name,
       startDate: row.reportDate || apiFilters.from,
       endDate: row.reportDate || apiFilters.to,
       flatHistory: flatHistory,
@@ -1054,6 +1055,7 @@ const TravelSummaryReportPage: React.FC = () => {
           open={playbackOpen}
           onOpenChange={setPlaybackOpen}
           uniqueId={playbackPayload.uniqueId}
+          vehicleName={playbackPayload.vehicleName}
           startDate={playbackPayload.startDate}
           endDate={playbackPayload.endDate}
           flatHistory={playbackPayload.flatHistory}
