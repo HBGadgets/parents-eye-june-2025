@@ -81,7 +81,6 @@ const TravelSummaryReportPage: React.FC = () => {
     vehicleName: string;
     startDate: string;
     endDate: string;
-    flatHistory: any[];
   } | null>(null);
 
   // Table state
@@ -981,7 +980,6 @@ const TravelSummaryReportPage: React.FC = () => {
       vehicleName: row.name,
       startDate: row.reportDate || apiFilters.from,
       endDate: row.reportDate || apiFilters.to,
-      flatHistory: flatHistory,
     });
 
     setPlaybackOpen(true);
@@ -1058,7 +1056,6 @@ const TravelSummaryReportPage: React.FC = () => {
           vehicleName={playbackPayload.vehicleName}
           startDate={playbackPayload.startDate}
           endDate={playbackPayload.endDate}
-          flatHistory={playbackPayload.flatHistory}
         />
       )}
     </div>

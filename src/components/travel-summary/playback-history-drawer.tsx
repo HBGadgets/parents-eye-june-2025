@@ -1,21 +1,16 @@
 "use client";
 
 import * as React from "react";
-import { ResponsiveContainer } from "recharts";
 import {
   Drawer,
-  DrawerClose,
   DrawerContent,
   DrawerDescription,
-  DrawerFooter,
   DrawerHeader,
   DrawerTitle,
 } from "@/components/ui/drawer";
-import { Button } from "@/components/ui/button";
-import { useDeviceDropdownWithUniqueIdForHistory } from "@/hooks/useDropdown";
-import dynamic from "next/dynamic";
-import HistoryReportPage from "@/app/dashboard/reports/history-report/page";
 import HistoryReport from "../history/HistoryReportTravelSummary";
+import FullScreenSpinner from "@/components/RouteLoader";
+import { useHistoryReport } from "@/hooks/playback-history/useHistoryReport";
 
 interface PlaybackHistoryDrawerProps {
   open: boolean;
@@ -24,7 +19,6 @@ interface PlaybackHistoryDrawerProps {
   vehicleName?: string;
   startDate?: string;
   endDate?: string;
-  flatHistory: any[];
 }
 
 type UTCRange = {
@@ -32,28 +26,20 @@ type UTCRange = {
   to?: string;
 };
 
-// Dynamically import VehicleMap with SSR disabled
-const VehicleMap = dynamic(() => import("@/components/history/vehicle-map"), {
-  ssr: false,
-  loading: () => (
-    <div className="w-full h-[50vh] flex items-center justify-center bg-gray-100">
-      <div className="text-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
-        <p className="mt-2 text-gray-600">Loading map...</p>
-      </div>
-    </div>
-  ),
-});
-
 export function PlaybackHistoryDrawer({
   open,
   onOpenChange,
   uniqueId,
   startDate,
   endDate,
-  flatHistory,
   vehicleName,
 }: PlaybackHistoryDrawerProps) {
+  console.log("[PlaybackHistoryDrawer] uniqueId:", {
+    uniqueId,
+    startDate,
+    endDate,
+    vehicleName,
+  });
   const toUTCRange = (start?: string, end?: string): UTCRange => {
     if (!start) return {};
 
@@ -78,21 +64,38 @@ export function PlaybackHistoryDrawer({
     const startParsed = parse(start);
     const endParsed = parse(end ?? start);
 
-    const from = new Date(
-      Date.UTC(startParsed.year, startParsed.month, startParsed.day, 0, 0, 0, 0)
-    );
-
-    const to = new Date(
-      Date.UTC(endParsed.year, endParsed.month, endParsed.day, 23, 59, 59, 999)
-    );
-
     return {
-      from: from.toISOString(),
-      to: to.toISOString(),
+      from: new Date(
+        Date.UTC(startParsed.year, startParsed.month, startParsed.day, 0, 0, 0)
+      ).toISOString(),
+      to: new Date(
+        Date.UTC(
+          endParsed.year,
+          endParsed.month,
+          endParsed.day,
+          23,
+          59,
+          59,
+          999
+        )
+      ).toISOString(),
     };
   };
+
   const { from, to } = toUTCRange(startDate, endDate);
-  console.log("flatHistory:", flatHistory);
+
+  // ✅ Query only when drawer is open AND params exist
+  const { data, isFetching } = useHistoryReport(
+    {
+      uniqueId,
+      from,
+      to,
+    },
+    open && !!uniqueId && !!from && !!to
+  );
+
+  const trips = data?.deviceDataByTrips ?? [];
+  const flatHistory = trips.flat();
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
@@ -112,12 +115,20 @@ export function PlaybackHistoryDrawer({
             onTouchStart={(e) => e.stopPropagation()}
             onTouchMove={(e) => e.stopPropagation()}
           >
-            <HistoryReport
-              trips={[flatHistory]}
-              flatHistory={flatHistory}
-              showFilters={false}
-              showTripsSidebar={false}
-            />
+            {isFetching ? (
+              <FullScreenSpinner />
+            ) : flatHistory.length === 0 ? (
+              <p className="text-center text-muted-foreground">
+                No history data available
+              </p>
+            ) : (
+              <HistoryReport
+                trips={trips}
+                flatHistory={flatHistory}
+                showFilters={false}
+                showTripsSidebar={false}
+              />
+            )}
           </div>
         </div>
       </DrawerContent>

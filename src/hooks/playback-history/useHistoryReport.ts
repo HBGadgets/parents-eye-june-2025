@@ -2,7 +2,7 @@ import { reportService } from "@/services/api/reportService";
 import { useQuery } from "@tanstack/react-query";
 
 export const useHistoryReport = (
-  filters: { uniqueId?: string; from?: string; to?: string },
+  filters: { uniqueId?: number; from?: string; to?: string },
   enabled: boolean
 ) => {
   return useQuery({
