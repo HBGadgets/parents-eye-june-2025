@@ -371,9 +371,9 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
       center: [data[0].latitude, data[0].longitude],
       zoom: 15,
       zoomControl: false,
-      zoomAnimation: false,
-      fadeAnimation: false,
-      markerZoomAnimation: false,
+      // zoomAnimation: false,
+      // fadeAnimation: false,
+      // markerZoomAnimation: false,
     });
 
     tileLayerRef.current = L.tileLayer(
