@@ -350,9 +350,9 @@ export const useReport = (
     queryFn: () =>
       reportService.getHistoryReport({
         uniqueId: filters?.uniqueId,
-        period: filters?.period || "Custom",
         from: filters?.from,
         to: filters?.to,
+        period: filters?.period || "Custom",
       }),
     enabled:
       hasGenerated &&
@@ -375,7 +375,7 @@ export const useReport = (
     tripReport: getTripReportQuery.data?.data || [],
     travelSummaryReport: getTravelSummaryReportQuery.data?.reportData || [],
     routeReport: getRouteReportQuery.data?.data || [],
-    historyReport: getHistoryReportQuery.data?.data || [],
+    historyReport: getHistoryReportQuery.data?.deviceDataByTrips || [],
 
     totalStatusReport: getStatusQuery.data?.total || 0,
     totalStopReport: getStopReportQuery.data?.total || 0,

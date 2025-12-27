@@ -1,11 +1,5 @@
 "use client";
-import {
-  useMemo,
-  useEffect,
-  useState,
-  useRef,
-  Suspense,
-} from "react";
+import { useMemo, useEffect, useState, useRef, Suspense } from "react";
 import { Combobox } from "@/components/ui/combobox";
 import DateRangeFilter from "@/components/ui/DateRangeFilter";
 import { Button } from "@/components/ui/button";
@@ -29,7 +23,8 @@ import {
   Tooltip,
   Legend,
 } from "chart.js";
-import { deviceWithTrip } from "@/data/playback-nested";
+import { useQueryClient } from "@tanstack/react-query";
+import { useHistoryReport } from "@/hooks/playback-history/useHistoryReport";
 
 // Register Chart.js components
 ChartJS.register(
@@ -56,6 +51,9 @@ const VehicleMap = dynamic(() => import("@/components/history/vehicle-map"), {
 });
 
 function HistoryReportContent() {
+  const queryClient = useQueryClient();
+  const [shouldFetch, setShouldFetch] = useState(false);
+  const [hasGenerated, setHasGenerated] = useState(false);
   // Trip-wise source data
   const [trips, setTrips] = useState<any[][]>([]);
   // What map is currently playing
@@ -76,6 +74,17 @@ function HistoryReportContent() {
 
   const { data: vehicleData, isLoading: vehiclesLoading } =
     useDeviceDropdownWithUniqueIdForHistory();
+
+  const [apiFilters, setApiFilters] = useState<Record<string, any>>({
+    uniqueId: undefined,
+    from: undefined,
+    to: undefined,
+  });
+
+  const { data: historyReport, isFetching } = useHistoryReport(
+    apiFilters,
+    hasGenerated
+  );
 
   const [selectedVehicle, setSelectedVehicle] = useState("");
   const [isMapExpanded, setIsMapExpanded] = useState(true);
@@ -377,7 +386,6 @@ function HistoryReportContent() {
 
   const handleDateFilter = useMemo(
     () => (startDate: Date | null, endDate: Date | null) => {
-      console.log("Manual date filter change");
       const formattedStart = formatDateToYYYYMMDD(startDate);
       const formattedEnd = formatDateToYYYYMMDD(endDate);
       setFromDate(formattedStart + "T00:00:00.000Z");
@@ -386,45 +394,44 @@ function HistoryReportContent() {
     []
   );
 
-  const handleShow = async () => {
-    if (!selectedVehicle) {
-      alert("Please select a vehicle.");
-      return;
-    }
+  const handleShow = () => {
+    if (!selectedVehicle || !fromDate || !toDate) return;
 
-    if (!fromDate || !toDate) {
-      alert("Please select a valid date range.");
-      return;
-    }
+    setApiFilters({
+      uniqueId: selectedVehicle,
+      from: fromDate,
+      to: toDate,
+      period: "Custom",
+    });
 
-    try {
-      console.log("Manual show button clicked", {selectedVehicle, fromDate, toDate});
-      setLoading(true);
-
-      const response = await api.get(
-        `/device-history-playback?uniqueId=${selectedVehicle}&from=${fromDate}&to=${toDate}`
-      );
-
-      // const history = response.deviceHistory || [];
-      const history = deviceWithTrip || []; // Array<Array<Point>>
-      setTrips(history);
-      // setData(history.flat());
-
-      // Default to overall playback
-      const overall = history.flat();
-      setActivePlayback(overall);
-      setSelectedTripIndex(null);
-
-
-      setPlaybackProgress(0);
-      setThrottledProgress(0);
-    } catch (error) {
-      console.error("Error fetching history data:", error);
-      alert("Failed to fetch data. Please try again.");
-    } finally {
-      setLoading(false);
-    }
+    setHasGenerated(true);
   };
+
+  useEffect(() => {
+    if (!historyReport?.deviceDataByTrips) return;
+
+    const history = historyReport.deviceDataByTrips;
+
+    setTrips(history);
+    setActivePlayback(history.flat());
+    setSelectedTripIndex(null);
+    setPlaybackProgress(0);
+    setThrottledProgress(0);
+  }, [historyReport]);
+
+  useEffect(() => {
+    if (!isFetching && shouldFetch) {
+      setShouldFetch(false);
+    }
+  }, [isFetching, shouldFetch]);
+
+  useEffect(() => {
+    if (shouldFetch && hasGenerated) {
+      queryClient.invalidateQueries({
+        queryKey: ["history-report"],
+      });
+    }
+  }, [shouldFetch, hasGenerated, queryClient]);
 
   const handleMapExpand = () => {
     setIsMapExpanded(!isMapExpanded);
@@ -473,7 +480,7 @@ function HistoryReportContent() {
         <div className="space-y-3">
           {/* Map Section */}
           <div className="w-full">
-            {loading ? (
+            {isFetching ? (
               <div
                 className={`w-full mt-3 transition-all duration-300 ease-in-out ${
                   isMapExpanded
@@ -640,16 +647,18 @@ function HistoryReportContent() {
                 )}
 
                 {/* Speed vs Timeline Graph */}
-                {!isMapExpanded && activePlayback && activePlayback.length > 1 && (
-                  <div style={{ height: "150px" }}>
-                    <SpeedTimelineGraph
-                      data={chartData}
-                      options={chartOptions}
-                      onHoverSeek={() => {}}
-                      isExpanded={isMapExpanded}
-                    />
-                  </div>
-                )}
+                {!isMapExpanded &&
+                  activePlayback &&
+                  activePlayback.length > 1 && (
+                    <div style={{ height: "150px" }}>
+                      <SpeedTimelineGraph
+                        data={chartData}
+                        options={chartOptions}
+                        onHoverSeek={() => {}}
+                        isExpanded={isMapExpanded}
+                      />
+                    </div>
+                  )}
               </Card>
             </div>
           </div>
