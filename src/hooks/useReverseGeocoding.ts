@@ -1,5 +1,6 @@
 "use client";
 import { reverseGeocode } from "@/util/reverse-geocode";
+import axios from "axios";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 export const useReverseGeocode = () => {
@@ -91,4 +92,59 @@ export const useReverseGeocode = () => {
   );
 
   return { addresses, loadingAddresses, queueForGeocoding };
+};
+
+// export useReverseGeocodeMapTiler = () => {};
+
+const reverseGeocodeCache = new Map<string, string>();
+
+export const reverseGeocodeMapTiler = async (
+  lat: number,
+  lng: number
+): Promise<string> => {
+  const cacheKey = `${lat},${lng}`;
+
+  // ✅ Return cached value
+  if (reverseGeocodeCache.has(cacheKey)) {
+    return reverseGeocodeCache.get(cacheKey)!;
+  }
+
+  try {
+    const response = await axios.get(
+      `https://api.maptiler.com/geocoding/${lng},${lat}.json`,
+      {
+        params: {
+          key: process.env.NEXT_PUBLIC_MAPTILER_API_KEY,
+          language: "en",
+        },
+      }
+    );
+
+    const feature = response.data?.features?.[0];
+    if (!feature) return cacheKey;
+
+    const context = feature.context || [];
+
+    const getContext = (type: string) =>
+      context.find((c: any) => c.id?.startsWith(type))?.text;
+
+    const road = feature.text;
+    const city =
+      getContext("place") || getContext("locality") || getContext("county");
+
+    const state = getContext("region");
+    const country = getContext("country");
+
+    const formatted = [road, city, state, country].filter(Boolean).join(", ");
+
+    const result = formatted || cacheKey;
+
+    // ✅ Save to cache
+    reverseGeocodeCache.set(cacheKey, result);
+
+    return result;
+  } catch (error: any) {
+    console.error("Reverse geocode failed:", error.message);
+    return cacheKey;
+  }
 };

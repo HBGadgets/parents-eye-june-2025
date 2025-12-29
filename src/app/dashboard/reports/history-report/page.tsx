@@ -744,6 +744,7 @@ function HistoryReportContent() {
             isOpen={isSidebarOpen}
             fromDate={fromDate}
             toDate={toDate}
+            selectedVehicle={selectedVehicle}
             onClose={() => setIsSidebarOpen(false)}
             onTripSelect={(index) => {
               setSelectedTripIndex(index);
