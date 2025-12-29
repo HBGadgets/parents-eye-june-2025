@@ -425,6 +425,7 @@ class DeviceService {
     if (this.streamingMode === "single") {
       this.stopAllSingleDeviceStreams();
     }
+    
 
     this.socket.emit("request-all-device-data", filters);
   }

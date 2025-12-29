@@ -211,9 +211,12 @@ function HistoryReportContent() {
 
     const labels = activePlayback.map((item) => {
       const date = new Date(item.createdAt);
-      return date.toLocaleTimeString("en-US", {
-        hour: "2-digit",
-        minute: "2-digit",
+      return date.toLocaleString("en-GB", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour12: true,
+        timeZone: "UTC",
       });
     });
 
@@ -302,7 +305,16 @@ function HistoryReportContent() {
               const index = context[0].dataIndex;
               if (!activePlayback[index]) return "";
               const date = new Date(activePlayback[index].createdAt);
-              return date.toLocaleString();
+              return date.toLocaleString("en-GB", {
+                day: "2-digit",
+                month: "2-digit",
+                year: "numeric",
+                hour: "2-digit",
+                minute: "2-digit",
+                second: "2-digit",
+                hour12: true,
+                timeZone: "UTC",
+              });
             },
             label: (context: any) => {
               return `Speed: ${context.parsed.y.toFixed(1)} km/h`;
@@ -393,6 +405,42 @@ function HistoryReportContent() {
     },
     []
   );
+
+  const { odometerDistance, summedDistance } = useMemo(() => {
+    if (!activePlayback || activePlayback.length < 2) {
+      return { odometerDistance: 0, summedDistance: 0 };
+    }
+
+    const first = activePlayback[0];
+    const last = activePlayback[activePlayback.length - 1];
+
+    const odometerDistance =
+      (last?.attributes?.totalDistance ?? 0) -
+      (first?.attributes?.totalDistance ?? 0);
+
+    // const summedDistance = activePlayback.reduce(
+    //   (acc, item) => acc + (item?.attributes?.distance ?? 0),
+    //   0
+    // );
+
+    return {
+      odometerDistance: Math.max(0, odometerDistance),
+      // summedDistance,
+    };
+  }, [activePlayback]);
+
+  const incrementalDistance = useMemo(() => {
+    if (!activePlayback || activePlayback.length < 2 || !currentData) return 0;
+
+    const first = activePlayback[0];
+
+    return Math.max(
+      0,
+      (currentData?.attributes?.totalDistance ?? 0) -
+        (first?.attributes?.totalDistance ?? 0)
+    );
+  }, [activePlayback, currentData]);
+
 
   const handleShow = () => {
     if (!selectedVehicle || !fromDate || !toDate) return;
@@ -621,7 +669,8 @@ function HistoryReportContent() {
               <Card className="p-4 bg-[var(--gradient-panel)] rounded-t-none border-border shadow-[var(--shadow-panel)] space-y-3">
                 {/* Info Row */}
                 {currentData && activePlayback.length > 1 && (
-                  <div className="flex gap-5 items-center">
+                  <div className="flex gap-6 items-center flex-wrap">
+                    {/* Speed */}
                     <div className="flex items-center gap-2 text-muted-foreground text-sm">
                       <Gauge className="w-4 h-4" />
                       <span>Speed</span>
@@ -630,6 +679,7 @@ function HistoryReportContent() {
                       </span>
                     </div>
 
+                    {/* Timestamp */}
                     <div className="flex items-center gap-2 text-muted-foreground text-sm">
                       <Clock className="w-4 h-4" />
                       <span>Timestamp</span>
@@ -639,6 +689,31 @@ function HistoryReportContent() {
                           : `${date} ${time}`}
                       </span>
                     </div>
+
+                    {/* Distance */}
+                    <div className="flex items-center gap-2 text-muted-foreground text-sm">
+                      <span>Distance Covered</span>
+
+                      {/* Total trip distance */}
+                      <span className="bg-green-100 text-green-700 px-2 py-1 rounded-sm font-medium">
+                        {(odometerDistance / 1000).toFixed(2)} km
+                      </span>
+
+                      <span className="text-muted-foreground">/</span>
+
+                      {/* Incremental distance till current playback */}
+                      <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded-sm font-medium">
+                        {(incrementalDistance / 1000).toFixed(2)} km
+                      </span>
+                    </div>
+
+                    {/* Total Distance (Calculated)
+                    <div className="flex items-center gap-2 text-muted-foreground text-sm">
+                      <span>Distance (Calculated)</span>
+                      <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded-sm font-medium">
+                        {(summedDistance / 1000).toFixed(2)} km
+                      </span>
+                    </div> */}
                   </div>
                 )}
 
@@ -667,6 +742,8 @@ function HistoryReportContent() {
           <TripsSidebar
             trips={trips}
             isOpen={isSidebarOpen}
+            fromDate={fromDate}
+            toDate={toDate}
             onClose={() => setIsSidebarOpen(false)}
             onTripSelect={(index) => {
               setSelectedTripIndex(index);

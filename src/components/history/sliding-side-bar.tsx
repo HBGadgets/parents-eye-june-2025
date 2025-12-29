@@ -3,9 +3,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { MapPin, Clock, Navigation, Fuel, X } from "lucide-react";
+import { MapPin, Clock, Navigation, Fuel, X, Calendar } from "lucide-react";
 import { DeviceHistoryItem } from "@/data/sampleData";
 import { useReport } from "@/hooks/reports/useReport";
+import { GiPathDistance } from "react-icons/gi";
 
 interface Trip {
   id: number;
@@ -34,6 +35,8 @@ interface TripsSidebarProps {
   trips: DeviceHistoryItem[][];
   selectedTripIndex: number | null;
   onTripSelect: (tripIndex: number) => void;
+  fromDate: string | null;
+  toDate: string | null;
   onOverallSelect: () => void;
   isOpen: boolean;
   onClose: () => void;
@@ -46,8 +49,9 @@ const TripsSidebar: React.FC<TripsSidebarProps> = ({
   onOverallSelect,
   isOpen,
   onClose,
+  fromDate,
+  toDate,
 }) => {
-  // 🔹 derive trip summaries
   const tripSummaries = trips.map((trip, index) => {
     const start = trip[0];
     const end = trip[trip.length - 1];
@@ -77,17 +81,17 @@ const TripsSidebar: React.FC<TripsSidebarProps> = ({
     return hours ? `${hours}h ${minutes % 60}m` : `${minutes}m`;
   };
 
-  const formatTime = (t: string) =>
-    new Date(t).toLocaleTimeString("en-US", {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-
-  console.log("Rendering TripsSidebar with trips:", trips);
-
   return (
     <>
-      {isOpen && <div className="fixed inset-0 z-40" onClick={onClose} />}
+      {isOpen && (
+        <div className="fixed inset-0 z-40 pointer-events-none">
+          {/* Click outside area (only right side) */}
+          <div
+            className="absolute right-80 top-0 h-full w-[calc(100%-20rem)] pointer-events-auto"
+            onClick={onClose}
+          />
+        </div>
+      )}
 
       <div
         className={`fixed top-12 right-0 h-[calc(100vh-7rem)] w-80 bg-background border-l z-[9999]
@@ -120,11 +124,20 @@ const TripsSidebar: React.FC<TripsSidebarProps> = ({
                 <Card
                   key={trip.id}
                   onClick={() => onTripSelect(index)}
-                  className={`cursor-pointer p-3 ${
-                    selectedTripIndex === index
-                      ? "border-primary"
-                      : "border-border"
-                  }`}
+                  className={`
+    cursor-pointer p-3 border transition-all duration-200 ease-out
+    rounded-lg my-2
+    ${
+      selectedTripIndex === index
+        ? "border-primary bg-primary/5 shadow-sm"
+        : "border-border bg-background"
+    }
+    hover:-translate-y-[1px]
+    hover:shadow-md
+    hover:border-primary/60
+    hover:bg-muted/40
+    active:translate-y-0
+  `}
                 >
                   <div className="flex justify-between mb-1">
                     <Badge>Trip {index + 1}</Badge>
@@ -135,21 +148,32 @@ const TripsSidebar: React.FC<TripsSidebarProps> = ({
 
                   <div className="text-sm space-y-1">
                     <div className="flex items-center gap-2">
+                      <Calendar className="w-3 h-3" />
+                      {new Date(trip.startTime).toLocaleString("en-GB", {
+                        day: "2-digit",
+                        month: "2-digit",
+                        year: "numeric",
+                        timeZone: "UTC",
+                      })}
+                    </div>
+                    <div className="flex items-center gap-2">
                       <Clock className="w-3 h-3" />
-                      {formatTime(trip.startTime)} – {formatTime(trip.endTime)}
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <MapPin className="w-3 h-3" />
-                      {trip.distance.toFixed(1)} km
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <MapPin className="w-3 h-3" />
-                      {trip.distance.toFixed(1)}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <MapPin className="w-3 h-3" />
-                      {trip.distance.toFixed(1)} km
+                      {new Date(trip.startTime).toLocaleString("en-GB", {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                        second: "2-digit",
+                        hour12: true,
+                        timeZone: "UTC",
+                      })}{" "}
+                      –
+                      {" "}
+                      {new Date(trip.endTime).toLocaleString("en-GB", {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                        second: "2-digit",
+                        hour12: true,
+                        timeZone: "UTC",
+                      })}
                     </div>
 
                     <div className="flex justify-between text-xs">

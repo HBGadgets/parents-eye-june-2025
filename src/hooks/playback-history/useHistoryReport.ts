@@ -14,7 +14,7 @@ export const useHistoryReport = (
         to: filters.to,
         period: "Custom",
       }),
-    enabled: enabled && !!filters.uniqueId && !!filters.from && !!filters.to,
+    enabled: enabled,
     staleTime: 10 * 60 * 1000,
     refetchOnWindowFocus: false,
     retry: false,
