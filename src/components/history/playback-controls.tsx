@@ -300,20 +300,33 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({
             </Tooltip>
           </TooltipProvider>
 
-          <button
-            onClick={handleStop}
-            className="w-10 h-10 cursor-pointer bg-secondary text-secondary-foreground rounded-full flex items-center justify-center hover:bg-secondary/80 transition-colors"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="currentColor"
-            >
-              <rect x="6" y="6" width="12" height="12" rx="2" />
-            </svg>
-          </button>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={handleStop}
+                  className="w-10 h-10 cursor-pointer bg-secondary text-secondary-foreground rounded-full flex items-center justify-center hover:bg-secondary/80 transition-colors"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="currentColor"
+                  >
+                    <rect x="6" y="6" width="12" height="12" rx="2" />
+                  </svg>
+                </button>
+              </TooltipTrigger>
+
+              <TooltipContent
+                side="top"
+                className="bg-black/80 text-white font-bold rounded-md px-3 py-2 shadow-lg"
+              >
+                <p>Stop playback</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
 
           <div className="flex items-center gap-2 min-w-[200px]">
             <input
