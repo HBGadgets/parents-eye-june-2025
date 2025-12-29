@@ -577,8 +577,7 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
     player.setOnUpdate((latlng, index) => {
       const bounds = mapRef.current!.getBounds();
       if (!bounds.pad(-0.2).contains(latlng)) {
-        // mapRef.current!.panTo(latlng, { animate: true, duration: 0.3 });
-        mapRef.current!.panTo(latlng, { animate: true, duration: 0.3 });
+        mapRef.current!.panTo(latlng, { animate: false });
       }
 
       // ⬇️ BEARING BASED ROTATION
