@@ -576,7 +576,7 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
 
     player.setOnUpdate((latlng, index) => {
       const bounds = mapRef.current!.getBounds();
-      if (!bounds.pad(-0.2).contains(latlng)) {
+      if (!bounds.pad(-0.5).contains(latlng)) {
         mapRef.current!.panTo(latlng, { animate: true });
       }
 
