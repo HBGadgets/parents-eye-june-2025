@@ -299,41 +299,6 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
   }, [updateArrowVisibilityDebounced]);
 
   // ✅ Optimized smooth rotation function
-  // const smoothRotateVehicle = useCallback(
-  //   (marker: L.Marker, targetAngle: number) => {
-  //     const el = marker.getElement();
-  //     if (!el) return;
-
-  //     const rotator = el.querySelector(
-  //       ".vehicle-rotator"
-  //     ) as HTMLElement | null;
-  //     if (!rotator) return;
-
-  //     let diff = targetAngle - currentAngleRef.current;
-
-  //     // Skip update if angle is essentially the same
-  //     if (Math.abs(diff) < 3) {
-  //       currentAngleRef.current += diff;
-  //     } else {
-  //       currentAngleRef.current = targetAngle;
-  //     }
-
-  //     // Normalize to -180 to 180 range
-  //     while (diff > 180) diff -= 360;
-  //     while (diff < -180) diff += 360;
-
-  //     // Apply easing based on difference magnitude
-  //     const easingFactor = Math.abs(diff) > 15 ? 0.3 : 0.6;
-  //     currentAngleRef.current += diff * easingFactor;
-
-  //     // Normalize angle
-  //     currentAngleRef.current = ((currentAngleRef.current % 360) + 360) % 360;
-
-  //     rotator.style.transform = `rotate(${currentAngleRef.current}deg)`;
-  //   },
-  //   []
-  // );
-
   const smoothRotateVehicle = useCallback(
     (marker: L.Marker, targetAngle: number) => {
       const el = marker.getElement();
@@ -370,9 +335,6 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
       center: [data[0].latitude, data[0].longitude],
       zoom: 15,
       zoomControl: false,
-      // zoomAnimation: false,
-      // fadeAnimation: false,
-      // markerZoomAnimation: false,
     });
 
     tileLayerRef.current = L.tileLayer(
@@ -516,9 +478,6 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
 
   // Create MarkerPlayer
   useEffect(() => {
-    console.log(
-      "🎅🎅🎅🎅🎅🎅🎅🎅🎅🎅🎅🎅🎅🎅🎅🎅🎅🎅🎅🎅🎅🎅🎅🎅🎅🎅🎅🎅🎅🎅🎅🎅🎅🎅🎅🎅🎅🎅🎅🎅🎅🎅🎅🎅🎅🎅🎅🎅🎅🎅"
-    );
     if (!mapRef.current || !isRouteDrawn || data.length < 2) return;
 
     if (markerPlayerRef.current) {
@@ -543,36 +502,6 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
 
     markerPlayerRef.current = player;
     currentAngleRef.current = data[0]?.course ?? 0;
-
-    // player.setOnUpdate((latlng, index) => {
-    //   // ✅ Throttle map panning to every 100ms
-    //   const now = performance.now();
-    //   if (now - lastPanTimeRef.current > 100) {
-    //     // mapRef.current!.panTo(latlng, {
-    //     //   animate: true,
-    //     //   duration: 0.3,
-    //     //   easeLinearity: 0.25,
-    //     //   noMoveStart: true,
-    //     // });
-    //     const bounds = mapRef.current!.getBounds();
-    //     if (!bounds.pad(-0.2).contains(latlng)) {
-    //       mapRef.current!.panTo(latlng, { animate: false });
-    //     }
-
-    //     lastPanTimeRef.current = now;
-    //   }
-
-    //   const targetAngle = data[index]?.course ?? currentAngleRef.current;
-    //   smoothRotateVehicle((player as any).marker, targetAngle);
-
-    //   // ✅ Get accurate progress from player
-    //   const percent = player.getProgress();
-    //   setProgress(percent);
-
-    //   if (onProgressChange) {
-    //     onProgressChange(percent);
-    //   }
-    // });
 
     player.setOnUpdate((latlng, index) => {
       const bounds = mapRef.current!.getBounds();
@@ -620,21 +549,6 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
   ]);
 
   // Handle speed changes
-  // useEffect(() => {
-  //   if (!markerPlayerRef.current || data.length < 2) return;
-
-  //   const totalDuration = BASE_PLAYBACK_SECONDS / playbackSpeed;
-  //   const pointCount = markerPlayerRef.current["points"]?.length || data.length;
-  //   const segmentCount = pointCount - 1;
-
-  //   if (segmentCount > 0) {
-  //     const uniformDuration = Math.max(totalDuration / segmentCount, 0.1);
-  //     const durations = Array(segmentCount).fill(uniformDuration);
-
-  //     markerPlayerRef.current.setDuration(durations);
-  //   }
-  // }, [playbackSpeed, data]);
-
   useEffect(() => {
     if (!markerPlayerRef.current || data.length < 2) return;
 

@@ -9,11 +9,17 @@ import {
   LineElement,
   PointElement,
   Title,
-  Tooltip,
+  // Tooltip,
   Legend,
 } from "chart.js";
 import { SpeedTimelineGraph } from "./SpeedGraph";
 import throttle from "lodash.throttle";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 // Register Chart.js components
 ChartJS.register(
@@ -22,7 +28,7 @@ ChartJS.register(
   LineElement,
   PointElement,
   Title,
-  Tooltip,
+  // Tooltip,
   Legend
 );
 
@@ -251,33 +257,48 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({
       {/* Playback Controls */}
       <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-card/95 backdrop-blur-sm border border-border rounded-lg p-3 z-[1000] shadow-lg">
         <div className="flex items-center gap-3">
-          <button
-            onClick={handlePlayPause}
-            className="w-10 h-10 bg-primary cursor-pointer text-primary-foreground rounded-full flex items-center justify-center hover:bg-primary/90 transition-colors"
-          >
-            {isPlaying ? (
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="currentColor"
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={handlePlayPause}
+                  className="w-10 h-10 bg-primary cursor-pointer text-primary-foreground rounded-full flex items-center justify-center hover:bg-primary/90 transition-colors"
+                >
+                  {isPlaying ? (
+                    // Pause Icon
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="20"
+                      height="20"
+                      viewBox="0 0 24 24"
+                      fill="currentColor"
+                    >
+                      <rect x="6" y="4" width="4" height="16" rx="1" />
+                      <rect x="14" y="4" width="4" height="16" rx="1" />
+                    </svg>
+                  ) : (
+                    // Play Icon
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="20"
+                      height="20"
+                      viewBox="0 0 24 24"
+                      fill="currentColor"
+                    >
+                      <path d="M8 5v14l11-7z" />
+                    </svg>
+                  )}
+                </button>
+              </TooltipTrigger>
+
+              <TooltipContent
+                side="top"
+                className="bg-black/80 text-white font-bold rounded-md px-3 py-2 shadow-lg"
               >
-                <rect x="6" y="4" width="4" height="16" rx="1" />
-                <rect x="14" y="4" width="4" height="16" rx="1" />
-              </svg>
-            ) : (
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="currentColor"
-              >
-                <path d="M8 5v14l11-7z" />
-              </svg>
-            )}
-          </button>
+                <p>{isPlaying ? "Pause playback" : "Play playback"}</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
 
           <button
             onClick={handleStop}

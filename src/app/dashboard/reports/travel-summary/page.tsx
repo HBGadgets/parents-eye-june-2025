@@ -926,12 +926,6 @@ const TravelSummaryReportPage: React.FC = () => {
   const handleFilterSubmit = useCallback((filters: FilterValues) => {
     // console.log("✅ Filter submitted:", filters);
 
-    // For demo purposes, just show the table
-    // if (!filters.deviceId || !filters.from || !filters.to) {
-    //   alert("Please select a vehicle and date range");
-    //   return;
-    // }
-
     // Reset all states
     setPagination({ pageIndex: 0, pageSize: 10 });
     setSorting([]);
