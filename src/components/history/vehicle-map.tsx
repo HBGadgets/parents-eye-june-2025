@@ -583,17 +583,15 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
   useEffect(() => {
     if (!mapRef.current) return;
 
-    const handleResize = () => {
-      if (mapRef.current) {
-        mapRef.current.invalidateSize();
-        // setTimeout(() => mapRef.current!.invalidateSize(), 350);
-      }
-    };
+    // Immediate invalidation (for collapse)
+    mapRef.current.invalidateSize();
 
-    window.addEventListener("resize", handleResize);
-    handleResize();
+    // Delayed invalidation (for expand)
+    const timeout = setTimeout(() => {
+      mapRef.current?.invalidateSize();
+    }, 350); // slightly > transition duration
 
-    return () => window.removeEventListener("resize", handleResize);
+    return () => clearTimeout(timeout);
   }, [isExpanded]);
 
   // Playback controls
