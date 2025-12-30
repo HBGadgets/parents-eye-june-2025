@@ -121,20 +121,15 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
     []
   );
 
-  const createArrowIcon = useCallback((course: number, size: number = 16) => {
+  const createArrowIcon = useCallback((course: number, size: number = 34) => {
     return L.divIcon({
       className: "course-arrow",
       html: `
-        <div style="transform: rotate(${course}deg); width: ${size}px; height: ${size}px; display: flex; align-items: center; justify-content: center;">
+        <div style="transform: rotate(${course+180}deg); width: ${size}px; height: ${size}px; display: flex; align-items: center; justify-content: center;">
           <div style="display: flex; flex-direction: column; align-items: center; margin-top: -3px;">
             <svg width="${Math.round(size * 0.75)}" height="${Math.round(
         size * 0.75
       )}" viewBox="0 0 24 24" fill="none" style="filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.7));">
-              <path d="M7 10L12 15L17 10" stroke="white" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-            <svg width="${Math.round(size * 0.75)}" height="${Math.round(
-        size * 0.75
-      )}" viewBox="0 0 24 24" fill="none" style="margin-top: -10px; filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.7));">
               <path d="M7 10L12 15L17 10" stroke="white" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
           </div>
@@ -146,10 +141,10 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
   }, []);
 
   const getArrowDensity = useCallback((zoom: number): number => {
-    if (zoom >= 16) return 0.03;
-    if (zoom >= 14) return 0.02;
-    if (zoom >= 12) return 0.01;
-    if (zoom >= 10) return 0.005;
+    if (zoom >= 16) return 0.05;
+    if (zoom >= 14) return 0.04;
+    if (zoom >= 12) return 0.03;
+    if (zoom >= 10) return 0.02;
     return 0.0;
   }, []);
 
@@ -170,7 +165,7 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
 
       const density = getArrowDensity(zoom);
       const step = Math.max(1, Math.floor(1 / density));
-      const arrowSize = zoom >= 14 ? 14 : zoom >= 12 ? 12 : 10;
+      const arrowSize = zoom >= 14 ? 28 : zoom >= 12 ? 20 : 24;
 
       allArrowMarkersRef.current.forEach((marker) => {
         if (marker && marker.remove) marker.remove();
@@ -197,16 +192,18 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
         });
 
         marker.on("click", () => {
-          const formattedTime = new Date(point.createdAt).toLocaleString(
-            "en-US",
+          console.log("Marker clicked:", point.createdAt);
+          const formattedTime = new Date(point.createdAt).toLocaleTimeString(
+            "en-GB",
             {
               year: "numeric",
-              month: "short",
-              day: "numeric",
+              month: "2-digit",
+              day: "2-digit",
               hour: "2-digit",
               minute: "2-digit",
               second: "2-digit",
               hour12: true,
+              timeZone: "UTC",
             }
           );
 
@@ -409,15 +406,19 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
 
       if (startFlagRef.current) startFlagRef.current.remove();
 
-      const startDate = new Date(startPoint.createdAt).toLocaleString("en-US", {
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-        second: "2-digit",
-        hour12: true,
-      });
+      const startDate = new Date(startPoint.createdAt).toLocaleTimeString(
+        "en-GB",
+        {
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+          hour12: true,
+          timeZone: "UTC",
+        }
+      );
 
       startFlagRef.current = L.marker([startLat, startLng], {
         icon: startFlagIcon,
@@ -438,14 +439,15 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
 
       if (endFlagRef.current) endFlagRef.current.remove();
 
-      const endDate = new Date(endPoint.createdAt).toLocaleString("en-US", {
+      const endDate = new Date(endPoint.createdAt).toLocaleTimeString("en-GB", {
         year: "numeric",
-        month: "short",
-        day: "numeric",
+        month: "2-digit",
+        day: "2-digit",
         hour: "2-digit",
         minute: "2-digit",
         second: "2-digit",
         hour12: true,
+        timeZone: "UTC",
       });
 
       endFlagRef.current = L.marker([endLat, endLng], {
@@ -490,7 +492,6 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
     }));
 
     const totalDuration = BASE_PLAYBACK_SECONDS / playbackSpeed;
-    // const baseTotalDuration = BASE_PLAYBACK_SECONDS;
     const segmentCount = points.length - 1;
     const uniformDuration = Math.max(totalDuration / segmentCount, 0.1);
     const durations = Array(segmentCount).fill(uniformDuration);

@@ -496,18 +496,18 @@ function HistoryReportContent() {
               value={selectedVehicle}
               onValueChange={handleVehicleChange}
               placeholder="Select Vehicle"
+              className="cursor-pointer"
               searchPlaceholder="Search vehicles..."
               emptyMessage="No vehicles found"
               width="w-[300px]"
             />
-            <DateRangeFilter
-              onDateRangeChange={handleDateFilter}
-              title="Select Date Range"
-              maxDays={7}
-              defaultStartDate={defaultDateRange?.startDate}
-              defaultEndDate={defaultDateRange?.endDate}
-            />
-
+              <DateRangeFilter
+                onDateRangeChange={handleDateFilter}
+                title="Select Date Range"
+                maxDays={7}
+                defaultStartDate={defaultDateRange?.startDate}
+                defaultEndDate={defaultDateRange?.endDate}
+              />
             <Button className="cursor-pointer" onClick={handleShow}>
               Show
             </Button>
