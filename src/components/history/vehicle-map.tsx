@@ -31,6 +31,10 @@ interface VehicleMapProps {
   currentIndex?: number;
   isExpanded?: boolean;
   onProgressChange?: (progress: number) => void;
+  activeStopId?: number | null;
+  stops?: any[];
+  onStopClick?: (stop: any) => void;
+  stopAddressMap: Record<number, string>;
 }
 
 type RoutePoint = {
@@ -42,6 +46,10 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
   data,
   isExpanded,
   onProgressChange,
+  activeStopId,
+  stops,
+  onStopClick,
+  stopAddressMap,
 }) => {
   const MIN_BASE_SECONDS = 100000;
   const BASE_PLAYBACK_SECONDS = Math.max(
@@ -58,7 +66,7 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
   const allArrowMarkersRef = useRef<L.Marker[]>([]);
   const startFlagRef = useRef<L.Marker | null>(null);
   const endFlagRef = useRef<L.Marker | null>(null);
-  const lastPanTimeRef = useRef(0);
+  const stopMarkersRef = useRef<Map<number, L.Marker>>(new Map());
 
   const [isRouteDrawn, setIsRouteDrawn] = useState(false);
   const [startAddress, setStartAddress] = useState<string>("");
@@ -212,11 +220,48 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
             marker
               .bindPopup(
                 `
-            <b>Vehicle Info</b><br/>
-            Speed: ${point.speed?.toFixed(1) || "N/A"} km/h<br/>
-            Time: ${formattedTime}<br/>
-            Address: ${speedCache.current.get(i)}
-          `
+<div style="
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  padding: 8px 4px;
+  min-width: 200px;
+  line-height: 1.5;
+  color: #374151;
+">
+  <div style="
+    font-size: 14px;
+    font-weight: 600;
+    color: #111827;
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #e5e7eb;
+  ">
+    Vehicle Info
+  </div>
+  
+  <div style="font-size: 12px; margin-bottom: 10px;">
+    <div style="display: grid; grid-template-columns: 60px 1fr; gap: 6px 8px;">
+      <span style="color: #6b7280; font-weight: 500;">Speed:</span>
+      <span style="color: #111827; font-weight: 600;">${
+        point.speed?.toFixed(1) || "N/A"
+      } km/h</span>
+      
+      <span style="color: #6b7280; font-weight: 500;">Time:</span>
+      <span style="color: #111827;">${formattedTime}</span>
+    </div>
+  </div>
+  
+  <div style="
+    padding-top: 8px;
+    border-top: 1px solid #e5e7eb;
+    font-size: 12px;
+  ">
+    <div style="color: #6b7280; font-weight: 500; margin-bottom: 4px;">Address</div>
+    <div style="color: #111827; line-height: 1.4;">${
+      speedCache.current.get(i) || "Loading..."
+    }</div>
+  </div>
+</div>
+`
               )
               .openPopup();
           } else {
@@ -226,11 +271,48 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
                 marker
                   .bindPopup(
                     `
-                <b>Vehicle Info</b><br/>
-                Speed: ${point.speed?.toFixed(1) || "N/A"} km/h<br/>
-                Time: ${formattedTime}<br/>
-                Address: ${address}
-              `
+<div style="
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  padding: 8px 4px;
+  min-width: 200px;
+  line-height: 1.5;
+  color: #374151;
+">
+  <div style="
+    font-size: 14px;
+    font-weight: 600;
+    color: #111827;
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #e5e7eb;
+  ">
+    Vehicle Info
+  </div>
+  
+  <div style="font-size: 12px; margin-bottom: 10px;">
+    <div style="display: grid; grid-template-columns: 60px 1fr; gap: 6px 8px;">
+      <span style="color: #6b7280; font-weight: 500;">Speed:</span>
+      <span style="color: #111827; font-weight: 600;">${
+        point.speed?.toFixed(1) || "N/A"
+      } km/h</span>
+      
+      <span style="color: #6b7280; font-weight: 500;">Time:</span>
+      <span style="color: #111827;">${formattedTime}</span>
+    </div>
+  </div>
+  
+  <div style="
+    padding-top: 8px;
+    border-top: 1px solid #e5e7eb;
+    font-size: 12px;
+  ">
+    <div style="color: #6b7280; font-weight: 500; margin-bottom: 4px;">Address</div>
+    <div style="color: #111827; line-height: 1.4;">${
+      speedCache.current.get(i) || "Loading..."
+    }</div>
+  </div>
+</div>
+`
                   )
                   .openPopup();
               })
@@ -238,11 +320,48 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
                 marker
                   .bindPopup(
                     `
-                <b>Vehicle Info</b><br/>
-                Speed: ${point.speed?.toFixed(1) || "N/A"} km/h<br/>
-                Time: ${formattedTime}<br/>
-                Address: Not available
-              `
+<div style="
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  padding: 8px 4px;
+  min-width: 200px;
+  line-height: 1.5;
+  color: #374151;
+">
+  <div style="
+    font-size: 14px;
+    font-weight: 600;
+    color: #111827;
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #e5e7eb;
+  ">
+    Vehicle Info
+  </div>
+  
+  <div style="font-size: 12px; margin-bottom: 10px;">
+    <div style="display: grid; grid-template-columns: 60px 1fr; gap: 6px 8px;">
+      <span style="color: #6b7280; font-weight: 500;">Speed:</span>
+      <span style="color: #111827; font-weight: 600;">${
+        point.speed?.toFixed(1) || "N/A"
+      } km/h</span>
+      
+      <span style="color: #6b7280; font-weight: 500;">Time:</span>
+      <span style="color: #111827;">${formattedTime}</span>
+    </div>
+  </div>
+  
+  <div style="
+    padding-top: 8px;
+    border-top: 1px solid #e5e7eb;
+    font-size: 12px;
+  ">
+    <div style="color: #6b7280; font-weight: 500; margin-bottom: 4px;">Address</div>
+    <div style="color: #111827; line-height: 1.4;">${
+      speedCache.current.get(i) || "Loading..."
+    }</div>
+  </div>
+</div>
+`
                   )
                   .openPopup();
               });
@@ -256,6 +375,23 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
     },
     [data, createArrowIcon, getArrowDensity, updateArrowVisibility]
   );
+
+  const createStopIcon = (isActive: boolean) =>
+    L.divIcon({
+      className: "stop-marker",
+      html: `
+      <div style="
+        width: 18px;
+        height: 18px;
+        background: ${isActive ? "#ef4444" : "#f97316"};
+        border-radius: 50%;
+        border: 3px solid white;
+        box-shadow: 0 0 8px rgba(0,0,0,0.4);
+      "></div>
+    `,
+      iconSize: [18, 18],
+      iconAnchor: [9, 9],
+    });
 
   // ✅ Debounced arrow visibility update
   const updateArrowVisibilityDebounced = useCallback(
@@ -365,7 +501,6 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
     };
   }, [data, handleZoomEnd, handleMoveEnd, updateArrowVisibility]);
 
-
   // Handle tile layer changes
   useEffect(() => {
     if (!mapRef.current || !tileLayerRef.current) return;
@@ -426,13 +561,60 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
         icon: startFlagIcon,
         zIndexOffset: 500,
       }).addTo(map).bindPopup(`
-        <b>Start Point</b><br/>
-        <div style="margin-top: 4px;">
-          ${startLat.toFixed(6)}, ${startLng.toFixed(6)}<br/>
-          ${startAddress || "Loading address..."}<br/>
-          ${startDate}
-        </div>
-      `);
+<div style="
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  padding: 8px 4px;
+  min-width: 220px;
+  line-height: 1.5;
+  color: #374151;
+">
+  <div style="
+    font-size: 14px;
+    font-weight: 600;
+    color: #111827;
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #e5e7eb;
+  ">
+    Start Point
+  </div>
+  
+  <div style="font-size: 12px; margin-bottom: 10px;">
+    <div style="color: #6b7280; font-weight: 500; margin-bottom: 4px;">Coordinates</div>
+    <div style="
+      color: #111827;
+      font-family: 'Courier New', monospace;
+      background: #f3f4f6;
+      padding: 6px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+    ">
+      ${startLat.toFixed(6)}, ${startLng.toFixed(6)}
+    </div>
+  </div>
+  
+  <div style="
+    padding-top: 8px;
+    border-top: 1px solid #e5e7eb;
+    font-size: 12px;
+    margin-bottom: 10px;
+  ">
+    <div style="color: #6b7280; font-weight: 500; margin-bottom: 4px;">Address</div>
+    <div style="color: #111827; line-height: 1.4;">${
+      startAddress || "Loading address..."
+    }</div>
+  </div>
+  
+  <div style="
+    padding-top: 8px;
+    border-top: 1px solid #e5e7eb;
+    font-size: 12px;
+  ">
+    <div style="color: #6b7280; font-weight: 500; margin-bottom: 4px;">Time</div>
+    <div style="color: #111827;">${startDate}</div>
+  </div>
+</div>
+`);
 
       const endPoint = data[data.length - 1];
       const endLat = endPoint.latitude;
@@ -456,13 +638,60 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
         icon: endFlagIcon,
         zIndexOffset: 500,
       }).addTo(map).bindPopup(`
-        <b>End Point</b><br/>
-        <div style="margin-top: 4px;">
-          ${endLat.toFixed(6)}, ${endLng.toFixed(6)}<br/>
-          ${endAddress || "Loading address..."}<br/>
-          ${endDate}
-        </div>
-      `);
+<div style="
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  padding: 8px 4px;
+  min-width: 220px;
+  line-height: 1.5;
+  color: #374151;
+">
+  <div style="
+    font-size: 14px;
+    font-weight: 600;
+    color: #111827;
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #e5e7eb;
+  ">
+    End Point
+  </div>
+  
+  <div style="font-size: 12px; margin-bottom: 10px;">
+    <div style="color: #6b7280; font-weight: 500; margin-bottom: 4px;">Coordinates</div>
+    <div style="
+      color: #111827;
+      font-family: 'Courier New', monospace;
+      background: #f3f4f6;
+      padding: 6px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+    ">
+      ${endLat.toFixed(6)}, ${endLng.toFixed(6)}
+    </div>
+  </div>
+  
+  <div style="
+    padding-top: 8px;
+    border-top: 1px solid #e5e7eb;
+    font-size: 12px;
+    margin-bottom: 10px;
+  ">
+    <div style="color: #6b7280; font-weight: 500; margin-bottom: 4px;">Address</div>
+    <div style="color: #111827; line-height: 1.4;">${
+      endAddress || "Loading address..."
+    }</div>
+  </div>
+  
+  <div style="
+    padding-top: 8px;
+    border-top: 1px solid #e5e7eb;
+    font-size: 12px;
+  ">
+    <div style="color: #6b7280; font-weight: 500; margin-bottom: 4px;">Time</div>
+    <div style="color: #111827;">${endDate}</div>
+  </div>
+</div>
+`);
 
       reverseGeocode(startLat, startLng).then(setStartAddress);
       reverseGeocode(endLat, endLng).then(setEndAddress);
@@ -550,6 +779,97 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
     createVehicleIcon,
     onProgressChange,
   ]);
+
+  useEffect(() => {
+    if (!mapRef.current) return;
+
+    // Clear old
+    stopMarkersRef.current.forEach((m) => m.remove());
+    stopMarkersRef.current.clear();
+
+    stops?.forEach((stop) => {
+      console.log("stop", stop);
+      const marker = L.marker([stop.lat, stop.lng], {
+        icon: createStopIcon(stop.id === activeStopId),
+        zIndexOffset: 800,
+      }).addTo(mapRef.current!).bindPopup(`
+<div style="
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  padding: 8px 4px;
+  min-width: 220px;
+  line-height: 1.5;
+  color: #374151;
+">
+  <div style="
+    font-size: 14px;
+    font-weight: 600;
+    color: #111827;
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #e5e7eb;
+  ">
+    Stop ${stop.id + 1}
+  </div>
+  
+  <div style="font-size: 12px; margin-bottom: 10px;">
+    <div style="display: grid; grid-template-columns: 80px 1fr; gap: 6px 8px;">
+      <span style="color: #6b7280; font-weight: 500;">From:</span>
+      <span style="color: #111827;">${new Date(stop.startTime).toLocaleString(
+        "en-GB",
+        {
+          timeZone: "UTC",
+        }
+      )}</span>
+      
+      <span style="color: #6b7280; font-weight: 500;">To:</span>
+      <span style="color: #111827;">${new Date(stop.endTime).toLocaleString(
+        "en-GB",
+        {
+          timeZone: "UTC",
+        }
+      )}</span>
+      
+      <span style="color: #6b7280; font-weight: 500;">Duration:</span>
+      <span style="color: #111827;">${stop.duration}</span>
+      
+      <span style="color: #6b7280; font-weight: 500;">Dist From Prev:</span>
+      <span style="color: #111827;">${stop.distanceFromPrev.toFixed(
+        2
+      )} km</span>
+    </div>
+  </div>
+  
+  <div style="
+    padding-top: 8px;
+    border-top: 1px solid #e5e7eb;
+    font-size: 12px;
+  ">
+    <div style="color: #6b7280; font-weight: 500; margin-bottom: 4px;">Address</div>
+    <div style="color: #111827; line-height: 1.4;">${
+      stopAddressMap[stop.id] ?? "Fetching address..."
+    }</div>
+  </div>
+</div>
+`);
+
+      marker.on("click", () => {
+        onStopClick?.(stop.id);
+        marker.openPopup();
+      });
+
+      stopMarkersRef.current.set(stop.id, marker);
+    });
+  }, [stops, activeStopId, data]);
+
+  useEffect(() => {
+    if (activeStopId == null) return;
+
+    const marker = stopMarkersRef.current.get(activeStopId);
+    if (marker) {
+      marker.openPopup();
+      mapRef.current?.panTo(marker.getLatLng(), { animate: true });
+    }
+  }, [activeStopId]);
 
   // Handle speed changes
   useEffect(() => {

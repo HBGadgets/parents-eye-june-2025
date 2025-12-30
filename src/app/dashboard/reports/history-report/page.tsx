@@ -38,6 +38,7 @@ ChartJS.register(
   Tooltip,
   Legend
 );
+  type StopAddressMap = Record<number, string>;
 
 // Dynamically import VehicleMap with SSR disabled
 const VehicleMap = dynamic(() => import("@/components/history/vehicle-map"), {
@@ -56,6 +57,9 @@ function HistoryReportContent() {
   const queryClient = useQueryClient();
   const [shouldFetch, setShouldFetch] = useState(false);
   const [hasGenerated, setHasGenerated] = useState(false);
+  const [showStopsOnMap, setShowStopsOnMap] = useState(false);
+  const [activeStopId, setActiveStopId] = useState<number | null>(null);
+
   // Trip-wise source data
   const [trips, setTrips] = useState<any[][]>([]);
   // What map is currently playing
@@ -73,6 +77,8 @@ function HistoryReportContent() {
 
   const isFromDashboardRef = useRef(false);
   const hasInitializedRef = useRef(false);
+  const [stopAddressMap, setStopAddressMap] = useState<StopAddressMap>({});
+
 
   const { data: vehicleData, isLoading: vehiclesLoading } =
     useDeviceDropdownWithUniqueIdForHistory();
@@ -103,20 +109,6 @@ function HistoryReportContent() {
     startDate: Date;
     endDate: Date;
   } | null>(null);
-
-  const [data, setData] = useState([
-    {
-      attributes: {
-        distance: 0.0,
-        totalDistance: 0.0,
-      },
-      latitude: 21.10755111111111,
-      longitude: 79.10318222222223,
-      speed: 0.0,
-      course: 135,
-      createdAt: "---",
-    },
-  ]);
 
   const metaPosition = [
     {
@@ -183,8 +175,20 @@ function HistoryReportContent() {
       return { date: "-- : --", time: "-- : --" };
     }
     return {
-      date: date.toLocaleDateString(),
-      time: date.toLocaleTimeString("en-US"),
+      date: date.toLocaleString("en-GB", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour12: true,
+        timeZone: "UTC",
+      }),
+      time: date.toLocaleString("en-GB", {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: true,
+        timeZone: "UTC",
+      }),
     };
   };
 
@@ -443,6 +447,80 @@ function HistoryReportContent() {
     );
   }, [activePlayback, currentData]);
 
+  // HistoryReportPage.tsx
+
+  // const derivedStops = useMemo(() => {
+  //   return trips.map((trip, index) => {
+  //     const endPoint = trip[trip.length - 1];
+  //     const nextTrip = trips[index + 1];
+
+  //     const startTime = endPoint.createdAt;
+  //     const endTime = nextTrip ? nextTrip[0].createdAt : endPoint.createdAt;
+
+  //     const durationMs =
+  //       new Date(endTime).getTime() - new Date(startTime).getTime();
+
+  //     return {
+  //       id: index,
+  //       startTime,
+  //       endTime,
+  //       durationMs,
+  //       lat: endPoint.latitude,
+  //       lng: endPoint.longitude,
+  //     };
+  //   });
+  // }, [trips]);
+  const formatDurationHMS = (ms: number): string => {
+    if (!ms || ms < 0) return "00H:00M";
+
+    const totalSeconds = Math.floor(ms / 1000);
+
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+
+    const pad = (n: number) => n.toString().padStart(2, "0");
+
+    return `${pad(hours)}H:${pad(minutes)}M`;
+  };
+
+  const derivedStops = useMemo(() => {
+    return trips.map((trip, index) => {
+      const endPoint = trip[trip.length - 1];
+
+      // --- Stop duration (gap till next trip)
+      const nextTrip = trips[index + 1];
+      const stopStartTime = new Date(endPoint.createdAt).getTime();
+      const stopEndTime = nextTrip
+        ? new Date(nextTrip[0].createdAt).getTime()
+        : stopStartTime;
+
+      const stopDurationMs = stopEndTime - stopStartTime;
+
+      // --- Distance from previous stop (using totalDistance)
+      let distanceFromPrev = 0;
+
+      if (index > 0) {
+        const prevTrip = trips[index - 1];
+        const prevEndPoint = prevTrip[prevTrip.length - 1];
+
+        const currentTotal = endPoint.attributes?.totalDistance ?? 0;
+        const prevTotal = prevEndPoint.attributes?.totalDistance ?? 0;
+
+        distanceFromPrev = Math.max(0, (currentTotal - prevTotal) / 1000);
+      }
+
+      return {
+        id: index,
+        startTime: endPoint.createdAt,
+        endTime: stopEndTime,
+        duration: formatDurationHMS(stopDurationMs),
+        distanceFromPrev,
+        lat: endPoint.latitude,
+        lng: endPoint.longitude,
+      };
+    });
+  }, [trips]);
 
   const handleShow = () => {
     if (!selectedVehicle || !fromDate || !toDate) return;
@@ -607,9 +685,13 @@ function HistoryReportContent() {
               >
                 <VehicleMap
                   data={activePlayback}
+                  stops={showStopsOnMap ? derivedStops : []}
+                  activeStopId={activeStopId}
+                  onStopClick={(id) => setActiveStopId(id)}
                   currentIndex={displayIndex}
                   isExpanded={isMapExpanded}
                   onProgressChange={setPlaybackProgress}
+                  stopAddressMap={stopAddressMap}
                 />
 
                 <div>
@@ -694,7 +776,7 @@ function HistoryReportContent() {
 
                     {/* Distance */}
                     <div className="flex items-center gap-2 text-muted-foreground text-sm">
-                      <MdSocialDistance className="w-4 h-4" />
+                      <GiPathDistance className="w-4 h-4" />
                       <span>Distance Covered</span>
                       {/* Incremental distance till current playback */}
                       <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded-sm font-medium">
@@ -757,6 +839,13 @@ function HistoryReportContent() {
               setActivePlayback(trips.flat());
               setPlaybackProgress(0);
             }}
+            derivedStops={derivedStops}
+            showStopsOnMap={showStopsOnMap}
+            onToggleStops={() => setShowStopsOnMap((p) => !p)}
+            activeStopId={activeStopId}
+            onStopSelect={(id) => setActiveStopId(id)}
+            stopAddressMap={stopAddressMap}
+            setStopAddressMap={setStopAddressMap}
           />
         </div>
       </section>

@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { MapPin, Clock, Navigation, X, Calendar } from "lucide-react";
 import { DeviceHistoryItem } from "@/data/sampleData";
 import { reverseGeocodeMapTiler } from "@/hooks/useReverseGeocoding";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../ui/tooltip";
 
 interface TripsSidebarProps {
   trips: DeviceHistoryItem[][];
@@ -26,6 +27,15 @@ interface TripsSidebarProps {
   fromDate: string | null;
   toDate: string | null;
   selectedVehicle: string | null;
+  showStopsOnMap: boolean;
+  onToggleStops: () => void;
+  derivedStops: DerivedStop[];
+  activeStopId?: number | null;
+  onStopSelect?: (stopId: number | null) => void;
+  stopAddressMap: Record<number, string>;
+  setStopAddressMap: React.Dispatch<
+    React.SetStateAction<Record<number, string>>
+  >;
 }
 
 interface DerivedStop {
@@ -45,12 +55,19 @@ const TripsSidebar: React.FC<TripsSidebarProps> = ({
   onOverallSelect,
   isOpen,
   onClose,
+  showStopsOnMap,
+  onToggleStops,
+  derivedStops,
+  activeStopId,
+  onStopSelect,
+  stopAddressMap,
+  setStopAddressMap,
 }) => {
   /* -------------------- Stop addresses Map -------------------- */
   const fetchedStopRef = useRef<Set<number>>(new Set());
 
   /* -------------------- Tabs -------------------- */
-  const [activeTab, setActiveTab] = useState<"journey" | "stops">("journey");
+  const [activeTab, setActiveTab] = useState<"trip" | "stops">("trip");
 
   /* -------------------- Trip summaries -------------------- */
   const tripSummaries = useMemo(() => {
@@ -79,62 +96,8 @@ const TripsSidebar: React.FC<TripsSidebarProps> = ({
     });
   }, [trips]);
 
-  /* -------------------- Derived Stops -------------------- */
-  const formatDurationHMS = (ms: number): string => {
-    if (!ms || ms < 0) return "00H:00M";
-
-    const totalSeconds = Math.floor(ms / 1000);
-
-    const hours = Math.floor(totalSeconds / 3600);
-    const minutes = Math.floor((totalSeconds % 3600) / 60);
-    const seconds = totalSeconds % 60;
-
-    const pad = (n: number) => n.toString().padStart(2, "0");
-
-    return `${pad(hours)}H:${pad(minutes)}M`;
-  };
-
-  const derivedStops = useMemo<DerivedStop[]>(() => {
-    return trips.map((trip, index) => {
-      const endPoint = trip[trip.length - 1];
-
-      // --- Stop duration (gap till next trip)
-      const nextTrip = trips[index + 1];
-      const stopStartTime = new Date(endPoint.createdAt).getTime();
-      const stopEndTime = nextTrip
-        ? new Date(nextTrip[0].createdAt).getTime()
-        : stopStartTime;
-
-      const stopDurationMs = stopEndTime - stopStartTime;
-
-      // --- Distance from previous stop (using totalDistance)
-      let distanceFromPrev = 0;
-
-      if (index > 0) {
-        const prevTrip = trips[index - 1];
-        const prevEndPoint = prevTrip[prevTrip.length - 1];
-
-        const currentTotal = endPoint.attributes?.totalDistance ?? 0;
-        const prevTotal = prevEndPoint.attributes?.totalDistance ?? 0;
-
-        distanceFromPrev = Math.max(0, (currentTotal - prevTotal) / 1000);
-      }
-
-      return {
-        id: index,
-        startTime: endPoint.createdAt,
-        duration: formatDurationHMS(stopDurationMs),
-        distanceFromPrev,
-        lat: endPoint.latitude,
-        lng: endPoint.longitude,
-      };
-    });
-  }, [trips]);
-
   /* -------------------- Reverse Geocode -------------------- */
-  const [addressMap, setAddressMap] = useState<
-    Record<number, { start?: string; end?: string }>
-  >({});
+
   const fetchedRef = useRef<Set<number>>(new Set());
 
   const loadAddresses = useCallback(
@@ -162,17 +125,27 @@ const TripsSidebar: React.FC<TripsSidebarProps> = ({
   );
 
   useEffect(() => {
-    tripSummaries.forEach((trip, index) => {
-      if (addressMap[index]?.start && addressMap[index]?.end) return;
-      loadAddresses(
-        index,
-        trip.startLat,
-        trip.startLng,
-        trip.endLat,
-        trip.endLng
-      );
+    derivedStops.forEach((stop) => {
+      if (stopAddressMap[stop.id]) return;
+      if (fetchedRef.current.has(stop.id)) return;
+
+      fetchedRef.current.add(stop.id);
+
+      reverseGeocodeMapTiler(stop.lat, stop.lng)
+        .then((address) => {
+          setStopAddressMap((prev) => ({
+            ...prev,
+            [stop.id]: address,
+          }));
+        })
+        .catch(() => {
+          setStopAddressMap((prev) => ({
+            ...prev,
+            [stop.id]: "Address not available",
+          }));
+        });
     });
-  }, [tripSummaries, addressMap, loadAddresses]);
+  }, [derivedStops, stopAddressMap, setStopAddressMap]);
 
   /* -------------------- Helpers -------------------- */
   const formatDuration = (ms: number) => {
@@ -213,43 +186,92 @@ const TripsSidebar: React.FC<TripsSidebarProps> = ({
                   <X className="w-4 h-4" />
                 </Button>
               </div>
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <TabsList className="relative grid grid-cols-2 rounded-full bg-muted p-1">
+                    {/* Sliding bubble with improved animations */}
+                    <div
+                      className={`absolute inset-y-1 w-[calc(50%-0.25rem)] rounded-full 
+      bg-background shadow-md
+      transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)]
+      ${activeTab === "stops" ? "left-[calc(50%+0.125rem)]" : "left-1"}
+    `}
+                      style={{
+                        boxShadow:
+                          "0 2px 8px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(0, 0, 0, 0.05)",
+                      }}
+                    />
 
-              <TabsList className="grid grid-cols-2">
-                <TabsTrigger value="journey" className="cursor-pointer">
-                  Journey
-                </TabsTrigger>
-                <TabsTrigger value="stops" className="cursor-pointer">
-                  Stops
-                </TabsTrigger>
-              </TabsList>
+                    <TabsTrigger
+                      value="trip"
+                      onClick={() => setActiveTab("trip")}
+                      className="relative z-10 rounded-full
+      data-[state=active]:text-primary
+      data-[state=inactive]:text-muted-foreground
+      transition-colors duration-300 cursor-pointer"
+                    >
+                      Trip
+                    </TabsTrigger>
 
-              {activeTab === "journey" && (
-                <Button
-                  variant={selectedTripIndex === null ? "default" : "outline"}
-                  className="w-full cursor-pointer"
-                  onClick={onOverallSelect}
-                >
-                  Overall Playback
-                </Button>
-              )}
+                    <TabsTrigger
+                      value="stops"
+                      onClick={() => setActiveTab("stops")}
+                      className="relative z-10 rounded-full
+      data-[state=active]:text-primary
+      data-[state=inactive]:text-muted-foreground
+      transition-colors duration-300 cursor-pointer"
+                    >
+                      Stops
+                    </TabsTrigger>
+                  </TabsList>
+                </div>
+                <div>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant={showStopsOnMap ? "destructive" : "outline"}
+                          className="w-full cursor-pointer transformations duration-300 rounded-full"
+                          onClick={onToggleStops}
+                        >
+                          Stoppages
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent
+                        side="top"
+                        className="bg-black/80 text-white font-bold rounded-md px-3 py-2 shadow-lg"
+                      >
+                        <p>{showStopsOnMap ? "Hide Stops" : "Show Stops"}</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
+              </div>
+              <Button
+                variant={selectedTripIndex === null ? "default" : "outline"}
+                className="w-full cursor-pointer"
+                onClick={onOverallSelect}
+              >
+                Overall Playback
+              </Button>
             </CardHeader>
 
             <CardContent className="flex-1 overflow-y-auto space-y-3">
-              {/* JOURNEY */}
-              <TabsContent value="journey" className="mt-0">
+              {/* TRIPS */}
+              <TabsContent value="trip" className="mt-0">
                 {tripSummaries.length ? (
                   tripSummaries.map((trip, index) => (
                     <Card
                       key={trip.id}
                       onClick={() => onTripSelect(index)}
-                      className={`cursor-pointer p-3 my-2 rounded-lg border transition-all
+                      className={`cursor-pointer p-3 my-2 rounded-lg border transition-all duration-300 
                         ${
                           selectedTripIndex === index
                             ? "border-primary bg-primary/10 shadow-md"
                             : "hover:shadow-md hover:border-primary/60"
                         }`}
                     >
-                      <div className="flex justify-between mb-1">
+                      <div className="flex justify-between">
                         <Badge>Trip {index + 1}</Badge>
                         <Badge variant="outline">
                           {formatDuration(trip.duration)}
@@ -260,6 +282,13 @@ const TripsSidebar: React.FC<TripsSidebarProps> = ({
                         <div className="flex items-center gap-2">
                           <Calendar className="w-3 h-3" />
                           {new Date(trip.startTime).toLocaleString("en-GB", {
+                            day: "2-digit",
+                            month: "2-digit",
+                            year: "numeric",
+                            timeZone: "UTC",
+                          })}{" "}
+                          –{" "}
+                          {new Date(trip.endTime).toLocaleString("en-GB", {
                             day: "2-digit",
                             month: "2-digit",
                             year: "numeric",
@@ -285,19 +314,23 @@ const TripsSidebar: React.FC<TripsSidebarProps> = ({
                           })}
                         </div>
                         <div className="text-xs text-muted-foreground space-y-1">
-                          <div className="flex items-center gap-2">
-                            <MapPin className="w-3 h-3 text-green-600" />
+                          <div className="flex items-start gap-2">
+                            <div>
+                              <MapPin className="w-3 h-3 text-green-600" />
+                            </div>
                             <span className="font-medium">Start:</span>
                             <span>
-                              {addressMap[index]?.start ?? "Loading..."}
+                              {stopAddressMap[index] ?? "Loading..."}
                             </span>
                           </div>
 
-                          <div className="flex items-center gap-2">
-                            <MapPin className="w-3 h-3 text-red-600" />
+                          <div className="flex items-start gap-2">
+                            <div>
+                              <MapPin className="w-3 h-3 text-red-600" />
+                            </div>
                             <span className="font-medium">End:</span>
                             <span>
-                              {addressMap[index]?.end ?? "Loading..."}
+                              {stopAddressMap[index] ?? "Loading..."}
                             </span>
                           </div>
                         </div>
@@ -320,8 +353,16 @@ const TripsSidebar: React.FC<TripsSidebarProps> = ({
               <TabsContent value="stops" className="mt-0">
                 {derivedStops.length ? (
                   derivedStops.map((stop, index) => (
-                    <Card key={stop.id} className="p-3 my-2 rounded-lg border">
-                      <div className="flex justify-between mb-1">
+                    <Card
+                      key={stop.id}
+                      className={`p-3 my-2 rounded-lg border cursor-pointer transition-all duration-300 ${
+                        activeStopId === stop.id
+                          ? "border-red-500 bg-red-50 shadow-md"
+                          : ""
+                      }`}
+                      onClick={() => onStopSelect(stop.id)}
+                    >
+                      <div className="flex justify-between">
                         <Badge variant="destructive">Stop {index + 1}</Badge>
                         <div className="space-y-1">
                           <div className="flex items-center justify-end gap-2 text-muted-foreground font-mono text-[10px]">
@@ -335,26 +376,57 @@ const TripsSidebar: React.FC<TripsSidebarProps> = ({
                       </div>
 
                       <div className="text-xs space-y-1">
+                        {/* 📅 Stop Date Range */}
+                        <div className="flex items-center gap-2">
+                          <Calendar className="w-3 h-3" />
+                          {new Date(stop.startTime).toLocaleDateString(
+                            "en-GB",
+                            {
+                              day: "2-digit",
+                              month: "2-digit",
+                              year: "numeric",
+                              timeZone: "UTC",
+                            }
+                          )}
+                          {" – "}
+                          {new Date(stop.endTime).toLocaleDateString("en-GB", {
+                            day: "2-digit",
+                            month: "2-digit",
+                            year: "numeric",
+                            timeZone: "UTC",
+                          })}
+                        </div>
+
+                        {/* ⏰ Stop End Time */}
                         <div className="flex items-center gap-2">
                           <Clock className="w-3 h-3" />
                           {new Date(stop.startTime).toLocaleTimeString(
                             "en-GB",
                             {
-                              year: "numeric",
-                              month: "2-digit",
-                              day: "2-digit",
                               hour: "2-digit",
                               minute: "2-digit",
                               second: "2-digit",
                               hour12: true,
                               timeZone: "UTC",
                             }
-                          )}
+                          )}{" "}
+                          –{" "}
+                          {new Date(stop.endTime).toLocaleTimeString("en-GB", {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                            second: "2-digit",
+                            hour12: true,
+                            timeZone: "UTC",
+                          })}
                         </div>
+
+                        {/* 📍 Address */}
                         <div className="flex items-start gap-2 text-muted-foreground">
-                          <MapPin className="w-3 h-3 mt-[2px]" />
+                          <div>
+                            <MapPin className="w-3 h-3 mt-[2px]" color="red" />
+                          </div>
                           <span className="leading-snug">
-                            {addressMap[stop.id]?.end ?? "Fetching address..."}
+                            {stopAddressMap[stop.id] ?? "Fetching address..."}
                           </span>
                         </div>
                       </div>
