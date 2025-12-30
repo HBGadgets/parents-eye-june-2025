@@ -44,12 +44,11 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
   onProgressChange,
 }) => {
   const MIN_BASE_SECONDS = 100000;
-
   const BASE_PLAYBACK_SECONDS = Math.max(
     MIN_BASE_SECONDS,
     Math.ceil(data.length / 100)
   );
-
+  const DEFAULT_CENTER: [number, number] = [30.73448, 79.067696];
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const markerPlayerRef = useRef<MarkerPlayer | null>(null);
@@ -125,7 +124,9 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
     return L.divIcon({
       className: "course-arrow",
       html: `
-        <div style="transform: rotate(${course+180}deg); width: ${size}px; height: ${size}px; display: flex; align-items: center; justify-content: center;">
+        <div style="transform: rotate(${
+          course + 180
+        }deg); width: ${size}px; height: ${size}px; display: flex; align-items: center; justify-content: center;">
           <div style="display: flex; flex-direction: column; align-items: center; margin-top: -3px;">
             <svg width="${Math.round(size * 0.75)}" height="${Math.round(
         size * 0.75
@@ -320,17 +321,17 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
 
   // Initialize map
   useEffect(() => {
-    if (
-      !mapContainerRef.current ||
-      mapRef.current ||
-      !data ||
-      data.length === 0
-    )
-      return;
+    if (!mapContainerRef.current || mapRef.current) return;
+
+    const hasData = data && data.length > 0;
+
+    const initialCenter: [number, number] = hasData
+      ? [data[0].latitude, data[0].longitude]
+      : DEFAULT_CENTER;
 
     const map = L.map(mapContainerRef.current, {
-      center: [data[0].latitude, data[0].longitude],
-      zoom: 15,
+      center: initialCenter,
+      zoom: hasData ? 15 : 17,
       zoomControl: false,
     });
 
@@ -363,6 +364,7 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
       }
     };
   }, [data, handleZoomEnd, handleMoveEnd, updateArrowVisibility]);
+
 
   // Handle tile layer changes
   useEffect(() => {
@@ -658,13 +660,13 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
     [data]
   );
 
-  if (!data || data.length === 0) {
-    return (
-      <div className="w-full h-full flex items-center justify-center">
-        <p>No Data Available</p>
-      </div>
-    );
-  }
+  // if (!data || data.length === 0) {
+  //   return (
+  //     <div className="w-full h-full flex items-center justify-center">
+  //       <p>No Data Available</p>
+  //     </div>
+  //   );
+  // }
 
   return (
     <div className="relative w-full h-full rounded-t-lg overflow-hidden border border-border bg-card shadow-[var(--shadow-panel)]">

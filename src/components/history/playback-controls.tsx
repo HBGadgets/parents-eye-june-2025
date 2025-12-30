@@ -255,120 +255,124 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({
   return (
     <div className="space-y-3">
       {/* Playback Controls */}
-      <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-card/95 backdrop-blur-sm border border-border rounded-lg p-3 z-[1000] shadow-lg">
-        <div className="flex items-center gap-3">
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  onClick={handlePlayPause}
-                  className="w-10 h-10 bg-primary cursor-pointer text-primary-foreground rounded-full flex items-center justify-center hover:bg-primary/90 transition-colors"
-                >
-                  {isPlaying ? (
-                    // Pause Icon
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      width="20"
-                      height="20"
-                      viewBox="0 0 24 24"
-                      fill="currentColor"
-                    >
-                      <rect x="6" y="4" width="4" height="16" rx="1" />
-                      <rect x="14" y="4" width="4" height="16" rx="1" />
-                    </svg>
-                  ) : (
-                    // Play Icon
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      width="20"
-                      height="20"
-                      viewBox="0 0 24 24"
-                      fill="currentColor"
-                    >
-                      <path d="M8 5v14l11-7z" />
-                    </svg>
-                  )}
-                </button>
-              </TooltipTrigger>
-
-              <TooltipContent
-                side="top"
-                className="bg-black/80 text-white font-bold rounded-md px-3 py-2 shadow-lg"
-              >
-                <p>{isPlaying ? "Pause playback" : "Play playback"}</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  onClick={handleStop}
-                  className="w-10 h-10 cursor-pointer bg-secondary text-secondary-foreground rounded-full flex items-center justify-center hover:bg-secondary/80 transition-colors"
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="18"
-                    height="18"
-                    viewBox="0 0 24 24"
-                    fill="currentColor"
+      {historyData.length > 0 && (
+        <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-card/95 backdrop-blur-sm border border-border rounded-lg p-3 z-[1000] shadow-lg">
+          <div className="flex items-center gap-3">
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={handlePlayPause}
+                    className="w-10 h-10 bg-primary cursor-pointer text-primary-foreground rounded-full flex items-center justify-center hover:bg-primary/90 transition-colors"
                   >
-                    <rect x="6" y="6" width="12" height="12" rx="2" />
-                  </svg>
+                    {isPlaying ? (
+                      // Pause Icon
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="20"
+                        height="20"
+                        viewBox="0 0 24 24"
+                        fill="currentColor"
+                      >
+                        <rect x="6" y="4" width="4" height="16" rx="1" />
+                        <rect x="14" y="4" width="4" height="16" rx="1" />
+                      </svg>
+                    ) : (
+                      // Play Icon
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="20"
+                        height="20"
+                        viewBox="0 0 24 24"
+                        fill="currentColor"
+                      >
+                        <path d="M8 5v14l11-7z" />
+                      </svg>
+                    )}
+                  </button>
+                </TooltipTrigger>
+
+                <TooltipContent
+                  side="top"
+                  className="bg-black/80 text-white font-bold rounded-md px-3 py-2 shadow-lg"
+                >
+                  <p>{isPlaying ? "Pause playback" : "Play playback"}</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={handleStop}
+                    className="w-10 h-10 cursor-pointer bg-secondary text-secondary-foreground rounded-full flex items-center justify-center hover:bg-secondary/80 transition-colors"
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="18"
+                      height="18"
+                      viewBox="0 0 24 24"
+                      fill="currentColor"
+                    >
+                      <rect x="6" y="6" width="12" height="12" rx="2" />
+                    </svg>
+                  </button>
+                </TooltipTrigger>
+
+                <TooltipContent
+                  side="top"
+                  className="bg-black/80 text-white font-bold rounded-md px-3 py-2 shadow-lg"
+                >
+                  <p>Stop playback</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+
+            <div className="flex items-center gap-2 min-w-[200px]">
+              <input
+                type="range"
+                min="0"
+                max="100"
+                step="0.1"
+                value={progress}
+                onChange={(e) =>
+                  handleProgressChange(parseFloat(e.target.value))
+                }
+                className="w-full h-2 bg-secondary rounded-lg appearance-none cursor-pointer"
+                style={{
+                  background: `linear-gradient(to right, #0ea5e9 0%, #0ea5e9 ${progress}%, #e2e8f0 ${progress}%, #e2e8f0 100%)`,
+                }}
+              />
+              <span className="text-xs text-muted-foreground min-w-[40px]">
+                {progress?.toFixed(0)}%
+              </span>
+            </div>
+
+            <div className="flex items-center gap-1 border-l pl-3 border-border">
+              {[0.5, 1, 2, 4].map((speed) => (
+                <button
+                  key={speed}
+                  onClick={() => handleSpeedChange(speed)}
+                  className={`px-2 py-1 text-xs cursor-pointer rounded transition-colors ${
+                    playbackSpeed === speed
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
+                  }`}
+                >
+                  {speed}x
                 </button>
-              </TooltipTrigger>
-
-              <TooltipContent
-                side="top"
-                className="bg-black/80 text-white font-bold rounded-md px-3 py-2 shadow-lg"
-              >
-                <p>Stop playback</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-
-          <div className="flex items-center gap-2 min-w-[200px]">
-            <input
-              type="range"
-              min="0"
-              max="100"
-              step="0.1"
-              value={progress}
-              onChange={(e) => handleProgressChange(parseFloat(e.target.value))}
-              className="w-full h-2 bg-secondary rounded-lg appearance-none cursor-pointer"
-              style={{
-                background: `linear-gradient(to right, #0ea5e9 0%, #0ea5e9 ${progress}%, #e2e8f0 ${progress}%, #e2e8f0 100%)`,
-              }}
-            />
-            <span className="text-xs text-muted-foreground min-w-[40px]">
-              {progress?.toFixed(0)}%
-            </span>
+              ))}
+            </div>
           </div>
 
-          <div className="flex items-center gap-1 border-l pl-3 border-border">
-            {[0.5, 1, 2, 4].map((speed) => (
-              <button
-                key={speed}
-                onClick={() => handleSpeedChange(speed)}
-                className={`px-2 py-1 text-xs cursor-pointer rounded transition-colors ${
-                  playbackSpeed === speed
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
-                }`}
-              >
-                {speed}x
-              </button>
-            ))}
-          </div>
+          {/* Animated Status Indicator */}
+          <div
+            className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-primary to-transparent transition-opacity duration-300 rounded-b-lg"
+            style={{ opacity: isPlaying ? 0.5 : 0 }}
+          />
         </div>
-
-        {/* Animated Status Indicator */}
-        <div
-          className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-primary to-transparent transition-opacity duration-300 rounded-b-lg"
-          style={{ opacity: isPlaying ? 0.5 : 0 }}
-        />
-      </div>
+      )}
 
       {/* ✅ Info Row - Only show if data is available */}
       {currentData && (

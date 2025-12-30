@@ -32,7 +32,7 @@ interface DerivedStop {
   id: number;
   startTime: string;
   endTime: string;
-  duration: number;
+  duration: string;
   distanceFromPrev: number;
   lat: number;
   lng: number;
@@ -79,7 +79,21 @@ const TripsSidebar: React.FC<TripsSidebarProps> = ({
     });
   }, [trips]);
 
-  /* -------------------- Derived Stops (NO MIN DURATION) -------------------- */
+  /* -------------------- Derived Stops -------------------- */
+  const formatDurationHMS = (ms: number): string => {
+    if (!ms || ms < 0) return "00H:00M";
+
+    const totalSeconds = Math.floor(ms / 1000);
+
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+
+    const pad = (n: number) => n.toString().padStart(2, "0");
+
+    return `${pad(hours)}H:${pad(minutes)}M`;
+  };
+
   const derivedStops = useMemo<DerivedStop[]>(() => {
     return trips.map((trip, index) => {
       const endPoint = trip[trip.length - 1];
@@ -91,7 +105,7 @@ const TripsSidebar: React.FC<TripsSidebarProps> = ({
         ? new Date(nextTrip[0].createdAt).getTime()
         : stopStartTime;
 
-      const stopDuration = stopEndTime - stopStartTime;
+      const stopDurationMs = stopEndTime - stopStartTime;
 
       // --- Distance from previous stop (using totalDistance)
       let distanceFromPrev = 0;
@@ -103,14 +117,13 @@ const TripsSidebar: React.FC<TripsSidebarProps> = ({
         const currentTotal = endPoint.attributes?.totalDistance ?? 0;
         const prevTotal = prevEndPoint.attributes?.totalDistance ?? 0;
 
-        // totalDistance is usually in meters
         distanceFromPrev = Math.max(0, (currentTotal - prevTotal) / 1000);
       }
 
       return {
         id: index,
         startTime: endPoint.createdAt,
-        duration: stopDuration,
+        duration: formatDurationHMS(stopDurationMs),
         distanceFromPrev,
         lat: endPoint.latitude,
         lng: endPoint.longitude,
@@ -310,9 +323,14 @@ const TripsSidebar: React.FC<TripsSidebarProps> = ({
                     <Card key={stop.id} className="p-3 my-2 rounded-lg border">
                       <div className="flex justify-between mb-1">
                         <Badge variant="destructive">Stop {index + 1}</Badge>
-                        <div className="flex items-center gap-2 text-muted-foreground font-mono text-xs">
-                          <span>From prev:</span>
-                          <span>{stop.distanceFromPrev.toFixed(2)} km</span>
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-end gap-2 text-muted-foreground font-mono text-[10px]">
+                            <span>Dist. From prev:</span>
+                            <span>{stop.distanceFromPrev.toFixed(2)} km</span>
+                          </div>
+                          <div className="flex items-center justify-end gap-2 text-muted-foreground font-mono text-[10px]">
+                            <span>Duration: {stop.duration}</span>
+                          </div>
                         </div>
                       </div>
 

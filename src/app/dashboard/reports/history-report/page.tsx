@@ -25,6 +25,8 @@ import {
 } from "chart.js";
 import { useQueryClient } from "@tanstack/react-query";
 import { useHistoryReport } from "@/hooks/playback-history/useHistoryReport";
+import { GiPathDistance } from "react-icons/gi";
+import { MdSocialDistance } from "react-icons/md";
 
 // Register Chart.js components
 ChartJS.register(
@@ -501,13 +503,13 @@ function HistoryReportContent() {
               emptyMessage="No vehicles found"
               width="w-[300px]"
             />
-              <DateRangeFilter
-                onDateRangeChange={handleDateFilter}
-                title="Select Date Range"
-                maxDays={7}
-                defaultStartDate={defaultDateRange?.startDate}
-                defaultEndDate={defaultDateRange?.endDate}
-              />
+            <DateRangeFilter
+              onDateRangeChange={handleDateFilter}
+              title="Select Date Range"
+              maxDays={7}
+              defaultStartDate={defaultDateRange?.startDate}
+              defaultEndDate={defaultDateRange?.endDate}
+            />
             <Button className="cursor-pointer" onClick={handleShow}>
               Show
             </Button>
@@ -692,18 +694,17 @@ function HistoryReportContent() {
 
                     {/* Distance */}
                     <div className="flex items-center gap-2 text-muted-foreground text-sm">
+                      <MdSocialDistance className="w-4 h-4" />
                       <span>Distance Covered</span>
-
-                      {/* Total trip distance */}
-                      <span className="bg-green-100 text-green-700 px-2 py-1 rounded-sm font-medium">
-                        {(odometerDistance / 1000).toFixed(2)} km
-                      </span>
-
-                      <span className="text-muted-foreground">/</span>
-
                       {/* Incremental distance till current playback */}
                       <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded-sm font-medium">
                         {(incrementalDistance / 1000).toFixed(2)} km
+                      </span>
+
+                      <span className="text-muted-foreground">/</span>
+                      {/* Total trip distance */}
+                      <span className="bg-green-100 text-green-700 px-2 py-1 rounded-sm font-medium">
+                        {(odometerDistance / 1000).toFixed(2)} km
                       </span>
                     </div>
 
