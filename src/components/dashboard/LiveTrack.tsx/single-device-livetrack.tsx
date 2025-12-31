@@ -502,6 +502,7 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
     const timeDifference = currentTime - lastUpdateTime;
     const thirtyFiveHoursInMs = 35 * 60 * 60 * 1000;
 
+    if (vehicle.category === "inactive") return "inactive";
     if (timeDifference > thirtyFiveHoursInMs) return "inactive";
 
     const speedLimit = parseFloat(vehicle.speedLimit) || 60;

@@ -17,6 +17,7 @@ interface UseVehicleStatusProps {
   latitude: number;
   longitude: number;
   attributes: VehicleAttributes;
+  category: string;
 }
 
 export type VehicleStatus =
@@ -34,6 +35,7 @@ export const useVehicleStatus = ({
   latitude,
   longitude,
   attributes,
+  category,
 }: UseVehicleStatusProps): VehicleStatus => {
   return useMemo(() => {
     // Check if vehicle has no data
@@ -45,7 +47,7 @@ export const useVehicleStatus = ({
     const timeDifference = currentTime - lastUpdateTime;
     const thirtyFiveHoursInMs = 35 * 60 * 60 * 1000;
 
-    if (timeDifference > thirtyFiveHoursInMs) return "inactive";
+    if (category === "inactive") return "inactive";
 
     // Check for overspeeding
     const parsedSpeedLimit = parseFloat(speedLimit) || 60;

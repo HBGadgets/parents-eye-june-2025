@@ -35,6 +35,7 @@ export const VehicleMarker: React.FC<VehicleMarkerProps> = React.memo(
       latitude: vehicle.latitude,
       longitude: vehicle.longitude,
       attributes: vehicle.attributes,
+      category: vehicle.category,
     });
 
     // Get marker icon

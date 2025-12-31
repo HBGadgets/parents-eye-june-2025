@@ -56,6 +56,7 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
     MIN_BASE_SECONDS,
     Math.ceil(data.length / 100)
   );
+
   const DEFAULT_CENTER: [number, number] = [30.73448, 79.067696];
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
@@ -79,6 +80,7 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
 
   const speedCache = useRef(new Map<number, string>());
   const currentAngleRef = useRef(0);
+  const isPlaybackActive = isPlaying;
 
   // Memoize completeRoute to prevent recalculation on every render
   const completeRoute: RoutePoint[] = useMemo(() => {
@@ -150,10 +152,9 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
   }, []);
 
   const getArrowDensity = useCallback((zoom: number): number => {
-    if (zoom >= 16) return 0.05;
-    if (zoom >= 14) return 0.04;
-    if (zoom >= 12) return 0.03;
-    if (zoom >= 10) return 0.02;
+    if (zoom < 14) return 0;
+    if (zoom >= 16) return 0.01;
+    if (zoom >= 14) return 0.01;
     return 0.0;
   }, []);
 
@@ -424,8 +425,8 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
   const handleZoomEnd = useCallback(() => {
     if (!mapRef.current) return;
     const zoom = mapRef.current.getZoom();
-    createAllArrowMarkers(zoom);
-    updateArrowVisibility();
+    // createAllArrowMarkers(zoom);
+    // updateArrowVisibility();
   }, [createAllArrowMarkers, updateArrowVisibility]);
 
   const handleMoveEnd = useCallback(() => {
@@ -704,7 +705,7 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
   useEffect(() => {
     if (isRouteDrawn && mapRef.current) {
       const zoom = mapRef.current.getZoom();
-      createAllArrowMarkers(zoom);
+      // createAllArrowMarkers(zoom);
       updateArrowVisibility();
     }
   }, [isRouteDrawn, data, createAllArrowMarkers, updateArrowVisibility]);
@@ -721,6 +722,7 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
       latlng: [d.latitude, d.longitude],
       course: d.course,
     }));
+
 
     const totalDuration = BASE_PLAYBACK_SECONDS / playbackSpeed;
     const segmentCount = points.length - 1;
@@ -779,6 +781,12 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
     createVehicleIcon,
     onProgressChange,
   ]);
+
+  useEffect(() => {
+    if (!isRouteDrawn || isPlaying) return;
+    // createAllArrowMarkers(mapRef.current!.getZoom());
+  }, [isRouteDrawn, isPlaying]);
+
 
   useEffect(() => {
     if (!mapRef.current) return;
@@ -859,7 +867,7 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
 
       stopMarkersRef.current.set(stop.id, marker);
     });
-  }, [stops, activeStopId, data]);
+  }, [stops]);
 
   useEffect(() => {
     if (activeStopId == null) return;
@@ -869,6 +877,9 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
       marker.openPopup();
       mapRef.current?.panTo(marker.getLatLng(), { animate: true });
     }
+    stopMarkersRef.current.forEach((marker, id) => {
+      marker.setIcon(createStopIcon(id === activeStopId));
+    });
   }, [activeStopId]);
 
   // Handle speed changes
