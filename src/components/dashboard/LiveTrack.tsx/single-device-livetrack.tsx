@@ -26,7 +26,7 @@ import { Slider } from "@/components/ui/slider";
 import { getDecodedToken } from "@/lib/jwt";
 import Cookies from "js-cookie";
 import { GeofenceForm } from "./form/GeofenceForm";
-import { useGeofence, useGeofenceByRoute } from "@/hooks/useGeofence";
+import { useGeofence, useGeofenceByRoute, useGeofenceByUniqueId } from "@/hooks/useGeofence";
 import { formatToIST } from "@/util/dateFormatters";
 import { calculateTimeSince } from "@/util/calculateTimeSince";
 import { toast } from "sonner";
@@ -108,25 +108,25 @@ const GeofenceLayer = ({
   // }, [geofences, visible]);
 
   // if (!visible) {
-  //   // console.log("⚪ GeofenceLayer - Not visible");
+  //   console.log("⚪ GeofenceLayer - Not visible");
   //   return null;
   // }
 
-  // if (!geofences || geofences.length === 0) {
-  //   // console.log("⚪ GeofenceLayer - No geofences to display");
+  // if (!geofenceByRoute || geofenceByRoute.length === 0) {
+  //   console.log("⚪ GeofenceLayer - No geofences to display");
   //   return null;
   // }
 
   // Filter out invalid geofences before rendering
-  // // console.log("🔵 GeofenceLayer - Rendering geofences:", geofences);
+  // console.log("🔵 GeofenceLayer - Rendering geofences:", geofenceByRoute);
   const validGeofences = geofenceByRoute?.filter((g) => isValidGeofence(g));
 
-  // // console.log("✅ GeofenceLayer - Rendering valid geofences:", validGeofences);
+  // console.log("✅ GeofenceLayer - Rendering valid geofences:", validGeofences);
 
-  if (validGeofences?.length === 0) {
-    // console.log("⚠️ GeofenceLayer - No valid geofences after filtering");
-    return null;
-  }
+  // if (validGeofences?.length === 0) {
+  //   console.log("⚠️ GeofenceLayer - No valid geofences after filtering");
+  //   return null;
+  // }
 
   return (
     <>
@@ -144,7 +144,7 @@ const GeofenceLayer = ({
                 fillColor: "#10b981",
                 fillOpacity: 0.15,
                 weight: 2,
-                dashArray: "5, 5",
+                dashArray: "5 5",
               }}
             >
               <Popup>
@@ -443,9 +443,11 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
     isLoading: isLoadingGeofences,
     createGeofence,
   } = useGeofence(pagination, sorting, filters);
-  const { geofenceByRoute, isLoadingByRoute } = useGeofenceByRoute(
-    vehicle?.routeId
-  );
+const geofenceQuery = useGeofenceByUniqueId(vehicle?.uniqueId || "");
+
+const geofenceByRoute = geofenceQuery?.geofenceByUniqueId;
+
+// console.log("geofenceByRoute",geofenceByRoute)
 
   // Debug logs for geofences
   // useEffect(() => {
@@ -703,7 +705,7 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
       routeObjId: routeObjId || payload.routeObjId,
     };
 
-    console.log("📤 Submitting geofence:", geofencePayload);
+    // console.log("📤 Submitting geofence:", geofencePayload);
 
     // Call the mutation from the hook
     createGeofence(geofencePayload);

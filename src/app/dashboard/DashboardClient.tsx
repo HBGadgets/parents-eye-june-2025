@@ -56,11 +56,12 @@ export default function DashboardClient() {
   const [routeTimelineData, setRouteTimelineData] = useState<{
     uniqueId: string;
     deviceName: string;
+    routeObjId?: string;
   } | null>(null);
 
   const handleOpenRouteTimeline = useCallback(
-    (uniqueId: string, deviceName: string) => {
-      setRouteTimelineData({ uniqueId, deviceName });
+    (uniqueId: string, deviceName: string, routeObjId?: string) => {
+      setRouteTimelineData({ uniqueId, deviceName, routeObjId });
       setIsRouteTimelineOpen(true);
     },
     []

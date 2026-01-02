@@ -457,3 +457,37 @@ export interface TravelSummaryReport {
   endAddress: string;
   dayWiseTrips: DayWiseTrips[];
 }
+
+export interface GeofenceListResponse {
+  total: number;
+  data: Geofence[];
+}
+
+export interface TimelineEvent {
+  _id: string;
+  geofenceId: string;
+  eventType: "ENTER" | "EXIT";
+  createdAt: string;
+  geofence: {
+    geofenceName: string;
+  };
+}
+
+export interface RouteInfo {
+  routeCompletionTime: string | null;
+  startPointGeoId: string | null;
+  endPointObjId: string | null;
+}
+
+export interface TimelineResponse {
+  success: boolean;
+  message: string;
+  timeline: TimelineEvent[];
+  route: RouteInfo;
+}
+
+export interface BusStopWithStatus extends Geofence {
+  hasArrived: boolean;
+  arrivedAt?: string;
+  isCurrent: boolean;
+}

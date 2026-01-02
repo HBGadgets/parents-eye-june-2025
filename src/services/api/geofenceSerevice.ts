@@ -9,8 +9,10 @@ export const geofenceService = {
     return res.data;
   },
 
-  getGeofenceByRouteObjId: async (id: string) => {
-    const res = await api.get<GetGeofenceResponse>(`/geofence/timeline/${id}`,);
+  getGeofenceByUniqueId: async (params: Record<string, any>) => {
+    const res = await api.get<GetGeofenceResponse>(`/geofence/timeline`, {
+      params,
+    });
     return res.data;
   },
 

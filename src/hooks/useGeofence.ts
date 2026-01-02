@@ -10,6 +10,7 @@ import {
 import { geofenceService } from "@/services/api/geofenceSerevice";
 import { PaginationState, SortingState } from "@tanstack/react-table";
 import { toast } from "sonner";
+import { isError } from "lodash";
 
 export const useGeofence = (
   pagination: PaginationState,
@@ -54,7 +55,7 @@ export const useGeofence = (
         queryKey: ["geofence"],
       });
       queryClient.invalidateQueries({
-        queryKey: ["geofence-by-route"],
+        queryKey: ["geofence-by-uniqueId"],
       });
     },
     onError: (err: any) => {
@@ -106,7 +107,7 @@ export const useGeofence = (
 export const useGeofenceByRoute = (routeId: string) => {
   const geofenceByRoute = useQuery({
     queryKey: ["geofence-by-route", routeId],
-    queryFn: () => geofenceService.getGeofenceByRouteObjId(routeId),
+    queryFn: () => geofenceService.getGeofenceByUniqueId(routeId),
     placeholderData: keepPreviousData,
     enabled: !!routeId,
   });
@@ -120,13 +121,14 @@ export const useGeofenceByRoute = (routeId: string) => {
 export const useGeofenceByUniqueId = (uniqueId: string) => {
   const geofenceByUniqueId = useQuery({
     queryKey: ["geofence-by-uniqueId", uniqueId],
-    queryFn: () => geofenceService.getGeofenceByRouteObjId(uniqueId),
-    placeholderData: keepPreviousData,
+    queryFn: () => geofenceService.getGeofenceByUniqueId({ uniqueId: uniqueId! }),
     enabled: !!uniqueId,
   });
 
   return {
     geofenceByUniqueId: geofenceByUniqueId.data?.data || [],
     isLoadingByUniqueId: geofenceByUniqueId.isLoading,
+    isError: geofenceByUniqueId.isError,
+    error: geofenceByUniqueId.error,
   };
 };
