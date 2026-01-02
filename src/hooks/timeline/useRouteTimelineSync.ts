@@ -1,61 +1,66 @@
 import { useEffect, useRef } from "react";
-// import { useRouteTimelineStore } from "@/store/routeTimelineStore";
 import { Geofence } from "@/interface/modal";
 import { useRouteTimelineStore } from "@/store/timeline/routeTimelineStore";
-// import type { Geofence } from "@/types/route";
+
+type TimelineEvent = {
+  geofenceId: string;
+  eventType: "ENTER" | "EXIT";
+  createdAt: string;
+};
 
 export function useRouteTimelineSync(
   geofences: Geofence[] = [],
-  timelineEvents: {
-    geofenceId: string;
-    eventType: "ENTER" | "EXIT";
-    createdAt: string;
-  }[] = []
+  timelineEvents: TimelineEvent[] = []
 ) {
   const setStops = useRouteTimelineStore((s) => s.setStops);
-
-  // 🔒 Track last computed signature
   const lastSignatureRef = useRef<string>("");
 
   useEffect(() => {
     if (!geofences.length) return;
 
+    // Build maps
     const enterMap = new Map<string, string>();
+    const exitMap = new Map<string, string>();
 
-    timelineEvents.forEach((e) => {
+    for (const e of timelineEvents) {
       if (e.eventType === "ENTER") {
         enterMap.set(e.geofenceId, e.createdAt);
       }
-    });
+      if (e.eventType === "EXIT") {
+        exitMap.set(e.geofenceId, e.createdAt);
+      }
+    }
 
-    let lastArrivedIndex = -1;
+    let currentStopIndex = -1;
 
     const stops = geofences.map((geo, index) => {
-      const arrivedAt = enterMap.get(geo._id);
-      if (arrivedAt) lastArrivedIndex = index;
+      const enteredAt = enterMap.get(geo._id);
+      const exitedAt = exitMap.get(geo._id);
+
+      const hasExited = Boolean(exitedAt);
+      const isInside = Boolean(enteredAt && !exitedAt);
+
+      if (isInside) currentStopIndex = index;
 
       return {
         ...geo,
-        hasArrived: !!arrivedAt,
-        arrivedAt,
-        isCurrent: false,
+        enteredAt,
+        exitedAt,
+        hasArrived: hasExited, // ✅ completed (green)
+        isCurrent: isInside, // ✅ inside stop (orange)
       };
     });
 
-    if (lastArrivedIndex >= 0) {
-      stops[lastArrivedIndex].isCurrent = true;
-    }
-
-    // 🔑 Create a stable signature
+    // Stable signature to avoid loops
     const signature = JSON.stringify(
       stops.map((s) => ({
         id: s._id,
-        arrivedAt: s.arrivedAt,
+        enteredAt: s.enteredAt,
+        exitedAt: s.exitedAt,
         isCurrent: s.isCurrent,
       }))
     );
 
-    // ⛔ Prevent infinite loop
     if (signature === lastSignatureRef.current) return;
 
     lastSignatureRef.current = signature;

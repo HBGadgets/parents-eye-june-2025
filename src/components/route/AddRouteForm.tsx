@@ -26,6 +26,8 @@ interface Props {
     deviceObjId: string;
     schoolId: string;
     branchId: string;
+    endPointGeoId: string;
+    startPointGeoId: string;
   }) => void;
 
   onClose: () => void;

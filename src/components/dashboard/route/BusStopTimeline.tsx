@@ -26,6 +26,8 @@ export const BusStopTimeline: React.FC<BusStopTimelineProps> = ({
   stops,
   currentStopIndex = -1,
 }) => {
+
+  console.log("Current Stop Index:", stops);
   return (
     <div className="relative py-4">
       {stops.map((stop, index) => {

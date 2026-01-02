@@ -122,6 +122,16 @@ export const getRouteColumns = (
     accessorKey: "branchId.branchName",
   },
   {
+    id: "firstGeofence",
+    header: "First Geofence",
+    accessorFn: (row: Route) => row.startPointGeoId?.geofenceName ?? "—",
+  },
+  {
+    id: "lastGeofence",
+    header: "Last Geofence",
+    accessorFn: (row: Route) => row.endPointGeoId?.geofenceName ?? "—",
+  },
+  {
     header: "Action",
     cell: ({ row }) => {
       const data = row.original;
@@ -1383,14 +1393,13 @@ export const GetTripReportColumns = (): ColumnDef<TripReport>[] => [
   },
 ];
 
-export const getRouteReportColumns =
-  (): ColumnDef<GeofenceAlerts>[] => [
-    { header: "Vehicle No", accessorKey: "name" },
-    { header: "Geofence Name", accessorKey: "geofenceName" },
-    { header: "Location", accessorKey: "location" },
-    { header: "Coordinates", accessorKey: "coordinate" },
-    { header: "In Time", accessorKey: "inTime" },
-    { header: "Out Time", accessorKey: "outTime" },
-    { header: "Halt Time", accessorKey: "haltTime" },
-    { header: "Created At", accessorKey: "createdAt" },
-  ];
+export const getRouteReportColumns = (): ColumnDef<GeofenceAlerts>[] => [
+  { header: "Vehicle No", accessorKey: "name" },
+  { header: "Geofence Name", accessorKey: "geofenceName" },
+  { header: "Location", accessorKey: "location" },
+  { header: "Coordinates", accessorKey: "coordinate" },
+  { header: "In Time", accessorKey: "inTime" },
+  { header: "Out Time", accessorKey: "outTime" },
+  { header: "Halt Time", accessorKey: "haltTime" },
+  { header: "Created At", accessorKey: "createdAt" },
+];

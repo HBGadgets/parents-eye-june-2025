@@ -163,6 +163,8 @@ export interface Route {
   deviceObjId: Device;
   schoolId: School;
   branchId: Branch;
+  startPointGeoId: Geofence;
+  endPointGeoId: Geofence;
   createdAt: string;
 }
 
