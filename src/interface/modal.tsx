@@ -83,6 +83,8 @@ export interface GetGeofenceResponse {
   limit: number;
   totalPages: number;
   data: Geofence[];
+  startPointGeoId: Geofence;
+  endPointGeoId: Geofence;
 }
 
 export interface Parent {
@@ -494,4 +496,5 @@ export interface BusStopWithStatus extends Geofence {
   isCurrent: boolean;
   enteredAt?: string;
   exitedAt?: string;
+  __type?: "START" | "NORMAL" | "END";
 }

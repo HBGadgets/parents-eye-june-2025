@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { Geofence } from "@/interface/modal";
 import { useRouteTimelineStore } from "@/store/timeline/routeTimelineStore";
 
@@ -10,60 +10,98 @@ type TimelineEvent = {
 
 export function useRouteTimelineSync(
   geofences: Geofence[] = [],
-  timelineEvents: TimelineEvent[] = []
+  timelineEvents: TimelineEvent[] = [],
+  uniqueId: string,
+  startPoint?: Geofence,
+  endPoint?: Geofence
 ) {
   const setStops = useRouteTimelineStore((s) => s.setStops);
-  const lastSignatureRef = useRef<string>("");
+  const currentStops = useRouteTimelineStore((s) => s.stops);
 
   useEffect(() => {
-    if (!geofences.length) return;
+    // 🔹 Build ordered geofence list
+    const orderedGeofences: Geofence[] = [];
 
-    // Build maps
+    if (startPoint) {
+      orderedGeofences.push({ ...startPoint, __type: "START" } as any);
+    }
+
+    for (const geo of geofences) {
+      // avoid duplicate if startPoint is also in data
+      if (startPoint && geo._id === startPoint._id) continue;
+      if (endPoint && geo._id === endPoint._id) continue;
+
+      orderedGeofences.push({ ...geo, __type: "NORMAL" } as any);
+    }
+
+    if (endPoint) {
+      orderedGeofences.push({ ...endPoint, __type: "END" } as any);
+    }
+
+    // 🔹 No geofences at all → clear
+    if (!orderedGeofences.length) {
+      if (currentStops.length !== 0) setStops([]);
+      return;
+    }
+
+    // 🔹 Build event maps
     const enterMap = new Map<string, string>();
     const exitMap = new Map<string, string>();
 
     for (const e of timelineEvents) {
-      if (e.eventType === "ENTER") {
-        enterMap.set(e.geofenceId, e.createdAt);
-      }
-      if (e.eventType === "EXIT") {
-        exitMap.set(e.geofenceId, e.createdAt);
-      }
+      if (e.eventType === "ENTER") enterMap.set(e.geofenceId, e.createdAt);
+      if (e.eventType === "EXIT") exitMap.set(e.geofenceId, e.createdAt);
     }
 
-    let currentStopIndex = -1;
+    const geofenceById = new Map(geofences.map((g) => [g._id, g]));
 
-    const stops = geofences.map((geo, index) => {
-      const enteredAt = enterMap.get(geo._id);
-      const exitedAt = exitMap.get(geo._id);
+    // 🔹 Build stops
+  const stops = orderedGeofences.map((geo) => {
+    const enteredAt = enterMap.get(geo._id);
+    const exitedAt = exitMap.get(geo._id);
 
-      const hasExited = Boolean(exitedAt);
-      const isInside = Boolean(enteredAt && !exitedAt);
+    // 🔥 RESOLVE FULL GEOFENCE DATA
+    const fullGeo = geofenceById.get(geo._id);
 
-      if (isInside) currentStopIndex = index;
+    return {
+      _id: geo._id,
+      geofenceName: geo.geofenceName,
+      area: geo.area ?? fullGeo?.area,
 
-      return {
-        ...geo,
-        enteredAt,
-        exitedAt,
-        hasArrived: hasExited, // ✅ completed (green)
-        isCurrent: isInside, // ✅ inside stop (orange)
-      };
-    });
+      // ✅ resolved from canonical source
+      pickupTime: fullGeo?.pickupTime ?? null,
+      dropTime: fullGeo?.dropTime ?? null,
 
-    // Stable signature to avoid loops
-    const signature = JSON.stringify(
-      stops.map((s) => ({
-        id: s._id,
-        enteredAt: s.enteredAt,
-        exitedAt: s.exitedAt,
-        isCurrent: s.isCurrent,
-      }))
-    );
+      enteredAt,
+      exitedAt,
+      hasArrived: Boolean(exitedAt),
+      isCurrent: Boolean(enteredAt && !exitedAt),
+      __type: (geo as any).__type,
+    };
+  });
 
-    if (signature === lastSignatureRef.current) return;
+    // 🔹 Prevent useless updates
+    if (
+      currentStops.length === stops.length &&
+      currentStops.every(
+        (s, i) =>
+          s._id === stops[i]._id &&
+          s.enteredAt === stops[i].enteredAt &&
+          s.exitedAt === stops[i].exitedAt &&
+          s.isCurrent === stops[i].isCurrent
+      )
+    ) {
+      return;
+    }
 
-    lastSignatureRef.current = signature;
     setStops(stops);
-  }, [geofences, timelineEvents, setStops]);
+  }, [
+    geofences,
+    timelineEvents,
+    uniqueId,
+    startPoint,
+    endPoint,
+    currentStops,
+    setStops,
+  ]);
 }

@@ -13,6 +13,8 @@ import { BusStopTimeline } from "./BusStopTimeline";
 import { Bus, History, MapPin } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useRouteTimeline } from "@/hooks/timeline/useRouteTimeline";
+import { useQueryClient } from "@tanstack/react-query";
+import { useRouteTimelineStore } from "@/store/timeline/routeTimelineStore";
 // import { useRouteTimeline } from "@/hooks/useRouteTimeline";
 
 interface RouteTimelineProps {
@@ -32,11 +34,20 @@ export const RouteTimeline: React.FC<RouteTimelineProps> = ({
   uniqueId,
   deviceName,
 }) => {
-  const { stops, currentStopIndex, isLoading } = useRouteTimeline(uniqueId!);
+  const queryClient = useQueryClient();
+  const resetTimeline = useRouteTimelineStore((s) => s.reset);
+
+  const { stops, currentStopIndex, isLoading, startPoint, endPoint } =
+    useRouteTimeline(uniqueId!);
   const remainingStops = stops.filter(
     (stop) => !stop.hasArrived && !stop.exitedAt && !stop.isCurrent
   ).length;
-  console.log(stops);
+
+  useEffect(() => {
+    resetTimeline();
+  }, [resetTimeline, uniqueId]);
+
+  console.log(startPoint);
   return (
     <Sheet open={isOpen} onOpenChange={onOpenChange}>
       <SheetContent
@@ -79,7 +90,7 @@ export const RouteTimeline: React.FC<RouteTimelineProps> = ({
               // onClick={() => uniqueId && handleHistoryClick(Number(uniqueId))}
               variant="outline"
               size="sm"
-              className="gap-2 shrink-0"
+              className="gap-2 shrink-0 cursor-pointer mt-5"
               disabled={!uniqueId}
             >
               <History className="h-4 w-4" />
@@ -96,10 +107,50 @@ export const RouteTimeline: React.FC<RouteTimelineProps> = ({
                 Loading route timeline…
               </div>
             ) : stops.length > 0 ? (
-              <BusStopTimeline
-                stops={stops}
-                currentStopIndex={currentStopIndex}
-              />
+              <>
+                {/* START & END POINTS */}
+                {(startPoint || endPoint) && (
+                  <div className="mb-4 space-y-2">
+                    {startPoint && (
+                      <div className="flex items-center gap-3 p-3 rounded-lg border bg-emerald-50">
+                        <div className="h-2.5 w-2.5 rounded-full bg-emerald-600" />
+                        <div>
+                          <p className="text-xs font-semibold text-emerald-700">
+                            START POINT
+                          </p>
+                          <p className="text-sm text-foreground">
+                            {startPoint.geofenceName}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Pickup: {startPoint.pickupTime}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {endPoint && (
+                      <div className="flex items-center gap-3 p-3 rounded-lg border bg-rose-50">
+                        <div className="h-2.5 w-2.5 rounded-full bg-rose-600" />
+                        <div>
+                          <p className="text-xs font-semibold text-rose-700">
+                            END POINT
+                          </p>
+                          <p className="text-sm text-foreground">
+                            {endPoint.geofenceName}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Drop: {endPoint.dropTime}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+                <BusStopTimeline
+                  stops={stops}
+                  currentStopIndex={currentStopIndex}
+                />
+              </>
             ) : (
               <div className="flex flex-col items-center justify-center py-16 text-center">
                 <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center mb-4">

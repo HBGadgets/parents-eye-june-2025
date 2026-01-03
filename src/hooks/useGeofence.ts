@@ -127,6 +127,8 @@ export const useGeofenceByUniqueId = (uniqueId: string) => {
 
   return {
     geofenceByUniqueId: geofenceByUniqueId.data?.data || [],
+    startPoint: geofenceByUniqueId.data?.startPointGeoId,
+    endPoint: geofenceByUniqueId.data?.endPointGeoId,
     isLoadingByUniqueId: geofenceByUniqueId.isLoading,
     isError: geofenceByUniqueId.isError,
     error: geofenceByUniqueId.error,
