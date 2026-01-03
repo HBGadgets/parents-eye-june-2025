@@ -123,12 +123,12 @@ export const getRouteColumns = (
   },
   {
     id: "firstGeofence",
-    header: "First Geofence",
+    header: "First Stop",
     accessorFn: (row: Route) => row.startPointGeoId?.geofenceName ?? "—",
   },
   {
     id: "lastGeofence",
-    header: "Last Geofence",
+    header: "Last Stop",
     accessorFn: (row: Route) => row.endPointGeoId?.geofenceName ?? "—",
   },
   {

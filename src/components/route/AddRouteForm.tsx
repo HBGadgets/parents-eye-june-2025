@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -19,6 +19,9 @@ import { Check, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Route } from "@/interface/modal";
+import { Combobox } from "@/components/ui/combobox";
+import { useGeofenceDropdown } from "@/hooks/useDropdown";
+// import { useGeofenceDropdown } from "@/hooks/useGeofenceDropdown";
 
 interface Props {
   onSubmit: (data: {
@@ -80,10 +83,66 @@ export default function AddRouteForm({
   const [routeNumber, setRouteNumber] = useState("");
   const [deviceObjId, setDeviceObjId] = useState("");
 
+  // ✅ State for First Stop and Last Stop
+  const [startPointGeoId, setStartPointGeoId] = useState<string | undefined>();
+  const [endPointGeoId, setEndPointGeoId] = useState<string | undefined>();
+  const [firstStopSearch, setFirstStopSearch] = useState("");
+  const [lastStopSearch, setLastStopSearch] = useState("");
+
   const decodedTokenRole = decodedToken?.role;
   const tokenSchoolId =
     decodedToken?.role === "school" ? decodedToken?.id : decodedToken?.schoolId;
   const tokenBranchId = decodedToken?.id;
+
+  // ✅ FIXED: Better enabled condition with explicit check
+  const shouldFetchGeofences = !!(initialData && initialData._id);
+
+  const {
+    data: firstStopData,
+    fetchNextPage: fetchNextFirstStop,
+    hasNextPage: hasNextFirstStop,
+    isFetchingNextPage: isFetchingNextFirstStop,
+    isLoading: isLoadingFirstStop, // ✅ NEW
+    isError: isErrorFirstStop, // ✅ NEW
+    error: firstStopError,
+  } = useGeofenceDropdown(
+    initialData?._id || "", // Provide empty string fallback
+    firstStopSearch,
+    shouldFetchGeofences // Explicit boolean condition
+  );
+
+  // ✅ Fetch geofences for Last Stop dropdown
+  const {
+    data: lastStopData,
+    fetchNextPage: fetchNextLastStop,
+    hasNextPage: hasNextLastStop,
+    isFetchingNextPage: isFetchingNextLastStop,
+  } = useGeofenceDropdown(
+    initialData?._id,
+    lastStopSearch,
+    !!initialData // Only fetch in edit mode
+  );
+
+  // ✅ Transform geofence data for Combobox
+  const firstStopItems = useMemo(() => {
+    if (!firstStopData?.pages) return [];
+    return firstStopData.pages.flatMap((page) =>
+      page.data.map((item) => ({
+        value: item._id,
+        label: item.geofenceName,
+      }))
+    );
+  }, [firstStopData]);
+
+  const lastStopItems = useMemo(() => {
+    if (!lastStopData?.pages) return [];
+    return lastStopData.pages.flatMap((page) =>
+      page.data.map((item) => ({
+        value: item._id,
+        label: item.geofenceName,
+      }))
+    );
+  }, [lastStopData]);
 
   useEffect(() => {
     if (!initialData) {
@@ -102,6 +161,10 @@ export default function AddRouteForm({
       setRouteNumber?.(initialData?.routeNumber);
       setDeviceObjId?.(initialData?.deviceObjId?._id);
 
+      // ✅ Set geofence values in edit mode
+      setStartPointGeoId(initialData?.startPointGeoId?._id);
+      setEndPointGeoId(initialData?.endPointGeoId?._id);
+
       onSchoolChange?.(initialData?.schoolId?._id);
       onBranchChange?.(initialData?.branchId?._id);
 
@@ -110,6 +173,8 @@ export default function AddRouteForm({
       // Reset form for new route
       setRouteNumber("");
       setDeviceObjId("");
+      setStartPointGeoId(undefined);
+      setEndPointGeoId(undefined);
     }
   }, [initialData, onSchoolChange, onBranchChange, onFetchDevices]);
 
@@ -122,7 +187,7 @@ export default function AddRouteForm({
 
   const handleSave = () => {
     if (!routeNumber) {
-      alert("Route number is  required");
+      alert("Route number is required");
       return;
     }
 
@@ -137,7 +202,7 @@ export default function AddRouteForm({
       case "school":
       case "branchGroup":
         if (!selectedBranchId || !selectedBranchId) {
-          alert("School andBranch is required");
+          alert("School and Branch is required");
           return;
         }
         break;
@@ -155,6 +220,9 @@ export default function AddRouteForm({
       ...(selectedSchoolId ? { schoolId: selectedSchoolId } : {}),
       ...(selectedBranchId ? { branchId: selectedBranchId } : {}),
       ...(deviceObjId ? { deviceObjId } : {}),
+      // ✅ Include geofence IDs in payload
+      ...(startPointGeoId ? { startPointGeoId } : {}),
+      ...(endPointGeoId ? { endPointGeoId } : {}),
     };
 
     onSubmit(payload);
@@ -313,6 +381,54 @@ export default function AddRouteForm({
             </PopoverContent>
           </Popover>
         </div>
+
+        {/* ✅ FIRST STOP - Only visible in edit mode */}
+        {initialData && (
+          <div>
+            <label className="text-sm font-medium">First Stop</label>
+            <Combobox
+              items={firstStopItems}
+              value={startPointGeoId}
+              onValueChange={setStartPointGeoId}
+              placeholder="Select First Stop"
+              searchPlaceholder="Search stops..."
+              emptyMessage="No stops found"
+              width="w-full"
+              onReachEnd={() => {
+                if (hasNextFirstStop && !isFetchingNextFirstStop) {
+                  fetchNextFirstStop();
+                }
+              }}
+              isLoadingMore={isFetchingNextFirstStop}
+              onSearchChange={setFirstStopSearch}
+              searchValue={firstStopSearch}
+            />
+          </div>
+        )}
+
+        {/* ✅ LAST STOP - Only visible in edit mode */}
+        {initialData && (
+          <div>
+            <label className="text-sm font-medium">Last Stop</label>
+            <Combobox
+              items={lastStopItems}
+              value={endPointGeoId}
+              onValueChange={setEndPointGeoId}
+              placeholder="Select Last Stop"
+              searchPlaceholder="Search stops..."
+              emptyMessage="No stops found"
+              width="w-full"
+              onReachEnd={() => {
+                if (hasNextLastStop && !isFetchingNextLastStop) {
+                  fetchNextLastStop();
+                }
+              }}
+              isLoadingMore={isFetchingNextLastStop}
+              onSearchChange={setLastStopSearch}
+              searchValue={lastStopSearch}
+            />
+          </div>
+        )}
 
         {/* ACTIONS */}
         <div className="flex justify-end gap-2 pt-3">
