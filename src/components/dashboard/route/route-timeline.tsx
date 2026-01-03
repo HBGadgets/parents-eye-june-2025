@@ -33,6 +33,10 @@ export const RouteTimeline: React.FC<RouteTimelineProps> = ({
   deviceName,
 }) => {
   const { stops, currentStopIndex, isLoading } = useRouteTimeline(uniqueId!);
+  const remainingStops = stops.filter(
+    (stop) => !stop.hasArrived && !stop.exitedAt && !stop.isCurrent
+  ).length;
+  console.log(stops);
   return (
     <Sheet open={isOpen} onOpenChange={onOpenChange}>
       <SheetContent
@@ -123,7 +127,7 @@ export const RouteTimeline: React.FC<RouteTimelineProps> = ({
                 <span className="text-muted-foreground">
                   Arrived:{" "}
                   <span className="font-medium text-foreground">
-                    {stops.filter((_, i) => i < currentStopIndex).length}
+                    {stops.filter((stop) => stop.hasArrived).length}
                   </span>
                 </span>
               </div>
@@ -135,7 +139,7 @@ export const RouteTimeline: React.FC<RouteTimelineProps> = ({
                 <span className="text-muted-foreground">
                   Remaining:{" "}
                   <span className="font-medium text-foreground">
-                    {stops.length - Math.max(0, currentStopIndex + 1)}
+                    {remainingStops}
                   </span>
                 </span>
               </div>

@@ -492,4 +492,6 @@ export interface BusStopWithStatus extends Geofence {
   hasArrived: boolean;
   arrivedAt?: string;
   isCurrent: boolean;
+  enteredAt?: string;
+  exitedAt?: string;
 }
