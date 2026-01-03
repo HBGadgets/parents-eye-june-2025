@@ -167,6 +167,7 @@ export interface Route {
   branchId: Branch;
   startPointGeoId: Geofence;
   endPointGeoId: Geofence;
+  routeCompletionTime: number;
   createdAt: string;
 }
 

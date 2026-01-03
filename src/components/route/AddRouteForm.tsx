@@ -21,7 +21,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Route } from "@/interface/modal";
 import { Combobox } from "@/components/ui/combobox";
 import { useGeofenceDropdown } from "@/hooks/useDropdown";
-// import { useGeofenceDropdown } from "@/hooks/useGeofenceDropdown";
 
 interface Props {
   onSubmit: (data: {
@@ -31,6 +30,7 @@ interface Props {
     branchId: string;
     endPointGeoId: string;
     startPointGeoId: string;
+    routeCompletionTime: number;
   }) => void;
 
   onClose: () => void;
@@ -82,8 +82,9 @@ export default function AddRouteForm({
 }: Props) {
   const [routeNumber, setRouteNumber] = useState("");
   const [deviceObjId, setDeviceObjId] = useState("");
+  const [routeCompletionTime, setRouteCompletionTime] = useState<string>("");
 
-  // ✅ State for First Stop and Last Stop
+  // State for First Stop and Last Stop
   const [startPointGeoId, setStartPointGeoId] = useState<string | undefined>();
   const [endPointGeoId, setEndPointGeoId] = useState<string | undefined>();
   const [firstStopSearch, setFirstStopSearch] = useState("");
@@ -94,42 +95,46 @@ export default function AddRouteForm({
     decodedToken?.role === "school" ? decodedToken?.id : decodedToken?.schoolId;
   const tokenBranchId = decodedToken?.id;
 
-  // ✅ FIXED: Better enabled condition with explicit check
+  // Better enabled condition for geofence fetching
   const shouldFetchGeofences = !!(initialData && initialData._id);
 
+  // Fetch geofences for First Stop dropdown
   const {
     data: firstStopData,
     fetchNextPage: fetchNextFirstStop,
     hasNextPage: hasNextFirstStop,
     isFetchingNextPage: isFetchingNextFirstStop,
-    isLoading: isLoadingFirstStop, // ✅ NEW
-    isError: isErrorFirstStop, // ✅ NEW
+    isLoading: isLoadingFirstStop,
+    isError: isErrorFirstStop,
     error: firstStopError,
   } = useGeofenceDropdown(
-    initialData?._id || "", // Provide empty string fallback
+    initialData?._id || "",
     firstStopSearch,
-    shouldFetchGeofences // Explicit boolean condition
+    shouldFetchGeofences
   );
 
-  // ✅ Fetch geofences for Last Stop dropdown
+  // Fetch geofences for Last Stop dropdown
   const {
     data: lastStopData,
     fetchNextPage: fetchNextLastStop,
     hasNextPage: hasNextLastStop,
     isFetchingNextPage: isFetchingNextLastStop,
+    isLoading: isLoadingLastStop,
+    isError: isErrorLastStop,
+    error: lastStopError,
   } = useGeofenceDropdown(
-    initialData?._id,
+    initialData?._id || "",
     lastStopSearch,
-    !!initialData // Only fetch in edit mode
+    shouldFetchGeofences
   );
 
-  // ✅ Transform geofence data for Combobox
+  // Transform geofence data for Combobox
   const firstStopItems = useMemo(() => {
     if (!firstStopData?.pages) return [];
     return firstStopData.pages.flatMap((page) =>
       page.data.map((item) => ({
         value: item._id,
-        label: item.geofenceName,
+        label: item.name,
       }))
     );
   }, [firstStopData]);
@@ -139,7 +144,7 @@ export default function AddRouteForm({
     return lastStopData.pages.flatMap((page) =>
       page.data.map((item) => ({
         value: item._id,
-        label: item.geofenceName,
+        label: item.name,
       }))
     );
   }, [lastStopData]);
@@ -161,7 +166,14 @@ export default function AddRouteForm({
       setRouteNumber?.(initialData?.routeNumber);
       setDeviceObjId?.(initialData?.deviceObjId?._id);
 
-      // ✅ Set geofence values in edit mode
+      // Set route completion time in edit mode
+      setRouteCompletionTime(
+        initialData?.routeCompletionTime
+          ? String(initialData.routeCompletionTime)
+          : ""
+      );
+
+      // Set geofence values in edit mode
       setStartPointGeoId(initialData?.startPointGeoId?._id);
       setEndPointGeoId(initialData?.endPointGeoId?._id);
 
@@ -173,21 +185,40 @@ export default function AddRouteForm({
       // Reset form for new route
       setRouteNumber("");
       setDeviceObjId("");
+      setRouteCompletionTime("");
       setStartPointGeoId(undefined);
       setEndPointGeoId(undefined);
     }
   }, [initialData, onSchoolChange, onBranchChange, onFetchDevices]);
 
-  // ✅ RESET DEVICE WHEN BRANCH CHANGES (only for new routes)
+  // RESET DEVICE WHEN BRANCH CHANGES (only for new routes)
   useEffect(() => {
     if (!initialData) {
       setDeviceObjId("");
     }
   }, [selectedBranchId, initialData]);
 
+  // Handle number input with validation
+  const handleCompletionTimeChange = (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const value = e.target.value;
+
+    // Allow empty string or valid numbers only
+    if (value === "" || /^\d+$/.test(value)) {
+      setRouteCompletionTime(value);
+    }
+  };
+
   const handleSave = () => {
     if (!routeNumber) {
       alert("Route number is required");
+      return;
+    }
+
+    // Validate route completion time
+    if (routeCompletionTime && isNaN(Number(routeCompletionTime))) {
+      alert("Route completion time must be a valid number");
       return;
     }
 
@@ -220,7 +251,11 @@ export default function AddRouteForm({
       ...(selectedSchoolId ? { schoolId: selectedSchoolId } : {}),
       ...(selectedBranchId ? { branchId: selectedBranchId } : {}),
       ...(deviceObjId ? { deviceObjId } : {}),
-      // ✅ Include geofence IDs in payload
+      // Include route completion time (convert to number)
+      ...(routeCompletionTime
+        ? { routeCompletionTime: Number(routeCompletionTime) }
+        : {}),
+      // Include geofence IDs in payload
       ...(startPointGeoId ? { startPointGeoId } : {}),
       ...(endPointGeoId ? { endPointGeoId } : {}),
     };
@@ -243,6 +278,26 @@ export default function AddRouteForm({
             value={routeNumber}
             onChange={(e) => setRouteNumber(e.target.value)}
           />
+        </div>
+
+        {/* ROUTE COMPLETION TIME */}
+        <div>
+          <label className="text-sm font-medium">
+            Route Completion Time (minutes)
+          </label>
+          <Input
+            type="text"
+            inputMode="numeric"
+            pattern="[0-9]*"
+            placeholder="e.g. 45"
+            value={routeCompletionTime}
+            onChange={handleCompletionTimeChange}
+          />
+          {routeCompletionTime && (
+            <p className="text-xs text-muted-foreground mt-1">
+              Estimated completion: {routeCompletionTime} minutes
+            </p>
+          )}
         </div>
 
         {/* SCHOOL */}
@@ -382,10 +437,23 @@ export default function AddRouteForm({
           </Popover>
         </div>
 
-        {/* ✅ FIRST STOP - Only visible in edit mode */}
+        {/* FIRST STOP - Only visible in edit mode */}
         {initialData && (
           <div>
             <label className="text-sm font-medium">First Stop</label>
+
+            {isLoadingFirstStop && (
+              <div className="text-sm text-muted-foreground mb-2">
+                Loading stops...
+              </div>
+            )}
+            {isErrorFirstStop && (
+              <div className="text-sm text-red-500 mb-2">
+                Error loading stops:{" "}
+                {firstStopError?.message || "Unknown error"}
+              </div>
+            )}
+
             <Combobox
               items={firstStopItems}
               value={startPointGeoId}
@@ -406,10 +474,22 @@ export default function AddRouteForm({
           </div>
         )}
 
-        {/* ✅ LAST STOP - Only visible in edit mode */}
+        {/* LAST STOP - Only visible in edit mode */}
         {initialData && (
           <div>
             <label className="text-sm font-medium">Last Stop</label>
+
+            {isLoadingLastStop && (
+              <div className="text-sm text-muted-foreground mb-2">
+                Loading stops...
+              </div>
+            )}
+            {isErrorLastStop && (
+              <div className="text-sm text-red-500 mb-2">
+                Error loading stops: {lastStopError?.message || "Unknown error"}
+              </div>
+            )}
+
             <Combobox
               items={lastStopItems}
               value={endPointGeoId}

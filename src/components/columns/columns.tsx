@@ -132,6 +132,10 @@ export const getRouteColumns = (
     accessorFn: (row: Route) => row.endPointGeoId?.geofenceName ?? "—",
   },
   {
+    header: "Route Completion Time",
+    accessorFn: (row: Route) => `${row.routeCompletionTime ? `${row.routeCompletionTime} Min` : "—"}`,
+  },
+  {
     header: "Action",
     cell: ({ row }) => {
       const data = row.original;
