@@ -282,6 +282,8 @@ export interface LiveTrack {
     totalDistance?: DoubleRange;
     todayDistance?: DoubleRange;
   };
+  noOfStudents?: number;
+  noOfStops?: number;
   gsmSignal?: number;
   batteryLevel?: number;
   category?: string;

@@ -18,12 +18,7 @@ import {
 import DateRangeFilter from "../ui/DateRangeFilter";
 import { formatDateToYYYYMMDD } from "@/util/formatDate";
 import { Button } from "../ui/button";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Building2, GitBranch, Car, Calendar, Filter } from "lucide-react";
 import { ColumnVisibilitySelector } from "../column-visibility-selector";
 
@@ -794,7 +789,7 @@ export const ReportFilter: React.FC<ReportFilterProps> = ({
 
   return (
     <Card className={`w-full shadow-sm ${className}`}>
-      <CardHeader className="space-y-1 pb-4">
+      <CardHeader>
         <div className="flex justify-between">
           <div className="flex items-center gap-2">
             <div className="p-2 rounded-lg bg-primary/10">
@@ -841,7 +836,7 @@ export const ReportFilter: React.FC<ReportFilterProps> = ({
                     : "Select School"
                 }
                 searchPlaceholder="Search Schools..."
-                className="cursor-pointer"
+                className="cursor-pointer w-full"
                 showBadges={mergedConfig.showBadges}
                 maxBadges={mergedConfig.maxBadges}
                 emptyMessage={
@@ -885,7 +880,7 @@ export const ReportFilter: React.FC<ReportFilterProps> = ({
                       : "Select Branch"
                   }
                   searchPlaceholder="Search Branches..."
-                  className="cursor-pointer"
+                  className="cursor-pointer w-full"
                   showBadges={mergedConfig.showBadges}
                   maxBadges={mergedConfig.maxBadges}
                   emptyMessage={
@@ -933,7 +928,7 @@ export const ReportFilter: React.FC<ReportFilterProps> = ({
                     : "Select branch first"
                 }
                 searchPlaceholder="Search vehicles..."
-                className="cursor-pointer"
+                className="cursor-pointer w-full"
                 showBadges={mergedConfig.showBadges}
                 maxBadges={mergedConfig.maxBadges}
                 emptyMessage={

@@ -15,6 +15,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useRouteTimeline } from "@/hooks/timeline/useRouteTimeline";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouteTimelineStore } from "@/store/timeline/routeTimelineStore";
+import { useRouter } from "next/navigation";
 // import { useRouteTimeline } from "@/hooks/useRouteTimeline";
 
 interface RouteTimelineProps {
@@ -34,20 +35,22 @@ export const RouteTimeline: React.FC<RouteTimelineProps> = ({
   uniqueId,
   deviceName,
 }) => {
-  const queryClient = useQueryClient();
+  const router = useRouter();
   const resetTimeline = useRouteTimelineStore((s) => s.reset);
-
   const { stops, currentStopIndex, isLoading, startPoint, endPoint } =
     useRouteTimeline(uniqueId!);
   const remainingStops = stops.filter(
     (stop) => !stop.hasArrived && !stop.exitedAt && !stop.isCurrent
   ).length;
 
+  const handleHistoryClick = (uniqueId: number) => {
+    console.log("[handleHistoryClick] uniqueId:", uniqueId);
+    router.push("/dashboard/reports/history-report?uniqueId=" + uniqueId);
+  };
+
   useEffect(() => {
     resetTimeline();
   }, [resetTimeline, uniqueId]);
-
-  console.log(startPoint);
   return (
     <Sheet open={isOpen} onOpenChange={onOpenChange}>
       <SheetContent
@@ -87,11 +90,13 @@ export const RouteTimeline: React.FC<RouteTimelineProps> = ({
             </div>
 
             <Button
-              // onClick={() => uniqueId && handleHistoryClick(Number(uniqueId))}
               variant="outline"
               size="sm"
               className="gap-2 shrink-0 cursor-pointer mt-5"
               disabled={!uniqueId}
+              onClick={() => {
+                uniqueId && handleHistoryClick(Number(uniqueId));
+              }}
             >
               <History className="h-4 w-4" />
               History

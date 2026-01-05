@@ -133,7 +133,8 @@ export const getRouteColumns = (
   },
   {
     header: "Route Completion Time",
-    accessorFn: (row: Route) => `${row.routeCompletionTime ? `${row.routeCompletionTime} Min` : "—"}`,
+    accessorFn: (row: Route) =>
+      `${row.routeCompletionTime ? `${row.routeCompletionTime} Min` : "—"}`,
   },
   {
     header: "Action",
@@ -421,6 +422,14 @@ export const getLiveVehicleColumns = (): ColumnDef<LiveTrack>[] => [
     },
     enableHiding: true,
     enableSorting: true,
+  },
+  {
+    header: "No. of Students",
+    accessorKey: "noOfStudents",
+  },
+  {
+    header: "No. of Stops",
+    accessorKey: "noOfStops",
   },
   {
     id: "lastUpdate",
@@ -1285,7 +1294,7 @@ export const GetGeofenceAlertsReportColumns =
     { header: "In Time", accessorKey: "inTime" },
     { header: "Out Time", accessorKey: "outTime" },
     { header: "Halt Time", accessorKey: "haltTime" },
-    { header: "Created At", accessorKey: "createdAt" },
+    // { header: "Created At", accessorKey: "createdAt" },
   ];
 
 export const GetTripReportColumns = (): ColumnDef<TripReport>[] => [

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { ChevronLeft, ChevronRight, Calendar, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -10,7 +10,9 @@ import {
 type DateRangeFilterProps = {
   onDateRangeChange?: (start: Date | null, end: Date | null) => void;
   title?: string;
-  maxDays?: number; // New prop for maximum days limit
+  maxDays?: number;
+  defaultStartDate?: Date | null;
+  defaultEndDate?: Date | null;
 };
 
 const cn = (...classes: (string | false | null | undefined)[]): string =>
@@ -19,7 +21,9 @@ const cn = (...classes: (string | false | null | undefined)[]): string =>
 const DateRangeFilter: React.FC<DateRangeFilterProps> = ({
   onDateRangeChange,
   title = "Select Date Range",
-  maxDays, // New prop
+  maxDays,
+  defaultStartDate,
+  defaultEndDate
 }) => {
   const [currentMonth, setCurrentMonth] = useState<Date>(new Date());
   const [selectedStartDate, setSelectedStartDate] = useState<Date | null>(null);
@@ -27,6 +31,20 @@ const DateRangeFilter: React.FC<DateRangeFilterProps> = ({
   const [isOpen, setIsOpen] = useState<boolean>(false);
   const [showYearSelector, setShowYearSelector] = useState<boolean>(false);
   const [showMonthSelector, setShowMonthSelector] = useState<boolean>(false);
+
+    useEffect(() => {
+      // Only update if props are provided
+      if (defaultStartDate !== undefined) {
+        setSelectedStartDate(defaultStartDate);
+        // Update calendar month to show the selected date
+        if (defaultStartDate) {
+          setCurrentMonth(new Date(defaultStartDate));
+        }
+      }
+      if (defaultEndDate !== undefined) {
+        setSelectedEndDate(defaultEndDate);
+      }
+    }, [defaultStartDate, defaultEndDate]);
 
   const months = [
     "Jan",
@@ -382,7 +400,7 @@ const DateRangeFilter: React.FC<DateRangeFilterProps> = ({
       <PopoverTrigger asChild>
         <Button
           variant="outline"
-          className="justify-start text-left font-normal cursor-pointer"
+          className="justify-start text-left font-normal cursor-pointer w-full cursor-pointer"
         >
           <Calendar className="mr-2 h-4 w-4" />
           {selectedStartDate && selectedEndDate
@@ -403,7 +421,7 @@ const DateRangeFilter: React.FC<DateRangeFilterProps> = ({
                   variant="ghost"
                   disabled={preset.disabled}
                   className={cn(
-                    "w-full justify-start h-8 px-2 font-normal",
+                    "w-full justify-start h-8 px-2 font-normal cursor-pointer",
                     isPresetActive(preset.label) &&
                       "bg-accent text-accent-foreground",
                     preset.disabled && "opacity-50 cursor-not-allowed"
@@ -431,6 +449,7 @@ const DateRangeFilter: React.FC<DateRangeFilterProps> = ({
               <Button
                 variant="ghost"
                 size="sm"
+                className="cursor-pointer"
                 onClick={() =>
                   setCurrentMonth(
                     new Date(
@@ -448,7 +467,7 @@ const DateRangeFilter: React.FC<DateRangeFilterProps> = ({
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="font-semibold px-2 h-auto"
+                    className="font-semibold px-2 h-auto cursor-pointer"
                     onClick={() => setShowMonthSelector(!showMonthSelector)}
                   >
                     {months[currentMonth.getMonth()]}{" "}
@@ -466,7 +485,7 @@ const DateRangeFilter: React.FC<DateRangeFilterProps> = ({
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="font-semibold px-2 h-auto"
+                    className="font-semibold px-2 h-auto cursor-pointer"
                     onClick={() => setShowYearSelector(!showYearSelector)}
                   >
                     {currentMonth.getFullYear()}{" "}
@@ -484,6 +503,7 @@ const DateRangeFilter: React.FC<DateRangeFilterProps> = ({
               <Button
                 variant="ghost"
                 size="sm"
+                className="cursor-pointer"
                 onClick={() =>
                   setCurrentMonth(
                     new Date(
@@ -524,7 +544,7 @@ const DateRangeFilter: React.FC<DateRangeFilterProps> = ({
                     disabled={disabled}
                     onClick={() => handleDateClick(date)}
                     className={cn(
-                      "h-8 w-8 p-0 font-normal",
+                      "h-8 w-8 p-0 font-normal cursor-pointer",
                       !isCurrentMonth && "text-muted-foreground opacity-50",
                       isSelected &&
                         "bg-primary hover:bg-primary hover:text-primary-foreground",
@@ -544,13 +564,23 @@ const DateRangeFilter: React.FC<DateRangeFilterProps> = ({
         </div>
 
         <div className="flex justify-end gap-2 p-4 border-t">
-          <Button variant="outline" onClick={() => setIsOpen(false)}>
+          <Button
+            variant="outline"
+            className="cursor-pointer"
+            onClick={() => setIsOpen(false)}
+          >
             Cancel
           </Button>
-          <Button variant="destructive" onClick={handleClear}>
+          <Button
+            variant="destructive"
+            className="cursor-pointer"
+            onClick={handleClear}
+          >
             Clear
           </Button>
-          <Button onClick={handleApply}>Apply</Button>
+          <Button className="cursor-pointer" onClick={handleApply}>
+            Apply
+          </Button>
         </div>
       </PopoverContent>
     </Popover>

@@ -26,7 +26,6 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { useHistoryReport } from "@/hooks/playback-history/useHistoryReport";
 import { GiPathDistance } from "react-icons/gi";
-import { MdSocialDistance } from "react-icons/md";
 
 // Register Chart.js components
 ChartJS.register(
@@ -38,7 +37,7 @@ ChartJS.register(
   Tooltip,
   Legend
 );
-  type StopAddressMap = Record<number, string>;
+type StopAddressMap = Record<number, string>;
 
 // Dynamically import VehicleMap with SSR disabled
 const VehicleMap = dynamic(() => import("@/components/history/vehicle-map"), {
@@ -70,15 +69,8 @@ function HistoryReportContent() {
     null
   );
   const searchParams = useSearchParams();
-  const router = useRouter();
-  const vehicleIdFromUrl = searchParams.get("vehicleId");
-  const nameFromUrl = searchParams.get("name");
-  const branchId = searchParams.get("branchId");
-
-  const isFromDashboardRef = useRef(false);
-  const hasInitializedRef = useRef(false);
+  const uniqueIdFromUrl = searchParams.get("uniqueId");
   const [stopAddressMap, setStopAddressMap] = useState<StopAddressMap>({});
-
 
   const { data: vehicleData, isLoading: vehiclesLoading } =
     useDeviceDropdownWithUniqueIdForHistory();
@@ -124,8 +116,6 @@ function HistoryReportContent() {
       course: 135,
     },
   ];
-
-  const [loading, setLoading] = useState(false);
 
   // ✅ Throttle progress updates for chart (update every 100ms)
   useEffect(() => {
@@ -385,18 +375,6 @@ function HistoryReportContent() {
     [activePlayback]
   );
 
-  useEffect(() => {
-    if (
-      selectedVehicle &&
-      fromDate &&
-      toDate &&
-      isFromDashboardRef.current &&
-      vehicleIdFromUrl
-    ) {
-      isFromDashboardRef.current = false;
-    }
-  }, [selectedVehicle, fromDate, toDate, vehicleIdFromUrl]);
-
   const handleVehicleChange = (vehicleId: string) => {
     console.log("Vehicle change to:", vehicleId);
     setSelectedVehicle(vehicleId);
@@ -447,29 +425,6 @@ function HistoryReportContent() {
     );
   }, [activePlayback, currentData]);
 
-  // HistoryReportPage.tsx
-
-  // const derivedStops = useMemo(() => {
-  //   return trips.map((trip, index) => {
-  //     const endPoint = trip[trip.length - 1];
-  //     const nextTrip = trips[index + 1];
-
-  //     const startTime = endPoint.createdAt;
-  //     const endTime = nextTrip ? nextTrip[0].createdAt : endPoint.createdAt;
-
-  //     const durationMs =
-  //       new Date(endTime).getTime() - new Date(startTime).getTime();
-
-  //     return {
-  //       id: index,
-  //       startTime,
-  //       endTime,
-  //       durationMs,
-  //       lat: endPoint.latitude,
-  //       lng: endPoint.longitude,
-  //     };
-  //   });
-  // }, [trips]);
   const formatDurationHMS = (ms: number): string => {
     if (!ms || ms < 0) return "00H:00M";
 
@@ -477,7 +432,6 @@ function HistoryReportContent() {
 
     const hours = Math.floor(totalSeconds / 3600);
     const minutes = Math.floor((totalSeconds % 3600) / 60);
-    const seconds = totalSeconds % 60;
 
     const pad = (n: number) => n.toString().padStart(2, "0");
 
@@ -487,14 +441,12 @@ function HistoryReportContent() {
   const derivedStops = useMemo(() => {
     return trips.map((trip, index) => {
       const endPoint = trip[trip.length - 1];
-
       // --- Stop duration (gap till next trip)
       const nextTrip = trips[index + 1];
       const stopStartTime = new Date(endPoint.createdAt).getTime();
       const stopEndTime = nextTrip
         ? new Date(nextTrip[0].createdAt).getTime()
         : stopStartTime;
-
       const stopDurationMs = stopEndTime - stopStartTime;
 
       // --- Distance from previous stop (using totalDistance)
@@ -503,10 +455,8 @@ function HistoryReportContent() {
       if (index > 0) {
         const prevTrip = trips[index - 1];
         const prevEndPoint = prevTrip[prevTrip.length - 1];
-
         const currentTotal = endPoint.attributes?.totalDistance ?? 0;
         const prevTotal = prevEndPoint.attributes?.totalDistance ?? 0;
-
         distanceFromPrev = Math.max(0, (currentTotal - prevTotal) / 1000);
       }
 
@@ -522,24 +472,95 @@ function HistoryReportContent() {
     });
   }, [trips]);
 
-  const handleShow = () => {
-    if (!selectedVehicle || !fromDate || !toDate) return;
+  const getTodayUtcRange = () => {
+    const now = new Date();
+    const start = new Date(
+      Date.UTC(
+        now.getUTCFullYear(),
+        now.getUTCMonth(),
+        now.getUTCDate(),
+        0,
+        0,
+        0
+      )
+    );
 
+    const end = new Date(
+      Date.UTC(
+        now.getUTCFullYear(),
+        now.getUTCMonth(),
+        now.getUTCDate(),
+        23,
+        59,
+        59
+      )
+    );
+
+    return {
+      from: start.toISOString(),
+      to: end.toISOString(),
+    };
+  };
+
+  const handleShow = () => {
+    const { from, to } = getTodayUtcRange();
+    const finalUniqueId = uniqueIdFromUrl || selectedVehicle;
+    if (!finalUniqueId) return;
     setApiFilters({
-      uniqueId: selectedVehicle,
-      from: fromDate,
-      to: toDate,
+      uniqueId: finalUniqueId,
+      from,
+      to,
       period: "Custom",
     });
-
     setHasGenerated(true);
   };
 
+  // Sync uniqueId from URL with dropdown selection and set today's date
+useEffect(() => {
+  if (uniqueIdFromUrl && vehicleData && !selectedVehicle) {
+    const vehicleExists = vehicleData.some(
+      (vehicle: any) => vehicle.uniqueId === uniqueIdFromUrl
+    );
+
+    if (vehicleExists) {
+      setSelectedVehicle(uniqueIdFromUrl);
+
+      const { from, to } = getTodayUtcRange();
+
+      setApiFilters({
+        uniqueId: uniqueIdFromUrl,
+        from,
+        to,
+        period: "Custom",
+      });
+
+      setFromDate(from);
+      setToDate(to);
+
+      // ✅ Set default date range for DateRangeFilter
+      const today = new Date();
+      setDefaultDateRange({
+        startDate: new Date(
+          today.getFullYear(),
+          today.getMonth(),
+          today.getDate()
+        ),
+        endDate: new Date(
+          today.getFullYear(),
+          today.getMonth(),
+          today.getDate()
+        ),
+      });
+
+      setHasGenerated(true);
+    }
+  }
+}, [uniqueIdFromUrl, vehicleData, selectedVehicle]);
+
+
   useEffect(() => {
     if (!historyReport?.deviceDataByTrips) return;
-
     const history = historyReport.deviceDataByTrips;
-
     setTrips(history);
     setActivePlayback(history.flat());
     setSelectedTripIndex(null);
@@ -581,16 +602,18 @@ function HistoryReportContent() {
               emptyMessage="No vehicles found"
               width="w-[300px]"
             />
-            <DateRangeFilter
-              onDateRangeChange={handleDateFilter}
-              title="Select Date Range"
-              maxDays={7}
-              defaultStartDate={defaultDateRange?.startDate}
-              defaultEndDate={defaultDateRange?.endDate}
-            />
-            <Button className="cursor-pointer" onClick={handleShow}>
-              Show
-            </Button>
+            <div className="flex gap-3">
+              <DateRangeFilter
+                onDateRangeChange={handleDateFilter}
+                title="Select Date Range"
+                maxDays={7}
+                defaultStartDate={defaultDateRange?.startDate}
+                defaultEndDate={defaultDateRange?.endDate}
+              />
+              <Button className="cursor-pointer" onClick={handleShow}>
+                Show
+              </Button>
+            </div>
           </div>
         </header>
 

@@ -34,12 +34,12 @@ export function PlaybackHistoryDrawer({
   endDate,
   vehicleName,
 }: PlaybackHistoryDrawerProps) {
-  console.log("[PlaybackHistoryDrawer] uniqueId:", {
-    uniqueId,
-    startDate,
-    endDate,
-    vehicleName,
-  });
+  // console.log("[PlaybackHistoryDrawer] uniqueId:", {
+  //   uniqueId,
+  //   startDate,
+  //   endDate,
+  //   vehicleName,
+  // });
   const toUTCRange = (start?: string, end?: string): UTCRange => {
     if (!start) return {};
 

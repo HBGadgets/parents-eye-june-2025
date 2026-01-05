@@ -8,7 +8,6 @@ import {
   DrawerPortal,
   DrawerTitle,
 } from "../ui/drawer";
-import { usePlaybackHistoryStore } from "@/store/playbackHistoryStore";
 import { useRouter } from "next/navigation";
 
 interface BottomDrawerProps {
@@ -18,7 +17,11 @@ interface BottomDrawerProps {
   addresses: any;
   loadingAddresses: any;
   handleOpenLiveTrack: (imei: string, name: string) => void;
-  onOpenRouteTimeline: (uniqueId: string, deviceName: string, routeObjId?: string) => void;
+  onOpenRouteTimeline: (
+    uniqueId: string,
+    deviceName: string,
+    routeObjId?: string
+  ) => void;
 }
 
 export const BottomDrawer = ({
@@ -30,12 +33,9 @@ export const BottomDrawer = ({
   handleOpenLiveTrack,
   onOpenRouteTimeline,
 }: BottomDrawerProps) => {
-  const setUniqueId = usePlaybackHistoryStore((s) => s.setUniqueId);
   const router = useRouter();
   const handleHistoryClick = (uniqueId: number) => {
-    router.push("/dashboard/reports/history-report");
-    console.log("History Clicked", uniqueId);
-    setUniqueId(uniqueId);
+    router.push("/dashboard/reports/history-report?uniqueId=" + uniqueId);
   };
   return (
     <Drawer open={isDrawerOpen} onOpenChange={setIsDrawerOpen} modal={false}>

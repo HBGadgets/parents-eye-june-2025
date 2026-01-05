@@ -1,6 +1,7 @@
 "use client";
 
 import { reportService } from "@/services/api/reportService";
+import { parseUniqueIds } from "@/util/parseUniqueIds";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { PaginationState, SortingState } from "@tanstack/react-table";
 
@@ -136,6 +137,15 @@ export const useReport = (
     placeholderData: keepPreviousData,
   });
 
+  const distanceReportPayload = {
+    page: pagination.pageIndex + 1,
+    limit: pagination.pageSize,
+    uniqueIds: parseUniqueIds(filters?.uniqueId),
+    period: filters?.period || "Custom",
+    from: filters?.from,
+    to: filters?.to,
+  };
+
   const getDistanceReportQuery = useQuery({
     queryKey: [
       "distance-report",
@@ -147,21 +157,15 @@ export const useReport = (
       filters?.to,
     ],
 
-    queryFn: () =>
-      reportService.getDistanceReport({
-        page: pagination.pageIndex + 1,
-        limit: pagination.pageSize,
-        uniqueIds: filters?.uniqueId,
-        period: filters?.period || "Custom",
-        from: filters?.from,
-        to: filters?.to,
-      }),
+    queryFn: () => reportService.getDistanceReport(distanceReportPayload),
+
     enabled:
       hasGenerated &&
       reportType === "distance" &&
-      !!filters?.uniqueId &&
+      parseUniqueIds(filters?.uniqueId).length > 0 &&
       !!filters?.from &&
       !!filters?.to,
+
     staleTime: 10 * 60 * 1000,
     refetchOnWindowFocus: false,
     retry: false,
@@ -268,40 +272,44 @@ export const useReport = (
     placeholderData: keepPreviousData,
   });
 
-  const getTravelSummaryReportQuery = useQuery({
-    queryKey: [
-      "travel-summary",
-      pagination.pageIndex,
-      pagination.pageSize,
-      sorting,
-      filters?.uniqueId,
-      filters?.period,
-      filters?.from,
-      filters?.to,
-    ],
+ const travelSummaryPayload = {
+   page: pagination.pageIndex + 1,
+   limit: pagination.pageSize,
+   sortBy: sorting?.[0]?.id,
+   sortOrder: sorting?.[0]?.desc ? "desc" : "asc",
+   uniqueIds: parseUniqueIds(filters?.uniqueId), // ✅ ARRAY
+   period: filters?.period || "Custom",
+   from: filters?.from,
+   to: filters?.to,
+ };
 
-    queryFn: () =>
-      reportService.getTravelSummaryReport({
-        page: pagination.pageIndex + 1,
-        limit: pagination.pageSize,
-        sortBy: sorting?.[0]?.id,
-        sortOrder: sorting?.[0]?.desc ? "desc" : "asc",
-        uniqueIds: filters?.uniqueId,
-        period: filters?.period || "Custom",
-        from: filters?.from,
-        to: filters?.to,
-      }),
-    enabled:
-      hasGenerated &&
-      reportType === "travel-summary" &&
-      !!filters?.uniqueId &&
-      !!filters?.from &&
-      !!filters?.to,
-    staleTime: 10 * 60 * 1000,
-    refetchOnWindowFocus: false,
-    retry: false,
-    placeholderData: keepPreviousData,
-  });
+ const getTravelSummaryReportQuery = useQuery({
+   queryKey: [
+     "travel-summary",
+     pagination.pageIndex,
+     pagination.pageSize,
+     sorting,
+     filters?.uniqueId,
+     filters?.period,
+     filters?.from,
+     filters?.to,
+   ],
+
+   queryFn: () => reportService.getTravelSummaryReport(travelSummaryPayload),
+
+   enabled:
+     hasGenerated &&
+     reportType === "travel-summary" &&
+     parseUniqueIds(filters?.uniqueId).length > 0 &&
+     !!filters?.from &&
+     !!filters?.to,
+
+   staleTime: 10 * 60 * 1000,
+   refetchOnWindowFocus: false,
+   retry: false,
+   placeholderData: keepPreviousData,
+ });
+
 
   const getRouteReportQuery = useQuery({
     queryKey: [

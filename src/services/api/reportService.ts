@@ -16,8 +16,23 @@ export const reportService = {
     return res.data;
   },
 
-  getDistanceReport: async (params: Record<string, any>): Promise<any> => {
-    const res = await api.get("/report/distance-report", { params });
+  getDistanceReport: async ({
+    uniqueIds,
+    ...params
+  }: {
+    uniqueIds: number[];
+    page: number;
+    limit: number;
+    period: string;
+    from: string;
+    to: string;
+  }): Promise<any> => {
+    const res = await api.post(
+      "/report/distance-report",
+      { uniqueIds },
+      { params }
+    );
+
     return res.data;
   },
 
@@ -26,28 +41,47 @@ export const reportService = {
     return res.data;
   },
 
-  getGeofenceAlertsReport: async (params: Record<string, any>): Promise<any> => {
+  getGeofenceAlertsReport: async (
+    params: Record<string, any>
+  ): Promise<any> => {
     const res = await api.get("/report/geofence-alerts-report", { params });
     return res.data;
   },
 
   getTripReport: async (params: Record<string, any>): Promise<any> => {
-    const res = await api.get("/report/trip-summary-report", { params }); 
+    const res = await api.get("/report/trip-summary-report", { params });
     return res.data;
   },
 
-  getTravelSummaryReport: async (params: Record<string, any>): Promise<any> => {
-    const res = await api.get("/report/travel-summary-report", { params }); 
+  getTravelSummaryReport: async ({
+    uniqueIds,
+    ...params
+  }: {
+    uniqueIds: number[];
+    page: number;
+    limit: number;
+    sortBy?: string;
+    sortOrder?: "asc" | "desc";
+    period: string;
+    from: string;
+    to: string;
+  }): Promise<any> => {
+    const res = await api.post(
+      "/report/travel-summary-report",
+      { uniqueIds },
+      { params }
+    );
+
     return res.data;
   },
 
   getRouteReport: async (params: Record<string, any>): Promise<any> => {
-    const res = await api.get("/report/route-report", { params }); 
+    const res = await api.get("/report/route-report", { params });
     return res.data;
   },
 
   getHistoryReport: async (params: Record<string, any>): Promise<any> => {
-    const res = await api.get("/device-trips-with-route", { params }); 
+    const res = await api.get("/device-trips-with-route", { params });
     return res.data;
-  }
+  },
 };
