@@ -134,7 +134,7 @@ export default function AddRouteForm({
     return firstStopData.pages.flatMap((page) =>
       page.data.map((item) => ({
         value: item._id,
-        label: item.name,
+        label: item.geofenceName,
       }))
     );
   }, [firstStopData]);
@@ -144,7 +144,7 @@ export default function AddRouteForm({
     return lastStopData.pages.flatMap((page) =>
       page.data.map((item) => ({
         value: item._id,
-        label: item.name,
+        label: item.geofenceName,
       }))
     );
   }, [lastStopData]);

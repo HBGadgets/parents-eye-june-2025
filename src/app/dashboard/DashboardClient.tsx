@@ -28,7 +28,6 @@ type StatusFilter = "all" | "running" | "idle" | "stopped" | "inactive" | "new";
 const SUBSCRIPTION_POPUP_KEY = "subscription_popup_shown";
 
 export default function DashboardClient() {
-  const router = useRouter();
   const [open, setOpen] = useState(false);
 
   // Local search state (for input value)
@@ -112,6 +111,7 @@ export default function DashboardClient() {
   useEffect(() => {
     // Check localStorage to see if popup has been shown before
     const hasPopupBeenShown = localStorage.getItem(SUBSCRIPTION_POPUP_KEY);
+    updateFilters({ page: 1, limit: 10, filter: "all", searchTerm: "" });
 
     if (!hasPopupBeenShown) {
       // If no value exists in localStorage, show the popup

@@ -28,8 +28,8 @@ export const driverService = {
     return res.data;
   },
 
-  checkAlreadyAssign: async (deviceObjId: string) => {
-    const res = await api.get(`/driver/already-assign-check/${deviceObjId}`);
+  checkAlreadyAssign: async (routeObjId: string) => {
+    const res = await api.get(`/driver/already-assign-check/${routeObjId}`);
     return res.data;
-  }
+  },
 };

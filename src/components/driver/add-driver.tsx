@@ -10,7 +10,7 @@ import { Driver } from "@/interface/modal";
 import {
   useSchoolDropdown,
   useBranchDropdown,
-  useDeviceDropdown,
+  useRouteDropdown, // Changed from useDeviceDropdown
 } from "@/hooks/useDropdown";
 
 interface Props {
@@ -20,7 +20,7 @@ interface Props {
     email?: string;
     username: string;
     password?: string;
-    deviceObjId: string;
+    routeObjId: string; // Changed from deviceObjId
     schoolId: string;
     branchId: string;
   }) => void;
@@ -50,7 +50,7 @@ export default function AddDriverForm({
   const [email, setEmail] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [deviceObjId, setDeviceObjId] = useState<string>("");
+  const [routeObjId, setRouteObjId] = useState<string>(""); // Changed from deviceObjId
 
   // ---------------- Selection State ----------------
   const [selectedSchoolId, setSelectedSchoolId] = useState<
@@ -66,7 +66,7 @@ export default function AddDriverForm({
   // ---------------- Combobox Open States ----------------
   const [schoolOpen, setSchoolOpen] = useState(false);
   const [branchOpen, setBranchOpen] = useState(false);
-  const [deviceOpen, setDeviceOpen] = useState(false);
+  const [routeOpen, setRouteOpen] = useState(false); // Changed from deviceOpen
 
   // ---------------- Error States ----------------
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -92,8 +92,8 @@ export default function AddDriverForm({
       decodedTokenRole === "branchGroup" // skipSchoolId for branchGroup
     );
 
-  // Devices dropdown (all roles need this)
-  const { data: devices = [], isLoading: isLoadingDevices } = useDeviceDropdown(
+  // Routes dropdown (changed from devices)
+  const { data: routes = [], isLoading: isLoadingRoutes } = useRouteDropdown(
     selectedBranchId,
     true
   );
@@ -114,7 +114,6 @@ export default function AddDriverForm({
   }, [decodedTokenRole, tokenSchoolId, tokenBranchId, initialData]);
 
   // ---------------- Populate Form for Edit Mode ----------------
-
   useEffect(() => {
     console.log("initial data", initialData);
     if (initialData) {
@@ -122,7 +121,7 @@ export default function AddDriverForm({
       setPhone(initialData.mobileNo || "");
       setEmail(initialData.email || "");
       setUsername(initialData.username || "");
-      setDeviceObjId(initialData.deviceObjId?._id || "");
+      setRouteObjId(initialData.routeObjId?._id || ""); // Changed from deviceObjId
 
       // Set selected school and branch for edit mode
       setSelectedSchoolId(initialData.schoolId?._id);
@@ -134,22 +133,22 @@ export default function AddDriverForm({
       setEmail("");
       setUsername("");
       setPassword("");
-      setDeviceObjId("");
+      setRouteObjId(""); // Changed from deviceObjId
     }
   }, [initialData]);
 
-  // ---------------- Reset Branch & Device When School Changes ----------------
+  // ---------------- Reset Branch & Route When School Changes ----------------
   useEffect(() => {
     if (!initialData && decodedTokenRole === "superAdmin") {
       setSelectedBranchId(undefined);
-      setDeviceObjId("");
+      setRouteObjId(""); // Changed from deviceObjId
     }
   }, [selectedSchoolId, initialData, decodedTokenRole]);
 
-  // ---------------- Reset Device When Branch Changes ----------------
+  // ---------------- Reset Route When Branch Changes ----------------
   useEffect(() => {
     if (!initialData) {
-      setDeviceObjId("");
+      setRouteObjId(""); // Changed from deviceObjId
     }
   }, [selectedBranchId, initialData]);
 
@@ -210,8 +209,9 @@ export default function AddDriverForm({
       newErrors.password = "Password must be at least 6 characters";
     }
 
-    // if (!deviceObjId) {
-    //   newErrors.device = "Vehicle is required";
+    // Uncomment if route is required
+    // if (!routeObjId) {
+    //   newErrors.route = "Route is required";
     // }
 
     switch (decodedTokenRole) {
@@ -245,7 +245,7 @@ export default function AddDriverForm({
       driverName: name.trim(),
       mobileNo: phone.trim(),
       username: username.trim(),
-      deviceObjId,
+      routeObjId, // Changed from deviceObjId
       ...(email ? { email: email.trim() } : {}),
       ...(password ? { password: password.trim() } : {}),
       ...(selectedSchoolId ? { schoolId: selectedSchoolId } : {}),
@@ -465,35 +465,35 @@ export default function AddDriverForm({
             }
           >
             <label className="text-sm font-medium">
-              Vehicle
+              Route {/* Changed from Vehicle */}
             </label>
             <Combobox
-              items={devices.map((d: any) => ({
-                label: d.name,
-                value: d._id,
+              items={routes.map((r: any) => ({
+                label: r.routeNumber, // Adjust property name based on your API response
+                value: r._id,
               }))}
-              value={deviceObjId}
+              value={routeObjId} // Changed from deviceObjId
               onValueChange={(value) => {
-                setDeviceObjId(value || "");
-                if (errors.device) setErrors({ ...errors, device: "" });
+                setRouteObjId(value || ""); // Changed from setDeviceObjId
+                if (errors.route) setErrors({ ...errors, route: "" }); // Changed from device
               }}
               placeholder={
                 selectedBranchId || decodedTokenRole === "branch"
-                  ? "Select Vehicle"
+                  ? "Select Route"
                   : "Select branch first"
               }
-              searchPlaceholder="Search vehicles..."
+              searchPlaceholder="Search routes..." // Changed from vehicles
               emptyMessage={
-                isLoadingDevices ? "Loading vehicles..." : "No vehicle found."
+                isLoadingRoutes ? "Loading routes..." : "No route found." // Changed from vehicles
               }
               width="w-full"
               disabled={decodedTokenRole !== "branch" && !selectedBranchId}
-              open={deviceOpen}
-              onOpenChange={setDeviceOpen}
-              className={errors.device ? "border-red-500" : ""}
+              open={routeOpen} // Changed from deviceOpen
+              onOpenChange={setRouteOpen} // Changed from setDeviceOpen
+              className={errors.route ? "border-red-500" : ""} // Changed from device
             />
-            {errors.device && (
-              <p className="text-xs text-red-500 mt-1">{errors.device}</p>
+            {errors.route && ( // Changed from device
+              <p className="text-xs text-red-500 mt-1">{errors.route}</p>
             )}
           </div>
         </div>

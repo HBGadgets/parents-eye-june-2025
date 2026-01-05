@@ -196,9 +196,7 @@ export default function Driver() {
     async (data: any) => {
       if (editingDriver) {
         try {
-          const check = await driverService.checkAlreadyAssign(
-            data.deviceObjId
-          );
+          const check = await driverService.checkAlreadyAssign(data.routeObjId);
 
           if (check?.assigned) {
             const userConfirmed = confirm(
@@ -212,12 +210,12 @@ export default function Driver() {
         }
       } else {
         console.log("[Create Driver]", data);
-        if (data.deviceObjId === "") {
+        if (data.routeObjId === "") {
           createDriver(data);
         } else {
           try {
             const check = await driverService.checkAlreadyAssign(
-              data?.deviceObjId
+              data?.routeObjId
             );
 
             if (check?.assigned) {
