@@ -398,11 +398,12 @@ export default function SchoolMaster() {
             onResults={handleSearchResults}
             className="w-[300px] mb-4"
           />
-
-          <DateRangeFilter
-            onDateRangeChange={handleDateFilter}
-            title="Search by Registration Date"
-          />
+          <div>
+            <DateRangeFilter
+              onDateRangeChange={handleDateFilter}
+              title="Search by Registration Date"
+            />
+          </div>
 
           <ColumnVisibilitySelector
             columns={table.getAllColumns()}

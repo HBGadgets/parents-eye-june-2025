@@ -664,6 +664,7 @@ export default function BranchMaster() {
       meta: { flex: 1, minWidth: 200, maxWidth: 320 },
       enableHiding: true,
     },
+
     ...(isSuperAdmin
       ? [
           {
@@ -677,6 +678,7 @@ export default function BranchMaster() {
           },
         ]
       : []),
+
     {
       header: "Mobile",
       accessorFn: (row) => ({
@@ -686,6 +688,7 @@ export default function BranchMaster() {
       meta: { flex: 1, minWidth: 150, maxWidth: 300 },
       enableHiding: true,
     },
+
     {
       header: "Username",
       accessorFn: (row) => ({
@@ -695,6 +698,7 @@ export default function BranchMaster() {
       meta: { flex: 1, minWidth: 150, maxWidth: 300 },
       enableHiding: true,
     },
+
     {
       header: "Password",
       accessorFn: (row) => ({
@@ -704,6 +708,7 @@ export default function BranchMaster() {
       meta: { flex: 1, minWidth: 150, maxWidth: 300 },
       enableHiding: true,
     },
+
     {
       header: "Registration Date",
       accessorFn: (row) => ({
@@ -713,6 +718,7 @@ export default function BranchMaster() {
       meta: { flex: 1, minWidth: 150, maxWidth: 300 },
       enableHiding: true,
     },
+
     {
       header: "Expiration Date",
       accessorFn: (row) => ({
@@ -724,7 +730,8 @@ export default function BranchMaster() {
       meta: { flex: 1, minWidth: 150, maxWidth: 300 },
       enableHiding: true,
     },
-    ...(isSuperAdmin || isSchoolRole || isBranchGroup
+
+    ...(isSuperAdmin
       ? [
           {
             header: "Access",
@@ -748,47 +755,45 @@ export default function BranchMaster() {
             enableSorting: false,
             enableHiding: true,
           },
-        ]
-      : []),
-    {
-      header: "Action",
-      accessorFn: (row) => ({
-        type: "group",
-        items: [
+
+          // ✅ Action column ONLY for Super Admin
           {
-            type: "button",
-            label: "Edit",
-            className:
-              "bg-yellow-400 hover:bg-yellow-500 text-[#733e0a] font-semibold py-1 px-3 rounded-md cursor-pointer transition-colors duration-200",
-            onClick: () => {
-              setEditTarget(row);
-              setEditDialogOpen(true);
-            },
-            disabled: accessMutation.isPending,
-          },
-          ...(isSuperAdmin || isSchoolRole || isBranchGroup
-            ? [
+            header: "Action",
+            accessorFn: (row) => ({
+              type: "group",
+              items: [
+                {
+                  type: "button",
+                  label: "Edit",
+                  className:
+                    "bg-yellow-400 hover:bg-yellow-500 text-[#733e0a] font-semibold py-1 px-3 rounded-md",
+                  onClick: () => {
+                    setEditTarget(row);
+                    setEditDialogOpen(true);
+                  },
+                  disabled: accessMutation.isPending,
+                },
                 {
                   type: "button",
                   label: "Delete",
                   className:
-                    "bg-yellow-400 hover:bg-yellow-500 text-red-600 font-semibold py-1 px-3 rounded-md cursor-pointer transition-colors duration-200",
+                    "bg-yellow-400 hover:bg-yellow-500 text-red-600 font-semibold py-1 px-3 rounded-md",
                   onClick: () => setDeleteTarget(row),
                   disabled: deletebranchMutation.isPending,
                 },
-              ]
-            : []),
-        ],
-      }),
-      meta: {
-        flex: 1.5,
-        minWidth: 200,
-        maxWidth: 200,
-        width: 200,
-      },
-      enableSorting: false,
-      enableHiding: true,
-    },
+              ],
+            }),
+            meta: {
+              flex: 1.5,
+              minWidth: 200,
+              maxWidth: 200,
+              width: 200,
+            },
+            enableSorting: false,
+            enableHiding: true,
+          },
+        ]
+      : []),
   ];
 
   // Columns for export
@@ -1065,8 +1070,6 @@ export default function BranchMaster() {
     getCoreRowModel: getCoreRowModel(),
   });
 
-  console.log("[Branch Master - Render]: ", filteredData);
-
   return (
     <main>
       <ResponseLoader isLoading={isLoading} />
@@ -1079,10 +1082,12 @@ export default function BranchMaster() {
             onResults={handleSearchResults}
             className="w-[300px] mb-4"
           />
-          <DateRangeFilter
-            onDateRangeChange={handleDateFilter}
-            title="Search by Registration Date"
-          />
+          <div>
+            <DateRangeFilter
+              onDateRangeChange={handleDateFilter}
+              title="Search by Registration Date"
+            />
+          </div>
           {(isSuperAdmin || isSchoolRole || isBranchGroup) && (
             <CustomFilter
               data={filterResults}

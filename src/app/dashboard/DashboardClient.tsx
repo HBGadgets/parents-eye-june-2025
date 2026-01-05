@@ -127,7 +127,7 @@ export default function DashboardClient() {
         clearTimeout(searchDebounceRef.current);
       }
     };
-  }, []); // Empty dependency array means this runs once on mount
+  }, []);
 
   // **Debounced Search Handler**
   const handleSearchChange = useCallback(
