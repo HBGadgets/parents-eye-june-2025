@@ -192,7 +192,7 @@ class DeviceService {
     }
     try {
 
-      console.log("Connecting to WebSocket server... [TOKEN]: ", this.token);
+      // console.log("Connecting to WebSocket server... [TOKEN]: ", this.token);
       this.socket = io(this.baseUrl, {
         autoConnect: false,
         reconnection: true,

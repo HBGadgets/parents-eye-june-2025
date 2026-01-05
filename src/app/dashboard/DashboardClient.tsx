@@ -94,10 +94,6 @@ export default function DashboardClient() {
   const { devices, counts, isLoading, updateFilters, currentPage, limit } =
     useLiveDeviceData();
 
-  useEffect(() => {
-    console.log("Live devices data:", devices);
-  }, [devices]);
-
   // Sync local pagination with store pagination
   const [pagination, setPagination] = useState({
     pageIndex: currentPage - 1,

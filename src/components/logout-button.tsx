@@ -10,19 +10,45 @@ export function LogoutButton() {
   const logout = useAuthStore((state) => state.logout);
   const router = useRouter();
 
+  const clearAllCookies = () => {
+    console.log("[Logout] Clearing all cookies");
+    Object.keys(Cookies.get()).forEach((cookieName) => {
+      Cookies.remove(cookieName, { path: "/" });
+      Cookies.remove(cookieName, {
+        path: "/",
+        domain: window.location.hostname,
+      });
+    });
+  };
+
   const handleLogout = async () => {
     try {
+      /**delete fcm token */
+
       // Get the messaging instance
       const messaging = getMessaging(app);
 
       // Delete the FCM token
       const isDeleted = await deleteToken(messaging);
+      console.log(
+        isDeleted ? "🗑️ FCM token deleted" : "⚠️ FCM token not deleted"
+      );
+
+      // Unregister Firebase service workers
+      if ("serviceWorker" in navigator) {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        for (const reg of regs) {
+          await reg.unregister();
+        }
+      }
+
+      //  Clear Firebase IndexedDB
+      indexedDB.deleteDatabase("firebase-messaging-database");
+      indexedDB.deleteDatabase("firebase-messaging-database-v2");
+      indexedDB.deleteDatabase("firebase-installations-database");
+
       localStorage.removeItem("fcm_token");
-      // console.log(
-      //   isDeleted ? "🗑️ FCM token deleted" : "⚠️ FCM token not deleted"
-      // );
-      Cookies.remove("token");
-      // console.log("🍪 Auth token cookie removed", Cookies.get("token"));
+      /** delete fmc token */
 
       logout(); // clear state + token
       router.push("/login"); // redirect to login page

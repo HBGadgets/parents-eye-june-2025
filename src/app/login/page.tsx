@@ -35,6 +35,7 @@ export default function LoginPage() {
       const data = await loginUser(email, password);
 
       if (data?.token) {
+        localStorage.clear();
         login(data.token, rememberMe ? 30 : undefined);
         // login(data.token);
         router.push("/dashboard");

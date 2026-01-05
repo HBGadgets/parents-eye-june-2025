@@ -61,15 +61,18 @@ export default function FCMHandler(): null {
             });
 
             if (newToken) {
+              console.log("FCM token Generated: ", newToken);
               localStorage.setItem("fcm_token", newToken);
 
               const token = Cookies.get("token");
               if (token) {
+                console.log("FCM token Generating for user: ", token);
                 await authAxios.post(
                   "/fcmtoken/store",
                   { fcmToken: newToken },
                   { headers: { Authorization: `Bearer ${token}` } }
                 );
+                console.log("FCM token stored");
               }
             }
           } catch (err) {
@@ -131,41 +134,6 @@ export default function FCMHandler(): null {
             </div>
           ));
         });
-
-        // -----------------------------
-        // 6️⃣ Background Messages → Zustand
-        // -----------------------------
-        // if (navigator.serviceWorker) {
-        //   navigator.serviceWorker.addEventListener("message", (event) => {
-        //     if (event.data?.source !== "fcm-background") return;
-
-        //     const payload = event.data.payload;
-
-        //     const title = payload.notification?.title ?? "New Notification";
-        //     const body = payload.notification?.body ?? "";
-        //     const ping = payload.data?.ping ?? 0;
-
-        //     if (ping && Number(ping) === 1) return;
-
-        //     const timeStamp = payload.data?.timeStamp
-        //       ? new Date(Number(payload.data?.timeStamp))
-        //       : new Date();
-
-        //     const formattedTime = timeStamp.toLocaleString("en-IN", {
-        //       timeStyle: "short",
-        //       dateStyle: "medium",
-        //     });
-
-        //     // 💾 Save to Zustand from background
-        //     addNotification({
-        //       title,
-        //       body,
-        //       timestamp: formattedTime,
-        //     });
-
-        //     console.log("📥 Background notification stored:", payload);
-        //   });
-        // }
       } catch (err) {
         console.error("FCM Init Error:", err);
       }
