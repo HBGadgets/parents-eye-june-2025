@@ -1070,14 +1070,15 @@ export const getStatusReportColumns = (): ColumnDef<StatusReport>[] => [
   {
     header: "Start Time",
     accessorFn: (row) =>
-      new Date(row.startDateTime).toLocaleString("en-IN", {
+      new Date(row.startDateTime).toLocaleString("en-GB", {
         day: "2-digit",
-        month: "short",
+        month: "2-digit",
         year: "numeric",
-        hour: "numeric",
+        hour: "2-digit",
         minute: "2-digit",
         second: "2-digit",
         hour12: true,
+        timeZone: "UTC",
       }),
   },
   {
@@ -1101,14 +1102,15 @@ export const getStatusReportColumns = (): ColumnDef<StatusReport>[] => [
   {
     header: "End Time",
     accessorFn: (row) =>
-      new Date(row.endDateTime).toLocaleString("en-IN", {
+      new Date(row.endDateTime).toLocaleString("en-GB", {
         day: "2-digit",
-        month: "short",
+        month: "2-digit",
         year: "numeric",
-        hour: "numeric",
+        hour: "2-digit",
         minute: "2-digit",
         second: "2-digit",
         hour12: true,
+        timeZone: "UTC",
       }),
   },
   {
@@ -1307,14 +1309,15 @@ export const GetTripReportColumns = (): ColumnDef<TripReport>[] => [
     header: "Start Time",
     accessorKey: "startTime",
     cell: ({ getValue }) =>
-      new Date(getValue<string>()).toLocaleString("en-IN", {
+      new Date(getValue<string>()).toLocaleString("en-GB", {
         day: "2-digit",
-        month: "short",
+        month: "2-digit",
         year: "numeric",
-        hour: "numeric",
+        hour: "2-digit",
         minute: "2-digit",
         second: "2-digit",
         hour12: true,
+        timeZone: "UTC",
       }),
   },
 
@@ -1350,14 +1353,15 @@ export const GetTripReportColumns = (): ColumnDef<TripReport>[] => [
     header: "End Time",
     accessorKey: "endTime",
     cell: ({ getValue }) =>
-      new Date(getValue<string>()).toLocaleString("en-IN", {
+      new Date(getValue<string>()).toLocaleString("en-GB", {
         day: "2-digit",
-        month: "short",
+        month: "2-digit",
         year: "numeric",
-        hour: "numeric",
+        hour: "2-digit",
         minute: "2-digit",
         second: "2-digit",
         hour12: true,
+        timeZone: "UTC",
       }),
   },
 

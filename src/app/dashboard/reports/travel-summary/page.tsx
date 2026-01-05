@@ -67,14 +67,6 @@ const TravelSummaryReportPage: React.FC = () => {
   const queryClient = useQueryClient();
   const [shouldFetch, setShouldFetch] = useState(false);
   const [hasGenerated, setHasGenerated] = useState(false);
-  // const [selectedSchool, setSelectedSchool] = useState<string | null>(null);
-  // const [selectedBranch, setSelectedBranch] = useState<string | null>(null);
-  // const [selectedDevice, setSelectedDevice] = useState<string | null>(null);
-  // const [deviceName, setDeviceName] = useState<string | null>(null);
-  // const [dateRange, setDateRange] = useState<DateRange>({
-  //   startDate: null,
-  //   endDate: null,
-  // });
   const [playbackOpen, setPlaybackOpen] = useState(false);
   const [playbackPayload, setPlaybackPayload] = useState<{
     uniqueId: number;
@@ -140,15 +132,15 @@ const TravelSummaryReportPage: React.FC = () => {
         uniqueId: trip.uniqueId,
         reportDate: new Date(trip.date).toLocaleDateString(),
         ignitionStart: trip.startTime
-          ? new Date(trip.startTime).toLocaleString("en-IN", {
-              timeZone: "Asia/Kolkata",
+          ? new Date(trip.startTime).toLocaleString("en-GB", {
               day: "2-digit",
-              month: "short",
+              month: "2-digit",
               year: "numeric",
-              hour: "numeric",
+              hour: "2-digit",
               minute: "2-digit",
               second: "2-digit",
               hour12: true,
+              timeZone: "UTC",
             })
           : "-",
         startLocation: trip.startAddress || "-",
@@ -163,15 +155,15 @@ const TravelSummaryReportPage: React.FC = () => {
         endLocation: trip.endAddress || "-",
         endCoordinates: `${trip.endLatitude}, ${trip.endLongitude}`,
         ignitionStop: trip.endTime
-          ? new Date(trip.endTime).toLocaleString("en-IN", {
-              timeZone: "Asia/Kolkata",
+          ? new Date(trip.endTime).toLocaleString("en-GB", {
               day: "2-digit",
-              month: "short",
+              month: "2-digit",
               year: "numeric",
-              hour: "numeric",
+              hour: "2-digit",
               minute: "2-digit",
               second: "2-digit",
               hour12: true,
+              timeZone: "UTC",
             })
           : "-",
 
@@ -189,11 +181,11 @@ const TravelSummaryReportPage: React.FC = () => {
 
       if (expandedRows.has(rowId)) {
         // Collapse row
-        console.log("➖ Collapsing row:", rowId);
+        // console.log("➖ Collapsing row:", rowId);
         newExpandedRows.delete(rowId);
       } else {
         // Expand row
-        console.log("➕ Expanding row:", rowId);
+        // console.log("➕ Expanding row:", rowId);
         newExpandedRows.add(rowId);
 
         // Initialize detail table state if not exists
@@ -284,15 +276,15 @@ const TravelSummaryReportPage: React.FC = () => {
     const expandedDataArray: ExpandedRowData[] = [];
 
     transformedReportData.forEach((row) => {
-      console.log(`➡️ Processing row: ${row.id}`);
+      // console.log(`➡️ Processing row: ${row.id}`);
       // Add main row
       expandedDataArray.push(row);
 
       // Add detail row if expanded
       if (expandedRows.has(row.id)) {
-        console.log(`🔍 Row ${row.id} is expanded, checking detail data...`);
+        // console.log(`🔍 Row ${row.id} is expanded, checking detail data...`);
         if (detailedData[row.id]?.length) {
-          console.log(`✅ Adding detail table for ${row.id}`);
+          // console.log(`✅ Adding detail table for ${row.id}`);
           expandedDataArray.push({
             ...row,
             id: `${row.id}-details`,
@@ -300,7 +292,7 @@ const TravelSummaryReportPage: React.FC = () => {
             detailData: detailedData[row.id],
           });
         } else {
-          console.log(`⚠️ No detail data for ${row.id}`);
+          // console.log(`⚠️ No detail data for ${row.id}`);
           expandedDataArray.push({
             ...row,
             id: `${row.id}-empty`,
