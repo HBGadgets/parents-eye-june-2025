@@ -67,14 +67,14 @@ const TravelSummaryReportPage: React.FC = () => {
   const queryClient = useQueryClient();
   const [shouldFetch, setShouldFetch] = useState(false);
   const [hasGenerated, setHasGenerated] = useState(false);
-  const [selectedSchool, setSelectedSchool] = useState<string | null>(null);
-  const [selectedBranch, setSelectedBranch] = useState<string | null>(null);
-  const [selectedDevice, setSelectedDevice] = useState<string | null>(null);
-  const [deviceName, setDeviceName] = useState<string | null>(null);
-  const [dateRange, setDateRange] = useState<DateRange>({
-    startDate: null,
-    endDate: null,
-  });
+  // const [selectedSchool, setSelectedSchool] = useState<string | null>(null);
+  // const [selectedBranch, setSelectedBranch] = useState<string | null>(null);
+  // const [selectedDevice, setSelectedDevice] = useState<string | null>(null);
+  // const [deviceName, setDeviceName] = useState<string | null>(null);
+  // const [dateRange, setDateRange] = useState<DateRange>({
+  //   startDate: null,
+  //   endDate: null,
+  // });
   const [playbackOpen, setPlaybackOpen] = useState(false);
   const [playbackPayload, setPlaybackPayload] = useState<{
     uniqueId: number;
@@ -831,17 +831,7 @@ const TravelSummaryReportPage: React.FC = () => {
         onSubmit={handleFilterSubmit}
         table={table}
         className="mb-6"
-        selectedSchool={selectedSchool}
-        onSchoolChange={setSelectedSchool}
-        selectedBranch={selectedBranch}
-        onBranchChange={setSelectedBranch}
-        selectedDevice={selectedDevice}
-        onDeviceChange={(deviceId, name) => {
-          setSelectedDevice(deviceId);
-          setDeviceName(name);
-        }}
-        dateRange={dateRange}
-        onDateRangeChange={setDateRange}
+        // ✅ Remove all controlled props - let ReportFilter manage internally
         config={{
           showSchool: true,
           showBranch: true,
