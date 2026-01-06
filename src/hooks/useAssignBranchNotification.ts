@@ -4,23 +4,16 @@ import { branchNotificaionService } from "@/services/api/branchNotificaionServic
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
-export const useBranchNotifications = (
-  branchId?: string,
-  params: Record<string, any> = {}
-) => {
+export const useBranchNotifications = (branchId: string, enabled = false) => {
   const queryClient = useQueryClient();
 
   // ============================
   // GET: Branch Notifications
   // ============================
   const getBranchNotificationsQuery = useQuery({
-    queryKey: ["branch-notifications", branchId, params],
-    queryFn: () =>
-      branchNotificaionService.getBranchNotifications({
-        branchId,
-        ...params,
-      }),
-    enabled: !!branchId,
+    queryKey: ["branch-notifications", branchId],
+    queryFn: () => branchNotificaionService.getBranchNotifications(branchId),
+    enabled,
   });
 
   // ============================
@@ -91,6 +84,7 @@ export const useBranchNotifications = (
     notifications: getBranchNotificationsQuery.data?.data || {},
     isLoading: getBranchNotificationsQuery.isLoading,
     isFetching: getBranchNotificationsQuery.isFetching,
+    refetch: getBranchNotificationsQuery.refetch,
 
     // Mutations
     assignNotification: assignNotificationMutation.mutate,

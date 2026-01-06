@@ -24,7 +24,6 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Combobox } from "@/components/ui/combobox";
 import DateRangeFilter from "@/components/ui/DateRangeFilter";
-import { FloatingMenu } from "@/components/floatingMenu";
 import {
   getCoreRowModel,
   useReactTable,
@@ -45,6 +44,9 @@ import { ColumnVisibilitySelector } from "@/components/column-visibility-selecto
 import { ExpirationDatePicker } from "@/components/ui/ExpirationDatePicker";
 import Cookies from "js-cookie";
 import { toast } from "sonner";
+import { values } from "lodash";
+import { BranchNotificationCell } from "@/components/branch-master/BranchNotificationCell";
+import { useBranchNotifications } from "@/hooks/useAssignBranchNotification";
 
 type branchAccess = {
   _id: string;
@@ -751,6 +753,23 @@ export default function BranchMaster() {
                 },
               ],
             }),
+            meta: { flex: 1.5, minWidth: 230 },
+            enableSorting: false,
+            enableHiding: true,
+          },
+          {
+            header: "Notifications",
+            accessorFn: (row) => {
+              console.log("Branch ID:", row._id);
+
+              return (
+                <BranchNotificationCell
+                  branchId={row._id}
+                  value={row?.notifications}
+                  // hasNotificationAssigned={row?.hasNotificationAssigned}
+                />
+              );
+            },
             meta: { flex: 1.5, minWidth: 230 },
             enableSorting: false,
             enableHiding: true,

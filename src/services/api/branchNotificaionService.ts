@@ -1,15 +1,14 @@
 import api from "@/lib/axios";
-import { update } from "lodash";
 
 export const branchNotificaionService = {
-  getBranchNotifications: async (params: Record<string, any>): Promise<any> => {
-    const res = await api.get("branch/notification-assigned", { params });
+  getBranchNotifications: async (branchId: string): Promise<any> => {
+    const res = await api.get(`branch/notification-assigned/${branchId}`);
     return res.data;
   },
 
   assignBranchNotification: async (branchId: string, payload: any) => {
     const res = await api.post(
-      `branch/assign-notification/${branchId}`,
+      `branch/notification-assigned/${branchId}`,
       payload
     );
     return res.data;
@@ -17,14 +16,14 @@ export const branchNotificaionService = {
 
   updateBranchNotification: async (branchId: string, payload: any) => {
     const res = await api.put(
-      `branch/assign-notification/${branchId}`,
+      `branch/notification-assigned/${branchId}`,
       payload
     );
     return res.data;
   },
 
   deleteBranchNotification: async (branchId: string) => {
-    const res = await api.delete(`branch/assign-notification/${branchId}`);
+    const res = await api.delete(`branch/notification-assigned/${branchId}`);
     return res.data;
   },
 };

@@ -959,10 +959,12 @@ export default function UserAccessPage() {
             onSearchChange={handleSearchChange}
             className="w-[300px]"
           />
-          <DateRangeFilter
-            onDateRangeChange={handleDateRangeChange}
-            title="Search by Registration Date"
-          />
+          <div>
+            <DateRangeFilter
+              onDateRangeChange={handleDateRangeChange}
+              title="Search by Registration Date"
+            />
+          </div>
           <ColumnVisibilitySelector
             columns={table.getAllColumns()}
             columnVisibility={columnVisibility}
