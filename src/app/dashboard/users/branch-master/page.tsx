@@ -655,166 +655,6 @@ export default function BranchMaster() {
     isBranchGroup,
   ]);
 
-  // Define the columns for the table
-  const columns: ColumnDef<branch, CellContent>[] = [
-    {
-      header: "Branch Name",
-      accessorFn: (row) => ({
-        type: "text",
-        value: row.branchName ?? "",
-      }),
-      meta: { flex: 1, minWidth: 200, maxWidth: 320 },
-      enableHiding: true,
-    },
-
-    ...(isSuperAdmin
-      ? [
-          {
-            header: "School Name",
-            accessorFn: (row) => ({
-              type: "text",
-              value: row.schoolId.schoolName ?? "",
-            }),
-            meta: { flex: 1, minWidth: 200, maxWidth: 300 },
-            enableHiding: true,
-          },
-        ]
-      : []),
-
-    {
-      header: "Mobile",
-      accessorFn: (row) => ({
-        type: "text",
-        value: row.mobileNo ?? "",
-      }),
-      meta: { flex: 1, minWidth: 150, maxWidth: 300 },
-      enableHiding: true,
-    },
-
-    {
-      header: "Username",
-      accessorFn: (row) => ({
-        type: "text",
-        value: row.username ?? "",
-      }),
-      meta: { flex: 1, minWidth: 150, maxWidth: 300 },
-      enableHiding: true,
-    },
-
-    {
-      header: "Password",
-      accessorFn: (row) => ({
-        type: "text",
-        value: row.password ?? "",
-      }),
-      meta: { flex: 1, minWidth: 150, maxWidth: 300 },
-      enableHiding: true,
-    },
-
-    {
-      header: "Registration Date",
-      accessorFn: (row) => ({
-        type: "text",
-        value: formatDate(row.createdAt) ?? "",
-      }),
-      meta: { flex: 1, minWidth: 150, maxWidth: 300 },
-      enableHiding: true,
-    },
-
-    {
-      header: "Expiration Date",
-      accessorFn: (row) => ({
-        type: "text",
-        value: row.subscriptionExpirationDate
-          ? formatDate(row.subscriptionExpirationDate)
-          : "---",
-      }),
-      meta: { flex: 1, minWidth: 150, maxWidth: 300 },
-      enableHiding: true,
-    },
-
-    ...(isSuperAdmin
-      ? [
-          {
-            header: "Access",
-            accessorFn: (row) => ({
-              type: "group",
-              items: [
-                {
-                  type: "button",
-                  label: row.fullAccess
-                    ? "Grant Limited Access"
-                    : "Grant Full Access",
-                  onClick: () => setAccessTarget(row),
-                  disabled: accessMutation.isPending,
-                  className: `w-38 text-center text-sm bg-yellow-400 hover:bg-yellow-500 font-semibold rounded-full px-4 py-2 ${
-                    row.fullAccess ? "text-red-600" : "text-emerald-600"
-                  }`,
-                },
-              ],
-            }),
-            meta: { flex: 1.5, minWidth: 230 },
-            enableSorting: false,
-            enableHiding: true,
-          },
-          {
-            header: "Notifications",
-            accessorFn: (row) => {
-              console.log("Branch ID:", row._id);
-
-              return (
-                <BranchNotificationCell
-                  branchId={row._id}
-                  value={row?.notifications}
-                  // hasNotificationAssigned={row?.hasNotificationAssigned}
-                />
-              );
-            },
-            meta: { flex: 1.5, minWidth: 230 },
-            enableSorting: false,
-            enableHiding: true,
-          },
-
-          // ✅ Action column ONLY for Super Admin
-          {
-            header: "Action",
-            accessorFn: (row) => ({
-              type: "group",
-              items: [
-                {
-                  type: "button",
-                  label: "Edit",
-                  className:
-                    "bg-yellow-400 hover:bg-yellow-500 text-[#733e0a] font-semibold py-1 px-3 rounded-md",
-                  onClick: () => {
-                    setEditTarget(row);
-                    setEditDialogOpen(true);
-                  },
-                  disabled: accessMutation.isPending,
-                },
-                {
-                  type: "button",
-                  label: "Delete",
-                  className:
-                    "bg-yellow-400 hover:bg-yellow-500 text-red-600 font-semibold py-1 px-3 rounded-md",
-                  onClick: () => setDeleteTarget(row),
-                  disabled: deletebranchMutation.isPending,
-                },
-              ],
-            }),
-            meta: {
-              flex: 1.5,
-              minWidth: 200,
-              maxWidth: 200,
-              width: 200,
-            },
-            enableSorting: false,
-            enableHiding: true,
-          },
-        ]
-      : []),
-  ];
-
   // Columns for export
   const columnsForExport = [
     { key: "branchName", header: "Branch Name" },
@@ -1080,6 +920,165 @@ export default function BranchMaster() {
   const handleCustomFilter = useCallback((filtered: branch[]) => {
     setFilteredData(filtered);
   }, []);
+
+  const columns = useMemo<ColumnDef<branch, CellContent>[]>(
+    () => [
+      {
+        header: "Branch Name",
+        accessorFn: (row) => ({
+          type: "text",
+          value: row.branchName ?? "",
+        }),
+        meta: { flex: 1, minWidth: 200, maxWidth: 320 },
+        enableHiding: true,
+      },
+
+      ...(isSuperAdmin
+        ? [
+            {
+              header: "School Name",
+              accessorFn: (row) => ({
+                type: "text",
+                value: row.schoolId.schoolName ?? "",
+              }),
+              meta: { flex: 1, minWidth: 200, maxWidth: 300 },
+              enableHiding: true,
+            },
+          ]
+        : []),
+
+      {
+        header: "Mobile",
+        accessorFn: (row) => ({
+          type: "text",
+          value: row.mobileNo ?? "",
+        }),
+        meta: { flex: 1, minWidth: 150, maxWidth: 300 },
+        enableHiding: true,
+      },
+
+      {
+        header: "Username",
+        accessorFn: (row) => ({
+          type: "text",
+          value: row.username ?? "",
+        }),
+        meta: { flex: 1, minWidth: 150, maxWidth: 300 },
+        enableHiding: true,
+      },
+
+      {
+        header: "Password",
+        accessorFn: (row) => ({
+          type: "text",
+          value: row.password ?? "",
+        }),
+        meta: { flex: 1, minWidth: 150, maxWidth: 300 },
+        enableHiding: true,
+      },
+
+      {
+        header: "Registration Date",
+        accessorFn: (row) => ({
+          type: "text",
+          value: formatDate(row.createdAt) ?? "",
+        }),
+        meta: { flex: 1, minWidth: 150, maxWidth: 300 },
+        enableHiding: true,
+      },
+
+      {
+        header: "Expiration Date",
+        accessorFn: (row) => ({
+          type: "text",
+          value: row.subscriptionExpirationDate
+            ? formatDate(row.subscriptionExpirationDate)
+            : "---",
+        }),
+        meta: { flex: 1, minWidth: 150, maxWidth: 300 },
+        enableHiding: true,
+      },
+
+      ...(isSuperAdmin
+        ? [
+            {
+              header: "Access",
+              accessorFn: (row) => ({
+                type: "group",
+                items: [
+                  {
+                    type: "button",
+                    label: row.fullAccess
+                      ? "Grant Limited Access"
+                      : "Grant Full Access",
+                    onClick: () => setAccessTarget(row),
+                    disabled: accessMutation.isPending,
+                    className: `w-38 text-center text-sm bg-yellow-400 hover:bg-yellow-500 font-semibold rounded-full px-4 py-2 ${
+                      row.fullAccess ? "text-red-600" : "text-emerald-600"
+                    }`,
+                  },
+                ],
+              }),
+              meta: { flex: 1.5, minWidth: 230 },
+              enableSorting: false,
+              enableHiding: true,
+            },
+            {
+              header: "Notifications",
+              // ✅ Use cell for custom components
+              accessorFn: ( row ) => (
+                <BranchNotificationCell branchId={row._id} />
+              ),
+              meta: { flex: 1.5, minWidth: 230 },
+              enableSorting: false,
+              enableHiding: true,
+            },
+            {
+              header: "Action",
+              accessorFn: (row) => ({
+                type: "group",
+                items: [
+                  {
+                    type: "button",
+                    label: "Edit",
+                    className:
+                      "bg-yellow-400 hover:bg-yellow-500 text-[#733e0a] font-semibold py-1 px-3 rounded-md",
+                    onClick: () => {
+                      setEditTarget(row);
+                      setEditDialogOpen(true);
+                    },
+                    disabled: accessMutation.isPending,
+                  },
+                  {
+                    type: "button",
+                    label: "Delete",
+                    className:
+                      "bg-yellow-400 hover:bg-yellow-500 text-red-600 font-semibold py-1 px-3 rounded-md",
+                    onClick: () => setDeleteTarget(row),
+                    disabled: deletebranchMutation.isPending,
+                  },
+                ],
+              }),
+              meta: {
+                flex: 1.5,
+                minWidth: 200,
+                maxWidth: 200,
+                width: 200,
+              },
+              enableSorting: false,
+              enableHiding: true,
+            },
+          ]
+        : []),
+    ],
+    [
+      // Dependencies that affect column structure
+      isSuperAdmin,
+      accessMutation.isPending,
+      deletebranchMutation.isPending,
+      // Don't include state setters - they're stable
+    ]
+  );
 
   const table = useReactTable({
     data: filteredData,
