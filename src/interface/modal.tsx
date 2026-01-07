@@ -501,3 +501,9 @@ export interface BusStopWithStatus extends Geofence {
   exitedAt?: string;
   __type?: "START" | "NORMAL" | "END";
 }
+
+export interface Distance {
+  uniqueId: string;
+  distance: number;
+  totalDistance: number;
+}

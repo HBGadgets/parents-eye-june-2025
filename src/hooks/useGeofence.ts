@@ -10,7 +10,6 @@ import {
 import { geofenceService } from "@/services/api/geofenceSerevice";
 import { PaginationState, SortingState } from "@tanstack/react-table";
 import { toast } from "sonner";
-import { isError } from "lodash";
 
 export const useGeofence = (
   pagination: PaginationState,

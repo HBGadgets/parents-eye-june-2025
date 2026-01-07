@@ -6,17 +6,16 @@ export const useHistoryReport = (
   enabled: boolean
 ) => {
   return useQuery({
-    queryKey: ["history-report", filters],
+    queryKey: ["history-report", filters.uniqueId, filters.from, filters.to],
     queryFn: () =>
       reportService.getHistoryReport({
-        uniqueId: filters.uniqueId,
-        from: filters.from,
-        to: filters.to,
+        ...filters,
         period: "Custom",
       }),
-    enabled: enabled,
+    enabled: enabled && !!filters.uniqueId && !!filters.from && !!filters.to,
     staleTime: 10 * 60 * 1000,
     refetchOnWindowFocus: false,
     retry: false,
   });
 };
+

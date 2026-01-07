@@ -35,6 +35,7 @@ import { deviceWithTrip } from "@/data/playback-nested";
 interface TravelDetailTableData {
   id: string;
   uniqueId: number;
+  vehicleName: string;
   reportDate: string;
   ignitionStart: string;
   startLocation: string;
@@ -126,10 +127,14 @@ const TravelSummaryReportPage: React.FC = () => {
 
   // Transform day-wise trips data for nested table
   const transformDayWiseData = useCallback(
-    (dayWiseTrips: DayWiseTrips[]): TravelDetailTableData[] => {
+    (
+      dayWiseTrips: DayWiseTrips[],
+      vehicleName: string
+    ): TravelDetailTableData[] => {
       return dayWiseTrips.map((trip, index) => ({
         id: `day-${trip.date}-${index}`,
         uniqueId: trip.uniqueId,
+        vehicleName: vehicleName,
         reportDate: new Date(trip.date).toLocaleDateString(),
         ignitionStart: trip.startTime
           ? new Date(trip.startTime).toLocaleString("en-GB", {
@@ -204,7 +209,8 @@ const TravelSummaryReportPage: React.FC = () => {
           try {
             // console.log("🔄 Transforming dayWiseTrips:", rowData.dayWiseTrips);
             const transformedDetails = transformDayWiseData(
-              rowData.dayWiseTrips
+              rowData.dayWiseTrips,
+              rowData.name
             );
             // console.log("✅ Transformed details:", transformedDetails);
             setDetailedData((prev) => ({
@@ -309,6 +315,11 @@ const TravelSummaryReportPage: React.FC = () => {
   // Column definitions for nested detail table
   const travelDetailColumns: ColumnDef<TravelDetailTableData>[] = useMemo(
     () => [
+      {
+        accessorKey: "vehicleName",
+        header: "Vehicle Name",
+        size: 150,
+      },
       { accessorKey: "reportDate", header: "Report Date", size: 120 },
       { accessorKey: "ignitionStart", header: "Ignition Start", size: 180 },
       { accessorKey: "startLocation", header: "Start Location", size: 250 },
@@ -542,7 +553,9 @@ const TravelSummaryReportPage: React.FC = () => {
             row.original.isEmpty
           )
             return null;
-          return `${row.original.startLat || "--"}, ${row.original.startLong || "--"}`;
+          return `${row.original.startLat || "--"}, ${
+            row.original.startLong || "--"
+          }`;
         },
       },
       {
@@ -689,7 +702,9 @@ const TravelSummaryReportPage: React.FC = () => {
             row.original.isEmpty
           )
             return null;
-          return `${row.original.endLat || "--"}, ${row.original.endLong || "--"}`;
+          return `${row.original.endLat || "--"}, ${
+            row.original.endLong || "--"
+          }`;
         },
       },
       {
@@ -786,7 +801,7 @@ const TravelSummaryReportPage: React.FC = () => {
     const flatHistory = history.flat();
     setPlaybackPayload({
       uniqueId: row.uniqueId,
-      vehicleName: row.name,
+      vehicleName: row.name || row.vehicleName,
       startDate: row.reportDate || apiFilters.from,
       endDate: row.reportDate || apiFilters.to,
     });

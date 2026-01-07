@@ -26,11 +26,17 @@ import { Slider } from "@/components/ui/slider";
 import { getDecodedToken } from "@/lib/jwt";
 import Cookies from "js-cookie";
 import { GeofenceForm } from "./form/GeofenceForm";
-import { useGeofence, useGeofenceByRoute, useGeofenceByUniqueId } from "@/hooks/useGeofence";
+import {
+  useGeofence,
+  useGeofenceByRoute,
+  useGeofenceByUniqueId,
+} from "@/hooks/useGeofence";
 import { formatToIST } from "@/util/dateFormatters";
 import { calculateTimeSince } from "@/util/calculateTimeSince";
 import { toast } from "sonner";
 import { Geofence } from "@/interface/modal";
+import { useDistance } from "@/hooks/useDistance";
+import { reverseGeocodeMapTiler } from "@/hooks/useReverseGeocoding";
 
 type UserRole = "superAdmin" | "school" | "branchGroup" | "branch" | null;
 
@@ -54,7 +60,7 @@ export interface VehicleData {
   latitude: number;
   course: number;
   deviceId: number;
-  imei: string;
+  imei: number;
   attributes: {
     charge: boolean;
     ignition: boolean;
@@ -74,6 +80,7 @@ export interface VehicleData {
   speedLimit: string;
   fuelConsumption: string;
   matchesSearch: boolean;
+  uniqueId: number;
 }
 
 // Updated props interface for single device
@@ -398,7 +405,7 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
   const startPointRef = useRef<[number, number] | null>(null);
   const targetPointRef = useRef<[number, number] | null>(null);
   const currentPathRef = useRef<[number, number][]>([]);
-
+  const { distance } = useDistance(vehicle?.uniqueId);
   const maxPathPoints = 500;
   const animationDuration = 10000;
   const samplingInterval = 500;
@@ -443,11 +450,11 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
     isLoading: isLoadingGeofences,
     createGeofence,
   } = useGeofence(pagination, sorting, filters);
-const geofenceQuery = useGeofenceByUniqueId(vehicle?.uniqueId || "");
+  const geofenceQuery = useGeofenceByUniqueId(vehicle?.uniqueId || "");
 
-const geofenceByRoute = geofenceQuery?.geofenceByUniqueId;
+  const geofenceByRoute = geofenceQuery?.geofenceByUniqueId;
 
-// console.log("geofenceByRoute",geofenceByRoute)
+  // console.log("geofenceByRoute",geofenceByRoute)
 
   // Debug logs for geofences
   // useEffect(() => {
@@ -691,7 +698,11 @@ const geofenceByRoute = geofenceQuery?.geofenceByUniqueId;
     setShowGeofenceForm(true);
   }, []);
 
-  const handleGeofenceSubmit = (payload: any) => {
+  const handleGeofenceSubmit = async (payload: any) => {
+    const lat = geofenceCenter![0];
+    const lng = geofenceCenter![1];
+
+    const address = await reverseGeocodeMapTiler(lat, lng);
     const geofencePayload = {
       geofenceName: payload.name || payload.geofenceName || "New Geofence",
       area: {
@@ -703,6 +714,7 @@ const geofenceByRoute = geofenceQuery?.geofenceByUniqueId;
       schoolId: schoolId || payload.schoolId,
       branchId: branchId || payload.branchId,
       routeObjId: routeObjId || payload.routeObjId,
+      address,
     };
 
     // console.log("📤 Submitting geofence:", geofencePayload);
@@ -858,7 +870,18 @@ const geofenceByRoute = geofenceQuery?.geofenceByUniqueId;
         </div>
         <div>
           Last Update:{" "}
-          {vehicle?.lastUpdate ? formatToIST(vehicle.lastUpdate) : "loading..."}
+          {vehicle?.lastUpdate
+            ? new Date(vehicle.lastUpdate).toLocaleString("en-GB", {
+                day: "2-digit",
+                month: "2-digit",
+                year: "numeric",
+                hour: "2-digit",
+                minute: "2-digit",
+                second: "2-digit",
+                hour12: true,
+                timeZone: "UTC",
+              })
+            : "loading..."}
         </div>
         <div>
           Since:{" "}
@@ -869,6 +892,15 @@ const geofenceByRoute = geofenceQuery?.geofenceByUniqueId;
         <div>
           Speed: {vehicle?.speed && `${vehicle?.speed.toFixed(2)} km/h`}
         </div>
+        <div>
+          Distance:{" "}
+          {(
+            (distance?.distance ?? 0) +
+            (vehicle?.attributes?.distance ?? 0) / 1000
+          ).toFixed(2)}{" "}
+          km
+        </div>
+        <div>Odometer: {`${distance?.totalDistance} km`}</div>
         <div>
           Speed Limit: {vehicle?.speedLimit && `${vehicle.speedLimit} km/h`}
         </div>

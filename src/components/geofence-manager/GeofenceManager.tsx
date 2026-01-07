@@ -21,6 +21,7 @@ import { useBranchDropdown, useSchoolDropdown } from "@/hooks/useDropdown";
 import { useGeofence } from "@/hooks/useGeofence";
 import Cookies from "js-cookie";
 import { jwtDecode } from "jwt-decode";
+import { reverseGeocodeMapTiler } from "@/hooks/useReverseGeocoding";
 
 // Fix for default markers in Leaflet
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -656,35 +657,33 @@ const GeofenceManager: React.FC<GeofenceManagerProps> = ({
   };
 
   const saveGeofences = async () => {
+    console.log("🔥 saveGeofences CALLED");
     if (!tempGeofence) {
       toast.error("Please create a geofence first");
       return;
     }
 
     setIsLoading(true);
+
     try {
-      const savedGeofence: any = {
+      const lat = tempGeofence.coordinates?.[0]?.[1] || currentCoords.lat;
+      const lng = tempGeofence.coordinates?.[0]?.[0] || currentCoords.lng;
+
+      const address = await reverseGeocodeMapTiler(lat, lng);
+
+      const savedGeofence = {
         geofenceName: tempGeofence?.geofenceName || tempGeofence?.name,
         area: {
-          center: [
-            tempGeofence.coordinates?.[0]?.[1] || currentCoords.lat,
-            tempGeofence.coordinates?.[0]?.[0] || currentCoords.lng,
-          ],
+          center: [lat, lng],
           radius: tempGeofence.radius || currentRadius,
         },
         schoolId: selectedSchool?._id,
         branchId: selectedBranch?._id,
         routeObjId: selectedRoute?._id,
+        address,
+        ...(pickupTime && { pickupTime: formatTime(pickupTime) }),
+        ...(dropTime && { dropTime: formatTime(dropTime) }),
       };
-
-      // Read from state variables instead of tempGeofence
-      if (pickupTime) {
-        savedGeofence.pickupTime = formatTime(pickupTime);
-      }
-
-      if (dropTime) {
-        savedGeofence.dropTime = formatTime(dropTime);
-      }
 
       if (mode === "add") {
         createGeofence(savedGeofence, {

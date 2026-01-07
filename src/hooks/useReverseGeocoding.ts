@@ -94,8 +94,6 @@ export const useReverseGeocode = () => {
   return { addresses, loadingAddresses, queueForGeocoding };
 };
 
-// export useReverseGeocodeMapTiler = () => {};
-
 const reverseGeocodeCache = new Map<string, string>();
 
 export const reverseGeocodeMapTiler = async (
@@ -131,11 +129,12 @@ export const reverseGeocodeMapTiler = async (
     const road = feature.text;
     const city =
       getContext("place") || getContext("locality") || getContext("county");
-
+    const subregion = getContext("subregion");
     const state = getContext("region");
     const country = getContext("country");
+    const postal_code = getContext("postal_code");
 
-    const formatted = [road, city, state, country].filter(Boolean).join(", ");
+    const formatted = [road, city, subregion, state, postal_code, country].filter(Boolean).join(", ");
 
     const result = formatted || cacheKey;
 

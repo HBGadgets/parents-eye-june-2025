@@ -761,6 +761,13 @@ export const getGeofenceCoumns = (
     enableSorting: true,
   },
   {
+    id: "address",
+    headers: "Address",
+    accessorFn: (row) => row.address || "N/A",
+    enableHiding: false,
+    enableSorting: false,
+  },
+  {
     id: "schoolName",
     header: "School Name",
     accessorFn: (row) => row.school?.schoolName || "N/A",

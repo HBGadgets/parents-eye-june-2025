@@ -9,6 +9,8 @@ import {
   DrawerTitle,
 } from "../ui/drawer";
 import { useRouter } from "next/navigation";
+import { useDistance } from "@/hooks/useDistance";
+import { uniqueId } from "lodash";
 
 interface BottomDrawerProps {
   isDrawerOpen: boolean;
@@ -18,7 +20,7 @@ interface BottomDrawerProps {
   loadingAddresses: any;
   handleOpenLiveTrack: (imei: string, name: string) => void;
   onOpenRouteTimeline: (
-    uniqueId: string,
+    uniqueId: number,
     deviceName: string,
     routeObjId?: string
   ) => void;
@@ -37,10 +39,12 @@ export const BottomDrawer = ({
   const handleHistoryClick = (uniqueId: number) => {
     router.push("/dashboard/reports/history-report?uniqueId=" + uniqueId);
   };
+
+  const { distance, isLoading } = useDistance(selectedDevice?.uniqueId);
   return (
-    <Drawer open={isDrawerOpen} onOpenChange={setIsDrawerOpen} modal={false}>
+    <Drawer open={isDrawerOpen} onOpenChange={setIsDrawerOpen}>
       <DrawerPortal>
-        <DrawerOverlay className="pointer-events-none bg-transparent" />
+        <DrawerOverlay className="bg-transparent" />
         <DrawerContent>
           <DrawerHeader>
             <DrawerTitle className="flex justify-between items-center">
@@ -161,9 +165,13 @@ export const BottomDrawer = ({
                       <span className="text-stone-600">Odometer</span>
                     </label>
                     <p className="ml-8">
-                      {(
-                        selectedDevice?.attributes?.totalDistance / 1000
-                      ).toFixed(2) + " km/h" || "N/A"}
+                      {isLoading
+                        ? "Loading..."
+                        : `${
+                            distance?.totalDistance
+                              ? distance?.totalDistance
+                              : 0
+                          }` + " km/h"}
                     </p>
                   </div>
                   <div>
@@ -176,9 +184,10 @@ export const BottomDrawer = ({
                       <span className="text-stone-600">Today's Distance</span>
                     </label>
                     <p className="ml-8">
-                      {(
-                        selectedDevice?.attributes?.todayDistance / 1000
-                      ).toFixed(2) + " km/h" || "N/A"}
+                      {isLoading
+                        ? "Loading..."
+                        : `${distance?.distance ? distance?.distance : 0}` +
+                          " km/h"}
                     </p>
                   </div>
                   <div>
@@ -213,15 +222,19 @@ export const BottomDrawer = ({
                     </label>
 
                     <p className="ml-8 ">
-                      {`${new Date(
-                        selectedDevice.lastUpdate
-                      ).toLocaleDateString("en-US", {
-                        year: "numeric",
-                        month: "short",
-                        day: "numeric",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}` || "N/A"}
+                      {`${new Date(selectedDevice.lastUpdate).toLocaleString(
+                        "en-GB",
+                        {
+                          day: "2-digit",
+                          month: "2-digit",
+                          year: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                          second: "2-digit",
+                          hour12: true,
+                          timeZone: "UTC",
+                        }
+                      )}` || "N/A"}
                     </p>
                   </div>
                 </div>
