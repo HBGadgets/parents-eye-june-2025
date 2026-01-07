@@ -1026,7 +1026,7 @@ export default function BranchMaster() {
             {
               header: "Notifications",
               // ✅ Use cell for custom components
-              accessorFn: ( row ) => (
+              accessorFn: (row) => (
                 <BranchNotificationCell branchId={row._id} />
               ),
               meta: { flex: 1.5, minWidth: 230 },

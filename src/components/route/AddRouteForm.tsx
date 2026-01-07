@@ -477,7 +477,7 @@ export default function AddRouteForm({
         {/* LAST STOP - Only visible in edit mode */}
         {initialData && (
           <div>
-            <label className="text-sm font-medium">Last Stop</label>
+            <label className="text-sm font-medium">School Point(Last Stop)</label>
 
             {isLoadingLastStop && (
               <div className="text-sm text-muted-foreground mb-2">

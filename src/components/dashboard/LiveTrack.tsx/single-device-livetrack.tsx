@@ -28,15 +28,13 @@ import Cookies from "js-cookie";
 import { GeofenceForm } from "./form/GeofenceForm";
 import {
   useGeofence,
-  useGeofenceByRoute,
   useGeofenceByUniqueId,
 } from "@/hooks/useGeofence";
-import { formatToIST } from "@/util/dateFormatters";
 import { calculateTimeSince } from "@/util/calculateTimeSince";
-import { toast } from "sonner";
 import { Geofence } from "@/interface/modal";
 import { useDistance } from "@/hooks/useDistance";
 import { reverseGeocodeMapTiler } from "@/hooks/useReverseGeocoding";
+import { useSmoothSocketSpeed } from "@/hooks/useSmoothRandomSpeed";
 
 type UserRole = "superAdmin" | "school" | "branchGroup" | "branch" | null;
 
@@ -399,6 +397,7 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
   routeObjId,
 }) => {
   const mapRef = useRef<L.Map | null>(null);
+  const smoothSpeed = useSmoothSocketSpeed(vehicle?.speed, 5000);
   const [vehiclePath, setVehiclePath] = useState<[number, number][]>([]);
   const animationRef = useRef<number | null>(null);
   const startTimeRef = useRef(0);
@@ -889,9 +888,8 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
             ? calculateTimeSince(vehicle?.lastUpdate)
             : "loading..."}
         </div>
-        <div>
-          Speed: {vehicle?.speed && `${vehicle?.speed.toFixed(2)} km/h`}
-        </div>
+        <div>Speed: {smoothSpeed.toFixed(1)} km/h</div>
+
         <div>
           Distance:{" "}
           {(

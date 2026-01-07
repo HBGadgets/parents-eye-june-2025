@@ -128,7 +128,7 @@ export const getRouteColumns = (
   },
   {
     id: "lastGeofence",
-    header: "Last Stop",
+    header: "School Point (last stop)",
     accessorFn: (row: Route) => row.endPointGeoId?.geofenceName ?? "—",
   },
   {

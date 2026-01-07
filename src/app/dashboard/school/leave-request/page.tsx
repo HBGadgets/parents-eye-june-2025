@@ -10,10 +10,7 @@ import {
 } from "@/components/ui/tooltip";
 import DateRangeFilter from "@/components/ui/DateRangeFilter";
 import { FloatingMenu } from "@/components/floatingMenu";
-import {
-  VisibilityState,
-  type ColumnDef,
-} from "@tanstack/react-table";
+import { VisibilityState, type ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/services/apiService";
 import { useExport } from "@/hooks/useExport";
@@ -40,9 +37,8 @@ export default function LeaveRequestMaster() {
   const [filteredData, setFilteredData] = useState<LeaveRequest[]>([]);
   const [filterResults, setFilterResults] = useState<LeaveRequest[]>([]);
   const [deleteTarget, setDeleteTarget] = useState<LeaveRequest | null>(null);
-  const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>(
-    {}
-  );
+  const [columnVisibility, setColumnVisibility] =
+    React.useState<VisibilityState>({});
 
   // Server-side pagination states
   const [pagination, setPagination] = useState({
@@ -111,15 +107,11 @@ export default function LeaveRequestMaster() {
 
       console.log("Sending updateLeaveRequest payload:", payload);
 
-      return await api.put(
-        `/leave-request/${leaveRequestId}`,
-        payload,
-        {
-          headers: {
-            "Content-Type": "application/json",
-          },
-        }
-      );
+      return await api.put(`/leave-request/${leaveRequestId}`, payload, {
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["leave-requests"] });
@@ -303,37 +295,41 @@ export default function LeaveRequestMaster() {
 
       <header className="flex items-center justify-between mb-4">
         <section className="flex space-x-4">
-          <SearchComponent
-            data={filterResults}
-            displayKey={[
-              "studentName",
-              "parentName",
-              "studentClass",
-              "parentMobile",
-            ]}
-            onResults={(results) => setFilteredData(results)}
-            className="w-[300px] mb-4"
-          />
-          <DateRangeFilter
-            onDateRangeChange={(start, end) => {
-              if (!leaveRequests || (!start && !end)) {
-                setFilteredData(leaveRequests || []);
-                return;
-              }
+          <div>
+            <SearchComponent
+              data={filterResults}
+              displayKey={[
+                "studentName",
+                "parentName",
+                "studentClass",
+                "parentMobile",
+              ]}
+              onResults={(results) => setFilteredData(results)}
+              className="w-[300px] mb-4"
+            />
+          </div>
+          <div>
+            <DateRangeFilter
+              onDateRangeChange={(start, end) => {
+                if (!leaveRequests || (!start && !end)) {
+                  setFilteredData(leaveRequests || []);
+                  return;
+                }
 
-              const filtered = leaveRequests.filter((request) => {
-                if (!request.createdAt) return false;
-                const createdDate = new Date(request.createdAt);
-                return (
-                  (!start || createdDate >= start) &&
-                  (!end || createdDate <= end)
-                );
-              });
+                const filtered = leaveRequests.filter((request) => {
+                  if (!request.createdAt) return false;
+                  const createdDate = new Date(request.createdAt);
+                  return (
+                    (!start || createdDate >= start) &&
+                    (!end || createdDate <= end)
+                  );
+                });
 
-              setFilteredData(filtered);
-            }}
-            title="Search by Request Date"
-          />
+                setFilteredData(filtered);
+              }}
+              title="Search by Request Date"
+            />
+          </div>
           <ColumnVisibilitySelector
             columns={table.getAllColumns()}
             buttonVariant="outline"

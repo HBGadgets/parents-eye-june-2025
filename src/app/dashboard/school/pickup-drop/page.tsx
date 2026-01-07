@@ -302,13 +302,20 @@ export default function PickupDropMaster() {
 
       <header className="flex items-center justify-between mb-4">
         <section className="flex space-x-4">
-          <SearchComponent
-            data={pickupDropResponse?.pickupDropData || []}
-            displayKey={["studentName", "contact", "status"]}
-            onResults={handleSearchResults}
-            className="w-[300px] mb-4"
-          />
-          <DateRangeFilter onDateRangeChange={handleDateFilter} title="Search by Date" />
+          <div>
+            <SearchComponent
+              data={pickupDropResponse?.pickupDropData || []}
+              displayKey={["studentName", "contact", "status"]}
+              onResults={handleSearchResults}
+              className="w-[300px] mb-4"
+            />
+          </div>
+          <div>
+            <DateRangeFilter
+              onDateRangeChange={handleDateFilter}
+              title="Search by Date"
+            />
+          </div>
           <ColumnVisibilitySelector
             columns={table.getAllColumns()}
             buttonVariant="outline"
