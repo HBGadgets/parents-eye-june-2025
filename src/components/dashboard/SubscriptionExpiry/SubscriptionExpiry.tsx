@@ -1,32 +1,25 @@
-import React, { useState, useEffect } from 'react';
-import { X, AlertTriangle, Calendar, Clock } from 'lucide-react';
+import React, { useState, useEffect } from "react";
+import { X, AlertTriangle, Calendar, Clock } from "lucide-react";
+import { SubscriptionExpiration } from "@/interface/modal";
 
 // =============================
 // TYPES
 // =============================
-interface ExpiringSchool {
-  schoolId: number;
-  name: string;
-  subscriptionId: string;
-  expiryDate: string;
-  daysRemaining: number;
-  status: 'critical' | 'warning' | 'info';
-}
 
 interface SubscriptionExpiryProps {
   isOpen?: boolean;
   onClose?: () => void;
-  schools?: ExpiringSchool[];
+  branches?: SubscriptionExpiration[];
   onRenew?: () => void;
 }
 
 // =============================
 // MAIN COMPONENT
 // =============================
-const SubscriptionExpiry: React.FC<SubscriptionExpiryProps> = ({
+export const SubscriptionExpiry: React.FC<SubscriptionExpiryProps> = ({
   isOpen: controlledIsOpen,
   onClose,
-  schools = [],
+  branches = [],
   onRenew,
 }) => {
   const [isOpen, setIsOpen] = useState(true);
@@ -36,10 +29,12 @@ const SubscriptionExpiry: React.FC<SubscriptionExpiryProps> = ({
     if (controlledIsOpen !== undefined) setIsOpen(controlledIsOpen);
   }, [controlledIsOpen]);
 
+  console.log("Branches: ", branches);
+
   const handleClose = () => {
     // Start closing animation
     setIsClosing(true);
-    
+
     // Wait for animation to complete before actually closing
     setTimeout(() => {
       setIsOpen(false);
@@ -55,42 +50,42 @@ const SubscriptionExpiry: React.FC<SubscriptionExpiryProps> = ({
 
   const getStatusConfig = (status: string) => {
     switch (status) {
-      case 'critical':
+      case "critical":
         return {
-          bgColor: 'bg-red-50/80',
-          borderColor: 'border-l-4 border-red-400/80',
-          textColor: 'text-red-600',
-          iconColor: 'text-red-400',
-          badgeBg: 'bg-red-100/80',
-          badgeText: 'text-red-700',
+          bgColor: "bg-red-50/80",
+          borderColor: "border-l-4 border-red-400/80",
+          textColor: "text-red-600",
+          iconColor: "text-red-400",
+          badgeBg: "bg-red-100/80",
+          badgeText: "text-red-700",
         };
-      case 'warning':
+      case "warning":
         return {
-          bgColor: 'bg-amber-50/70',
-          borderColor: 'border-l-4 border-amber-400/80',
-          textColor: 'text-amber-700',
-          iconColor: 'text-amber-500',
-          badgeBg: 'bg-amber-100/80',
-          badgeText: 'text-amber-700',
+          bgColor: "bg-amber-50/70",
+          borderColor: "border-l-4 border-amber-400/80",
+          textColor: "text-amber-700",
+          iconColor: "text-amber-500",
+          badgeBg: "bg-amber-100/80",
+          badgeText: "text-amber-700",
         };
       default:
         return {
-          bgColor: 'bg-blue-50/80',
-          borderColor: 'border-l-4 border-blue-400/80',
-          textColor: 'text-blue-700',
-          iconColor: 'text-blue-400',
-          badgeBg: 'bg-blue-100/80',
-          badgeText: 'text-blue-700',
+          bgColor: "bg-blue-50/80",
+          borderColor: "border-l-4 border-blue-400/80",
+          textColor: "text-blue-700",
+          iconColor: "text-blue-400",
+          badgeBg: "bg-blue-100/80",
+          badgeText: "text-blue-700",
         };
     }
   };
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
+    return date.toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
     });
   };
 
@@ -108,7 +103,7 @@ const SubscriptionExpiry: React.FC<SubscriptionExpiryProps> = ({
             bg-white/95 backdrop-blur-lg rounded-lg shadow-2xl overflow-hidden 
             pointer-events-auto transform transition-all duration-300 border border-gray-200
             responsive-popup
-            ${isClosing ? 'animate-slideOutRight' : 'animate-fadeInSlideIn'}
+            ${isClosing ? "animate-slideOutRight" : "animate-fadeInSlideIn"}
           `}
         >
           {/* ======== HEADER (solid light yellow) ======== */}
@@ -122,8 +117,8 @@ const SubscriptionExpiry: React.FC<SubscriptionExpiryProps> = ({
                   Subscription Expiry Alert
                 </h2>
                 <p className="text-xs text-gray-700 truncate">
-                  {schools.length}{' '}
-                  {schools.length === 1 ? 'school' : 'schools'} expiring soon
+                  {branches.length} {branches.length === 1 ? "branch" : "branches"}{" "}
+                  expiring soon
                 </p>
               </div>
             </div>
@@ -139,38 +134,46 @@ const SubscriptionExpiry: React.FC<SubscriptionExpiryProps> = ({
           {/* Content */}
           <div className="p-3 sm:p-4 overflow-y-auto responsive-popup-content bg-white/80 backdrop-blur-sm">
             <div className="space-y-2">
-              {schools.map((school) => {
-                const config = getStatusConfig(school.status);
+              {branches.map((branch) => {
+                const config = getStatusConfig(branch.status);
                 return (
                   <div
-                    key={school.schoolId}
+                    key={branch.mobileNo}
                     className={`${config.bgColor} ${config.borderColor} rounded-md p-3 transition-all duration-200 hover:shadow-sm backdrop-blur-sm`}
                   >
                     <div className="flex items-start justify-between gap-2 sm:gap-3">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1 flex-wrap">
-                          <h3 className={`font-semibold text-sm ${config.textColor} truncate flex-1 min-w-0`}>
-                            {school.name}
+                          <h3
+                            className={`font-semibold text-sm ${config.textColor} truncate flex-1 min-w-0`}
+                          >
+                            {branch?.branchName}
                           </h3>
                           <span
                             className={`${config.badgeBg} ${config.badgeText} text-[10px] px-1.5 py-0.5 rounded font-medium flex-shrink-0`}
                           >
-                            {school.daysRemaining}{' '}
-                            {school.daysRemaining === 1 ? 'day' : 'days'} left
+                            {branch.daysRemaining}{" "}
+                            {branch.daysRemaining === 1 ? "day" : "days"} left
                           </span>
                         </div>
 
                         <div className="space-y-1 text-xs text-gray-700">
                           <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="font-semibold text-xs flex-shrink-0">ID:</span>
+                            <span className="font-semibold text-xs flex-shrink-0">
+                              ID:
+                            </span>
                             <span className="font-mono text-[10px] sm:text-[11px] truncate flex-1 min-w-0">
-                              {school.subscriptionId}
+                              {branch.subscriptionId}
                             </span>
                           </div>
                           <div className="flex items-center gap-1.5 flex-wrap">
                             <Calendar className="w-3 h-3 sm:w-3.5 sm:h-3.5 flex-shrink-0" />
-                            <span className="font-semibold text-xs flex-shrink-0">Expires:</span>
-                            <span className="text-xs flex-1 min-w-0">{formatDate(school.expiryDate)}</span>
+                            <span className="font-semibold text-xs flex-shrink-0">
+                              Expires:
+                            </span>
+                            <span className="text-xs flex-1 min-w-0">
+                              {formatDate(branch.expiryDate)}
+                            </span>
                           </div>
                         </div>
                       </div>
@@ -197,7 +200,7 @@ const SubscriptionExpiry: React.FC<SubscriptionExpiryProps> = ({
             transform: scale(1);
           }
         }
-        
+
         @keyframes slideInRight {
           from {
             opacity: 0;
@@ -208,7 +211,7 @@ const SubscriptionExpiry: React.FC<SubscriptionExpiryProps> = ({
             transform: translateX(0);
           }
         }
-        
+
         @keyframes slideOutRight {
           from {
             opacity: 1;
@@ -219,11 +222,11 @@ const SubscriptionExpiry: React.FC<SubscriptionExpiryProps> = ({
             transform: translateX(100%);
           }
         }
-        
+
         .animate-fadeInSlideIn {
           animation: slideInRight 0.3s ease-out forwards;
         }
-        
+
         .animate-slideOutRight {
           animation: slideOutRight 0.3s ease-out forwards;
         }
@@ -252,11 +255,11 @@ const SubscriptionExpiry: React.FC<SubscriptionExpiryProps> = ({
             right: 1.5rem;
             max-width: 450px;
           }
-          
+
           .responsive-popup {
             max-height: min(70vh, 600px);
           }
-          
+
           .responsive-popup-content {
             max-height: min(calc(70vh - 80px), 520px);
           }
@@ -286,11 +289,11 @@ const SubscriptionExpiry: React.FC<SubscriptionExpiryProps> = ({
             width: calc(100vw - 1rem);
             max-width: none;
           }
-          
+
           .responsive-popup {
             max-height: min(80vh, 400px);
           }
-          
+
           .responsive-popup-content {
             max-height: min(calc(80vh - 80px), 320px);
           }
@@ -303,11 +306,11 @@ const SubscriptionExpiry: React.FC<SubscriptionExpiryProps> = ({
             right: 0.25rem;
             width: calc(100vw - 0.5rem);
           }
-          
+
           .responsive-popup {
             max-height: min(85vh, 350px);
           }
-          
+
           .responsive-popup-content {
             max-height: min(calc(85vh - 80px), 270px);
           }
@@ -330,11 +333,11 @@ const SubscriptionExpiry: React.FC<SubscriptionExpiryProps> = ({
           .responsive-popup-container {
             max-height: 90vh;
           }
-          
+
           .responsive-popup {
             max-height: min(90vh, 400px);
           }
-          
+
           .responsive-popup-content {
             max-height: min(calc(90vh - 80px), 320px);
           }
@@ -347,44 +350,44 @@ const SubscriptionExpiry: React.FC<SubscriptionExpiryProps> = ({
 // =============================
 // DEMO
 // =============================
-export default function SubscriptionExpiryDemo() {
-  const dummySchools: ExpiringSchool[] = [
-    {
-      schoolId: 1,
-      name: 'Sunrise Public School',
-      subscriptionId: 'SUB-00123',
-      expiryDate: '2025-11-05',
-      daysRemaining: 5,
-      status: 'critical',
-    },
-    {
-      schoolId: 2,
-      name: 'Green Valley High School',
-      subscriptionId: 'SUB-00456',
-      expiryDate: '2025-11-15',
-      daysRemaining: 15,
-      status: 'warning',
-    },
-    {
-      schoolId: 3,
-      name: 'Little Hearts Primary School',
-      subscriptionId: 'SUB-00789',
-      expiryDate: '2025-11-25',
-      daysRemaining: 25,
-      status: 'info',
-    },
-  ];
+// export default function SubscriptionExpiryDemo() {
+//   const dummySchools: ExpiringSchool[] = [
+//     {
+//       schoolId: 1,
+//       name: 'Sunrise Public School',
+//       subscriptionId: 'SUB-00123',
+//       expiryDate: '2025-11-05',
+//       daysRemaining: 5,
+//       status: 'critical',
+//     },
+//     {
+//       schoolId: 2,
+//       name: 'Green Valley High School',
+//       subscriptionId: 'SUB-00456',
+//       expiryDate: '2025-11-15',
+//       daysRemaining: 15,
+//       status: 'warning',
+//     },
+//     {
+//       schoolId: 3,
+//       name: 'Little Hearts Primary School',
+//       subscriptionId: 'SUB-00789',
+//       expiryDate: '2025-11-25',
+//       daysRemaining: 25,
+//       status: 'info',
+//     },
+//   ];
 
-  const handleRenew = () => console.log('Renew clicked');
-  const handleClose = () => console.log('Popup dismissed');
+//   const handleRenew = () => console.log('Renew clicked');
+//   const handleClose = () => console.log('Popup dismissed');
 
-  return (
-    <>
-      <SubscriptionExpiry
-        schools={dummySchools}
-        onRenew={handleRenew}
-        onClose={handleClose}
-      />
-    </>
-  );
-}
+//   return (
+//     <>
+//       <SubscriptionExpiry
+//         branches={dummySchools}
+//         onRenew={handleRenew}
+//         onClose={handleClose}
+//       />
+//     </>
+//   );
+// }

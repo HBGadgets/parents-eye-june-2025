@@ -66,6 +66,7 @@ export interface Geofence {
     center: [number, number];
     radius: number;
   };
+  address: string;
   pickupTime?: string;
   dropTime?: string;
   schoolId?: string;
@@ -506,4 +507,17 @@ export interface Distance {
   uniqueId: string;
   distance: number;
   totalDistance: number;
+}
+
+export interface SubscriptionExpiration {
+  branchName: Branch;
+  mobileNo: number;
+  schoolName: string;
+  remainingDays: number;
+  subscriptionExpirationDate: string;
+}
+
+export interface GetSubscriptionExpirationResponse {
+  count: number;
+  data: SubscriptionExpiration[];
 }

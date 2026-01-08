@@ -31,6 +31,7 @@ interface Props {
     endPointGeoId: string;
     startPointGeoId: string;
     routeCompletionTime: number;
+    routeObjId?: string;
   }) => void;
 
   onClose: () => void;
@@ -258,6 +259,8 @@ export default function AddRouteForm({
       // Include geofence IDs in payload
       ...(startPointGeoId ? { startPointGeoId } : {}),
       ...(endPointGeoId ? { endPointGeoId } : {}),
+      // Include route ID if editing existing route
+      ...(initialData ? { routeObjId: initialData._id } : {}),
     };
 
     onSubmit(payload);

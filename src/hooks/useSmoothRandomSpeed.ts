@@ -1,9 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 
+const easeInOutCubic = (t: number) =>
+  t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+
 export const useSmoothSocketSpeed = (
   actualSpeed: number | undefined,
   updateInterval = 10000,
-  category: "idle" | "stopped" | "running" | "overspeed" | string | undefined
+  category: boolean
 ) => {
   const [displaySpeed, setDisplaySpeed] = useState<number | null>(null);
 
@@ -19,7 +22,7 @@ export const useSmoothSocketSpeed = (
   useEffect(() => {
     if (actualSpeed === undefined || actualSpeed < 0) return;
 
-    // 🟢 FIRST VALUE → set immediately (NO animation)
+    // 🟢 First value → no animation
     if (!hasInitializedRef.current) {
       hasInitializedRef.current = true;
       setDisplaySpeed(actualSpeed);
@@ -46,15 +49,18 @@ export const useSmoothSocketSpeed = (
 
     const animate = (time: number) => {
       const elapsed = time - startTimeRef.current;
-      const progress = Math.min(elapsed / updateInterval, 1);
+      const linearProgress = Math.min(elapsed / updateInterval, 1);
+
+      // ✨ Ease-in-ease-out
+      const easedProgress = easeInOutCubic(linearProgress);
 
       const next =
         startSpeedRef.current +
-        (targetSpeedRef.current - startSpeedRef.current) * progress;
+        (targetSpeedRef.current - startSpeedRef.current) * easedProgress;
 
       setDisplaySpeed(next);
 
-      if (progress < 1) {
+      if (linearProgress < 1) {
         rafRef.current = requestAnimationFrame(animate);
       } else {
         startWobble();
@@ -66,13 +72,13 @@ export const useSmoothSocketSpeed = (
 
   // 🔁 Idle wobble AFTER reaching target
   const startWobble = () => {
-    if (category === "idle" || category === "stopped") return;
+    if (!category) return;
     if (wobbleIntervalRef.current) return;
 
     wobbleIntervalRef.current = setInterval(() => {
       setDisplaySpeed(() => {
         const direction = Math.random() < 0.5 ? -1 : 1;
-        const magnitude = Math.floor(Math.random() * 2) + 1.5; // ±2–3
+        const magnitude = Math.floor(Math.random() * 2) + 0.5;
         return Math.max(0, targetSpeedRef.current + direction * magnitude);
       });
     }, 1500);

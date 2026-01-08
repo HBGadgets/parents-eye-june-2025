@@ -45,8 +45,8 @@ export const routeService = {
     return res.data;
   },
 
-  checkAlreadyAssign: async (id: string) => {
-    const res = await api.get(`/route/already-assign-check/${id}`);
+  checkAlreadyAssign: async (id: string, params: Record<string, any>) => {
+    const res = await api.get(`/route/already-assign-check/${id}`, { params });
     return res.data;
   },
 };

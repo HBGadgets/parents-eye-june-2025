@@ -17,9 +17,11 @@ import { ChevronsLeft, ChevronsRight, Locate } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import { LiveTrack } from "@/components/dashboard/LiveTrack.tsx/livetrack";
 import { BottomDrawer } from "@/components/dashboard/bottom-drawer";
-import SubscriptionExpiry from "@/components/dashboard/SubscriptionExpiry/SubscriptionExpiry";
+// import SubscriptionExpiry from "@/components/dashboard/SubscriptionExpiry/SubscriptionExpiry";
 import { getLiveVehicleColumns } from "@/components/columns/columns";
 import { RouteTimeline } from "@/components/dashboard/route/route-timeline";
+import { useSubscriptionExpiry } from "@/hooks/subscription/useSubscription";
+import { SubscriptionExpiry } from "@/components/dashboard/SubscriptionExpiry/SubscriptionExpiry";
 
 type ViewState = "split" | "tableExpanded" | "mapExpanded";
 type StatusFilter = "all" | "running" | "idle" | "stopped" | "inactive" | "new";
@@ -92,6 +94,18 @@ export default function DashboardClient() {
 
   const { devices, counts, isLoading, updateFilters, currentPage, limit } =
     useLiveDeviceData();
+
+  const { expiredBranches, expiredBranchesCount } = useSubscriptionExpiry(
+    showSubscriptionPopup
+  );
+  // console.log( 
+  //   "🚀 ~ file: DashboardClient.tsx:261 ~ expiredBranchesCount:",
+  //   expiredBranchesCount
+  // );
+  // console.log(
+  //   "🚀 ~ file: DashboardClient.tsx:261 ~ expiredBranches:",
+  //   expiredBranches
+  // );
 
   // Sync local pagination with store pagination
   const [pagination, setPagination] = useState({
@@ -594,13 +608,11 @@ export default function DashboardClient() {
 
         {/* Subscription Expiry Popup - Fixed to bottom-right corner */}
         {showSubscriptionPopup && (
-          <div className="fixed bottom-4 right-4 z-50">
-            <SubscriptionExpiry
-              isOpen={showSubscriptionPopup}
-              onClose={handleCloseSubscriptionPopup}
-              devices={expiringDevices}
-            />
-          </div>
+          <SubscriptionExpiry
+            isOpen={showSubscriptionPopup}
+            onClose={handleCloseSubscriptionPopup}
+            branches={expiredBranches}
+          />
         )}
       </div>
     </>

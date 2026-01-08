@@ -171,7 +171,7 @@ export const BottomDrawer = ({
                             distance?.totalDistance
                               ? distance?.totalDistance
                               : 0
-                          }` + " km/h"}
+                          }` + " km"}
                     </p>
                   </div>
                   <div>
@@ -187,7 +187,7 @@ export const BottomDrawer = ({
                       {isLoading
                         ? "Loading..."
                         : `${distance?.distance ? distance?.distance : 0}` +
-                          " km/h"}
+                          " km"}
                     </p>
                   </div>
                   <div>

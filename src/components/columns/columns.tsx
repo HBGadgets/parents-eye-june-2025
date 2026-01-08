@@ -24,6 +24,7 @@ import React, { useMemo } from "react";
 import { Button } from "../ui/button";
 import Image from "next/image";
 import { statusIconMap } from "@/components/statusIconMap";
+import { m } from "framer-motion";
 
 export const getModelColumns = (
   setEditTarget: (row: Model) => void,
@@ -127,9 +128,25 @@ export const getRouteColumns = (
     accessorFn: (row: Route) => row.startPointGeoId?.geofenceName ?? "—",
   },
   {
+    id: "firstGeofenceAddress",
+    header: "First Stop Address",
+    accessorFn: (row: Route) => row.startPointGeoId?.address ?? "—",
+    meta: {
+      wrapConfig: { wrap: "wrap", maxWidth: "260px" },
+    },
+  },
+  {
     id: "lastGeofence",
     header: "School Point (last stop)",
     accessorFn: (row: Route) => row.endPointGeoId?.geofenceName ?? "—",
+  },
+  {
+    id: "lastGeofenceAddress",
+    header: "School Point (last stop)",
+    accessorFn: (row: Route) => row.endPointGeoId?.address ?? "—",
+    meta: {
+      wrapConfig: { wrap: "wrap", maxWidth: "260px" },
+    },
   },
   {
     header: "Route Completion Time",
@@ -430,6 +447,10 @@ export const getLiveVehicleColumns = (): ColumnDef<LiveTrack>[] => [
   {
     header: "No. of Stops",
     accessorKey: "noOfStops",
+  },
+  {
+    header: "Route No.",
+    accessorKey: "routeName" ,
   },
   {
     id: "lastUpdate",

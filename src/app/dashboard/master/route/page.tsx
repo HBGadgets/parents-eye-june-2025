@@ -216,7 +216,8 @@ export default function RoutePage() {
     } else {
       try {
         const check = await routeService.checkAlreadyAssign(
-          payload?.deviceObjId
+          payload?.deviceObjId,
+          { routeObjId: payload?.routeObjId }
         );
 
         if (check?.assigned) {
@@ -237,7 +238,8 @@ export default function RoutePage() {
     async (editRoute: Route, payload: any) => {
       try {
         const check = await routeService.checkAlreadyAssign(
-          payload?.deviceObjId
+          payload?.deviceObjId,
+          { routeObjId: payload?.routeObjId }
         );
 
         if (check?.assigned) {

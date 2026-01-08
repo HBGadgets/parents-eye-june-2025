@@ -191,7 +191,6 @@ class DeviceService {
       return;
     }
     try {
-
       // console.log("Connecting to WebSocket server... [TOKEN]: ", this.token);
       this.socket = io(this.baseUrl, {
         autoConnect: false,
@@ -327,6 +326,7 @@ class DeviceService {
     });
 
     this.socket.on("single-device-data", (data: SingleDeviceData) => {
+      console.debug(this.socket);
       const deviceKey = this.getDeviceKey(data);
       if (this.streamingMode !== "single") {
         this.streamingMode = "single";
@@ -425,7 +425,6 @@ class DeviceService {
     if (this.streamingMode === "single") {
       this.stopAllSingleDeviceStreams();
     }
-    
 
     this.socket.emit("request-all-device-data", filters);
   }
