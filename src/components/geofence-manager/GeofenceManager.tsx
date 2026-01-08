@@ -22,6 +22,7 @@ import { useGeofence } from "@/hooks/useGeofence";
 import Cookies from "js-cookie";
 import { jwtDecode } from "jwt-decode";
 import { reverseGeocodeMapTiler } from "@/hooks/useReverseGeocoding";
+import { geofenceSchema } from "@/schemas/geofence.schema";
 
 // Fix for default markers in Leaflet
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -272,7 +273,7 @@ const GeofenceManager: React.FC<GeofenceManagerProps> = ({
         reverseGeocode(lat, lng).then(setLocationSearchQuery);
       }
 
-      console.log("object", initialData);
+      // console.log("object", initialData);
 
       // Handle time fields
       if (initialData.pickupTime) {
@@ -285,7 +286,7 @@ const GeofenceManager: React.FC<GeofenceManagerProps> = ({
               : new Date(initialData.pickupTime);
           setPickupTime(pickupDate);
         } catch (error) {
-          console.error("Error parsing pickup time:", error);
+          // console.error("Error parsing pickup time:", error);
         }
       }
 
@@ -656,60 +657,89 @@ const GeofenceManager: React.FC<GeofenceManagerProps> = ({
     });
   };
 
-  const saveGeofences = async () => {
-    console.log("🔥 saveGeofences CALLED");
-    if (!tempGeofence) {
-      toast.error("Please create a geofence first");
+const saveGeofences = async () => {
+  if (!tempGeofence) {
+    toast.error("Please create a geofence first");
+    return;
+  }
+
+  setIsLoading(true);
+
+  try {
+    const lat = tempGeofence.coordinates?.[0]?.[1] || currentCoords.lat;
+    const lng = tempGeofence.coordinates?.[0]?.[0] || currentCoords.lng;
+
+   const payloadForValidation = {
+     geofenceName: tempGeofence.geofenceName || tempGeofence.name || "",
+     latitude: lat,
+     longitude: lng,
+     radius: tempGeofence.radius || currentRadius,
+     schoolId: selectedSchool?._id,
+     branchId: selectedBranch?._id,
+     routeObjId: selectedRoute?._id,
+     pickupTime: pickupTime ? formatTime(pickupTime) : "",
+     dropTime: dropTime ? formatTime(dropTime) : undefined,
+   };
+
+
+    // ✅ ZOD VALIDATION
+    const parsed = geofenceSchema.safeParse(payloadForValidation);
+
+    if (!parsed.success) {
+      parsed.error.errors.forEach((err) => {
+        toast.error(err.message);
+      });
+      setIsLoading(false);
       return;
     }
 
-    setIsLoading(true);
+    // ✅ Reverse geocode only after validation
+    const address = await reverseGeocodeMapTiler(lat, lng);
 
-    try {
-      const lat = tempGeofence.coordinates?.[0]?.[1] || currentCoords.lat;
-      const lng = tempGeofence.coordinates?.[0]?.[0] || currentCoords.lng;
+    const savedGeofence = {
+      geofenceName: parsed.data.geofenceName,
+      area: {
+        center: [lat, lng],
+        radius: parsed.data.radius,
+      },
+      schoolId: parsed.data.schoolId,
+      branchId: parsed.data.branchId,
+      routeObjId: parsed.data.routeObjId,
+      address,
+      ...(parsed.data.pickupTime && {
+        pickupTime: parsed.data.pickupTime,
+      }),
+      ...(parsed.data.dropTime && {
+        dropTime: parsed.data.dropTime,
+      }),
+    };
 
-      const address = await reverseGeocodeMapTiler(lat, lng);
-
-      const savedGeofence = {
-        geofenceName: tempGeofence?.geofenceName || tempGeofence?.name,
-        area: {
-          center: [lat, lng],
-          radius: tempGeofence.radius || currentRadius,
+    if (mode === "add") {
+      createGeofence(savedGeofence, {
+        onSuccess: () => {
+          setTempGeofence(null);
+          onSuccess?.();
         },
-        schoolId: selectedSchool?._id,
-        branchId: selectedBranch?._id,
-        routeObjId: selectedRoute?._id,
-        address,
-        ...(pickupTime && { pickupTime: formatTime(pickupTime) }),
-        ...(dropTime && { dropTime: formatTime(dropTime) }),
-      };
-
-      if (mode === "add") {
-        createGeofence(savedGeofence, {
+      });
+    } else if (mode === "edit" && geofenceId) {
+      updateGeofence(
+        { id: geofenceId, payload: savedGeofence },
+        {
           onSuccess: () => {
             setTempGeofence(null);
             onSuccess?.();
           },
-        });
-      } else if (mode === "edit" && geofenceId) {
-        updateGeofence(
-          { id: geofenceId, payload: savedGeofence },
-          {
-            onSuccess: () => {
-              setTempGeofence(null);
-              onSuccess?.();
-            },
-          }
-        );
-      }
-    } catch (error) {
-      toast.error("Failed to save geofence. Please try again.");
-      console.error(error);
-    } finally {
-      setIsLoading(false);
+        }
+      );
     }
-  };
+  } catch (error) {
+    console.error(error);
+    toast.error("Failed to save geofence");
+  } finally {
+    setIsLoading(false);
+  }
+};
+
 
   return (
     <div className="h-screen flex bg-background">

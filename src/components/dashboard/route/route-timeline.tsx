@@ -38,7 +38,7 @@ export const RouteTimeline: React.FC<RouteTimelineProps> = ({
   const router = useRouter();
   const resetTimeline = useRouteTimelineStore((s) => s.reset);
   const { stops, currentStopIndex, isLoading, startPoint, endPoint } =
-    useRouteTimeline(uniqueId!);
+    useRouteTimeline(uniqueId!, isOpen);
   const remainingStops = stops.filter(
     (stop) => !stop.hasArrived && !stop.exitedAt && !stop.isCurrent
   ).length;

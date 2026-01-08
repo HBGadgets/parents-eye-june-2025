@@ -397,7 +397,7 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
   routeObjId,
 }) => {
   const mapRef = useRef<L.Map | null>(null);
-  const smoothSpeed = useSmoothSocketSpeed(vehicle?.speed, 5000);
+  const smoothSpeed = useSmoothSocketSpeed(vehicle?.speed, 5000, vehicle?.category);
   const [vehiclePath, setVehiclePath] = useState<[number, number][]>([]);
   const animationRef = useRef<number | null>(null);
   const startTimeRef = useRef(0);

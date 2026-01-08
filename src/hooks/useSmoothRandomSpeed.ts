@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from "react";
 
 export const useSmoothSocketSpeed = (
   actualSpeed: number | undefined,
-  updateInterval = 10000
+  updateInterval = 10000,
+  category: "idle" | "stopped" | "running" | "overspeed" | string | undefined
 ) => {
   const [displaySpeed, setDisplaySpeed] = useState<number | null>(null);
 
@@ -65,6 +66,7 @@ export const useSmoothSocketSpeed = (
 
   // 🔁 Idle wobble AFTER reaching target
   const startWobble = () => {
+    if (category === "idle" || category === "stopped") return;
     if (wobbleIntervalRef.current) return;
 
     wobbleIntervalRef.current = setInterval(() => {

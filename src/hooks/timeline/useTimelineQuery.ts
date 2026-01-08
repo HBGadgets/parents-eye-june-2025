@@ -14,5 +14,5 @@ export const useTimelineQuery = ({
     queryKey: ["timeline-by-uniqueId", uniqueId],
     queryFn: () => timelineService.getTimeline({ uniqueId }),
     enabled: enabled && !!uniqueId,
-    refetchInterval: 20000,
+    refetchInterval: enabled ? 20000 : false,
   });

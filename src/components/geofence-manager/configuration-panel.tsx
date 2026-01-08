@@ -11,6 +11,7 @@ import { useRouteDropdown } from "@/hooks/useDropdown";
 import { Combobox } from "@/components/ui/combobox";
 import { TimePicker12 } from "../time-picker-12h";
 import { useGeofenceStore } from "@/store/geofenceStore";
+import { toast } from "sonner";
 
 interface SearchResult {
   lat: string;
@@ -153,18 +154,18 @@ const GeofenceConfigurationPanel: React.FC<Props> = ({
   // Main initialization - only depends on editRowData._id
   useEffect(() => {
     if (editRowData && editRowData._id !== lastInitializedId.current) {
-      console.log("=== 🚀 INITIALIZING EDIT MODE ===");
-      console.log("EditRowData:", editRowData);
-      console.log(
-        "Schools available:",
-        schools.length,
-        schools.map((s) => ({ id: s._id, name: s.schoolName }))
-      );
-      console.log(
-        "Branches available:",
-        branches.length,
-        branches.map((b) => ({ id: b._id, name: b.branchName }))
-      );
+      // console.log("=== 🚀 INITIALIZING EDIT MODE ===");
+      // console.log("EditRowData:", editRowData);
+      // console.log(
+      //   "Schools available:",
+      //   schools.length,
+      //   schools.map((s) => ({ id: s._id, name: s.schoolName }))
+      // );
+      // console.log(
+      //   "Branches available:",
+      //   branches.length,
+      //   branches.map((b) => ({ id: b._id, name: b.branchName }))
+      // );
 
       lastInitializedId.current = editRowData._id;
       routeInitialized.current = false;
@@ -196,35 +197,36 @@ const GeofenceConfigurationPanel: React.FC<Props> = ({
 
       // School
       if (editRowData.schoolId) {
-        console.log("Looking for school with ID:", editRowData.schoolId);
+        // console.log("Looking for school with ID:", editRowData.schoolId);
         const matchingSchool = schools.find(
           (s) => s._id === editRowData.schoolId
         );
         if (matchingSchool) {
-          console.log("✅ Found school:", matchingSchool.schoolName);
+          // console.log("✅ Found school:", matchingSchool.schoolName);
           handleSchoolSelect(matchingSchool);
         } else {
-          console.error(
-            "❌ School NOT found! Available IDs:",
-            schools.map((s) => s._id)
-          );
+          // console.error(
+          //   "❌ School NOT found! Available IDs:",
+          //   schools.map((s) => s._id)
+          // );
+          toast.error("❌ School NOT found!");
         }
       }
 
       // Branch
       if (editRowData.branchId) {
-        console.log("Looking for branch with ID:", editRowData.branchId);
+        // console.log("Looking for branch with ID:", editRowData.branchId);
         const matchingBranch = branches.find(
           (b) => b._id === editRowData.branchId
         );
         if (matchingBranch) {
-          console.log("✅ Found branch:", matchingBranch.branchName);
+          // console.log("✅ Found branch:", matchingBranch.branchName);
           handleBranchSelect(matchingBranch);
         } else {
-          console.error(
-            "❌ Branch NOT found! Available IDs:",
-            branches.map((b) => b._id)
-          );
+          // console.error(
+          //   "❌ Branch NOT found! Available IDs:",
+          //   branches.map((b) => b._id)
+          // );
         }
       }
     }
@@ -240,30 +242,30 @@ const GeofenceConfigurationPanel: React.FC<Props> = ({
       handleRouteSelect &&
       !routeInitialized.current
     ) {
-      console.log("=== 🚌 ROUTE INITIALIZATION ===");
-      console.log("Looking for route with ID:", editRowData.routeObjId);
-      console.log(
-        "Routes available:",
-        routesData.length,
-        routesData.map((r) => ({ id: r._id, name: r.routeNumber || r.name }))
-      );
+      // console.log("=== 🚌 ROUTE INITIALIZATION ===");
+      // console.log("Looking for route with ID:", editRowData.routeObjId);
+      // console.log(
+      //   "Routes available:",
+      //   routesData.length,
+      //   routesData.map((r) => ({ id: r._id, name: r.routeNumber || r.name }))
+      // );
 
       const matchingRoute = routesData.find(
         (r) => r._id === editRowData.routeObjId
       );
 
       if (matchingRoute) {
-        console.log(
-          "✅ Found route:",
-          matchingRoute.routeNumber || matchingRoute.name
-        );
+        // console.log(
+        //   "✅ Found route:",
+        //   matchingRoute.routeNumber || matchingRoute.name
+        // );
         handleRouteSelect(matchingRoute);
         routeInitialized.current = true;
       } else {
-        console.error(
-          "❌ Route NOT found! Available IDs:",
-          routesData.map((r) => r._id)
-        );
+        // console.error(
+        //   "❌ Route NOT found! Available IDs:",
+        //   routesData.map((r) => r._id)
+        // );
       }
     }
   }, [routesData.length, editRowData?.routeObjId, editRowData?._id]);
@@ -271,7 +273,7 @@ const GeofenceConfigurationPanel: React.FC<Props> = ({
   // Cleanup on unmount or when editRowData clears
   useEffect(() => {
     if (!editRowData) {
-      console.log("=== 🧹 CLEARING EDIT MODE ===");
+      // console.log("=== 🧹 CLEARING EDIT MODE ===");
       lastInitializedId.current = null;
       routeInitialized.current = false;
     }

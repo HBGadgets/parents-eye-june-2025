@@ -4,9 +4,9 @@ import { useRouteTimelineStore } from "@/store/timeline/routeTimelineStore";
 import { useGeofenceByUniqueId } from "../useGeofence";
 import { useMemo } from "react";
 
-export function useRouteTimeline(uniqueId: string) {
+export function useRouteTimeline(uniqueId: string, enabled: boolean) {
   const geofencesQuery = useGeofenceByUniqueId(uniqueId);
-  const timelineQuery = useTimelineQuery({ uniqueId });
+  const timelineQuery = useTimelineQuery({ uniqueId, enabled });
   useRouteTimelineSync(
     geofencesQuery.geofenceByUniqueId,
     timelineQuery.data?.timeline ?? [],
