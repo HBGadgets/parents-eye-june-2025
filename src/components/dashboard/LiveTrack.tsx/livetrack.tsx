@@ -262,13 +262,13 @@ export const LiveTrack = ({ open, setOpen, selectedImei }: LiveTrackProps) => {
                 <AddressDisplay />
               </div>
 
-              <div className="flex-shrink-0">
+              {/* <div className="flex-shrink-0">
                 <DataRefreshIndicator
                   key={refreshKey}
                   intervalSeconds={10}
                   className="flex-shrink-0"
                 />
-              </div>
+              </div> */}
             </DialogTitle>
           </DialogHeader>
 
