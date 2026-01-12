@@ -51,7 +51,7 @@ interface ExpandedRowData extends AlertsAndEventsReport {
   isLoading?: boolean;
   isDetailTable?: boolean;
   isEmpty?: boolean;
-  detailData?: AlertsAndEventsDetailTableData[];
+  eventArray?: AlertsAndEventsDetailTableData[];
 }
 
 const AlertsAndEventsReportPage: React.FC = () => {
@@ -110,28 +110,28 @@ const AlertsAndEventsReportPage: React.FC = () => {
   } = useReport(pagination, apiFilters, sorting, "alerts-events", hasGenerated);
 
   const transformEventsData = useCallback(
-    (event: any): AlertsAndEventsDetailTableData[] => {
-      return {
-        id: `${event.uniqueId}-${event.eventType}-${event.eventTime}`,
-        uniqueId: event.uniqueId,
-        name: event.name,
-        deviceName: event.deviceName,
+    (row: AlertsAndEventsReport): AlertsAndEventsDetailTableData[] => {
+      return row.eventArray?.map((event, index) => ({
+        id: `${row.uniqueId}-${index}-${event.eventTime}`,
+        uniqueId: row.uniqueId,
+        name: row.name ?? "-",
+        deviceName: row.deviceName,
         eventType: event.eventType,
-        eventTime:
-          new Date(event.eventTime).toLocaleString("en-GB", {
-            day: "2-digit",
-            month: "2-digit",
-            year: "numeric",
-            hour: "2-digit",
-            minute: "2-digit",
-            second: "2-digit",
-            hour12: true,
-            timeZone: "UTC",
-          }) || "-",
-        geofenceAddress: event.geofenceAddress,
+        eventTime: new Date(event.eventTime).toLocaleString("en-GB", {
+          day: "2-digit",
+          month: "2-digit",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+          hour12: true,
+          timeZone: "UTC",
+        }),
+        geofenceAddress: event.geofenceAddress ?? "-",
         latitude: event.latitude,
         longitude: event.longitude,
-      };
+        coordinates: `${event.latitude}, ${event.longitude}`,
+      }));
     },
     []
   );
@@ -251,7 +251,7 @@ const AlertsAndEventsReportPage: React.FC = () => {
             ...row,
             id: `${row.id}-details`,
             isDetailTable: true,
-            detailData: detailedData[row.id],
+            eventArray: detailedData[row.id],
           });
         } else {
           // console.log(`⚠️ No detail data for ${row.id}`);
@@ -268,79 +268,64 @@ const AlertsAndEventsReportPage: React.FC = () => {
     return expandedDataArray;
   }, [transformedReportData, expandedRows, detailedData]);
 
-  const routeDetailColumns: ColumnDef<AlertsAndEventsDetailTableData>[] =
+  const alertsAndEventsDetailColumns: ColumnDef<AlertsAndEventsDetailTableData>[] =
     useMemo(
       () => [
         {
-          accessorKey: "date",
-          header: "Report Date",
+          accessorKey: "eventTime",
+          header: "Event Time",
           size: 120,
         },
         {
-          accessorKey: "routeNumber",
-          header: "Route No",
+          accessorKey: "eventType",
+          header: "Event Type",
           size: 120,
         },
         {
-          accessorKey: "shift",
-          header: "Shift",
-          size: 100,
-          cell: ({ getValue }) => {
-            const value = getValue<string>();
+          accessorKey: "coordinates",
+          header: "Coordinates",
+          meta: { wrapConfig: { wrap: "wrap", maxWidth: "160px" } },
+          size: 180,
+          cell: ({ row }: { row: any }) => {
+            if (
+              row.original.isLoading ||
+              row.original.isDetailTable ||
+              row.original.isEmpty
+            )
+              return null;
+            const lat = row.original?.latitude || "--";
+            const lng = row.original?.longitude || "--";
+
+            if (!lat && !lng) return "--";
+
             return (
-              <span
-                className={`font-semibold capitalize ${
-                  value === "pickup" ? "text-blue-600" : "text-purple-600"
-                }`}
-              >
-                {value}
-              </span>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <a
+                      href={`https://www.google.com/maps?q=${lat},${lng}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 underline hover:text-blue-800"
+                    >
+                      {lat}, {lng}
+                    </a>
+                  </TooltipTrigger>
+                  <TooltipContent
+                    side="top"
+                    className="bg-black/80 text-white font-bold rounded-md px-3 py-2 shadow-lg"
+                  >
+                    <p>Click to see on Google Map</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             );
           },
         },
         {
-          accessorKey: "startEnterTime",
-          header: "Trip Start Time",
-          size: 180,
-        },
-        {
-          accessorKey: "endEnterTime",
-          header: "Trip End Time",
-          size: 180,
-        },
-        {
-          accessorKey: "durationMinutes",
-          header: "Duration (min)",
-          size: 140,
-          cell: ({ getValue }) => {
-            const val = Number(getValue());
-            return Number.isFinite(val) ? `${val} min` : "0 min";
-          },
-        },
-        {
-          accessorKey: "play",
-          header: "Play",
-          size: 80,
-          cell: ({ row }) => (
-            <div className="flex justify-center">
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <FaPlay
-                      className="text-green-600 text-xl cursor-pointer hover:scale-110 transition"
-                      onClick={() => handlePlayback(row.original)}
-                    />
-                  </TooltipTrigger>
-                  <TooltipContent
-                    side="top"
-                    className="bg-black/80 text-white font-semibold rounded-md px-3 py-2 shadow-lg"
-                  >
-                    <p>View playback history</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            </div>
-          ),
+          accessorKey: "geofenceAddress",
+          header: "Address",
+          size: 100,
         },
       ],
       []
@@ -369,12 +354,16 @@ const AlertsAndEventsReportPage: React.FC = () => {
             row.original.isEmpty
           )
             return null;
+          console.log(row.original);
 
           const isExpanded = expandedRows.has(row.original.id);
-          const hasRouteShift = row.original.shift?.length > 0;
+          const hasEvents =
+            Array.isArray(row.original.eventArray) &&
+            row.original.eventArray.length > 0;
 
           // Don't show expand button if no day-wise trips
-          if (!hasRouteShift) return null;
+          if (!hasEvents) return null;
+          console.log("DETAIL ROW DATA →", detailedData[row.original.id]);
 
           return (
             <div className="flex justify-center">
@@ -422,7 +411,7 @@ const AlertsAndEventsReportPage: React.FC = () => {
         size: 200,
         cell: ({ row }) => {
           // Detail table rendering
-          if (row.original.isDetailTable && row.original.detailData) {
+          if (row.original.isDetailTable && row.original.eventArray) {
             const parentRowId = row.original.id.replace("-details", "");
             const detailState = detailTableStates[parentRowId] || {
               pagination: { pageIndex: 0, pageSize: 10 },
@@ -433,13 +422,13 @@ const AlertsAndEventsReportPage: React.FC = () => {
               <div className="col-span-full w-full">
                 <div className="w-full bg-gray-50 rounded p-4 my-2">
                   <h3 className="text-sm font-semibold mb-2 text-gray-700">
-                    Shift-Wise Route Details for {row.original.routeNumber}
+                    Event details for {row.original.deviceName}
                   </h3>
                   <TravelTable
-                    data={row.original.detailData}
-                    columns={routeDetailColumns}
+                    data={row.original.eventArray}
+                    columns={alertsAndEventsDetailColumns}
                     pagination={detailState.pagination}
-                    totalCount={row.original.detailData.length}
+                    totalCount={row.original.eventArray.length}
                     onPaginationChange={(newPagination) =>
                       handleDetailPaginationChange(parentRowId, newPagination)
                     }
@@ -490,9 +479,8 @@ const AlertsAndEventsReportPage: React.FC = () => {
         },
       },
       {
-        accessorKey: "startPointAddress",
-        header: "First Stop Address",
-        meta: { wrapConfig: { wrap: "wrap", maxWidth: "360px" } },
+        accessorKey: "eventNo.",
+        header: "No of Events",
         cell: ({ row }) => {
           if (
             row.original.isLoading ||
@@ -500,179 +488,9 @@ const AlertsAndEventsReportPage: React.FC = () => {
             row.original.isEmpty
           )
             return null;
-          return row.original.startPointAddress || "-";
+          return row.original.eventArray?.length || "-";
         },
       },
-      {
-        accessorKey: "startPointArea",
-        header: "First Stop Coordinate",
-        meta: { wrapConfig: { wrap: "wrap", maxWidth: "360px" } },
-        cell: ({ row }: { row: any }) => {
-          if (
-            row.original.isLoading ||
-            row.original.isDetailTable ||
-            row.original.isEmpty
-          )
-            return null;
-          const lat = row.original.startPointArea.center[0] || "--";
-          const lng = row.original.startPointArea.center[1] || "--";
-
-          if (!lat && !lng) return "--";
-
-          return (
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <a
-                    href={`https://www.google.com/maps?q=${lat},${lng}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-blue-600 underline hover:text-blue-800"
-                  >
-                    {lat}, {lng}
-                  </a>
-                </TooltipTrigger>
-                <TooltipContent
-                  side="top"
-                  className="bg-black/80 text-white font-bold rounded-md px-3 py-2 shadow-lg"
-                >
-                  <p>Click to see on Google Map</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          );
-        },
-      },
-      {
-        accessorKey: "endPointAddress",
-        header: "Last Stop Address",
-        meta: { wrapConfig: { wrap: "wrap", maxWidth: "360px" } },
-        cell: ({ row }) => {
-          if (
-            row.original.isLoading ||
-            row.original.isDetailTable ||
-            row.original.isEmpty
-          )
-            return null;
-
-          return row.original.endPointAddress || "-";
-        },
-      },
-      {
-        accessorKey: "endPointArea",
-        header: "Last Stop Coordinate",
-        meta: { wrapConfig: { wrap: "wrap", maxWidth: "360px" } },
-        cell: ({ row }) => {
-          if (
-            row.original.isLoading ||
-            row.original.isDetailTable ||
-            row.original.isEmpty
-          )
-            return null;
-          const lat = row.original.endPointArea.center[0] || "--";
-          const lng = row.original.endPointArea.center[1] || "--";
-
-          if (!lat && !lng) return "--";
-          return (
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <a
-                    href={`https://www.google.com/maps?q=${lat},${lng}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-blue-600 underline hover:text-blue-800"
-                  >
-                    {lat}, {lng}
-                  </a>
-                </TooltipTrigger>
-                <TooltipContent
-                  side="top"
-                  className="bg-black/80 text-white font-bold rounded-md px-3 py-2 shadow-lg"
-                >
-                  <p>Click to see on Google Map</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          );
-        },
-      },
-      {
-        accessorKey: "completeRoute",
-        header: "Route",
-        meta: { wrapConfig: { wrap: "wrap", maxWidth: "360px" } },
-        cell: ({ row }) => {
-          if (
-            row.original.isLoading ||
-            row.original.isDetailTable ||
-            row.original.isEmpty
-          )
-            return null;
-
-          const startLat = row.original.startPointArea?.center?.[0];
-          const startLng = row.original.startPointArea?.center?.[1];
-          const endLat = row.original.endPointArea?.center?.[0];
-          const endLng = row.original.endPointArea?.center?.[1];
-
-          if (!startLat || !startLng || !endLat || !endLng) return "--";
-
-          const mapUrl = getRouteMapUrl(startLat, startLng, endLat, endLng);
-
-          return (
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <a
-                    href={mapUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center justify-center w-full h-full text-blue-600 hover:text-blue-800"
-                  >
-                    <FaMapMarkedAlt className="text-xl transition-transform hover:scale-110" />
-                  </a>
-                </TooltipTrigger>
-                <TooltipContent className="bg-black/80 text-white font-bold">
-                  View full route on Google Maps
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          );
-        },
-      },
-
-      // {
-      //   id: "play",
-      //   header: "Play",
-      //   size: 100,
-      //   cell: ({ row }) => {
-      //     if (
-      //       row.original.isLoading ||
-      //       row.original.isDetailTable ||
-      //       row.original.isEmpty
-      //     )
-      //       return null;
-      //     return (
-      //       <div className="flex justify-center">
-      //         <TooltipProvider>
-      //           <Tooltip>
-      //             <TooltipTrigger asChild>
-      //               <FaPlay
-      //                 className="text-green-600 text-xl cursor-pointer"
-      //                 onClick={() => handlePlayback(row.original)}
-      //               />
-      //             </TooltipTrigger>
-      //             <TooltipContent
-      //               side="top"
-      //               className="bg-black/80 text-white font-bold rounded-md px-3 py-2 shadow-lg"
-      //             >
-      //               <p>Click to see playback history</p>
-      //             </TooltipContent>
-      //           </Tooltip>
-      //         </TooltipProvider>
-      //       </div>
-      //     );
-      //   },
-      // },
     ],
     [
       expandedRows,
@@ -681,7 +499,7 @@ const AlertsAndEventsReportPage: React.FC = () => {
       toggleRowExpansion,
       handleDetailPaginationChange,
       handleDetailSortingChange,
-      routeDetailColumns,
+      alertsAndEventsDetailColumns,
     ]
   );
 
@@ -723,21 +541,10 @@ const AlertsAndEventsReportPage: React.FC = () => {
   useEffect(() => {
     if (shouldFetch && hasGenerated) {
       queryClient.invalidateQueries({
-        queryKey: ["route-report"],
+        queryKey: ["alerts-events-report"],
       });
     }
   }, [shouldFetch, hasGenerated, queryClient]);
-
-  // Handle playback click
-  const handlePlayback = (row: AlertsAndEventsDetailTableData) => {
-    setPlaybackPayload({
-      uniqueId: Number(row.uniqueId),
-      vehicleName: row.deviceName,
-      startDate: row.rawStartEnterTime,
-      endDate: row.rawEndEnterTime,
-    });
-    setPlaybackOpen(true);
-  };
 
   // Table configuration
   const { table, tableElement } = CustomTableServerSidePagination({
@@ -768,7 +575,6 @@ const AlertsAndEventsReportPage: React.FC = () => {
         onSubmit={handleFilterSubmit}
         table={table}
         className="mb-6"
-        // ✅ Remove all controlled props - let ReportFilter manage internally
         config={{
           showSchool: true,
           showBranch: true,
@@ -781,7 +587,7 @@ const AlertsAndEventsReportPage: React.FC = () => {
           submitButtonDisabled: isFetchingAlertsAndEventsReport,
           dateRangeTitle: "Select Date Range",
           dateRangeMaxDays: 90,
-          cardTitle: "Route Report",
+          cardTitle: "Alerts and Events Report",
           arrayFormat: "comma",
           arraySeparator: ",",
           multiSelectDevice: true,
@@ -792,17 +598,6 @@ const AlertsAndEventsReportPage: React.FC = () => {
 
       {/* Table */}
       {showTable && <section className="mb-4">{tableElement}</section>}
-      {playbackPayload && (
-        <PlaybackHistoryDrawer
-          open={playbackOpen}
-          onOpenChange={setPlaybackOpen}
-          uniqueId={playbackPayload.uniqueId}
-          vehicleName={playbackPayload.vehicleName}
-          startDate={playbackPayload.startDate}
-          endDate={playbackPayload.endDate}
-          alertsAndEventsReport={true}
-        />
-      )}
     </div>
   );
 };

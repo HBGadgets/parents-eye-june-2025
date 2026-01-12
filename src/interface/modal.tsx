@@ -532,17 +532,32 @@ export interface RouteShiftRow {
   startEnterTime?: string;
   endEnterTime?: string;
   durationMinutes: number;
+  date: string;
 }
 
 export interface RouteReport {
-  date: string;
   uniqueId: string;
   routeNumber: string;
   startPointName?: string;
   endPointName?: string;
   startPointAddress?: string;
   endPointAddress?: string;
+  driverName?: Driver;
+  lateCompletionCount?: number;
   startPointArea?: { center: [number, number]; radius: number };
   deviceName: string;
+  routeCompletionTime: string;
   shift: RouteShiftRow[];
+}
+
+export interface PickupAndDrop {
+  _id: string;
+  pickup: boolean;
+  drop: boolean;
+  pickupTime: string;
+  dropTime: string;
+  createdAt: string;
+  child: Student;
+  school: School;
+  branch: Branch;
 }

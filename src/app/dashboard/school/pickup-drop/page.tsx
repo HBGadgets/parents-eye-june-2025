@@ -325,23 +325,6 @@ export default function PickupDropMaster() {
       </header>
 
       <section className="mb-4">{tableElement}</section>
-
-      <FloatingMenu
-        onExportPdf={() =>
-          exportToPDF(exportData, columnsForExport, {
-            title: "Pickup & Drop Records Report",
-            companyName: "Parents Eye",
-            metadata: { Total: `${exportData.length} records` },
-          })
-        }
-        onExportExcel={() =>
-          exportToExcel(exportData, columnsForExport, {
-            title: "Pickup & Drop Records Report",
-            companyName: "Parents Eye",
-            metadata: { Total: `${exportData.length} records` },
-          })
-        }
-      />
     </main>
   );
 }

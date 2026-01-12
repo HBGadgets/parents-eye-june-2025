@@ -40,7 +40,8 @@ interface RouteDetailTableData {
   startPointName: string;
   endPointName: string;
   deviceName: string;
-  shift: RouteShiftRow[];
+  shift: "pickup" | "drop";
+  driverName: string;
   startEnterTime: string;
   rawStartEnterTime: string;
   rawEndEnterTime: string;
@@ -48,6 +49,8 @@ interface RouteDetailTableData {
   durationMinutes: number;
   coordinates: string;
   address: string;
+  lateCompletionCount?: number;
+  routeCompletionTime: string;
   play?: string;
 }
 
@@ -122,15 +125,19 @@ const RouteReportPage: React.FC = () => {
       return route.shift.map((shift: any, index: number) => {
         const isPickup = shift.shift === "pickup";
         const area = isPickup ? route.startPointArea : route.endPointArea;
+        console.log("ROUTE ", route);
         return {
           id: `${route.uniqueId}-${shift.shift}-${index}`,
-          date: route.date,
+          date: shift.date,
           uniqueId: route.uniqueId,
           routeNumber: route.routeNumber,
           startPointName: route.startPointName,
           endPointName: route.endPointName,
           deviceName: route.deviceName,
+          driverName: route.driverName,
+          lateCompletionCount: route.lateCompletionCount,
           shift: shift.shift,
+          routeCompletionTime: route.routeCompletionTime,
           startEnterTime: shift.startEnterTime
             ? new Date(shift.startEnterTime).toLocaleString("en-GB", {
                 day: "2-digit",
@@ -336,6 +343,21 @@ const RouteReportPage: React.FC = () => {
         header: "Trip End Time",
         size: 180,
       },
+      {
+        accessorKey: "routeCompletionTime",
+        header: "Route Completion (Min)",
+        size: 180,
+        cell: ({ getValue }) => {
+          const value = getValue<string | null>();
+
+          if (!value) {
+            return <span className="text-gray-400 italic">Not assigned</span>;
+          }
+
+          return `${value} min`;
+        },
+      },
+
       {
         accessorKey: "durationMinutes",
         header: "Duration (min)",
@@ -623,6 +645,34 @@ const RouteReportPage: React.FC = () => {
               </Tooltip>
             </TooltipProvider>
           );
+        },
+      },
+      {
+        accessorKey: "driverName",
+        header: "Driver Name",
+        meta: { wrapConfig: { wrap: "wrap", maxWidth: "360px" } },
+        cell: ({ row }) => {
+          if (
+            row.original.isLoading ||
+            row.original.isDetailTable ||
+            row.original.isEmpty
+          )
+            return null;
+          return row.original.driverName || "-";
+        },
+      },
+      {
+        accessorKey: "lateCompletionCount",
+        header: "Late Completion Count",
+        meta: { wrapConfig: { wrap: "wrap", maxWidth: "360px" } },
+        cell: ({ row }) => {
+          if (
+            row.original.isLoading ||
+            row.original.isDetailTable ||
+            row.original.isEmpty
+          )
+            return null;
+          return row.original.lateCompletionCount || 0;
         },
       },
       {
