@@ -369,20 +369,25 @@ export interface Distance {
   totalDistance: number;
 }
 
+export interface Events {
+  eventType: string;
+  eventTime: string;
+  geofenceAddress?: string;
+  latitude?: number;
+  longitude?: number;
+}
+
 export interface AlertsAndEventsReport {
   uniqueId: string;
   name: string;
-  type: string;
-  coordinate: string;
-  location: string;
-  message: string;
-  createdAt: string;
+  deviceName: string;
+  eventArray?: Events[];
 }
 
 export interface GetAlertsAndEventsReportResponse {
-  total: number;
-  page: number;
-  limit: number;
+  total?: number;
+  page?: number;
+  limit?: number;
   data: AlertsAndEventsReport[];
 }
 
@@ -520,4 +525,24 @@ export interface SubscriptionExpiration {
 export interface GetSubscriptionExpirationResponse {
   count: number;
   data: SubscriptionExpiration[];
+}
+
+export interface RouteShiftRow {
+  shift: "pickup" | "drop";
+  startEnterTime?: string;
+  endEnterTime?: string;
+  durationMinutes: number;
+}
+
+export interface RouteReport {
+  date: string;
+  uniqueId: string;
+  routeNumber: string;
+  startPointName?: string;
+  endPointName?: string;
+  startPointAddress?: string;
+  endPointAddress?: string;
+  startPointArea?: { center: [number, number]; radius: number };
+  deviceName: string;
+  shift: RouteShiftRow[];
 }

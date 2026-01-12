@@ -36,8 +36,18 @@ export const reportService = {
     return res.data;
   },
 
-  getAlertsEventsReport: async (params: Record<string, any>): Promise<any> => {
-    const res = await api.get("/report/alerts-events-report", { params });
+  getAlertsEventsReport: async ({
+    uniqueId,
+    ...params
+  }: {
+    uniqueId: number[];
+    page: number;
+    limit: number;
+    period: string;
+    from: string;
+    to: string;
+  }): Promise<any> => {
+    const res = await api.post("/report/allevents", { uniqueId }, { params });
     return res.data;
   },
 
@@ -75,8 +85,24 @@ export const reportService = {
     return res.data;
   },
 
-  getRouteReport: async (params: Record<string, any>): Promise<any> => {
-    const res = await api.get("/report/route-report", { params });
+  getRouteReport: async ({
+    uniqueIds,
+    ...params
+  }: {
+    uniqueIds: number[];
+    page: number;
+    limit: number;
+    sortBy?: string;
+    sortOrder?: "asc" | "desc";
+    period: string;
+    from: string;
+    to: string;
+  }): Promise<any> => {
+    const res = await api.post(
+      "/report/routeCompletion",
+      { uniqueIds },
+      { params }
+    );
     return res.data;
   },
 

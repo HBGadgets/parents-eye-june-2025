@@ -172,32 +172,38 @@ export const useReport = (
     placeholderData: keepPreviousData,
   });
 
+
+  const alertsEvenetsPayload = {
+    page: pagination.pageIndex + 1,
+    limit: pagination.pageSize,
+    sortBy: sorting?.[0]?.id,
+    sortOrder: sorting?.[0]?.desc ? "desc" : "asc",
+    uniqueId: parseUniqueIds(filters?.uniqueId),
+    period: filters?.period || "Custom",
+    from: filters?.from,
+    to: filters?.to,
+  };
+
   const getAertsAndEventsReportQuery = useQuery({
     queryKey: [
       "alerts-events-report",
       pagination.pageIndex,
       pagination.pageSize,
+      sorting,
       filters?.uniqueId,
       filters?.period,
       filters?.from,
       filters?.to,
     ],
 
-    queryFn: () =>
-      reportService.getAlertsEventsReport({
-        page: pagination.pageIndex + 1,
-        limit: pagination.pageSize,
-        uniqueId: filters?.uniqueId,
-        period: filters?.period || "Custom",
-        from: filters?.from,
-        to: filters?.to,
-      }),
+    queryFn: () => reportService.getAlertsEventsReport(alertsEvenetsPayload),
     enabled:
       hasGenerated &&
       reportType === "alerts-events" &&
-      !!filters?.uniqueId &&
+      parseUniqueIds(filters?.uniqueId).length > 0 &&
       !!filters?.from &&
       !!filters?.to,
+
     staleTime: 10 * 60 * 1000,
     refetchOnWindowFocus: false,
     retry: false,
@@ -272,44 +278,54 @@ export const useReport = (
     placeholderData: keepPreviousData,
   });
 
- const travelSummaryPayload = {
-   page: pagination.pageIndex + 1,
-   limit: pagination.pageSize,
-   sortBy: sorting?.[0]?.id,
-   sortOrder: sorting?.[0]?.desc ? "desc" : "asc",
-   uniqueIds: parseUniqueIds(filters?.uniqueId), // ✅ ARRAY
-   period: filters?.period || "Custom",
-   from: filters?.from,
-   to: filters?.to,
- };
+  const travelSummaryPayload = {
+    page: pagination.pageIndex + 1,
+    limit: pagination.pageSize,
+    sortBy: sorting?.[0]?.id,
+    sortOrder: sorting?.[0]?.desc ? "desc" : "asc",
+    uniqueIds: parseUniqueIds(filters?.uniqueId),
+    period: filters?.period || "Custom",
+    from: filters?.from,
+    to: filters?.to,
+  };
 
- const getTravelSummaryReportQuery = useQuery({
-   queryKey: [
-     "travel-summary",
-     pagination.pageIndex,
-     pagination.pageSize,
-     sorting,
-     filters?.uniqueId,
-     filters?.period,
-     filters?.from,
-     filters?.to,
-   ],
+   const getTravelSummaryReportQuery = useQuery({
+     queryKey: [
+       "travel-summary",
+       pagination.pageIndex,
+       pagination.pageSize,
+       sorting,
+       filters?.uniqueId,
+       filters?.period,
+       filters?.from,
+       filters?.to,
+     ],
 
-   queryFn: () => reportService.getTravelSummaryReport(travelSummaryPayload),
+     queryFn: () => reportService.getTravelSummaryReport(travelSummaryPayload),
 
-   enabled:
-     hasGenerated &&
-     reportType === "travel-summary" &&
-     parseUniqueIds(filters?.uniqueId).length > 0 &&
-     !!filters?.from &&
-     !!filters?.to,
+     enabled:
+       hasGenerated &&
+       reportType === "travel-summary" &&
+       parseUniqueIds(filters?.uniqueId).length > 0 &&
+       !!filters?.from &&
+       !!filters?.to,
 
-   staleTime: 10 * 60 * 1000,
-   refetchOnWindowFocus: false,
-   retry: false,
-   placeholderData: keepPreviousData,
- });
+     staleTime: 10 * 60 * 1000,
+     refetchOnWindowFocus: false,
+     retry: false,
+     placeholderData: keepPreviousData,
+   });
 
+  const routeReportPayload = {
+    page: pagination.pageIndex + 1,
+    limit: pagination.pageSize,
+    sortBy: sorting?.[0]?.id,
+    sortOrder: sorting?.[0]?.desc ? "desc" : "asc",
+    uniqueIds: parseUniqueIds(filters?.uniqueId),
+    period: filters?.period || "Custom",
+    from: filters?.from,
+    to: filters?.to,
+  };
 
   const getRouteReportQuery = useQuery({
     queryKey: [
@@ -323,23 +339,14 @@ export const useReport = (
       filters?.to,
     ],
 
-    queryFn: () =>
-      reportService.getRouteReport({
-        page: pagination.pageIndex + 1,
-        limit: pagination.pageSize,
-        sortBy: sorting?.[0]?.id,
-        sortOrder: sorting?.[0]?.desc ? "desc" : "asc",
-        uniqueId: filters?.uniqueId,
-        period: filters?.period || "Custom",
-        from: filters?.from,
-        to: filters?.to,
-      }),
+    queryFn: () => reportService.getRouteReport(routeReportPayload),
     enabled:
       hasGenerated &&
       reportType === "route" &&
-      !!filters?.uniqueId &&
+      parseUniqueIds(filters?.uniqueId).length > 0 &&
       !!filters?.from &&
       !!filters?.to,
+
     staleTime: 10 * 60 * 1000,
     refetchOnWindowFocus: false,
     retry: false,

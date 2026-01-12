@@ -100,7 +100,7 @@ const GeofenceAlertsReportPage: React.FC = () => {
           showSubmitButton: true,
           submitButtonText: "Generate",
           dateRangeTitle: "Select Date Range",
-          dateRangeMaxDays: 300,
+          dateRangeMaxDays: 90,
           cardTitle: "Geofence Report",
           arrayFormat: "comma",
           arraySeparator: ",",

@@ -7,7 +7,7 @@ import React, {
   useLayoutEffect,
 } from "react";
 import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
-import MarkerClusterGroup from "@changey/react-leaflet-markercluster";
+import MarkerClusterGroup from "react-leaflet-cluster";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import "./VehicleMap.css";
@@ -469,14 +469,46 @@ const MapControls = ({
 // Custom cluster icon - memoized
 const createClusterCustomIcon = (cluster: any) => {
   const count = cluster.getChildCount();
-  let size = count < 10 ? "small" : count < 100 ? "medium" : "large";
+
+  let size = 40;
+  let sizeClass = "text-xs";
+  let bgClass = "bg-gradient-to-br from-sky-400 to-blue-600";
+
+  if (count >= 100) {
+    size = 60;
+    sizeClass = "text-lg";
+    bgClass = "bg-gradient-to-br from-orange-400 to-orange-600";
+  } else if (count >= 10) {
+    size = 50;
+    sizeClass = "text-sm";
+    bgClass = "bg-gradient-to-br from-emerald-400 to-green-600";
+  }
 
   return L.divIcon({
-    html: `<div><span>${count}</span></div>`,
-    className: `custom-cluster-icon custom-cluster-icon-${size}`,
-    iconSize: L.point(40, 40, true),
+    html: `
+      <div
+        class="
+          flex items-center justify-center
+          rounded-full
+          font-bold text-white
+          shadow-lg
+          ring-2 ring-white/40
+          transition-transform duration-200 ease-out
+          hover:scale-110
+          ${sizeClass}
+          ${bgClass}
+        "
+        style="width:${size}px; height:${size}px;"
+      >
+        ${count}
+      </div>
+    `,
+    className: "bg-transparent border-0",
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
   });
 };
+
 
 const VehicleMap: React.FC<VehicleMapProps> = ({
   vehicles,
@@ -564,13 +596,14 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
     if (clusterMarkers && validVehicles.length > 10) {
       return (
         <MarkerClusterGroup
+          // disabled={!clusterMarkers || validVehicles.length <= 10}
           chunkedLoading
           iconCreateFunction={createClusterCustomIcon}
           maxClusterRadius={50}
-          spiderfyOnMaxZoom={true}
+          spiderfyOnMaxZoom={false}
           showCoverageOnHover={false}
-          zoomToBoundsOnClick={true}
-          disableClusteringAtZoom={18}
+          // zoomToBoundsOnClick={true}
+          disableClusteringAtZoom={80}
         >
           {markers}
         </MarkerClusterGroup>

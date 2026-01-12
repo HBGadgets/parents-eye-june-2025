@@ -65,7 +65,7 @@ const StatusReportPage: React.FC = () => {
       to: filters.to,
       period: "Custom",
     });
-    
+
     setShouldFetch(true);
     setHasGenerated(true);
 
@@ -127,7 +127,7 @@ const StatusReportPage: React.FC = () => {
             : "Generate",
           submitButtonDisabled: isFetchingStatusReport,
           dateRangeTitle: "Select Date Range",
-          dateRangeMaxDays: 300,
+          dateRangeMaxDays: 90,
           cardTitle: "Status Report",
         }}
       />

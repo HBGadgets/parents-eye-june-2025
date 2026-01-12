@@ -68,24 +68,23 @@ const StopReportPage: React.FC = () => {
     setShouldFetch(true);
     setHasGenerated(true);
 
-
     // Show table
     setShowTable(true);
   }, []);
 
-   useEffect(() => {
-      if (!isFetchingStopReport && shouldFetch) {
-        setShouldFetch(false);
-      }
-    }, [isFetchingStopReport, shouldFetch]);
-  
-    useEffect(() => {
-      if (shouldFetch && hasGenerated) {
-        queryClient.invalidateQueries({
-          queryKey: ["stop-report"],
-        });
-      }
-    }, [shouldFetch, hasGenerated, queryClient]);
+  useEffect(() => {
+    if (!isFetchingStopReport && shouldFetch) {
+      setShouldFetch(false);
+    }
+  }, [isFetchingStopReport, shouldFetch]);
+
+  useEffect(() => {
+    if (shouldFetch && hasGenerated) {
+      queryClient.invalidateQueries({
+        queryKey: ["stop-report"],
+      });
+    }
+  }, [shouldFetch, hasGenerated, queryClient]);
 
   // Table configuration
   const { table, tableElement } = CustomTableServerSidePagination({
@@ -122,12 +121,10 @@ const StopReportPage: React.FC = () => {
           showDevice: true,
           showDateRange: true,
           showSubmitButton: true,
-          submitButtonText: isFetchingStopReport
-            ? "Generating..."
-            : "Generate",
+          submitButtonText: isFetchingStopReport ? "Generating..." : "Generate",
           submitButtonDisabled: isFetchingStopReport,
           dateRangeTitle: "Select Date Range",
-          dateRangeMaxDays: 300,
+          dateRangeMaxDays: 90,
           cardTitle: "Stop Report",
         }}
       />

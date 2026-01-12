@@ -68,20 +68,19 @@ const DistanceReportPage: React.FC = () => {
     setShowTable(true);
   }, []);
 
-    useEffect(() => {
-      if (!isFetchingDistanceReport && shouldFetch) {
-        setShouldFetch(false);
-      }
-    }, [isFetchingDistanceReport, shouldFetch]);
-  
-    useEffect(() => {
-      if (shouldFetch && hasGenerated) {
-        queryClient.invalidateQueries({
-          queryKey: ["distance-report"],
-        });
-      }
-    }, [shouldFetch, hasGenerated, queryClient]);
-  
+  useEffect(() => {
+    if (!isFetchingDistanceReport && shouldFetch) {
+      setShouldFetch(false);
+    }
+  }, [isFetchingDistanceReport, shouldFetch]);
+
+  useEffect(() => {
+    if (shouldFetch && hasGenerated) {
+      queryClient.invalidateQueries({
+        queryKey: ["distance-report"],
+      });
+    }
+  }, [shouldFetch, hasGenerated, queryClient]);
 
   const columns = React.useMemo(() => {
     if (isFetchingDistanceReport && stableColumnsRef.current.length > 0) {
@@ -183,7 +182,7 @@ const DistanceReportPage: React.FC = () => {
             : "Generate",
           submitButtonDisabled: isFetchingDistanceReport,
           dateRangeTitle: "Select Date Range",
-          dateRangeMaxDays: 300,
+          dateRangeMaxDays: 90,
           cardTitle: "Distance Report",
           arrayFormat: "comma",
           arraySeparator: ",",

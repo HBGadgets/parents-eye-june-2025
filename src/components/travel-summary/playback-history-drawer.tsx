@@ -21,6 +21,7 @@ interface PlaybackHistoryDrawerProps {
   vehicleName?: string;
   startDate?: string;
   endDate?: string;
+  routeReport?: boolean;
 }
 
 type UTCRange = {
@@ -35,9 +36,9 @@ export function PlaybackHistoryDrawer({
   startDate,
   endDate,
   vehicleName,
+  routeReport = false,
 }: PlaybackHistoryDrawerProps) {
   const queryClient = useQueryClient();
-
   const toUTCRange = (start?: string, end?: string): UTCRange => {
     if (!start) return {};
 
@@ -79,10 +80,19 @@ export function PlaybackHistoryDrawer({
       ).toISOString(),
     };
   };
-  const { from, to } = React.useMemo(
-    () => toUTCRange(startDate, endDate),
-    [startDate, endDate]
-  );
+  const { from, to } = React.useMemo(() => {
+    if (routeReport) {
+      return {
+        from: startDate,
+        to: endDate ?? startDate,
+      };
+    }
+
+    return toUTCRange(startDate, endDate);
+  }, [startDate, endDate, routeReport]);
+
+  console.log("[PlaybackHistoryDrawer] from:", from, "to:", to);
+
   const { data, isFetching } = useHistoryReport(
     {
       uniqueId,
@@ -91,12 +101,14 @@ export function PlaybackHistoryDrawer({
     },
     open && !!uniqueId && !!from && !!to
   );
+
   const cachedData = queryClient.getQueryData([
     "history-report",
     uniqueId,
     from,
     to,
   ]);
+
   const flattendCachedData = cachedData?.deviceDataByTrips?.flat() || [];
   const trips = data?.deviceDataByTrips ?? [];
   const flatHistory = trips.flat();

@@ -15,8 +15,8 @@ import { useQueryClient } from "@tanstack/react-query";
 const IdleReportPage: React.FC = () => {
   // Table state
   const queryClient = useQueryClient();
-    const [shouldFetch, setShouldFetch] = useState(false);
-    const [hasGenerated, setHasGenerated] = useState(false);
+  const [shouldFetch, setShouldFetch] = useState(false);
+  const [hasGenerated, setHasGenerated] = useState(false);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
   const [showTable, setShowTable] = useState(false);
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 10 });
@@ -69,25 +69,23 @@ const IdleReportPage: React.FC = () => {
     setShouldFetch(true);
     setHasGenerated(true);
 
-
     // Show table
     setShowTable(true);
   }, []);
 
-   useEffect(() => {
-      if (!isFetchingIdleReport && shouldFetch) {
-        setShouldFetch(false);
-      }
-    }, [isFetchingIdleReport, shouldFetch]);
-  
-    useEffect(() => {
-      if (shouldFetch && hasGenerated) {
-        queryClient.invalidateQueries({
-          queryKey: ["idle-report"],
-        });
-      }
-    }, [shouldFetch, hasGenerated, queryClient]);
+  useEffect(() => {
+    if (!isFetchingIdleReport && shouldFetch) {
+      setShouldFetch(false);
+    }
+  }, [isFetchingIdleReport, shouldFetch]);
 
+  useEffect(() => {
+    if (shouldFetch && hasGenerated) {
+      queryClient.invalidateQueries({
+        queryKey: ["idle-report"],
+      });
+    }
+  }, [shouldFetch, hasGenerated, queryClient]);
 
   // Table configuration
   const { table, tableElement } = CustomTableServerSidePagination({
@@ -124,12 +122,10 @@ const IdleReportPage: React.FC = () => {
           showDevice: true,
           showDateRange: true,
           showSubmitButton: true,
-          submitButtonText: isFetchingIdleReport
-            ? "Generating..."
-            : "Generate",
+          submitButtonText: isFetchingIdleReport ? "Generating..." : "Generate",
           submitButtonDisabled: isFetchingIdleReport,
           dateRangeTitle: "Select Date Range",
-          dateRangeMaxDays: 300,
+          dateRangeMaxDays: 90,
           cardTitle: "Idle Report",
         }}
       />

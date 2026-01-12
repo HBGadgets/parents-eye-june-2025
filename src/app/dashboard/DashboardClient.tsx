@@ -12,8 +12,7 @@ import { Input } from "@/components/ui/input";
 import { useLiveDeviceData } from "@/hooks/livetrack/useLiveDeviceData";
 import { useReverseGeocode } from "@/hooks/useReverseGeocoding";
 import { DeviceData } from "@/types/socket";
-import { calculateTimeSince } from "@/util/calculateTimeSince";
-import { ChevronsLeft, ChevronsRight, Locate } from "lucide-react";
+import { ChevronsLeft, ChevronsRight } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import { LiveTrack } from "@/components/dashboard/LiveTrack.tsx/livetrack";
 import { BottomDrawer } from "@/components/dashboard/bottom-drawer";
@@ -98,7 +97,7 @@ export default function DashboardClient() {
   const { expiredBranches, expiredBranchesCount } = useSubscriptionExpiry(
     showSubscriptionPopup
   );
-  // console.log( 
+  // console.log(
   //   "🚀 ~ file: DashboardClient.tsx:261 ~ expiredBranchesCount:",
   //   expiredBranchesCount
   // );
@@ -332,7 +331,7 @@ export default function DashboardClient() {
     columnVisibility,
     onColumnVisibilityChange: setColumnVisibility,
     emptyMessage: "No devices found",
-    pageSizeOptions: [5, 10, 20, 30, 50],
+    pageSizeOptions: [5, 10, 20, 50, 100, 500, 1000],
     enableSorting: true,
     showSerialNumber: true,
     onRowClick: handleDeviceSelection,
@@ -560,11 +559,11 @@ export default function DashboardClient() {
               <section className={`${getMapClass} rounded-lg overflow-hidden`}>
                 {viewState !== "tableExpanded" && (
                   <VehicleMap
-                    vehicles={devices}
+                    vehicles={devices ?? []}
                     height="100%"
                     autoFitBounds={false}
                     showTrails={false}
-                    clusterMarkers={devices.length > 100}
+                    // clusterMarkers={devices.length > 100}
                     zoom={6}
                     selectedVehicleId={selectedVehicleId}
                     onVehicleSelect={setSelectedVehicleId}

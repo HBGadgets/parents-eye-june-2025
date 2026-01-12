@@ -112,7 +112,6 @@ const TravelSummaryReportPage: React.FC = () => {
   });
 
   // Fetch report data using the hook
-
   const {
     travelSummaryReport,
     totalTravelSummaryReport,
@@ -149,7 +148,19 @@ const TravelSummaryReportPage: React.FC = () => {
             })
           : "-",
         startLocation: trip.startAddress || "-",
-        startCoordinates: `${trip.startLatitude}, ${trip.startLongitude}`,
+        startCoordinates:
+          trip.startLatitude && trip.startLongitude ? (
+            <a
+              href={`https://www.google.com/maps?q=${trip.startLatitude},${trip.startLongitude}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-600 underline hover:text-blue-800"
+            >
+              {trip.startLatitude}, {trip.startLongitude}
+            </a>
+          ) : (
+            "-"
+          ),
         distance: trip.distance,
         running: trip.runningTime,
         idle: trip.idleTime,
@@ -158,7 +169,7 @@ const TravelSummaryReportPage: React.FC = () => {
         maxSpeed: trip.maxSpeed,
         avgSpeed: trip.avgSpeed,
         endLocation: trip.endAddress || "-",
-        endCoordinates: `${trip.endLatitude}, ${trip.endLongitude}`,
+        endCoordinates: `${trip.endLatitude}, ${trip.endLongitude}` || "-",
         ignitionStop: trip.endTime
           ? new Date(trip.endTime).toLocaleString("en-GB", {
               day: "2-digit",
@@ -317,16 +328,42 @@ const TravelSummaryReportPage: React.FC = () => {
     () => [
       {
         accessorKey: "vehicleName",
-        header: "Vehicle Name",
+        header: "Vehicle No.",
         size: 150,
       },
       { accessorKey: "reportDate", header: "Report Date", size: 120 },
       { accessorKey: "ignitionStart", header: "Ignition Start", size: 180 },
       { accessorKey: "startLocation", header: "Start Location", size: 250 },
       {
+        header: "Start Coordinates",
         accessorKey: "startCoordinates",
-        header: "Start Co-ordinate",
-        size: 180,
+        cell: ({ getValue }) => {
+          const value = getValue<string>();
+          if (!value || value === "-") return "-";
+
+          return (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <a
+                    href={`https://www.google.com/maps?q=${value}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-600 underline hover:text-blue-800"
+                  >
+                    {value}
+                  </a>
+                </TooltipTrigger>
+                <TooltipContent
+                  side="top"
+                  className="bg-black/80 text-white font-bold rounded-md px-3 py-2 shadow-lg"
+                >
+                  <p>Click to see on Google Map</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          );
+        },
       },
       { accessorKey: "distance", header: "Distance", size: 100 },
       { accessorKey: "running", header: "Running", size: 120 },
@@ -364,7 +401,37 @@ const TravelSummaryReportPage: React.FC = () => {
         size: 120,
       },
       { accessorKey: "endLocation", header: "End Location", size: 250 },
-      { accessorKey: "endCoordinates", header: "End Co-ordinate", size: 180 },
+      {
+        accessorKey: "endCoordinates",
+        header: "End Co-ordinate",
+        cell: ({ getValue }) => {
+          const value = getValue<string>();
+          if (!value || value === "-") return "-";
+
+          return (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <a
+                    href={`https://www.google.com/maps?q=${value}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-600 underline hover:text-blue-800"
+                  >
+                    {value}
+                  </a>
+                </TooltipTrigger>
+                <TooltipContent
+                  side="top"
+                  className="bg-black/80 text-white font-bold rounded-md px-3 py-2 shadow-lg"
+                >
+                  <p>Click to see on Google Map</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          );
+        },
+      },
       { accessorKey: "ignitionStop", header: "Ignition Stop", size: 180 },
       {
         accessorKey: "play",
@@ -546,18 +613,44 @@ const TravelSummaryReportPage: React.FC = () => {
         accessorKey: "startCoordinates",
         header: "Start Coordinate",
         size: 180,
-        cell: ({ row }: { row: any }) => {
+        cell: ({ row }) => {
           if (
             row.original.isLoading ||
             row.original.isDetailTable ||
             row.original.isEmpty
           )
             return null;
-          return `${row.original.startLat || "--"}, ${
-            row.original.startLong || "--"
-          }`;
+
+          const lat = row.original.startLat;
+          const lng = row.original.startLong;
+
+          if (!lat || !lng) return "--, --";
+
+          return (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <a
+                    href={`https://www.google.com/maps?q=${lat},${lng}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-600 underline hover:text-blue-800"
+                  >
+                    {lat}, {lng}
+                  </a>
+                </TooltipTrigger>
+                <TooltipContent
+                  side="top"
+                  className="bg-black/80 text-white font-bold rounded-md px-3 py-2 shadow-lg"
+                >
+                  <p>Click to see on Google Map</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          );
         },
       },
+
       {
         accessorKey: "distance",
         header: "Distance",
@@ -702,9 +795,34 @@ const TravelSummaryReportPage: React.FC = () => {
             row.original.isEmpty
           )
             return null;
-          return `${row.original.endLat || "--"}, ${
-            row.original.endLong || "--"
-          }`;
+
+          const lat = row.original.endLat;
+          const lng = row.original.endLong;
+
+          if (!lat || !lng) return "--, --";
+
+          return (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <a
+                    href={`https://www.google.com/maps?q=${lat},${lng}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-600 underline hover:text-blue-800"
+                  >
+                    {lat}, {lng}
+                  </a>
+                </TooltipTrigger>
+                <TooltipContent
+                  side="top"
+                  className="bg-black/80 text-white font-bold rounded-md px-3 py-2 shadow-lg"
+                >
+                  <p>Click to see on Google Map</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          );
         },
       },
       {
@@ -850,7 +968,7 @@ const TravelSummaryReportPage: React.FC = () => {
             : "Generate",
           submitButtonDisabled: isFetchingTravelSummaryReport,
           dateRangeTitle: "Select Date Range",
-          dateRangeMaxDays: 300,
+          dateRangeMaxDays: 90,
           cardTitle: "Travel Summary",
           arrayFormat: "comma",
           arraySeparator: ",",

@@ -66,24 +66,23 @@ const TripReportPage: React.FC = () => {
     setShouldFetch(true);
     setHasGenerated(true);
 
-
     // Show table
     setShowTable(true);
   }, []);
 
-    useEffect(() => {
-      if (!isFetchingTripReport && shouldFetch) {
-        setShouldFetch(false);
-      }
-    }, [isFetchingTripReport, shouldFetch]);
-  
-    useEffect(() => {
-      if (shouldFetch && hasGenerated) {
-        queryClient.invalidateQueries({
-          queryKey: ["trip-report"],
-        });
-      }
-    }, [shouldFetch, hasGenerated, queryClient]);
+  useEffect(() => {
+    if (!isFetchingTripReport && shouldFetch) {
+      setShouldFetch(false);
+    }
+  }, [isFetchingTripReport, shouldFetch]);
+
+  useEffect(() => {
+    if (shouldFetch && hasGenerated) {
+      queryClient.invalidateQueries({
+        queryKey: ["trip-report"],
+      });
+    }
+  }, [shouldFetch, hasGenerated, queryClient]);
 
   // Column definitions
   const columns = GetTripReportColumns();
@@ -123,12 +122,10 @@ const TripReportPage: React.FC = () => {
           showDevice: true,
           showDateRange: true,
           showSubmitButton: true,
-          submitButtonText: isFetchingTripReport
-            ? "Generating..."
-            : "Generate",
+          submitButtonText: isFetchingTripReport ? "Generating..." : "Generate",
           submitButtonDisabled: isFetchingTripReport,
           dateRangeTitle: "Select Date Range",
-          dateRangeMaxDays: 300,
+          dateRangeMaxDays: 90,
           cardTitle: "Trip Report",
         }}
       />

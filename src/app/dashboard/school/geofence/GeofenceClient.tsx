@@ -24,7 +24,7 @@ import { SearchBar } from "@/components/search-bar/SearchBarPagination";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useBranchDropdown, useSchoolDropdown } from "@/hooks/useDropdown";
 import { ColumnVisibilitySelector } from "@/components/column-visibility-selector";
-import { useGeofenceEditData, useGeofenceStore } from "@/store/geofenceStore";
+import { useGeofenceStore } from "@/store/geofenceStore";
 
 type DecodedToken = {
   role: string;

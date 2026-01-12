@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { X, AlertTriangle, Calendar, Clock } from "lucide-react";
 import { SubscriptionExpiration } from "@/interface/modal";
 
@@ -29,8 +29,6 @@ export const SubscriptionExpiry: React.FC<SubscriptionExpiryProps> = ({
     if (controlledIsOpen !== undefined) setIsOpen(controlledIsOpen);
   }, [controlledIsOpen]);
 
-  console.log("Branches: ", branches);
-
   const handleClose = () => {
     // Start closing animation
     setIsClosing(true);
@@ -46,6 +44,14 @@ export const SubscriptionExpiry: React.FC<SubscriptionExpiryProps> = ({
   const handleRenew = () => {
     onRenew?.();
     handleClose();
+  };
+
+  const branchStatus = (remainingDays: number) => {
+    if (remainingDays <= 15) {
+      return "critical";
+    } else {
+      return "warning";
+    }
   };
 
   const getStatusConfig = (status: string) => {
@@ -82,10 +88,11 @@ export const SubscriptionExpiry: React.FC<SubscriptionExpiryProps> = ({
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
-    return date.toLocaleDateString("en-US", {
-      year: "numeric",
+    return date.toLocaleString("en-GB", {
+      day: "2-digit",
       month: "short",
-      day: "numeric",
+      year: "numeric",
+      timeZone: "UTC",
     });
   };
 
@@ -117,8 +124,8 @@ export const SubscriptionExpiry: React.FC<SubscriptionExpiryProps> = ({
                   Subscription Expiry Alert
                 </h2>
                 <p className="text-xs text-gray-700 truncate">
-                  {branches.length} {branches.length === 1 ? "branch" : "branches"}{" "}
-                  expiring soon
+                  {branches.length}{" "}
+                  {branches.length === 1 ? "branch" : "branches"} expiring soon
                 </p>
               </div>
             </div>
@@ -134,11 +141,12 @@ export const SubscriptionExpiry: React.FC<SubscriptionExpiryProps> = ({
           {/* Content */}
           <div className="p-3 sm:p-4 overflow-y-auto responsive-popup-content bg-white/80 backdrop-blur-sm">
             <div className="space-y-2">
-              {branches.map((branch) => {
-                const config = getStatusConfig(branch.status);
+              {branches.map((branch, index) => {
+                const status = branchStatus(branch.remainingDays);
+                const config = getStatusConfig(status);
                 return (
                   <div
-                    key={branch.mobileNo}
+                    key={`${branch.mobileNo}-${index}`}
                     className={`${config.bgColor} ${config.borderColor} rounded-md p-3 transition-all duration-200 hover:shadow-sm backdrop-blur-sm`}
                   >
                     <div className="flex items-start justify-between gap-2 sm:gap-3">
@@ -147,24 +155,23 @@ export const SubscriptionExpiry: React.FC<SubscriptionExpiryProps> = ({
                           <h3
                             className={`font-semibold text-sm ${config.textColor} truncate flex-1 min-w-0`}
                           >
-                            {branch?.branchName}
+                            School: {branch?.schoolName}
                           </h3>
                           <span
                             className={`${config.badgeBg} ${config.badgeText} text-[10px] px-1.5 py-0.5 rounded font-medium flex-shrink-0`}
                           >
-                            {branch.daysRemaining}{" "}
-                            {branch.daysRemaining === 1 ? "day" : "days"} left
+                            {branch?.remainingDays}{" "}
+                            {branch?.remainingDays === 1 ? "day" : "days"} left
                           </span>
                         </div>
 
                         <div className="space-y-1 text-xs text-gray-700">
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="font-semibold text-xs flex-shrink-0">
-                              ID:
-                            </span>
-                            <span className="font-mono text-[10px] sm:text-[11px] truncate flex-1 min-w-0">
-                              {branch.subscriptionId}
-                            </span>
+                          <div>
+                            <p
+                              className={`font-semibold text-xs ${config.textColor} truncate flex-1 min-w-0`}
+                            >
+                              Branch: {branch?.branchName}
+                            </p>
                           </div>
                           <div className="flex items-center gap-1.5 flex-wrap">
                             <Calendar className="w-3 h-3 sm:w-3.5 sm:h-3.5 flex-shrink-0" />
@@ -172,7 +179,7 @@ export const SubscriptionExpiry: React.FC<SubscriptionExpiryProps> = ({
                               Expires:
                             </span>
                             <span className="text-xs flex-1 min-w-0">
-                              {formatDate(branch.expiryDate)}
+                              {formatDate(branch?.subscriptionExpirationDate)}
                             </span>
                           </div>
                         </div>
@@ -329,65 +336,20 @@ export const SubscriptionExpiry: React.FC<SubscriptionExpiryProps> = ({
         }
 
         /* Landscape orientation */
-        @media (max-height: 600px) and (orientation: landscape) {
+        @media (max-height: 400px) and (orientation: landscape) {
           .responsive-popup-container {
             max-height: 90vh;
           }
 
           .responsive-popup {
-            max-height: min(90vh, 400px);
+            max-height: min(90vh, 200px);
           }
 
           .responsive-popup-content {
-            max-height: min(calc(90vh - 80px), 320px);
+            max-height: min(calc(90vh - 80px), 220px);
           }
         }
       `}</style>
     </>
   );
 };
-
-// =============================
-// DEMO
-// =============================
-// export default function SubscriptionExpiryDemo() {
-//   const dummySchools: ExpiringSchool[] = [
-//     {
-//       schoolId: 1,
-//       name: 'Sunrise Public School',
-//       subscriptionId: 'SUB-00123',
-//       expiryDate: '2025-11-05',
-//       daysRemaining: 5,
-//       status: 'critical',
-//     },
-//     {
-//       schoolId: 2,
-//       name: 'Green Valley High School',
-//       subscriptionId: 'SUB-00456',
-//       expiryDate: '2025-11-15',
-//       daysRemaining: 15,
-//       status: 'warning',
-//     },
-//     {
-//       schoolId: 3,
-//       name: 'Little Hearts Primary School',
-//       subscriptionId: 'SUB-00789',
-//       expiryDate: '2025-11-25',
-//       daysRemaining: 25,
-//       status: 'info',
-//     },
-//   ];
-
-//   const handleRenew = () => console.log('Renew clicked');
-//   const handleClose = () => console.log('Popup dismissed');
-
-//   return (
-//     <>
-//       <SubscriptionExpiry
-//         branches={dummySchools}
-//         onRenew={handleRenew}
-//         onClose={handleClose}
-//       />
-//     </>
-//   );
-// }

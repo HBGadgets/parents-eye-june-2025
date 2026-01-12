@@ -25,6 +25,8 @@ import { Button } from "../ui/button";
 import Image from "next/image";
 import { statusIconMap } from "@/components/statusIconMap";
 import { m } from "framer-motion";
+import { metadata } from "@/app/layout";
+import { max } from "lodash";
 
 export const getModelColumns = (
   setEditTarget: (row: Model) => void,
@@ -442,7 +444,7 @@ export const getLiveVehicleColumns = (): ColumnDef<LiveTrack>[] => [
   },
   {
     header: "No. of Students",
-    accessorKey: "noOfStudents",
+    accessorKey: "noOfStudent",
   },
   {
     header: "No. of Stops",
@@ -450,7 +452,7 @@ export const getLiveVehicleColumns = (): ColumnDef<LiveTrack>[] => [
   },
   {
     header: "Route No.",
-    accessorKey: "routeName" ,
+    accessorKey: "routeName",
   },
   {
     id: "lastUpdate",
@@ -787,6 +789,7 @@ export const getGeofenceCoumns = (
     accessorFn: (row) => row.address || "N/A",
     enableHiding: false,
     enableSorting: false,
+    meta: { wrapConfig: { wrap: "wrap", minWidth: "360px" } },
   },
   {
     id: "schoolName",
