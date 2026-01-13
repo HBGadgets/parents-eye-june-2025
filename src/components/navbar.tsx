@@ -68,8 +68,8 @@ export function Navbar() {
                 "School",
                 "Users",
                 "Reports",
-                "Support",
                 "Maintenance",
+                "Support",
               ].map((section) => (
                 <NavigationMenuItem key={section}>
                   <NavigationMenuLink

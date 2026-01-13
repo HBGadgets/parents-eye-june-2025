@@ -1,6 +1,4 @@
 "use client";
-
-import { useRouter } from "next/navigation";
 import { ColumnVisibilitySelector } from "@/components/column-visibility-selector";
 import VehicleMap from "@/components/dashboard/VehicleMap";
 import ResponseLoader from "@/components/ResponseLoader";
@@ -97,15 +95,6 @@ export default function DashboardClient() {
   const { expiredBranches, expiredBranchesCount } = useSubscriptionExpiry(
     showSubscriptionPopup
   );
-  // console.log(
-  //   "🚀 ~ file: DashboardClient.tsx:261 ~ expiredBranchesCount:",
-  //   expiredBranchesCount
-  // );
-  // console.log(
-  //   "🚀 ~ file: DashboardClient.tsx:261 ~ expiredBranches:",
-  //   expiredBranches
-  // );
-
   // Sync local pagination with store pagination
   const [pagination, setPagination] = useState({
     pageIndex: currentPage - 1,

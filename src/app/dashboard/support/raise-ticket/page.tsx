@@ -34,6 +34,13 @@ import { useExport } from "@/hooks/useExport";
 import ResponseLoader from "@/components/ResponseLoader";
 import { ColumnVisibilitySelector } from "@/components/column-visibility-selector";
 import { CustomTableServerSidePagination } from "@/components/ui/customTable(serverSidePagination)";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 // --------------------------- INTERFACES ---------------------------
 interface Ticket {
@@ -74,14 +81,24 @@ export default function RaiseTicketMaster() {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState<string>("");
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
-  const [dateRange, setDateRange] = useState<{ start: Date | null; end: Date | null }>({
+  const [dateRange, setDateRange] = useState<{
+    start: Date | null;
+    end: Date | null;
+  }>({
     start: null,
     end: null,
   });
+  const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
+  const [statusValue, setStatusValue] = useState("");
+
   const [filteredData, setFilteredData] = useState<Ticket[]>([]);
   const [filterResults, setFilterResults] = useState<Ticket[]>([]);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
-  const [statusFilter, setStatusFilter] = useState<"All" | "Open" | "In Progress" | "Resolved">("All");
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+
+  const [statusFilter, setStatusFilter] = useState<
+    "All" | "Open" | "In Progress" | "Resolved"
+  >("All");
 
   // Form states
   const [selectedType, setSelectedType] = useState("");
@@ -92,14 +109,20 @@ export default function RaiseTicketMaster() {
   const { data: branchData } = useBranchData();
 
   // --------------------------- TICKET TYPES API ---------------------------
-  const { data: ticketTypesData, isLoading: isLoadingTicketTypes, refetch: refetchTicketTypes } = useQuery({
+  const {
+    data: ticketTypesData,
+    isLoading: isLoadingTicketTypes,
+    refetch: refetchTicketTypes,
+  } = useQuery({
     queryKey: ["ticketTypes"],
     queryFn: async () => {
       try {
         const response = await api.get("/get-ticket-types");
         console.log("Ticket Types API Response:", response);
         // Based on your API response, it returns a direct array
-        return Array.isArray(response) ? response : response.data || response.types || [];
+        return Array.isArray(response)
+          ? response
+          : response.data || response.types || [];
       } catch (error) {
         console.error("Error fetching ticket types:", error);
         return [];
@@ -108,7 +131,11 @@ export default function RaiseTicketMaster() {
   });
 
   // --------------------------- FETCH TICKETS DATA ---------------------------
-  const { data: ticketsData, isLoading, isFetching } = useQuery({
+  const {
+    data: ticketsData,
+    isLoading,
+    isFetching,
+  } = useQuery({
     queryKey: ["tickets", pagination, sorting, globalFilter],
     queryFn: async () => {
       const params = new URLSearchParams({
@@ -176,17 +203,19 @@ export default function RaiseTicketMaster() {
       queryClient.invalidateQueries({ queryKey: ["tickets"] });
 
       // Find the selected ticket type name
-      const selectedTicketType = Array.isArray(ticketTypesData) 
+      const selectedTicketType = Array.isArray(ticketTypesData)
         ? ticketTypesData.find((type: TicketType) => type._id === selectedType)
         : null;
 
       // Create the complete ticket object with proper type structure
       const completeTicket: Ticket = {
         ...data,
-        type: selectedTicketType ? {
-          _id: selectedTicketType._id,
-          name: selectedTicketType.name
-        } : { _id: selectedType, name: "Unknown Type" }
+        type: selectedTicketType
+          ? {
+              _id: selectedTicketType._id,
+              name: selectedTicketType.name,
+            }
+          : { _id: selectedType, name: "Unknown Type" },
       };
 
       // Add new ticket to the END of list immediately with proper type structure
@@ -209,7 +238,8 @@ export default function RaiseTicketMaster() {
     if (!description.trim()) return alert("Please enter a description");
 
     const userInfo = getUserInfo();
-    if (!userInfo) return alert("User information not found. Please login again.");
+    if (!userInfo)
+      return alert("User information not found. Please login again.");
 
     const data = {
       type: selectedType,
@@ -240,63 +270,120 @@ export default function RaiseTicketMaster() {
     else if (status === "Resolved") colorClass = "bg-green-500 text-white";
     else if (status === "Closed") colorClass = "bg-gray-500 text-white";
     return (
-      <span className={`px-3 py-1 rounded-full text-sm font-medium ${colorClass}`}>
+      <span
+        className={`px-3 py-1 rounded-full text-sm font-medium ${colorClass}`}
+      >
         {status}
       </span>
     );
   };
 
+  // Update Ticket Status Mutation
+  const updateTicketStatusMutation = useMutation({
+    mutationFn: async ({ _id, status }: { _id: string; status: string }) => {
+      const response = await api.put(`update-ticket/${_id}`, { status });
+      return response;
+    },
+    onSuccess: (_, variables) => {
+      const { _id, status } = variables;
+
+      // Update local table data immediately
+      setFilteredData((prev) =>
+        prev.map((ticket) =>
+          ticket._id === _id ? { ...ticket, status } : ticket
+        )
+      );
+
+      setFilterResults((prev) =>
+        prev.map((ticket) =>
+          ticket._id === _id ? { ...ticket, status } : ticket
+        )
+      );
+
+      queryClient.invalidateQueries({ queryKey: ["tickets"] });
+
+      alert("✅ Ticket status updated successfully");
+      setIsDialogOpen(false);
+    },
+
+    onError: (error) => {
+      console.error("Error updating ticket:", error);
+      alert("❌ Failed to update ticket status");
+    },
+  });
+
   // --------------------------- TABLE COLUMNS ---------------------------
-  const columns = useMemo<ColumnDef<Ticket>[]>(() => [
-    { 
-      header: "Added Date", 
-      cell: ({ row }) => new Date(row.original.createdAt).toLocaleString() 
-    },
-    { 
-      accessorKey: "ticket_id", 
-      header: "Ticket ID" 
-    },
-{ 
-      header: "Raised By", 
-      cell: ({ row }) => row.original.raised_by?.userModel || "N/A"
-    },
-    { 
-      accessorKey: "email", 
-      header: "Email",
-      cell: ({ row }) => row.original.email || "N/A"
-    },
-    { 
-      header: "Type", 
-      cell: ({ row }) => row.original.type?.name || "N/A"
-    },
-    { 
-      header: "School", 
-      cell: ({ row }) => row.original.schoolId?.schoolName || "N/A"
-    },
-    { 
-      header: "Branch", 
-      cell: ({ row }) => row.original.branchId?.branchName || "N/A"
-    },
-    { 
-      accessorKey: "role", 
-      header: "Role",
-      cell: ({ row }) => row.original.role || "N/A"
-    },
-    { 
-      accessorKey: "description", 
-      header: "Description",
-      cell: ({ row }) => row.original.description || "N/A"
-    },
-    { 
-      accessorKey: "feedback", 
-      header: "Feedback",
-      cell: ({ row }) => row.original.feedback || "N/A"
-    },
-    { 
-      header: "Status", 
-      cell: ({ row }) => renderStatusButton(row.original.status) 
-    },
-  ], []);
+  const columns = useMemo<ColumnDef<Ticket>[]>(
+    () => [
+      {
+        header: "Added Date",
+        cell: ({ row }) => new Date(row.original.createdAt).toLocaleString(),
+      },
+      {
+        accessorKey: "ticket_id",
+        header: "Ticket ID",
+      },
+      {
+        header: "Raised By",
+        cell: ({ row }) => row.original.raised_by?.userModel || "N/A",
+      },
+      {
+        accessorKey: "email",
+        header: "Email",
+        cell: ({ row }) => row.original.email || "N/A",
+      },
+      {
+        header: "Type",
+        cell: ({ row }) => row.original.type?.name || "N/A",
+      },
+      {
+        header: "School",
+        cell: ({ row }) => row.original.schoolId?.schoolName || "N/A",
+      },
+      {
+        header: "Branch",
+        cell: ({ row }) => row.original.branchId?.branchName || "N/A",
+      },
+      {
+        accessorKey: "role",
+        header: "Role",
+        cell: ({ row }) => row.original.role || "N/A",
+      },
+      {
+        accessorKey: "description",
+        header: "Description",
+        meta: { wrapConfig: { wrap: "wrap", maxWidth: "360px" } },
+        cell: ({ row }) => row.original.description || "N/A",
+      },
+      {
+        accessorKey: "feedback",
+        header: "Feedback",
+        cell: ({ row }) => row.original.feedback || "N/A",
+      },
+      {
+        header: "Status",
+        cell: ({ row }) => renderStatusButton(row.original.status),
+      },
+      {
+        header: "Action",
+        cell: ({ row }) => (
+          <Button
+            size="sm"
+            variant="outline"
+            className="bg-yellow-400 text-black hover:bg-yellow-500 border-yellow-500"
+            onClick={() => {
+              setSelectedTicket(row.original);
+              setStatusValue(row.original.status);
+              setIsDialogOpen(true);
+            }}
+          >
+            Edit
+          </Button>
+        ),
+      },
+    ],
+    []
+  );
 
   // --------------------------- TABLE SETUP ---------------------------
   const { table, tableElement } = CustomTableServerSidePagination({
@@ -317,7 +404,9 @@ export default function RaiseTicketMaster() {
   });
 
   // --------------------------- STATUS FILTER ---------------------------
-  const handleStatusFilter = (status: "All" | "Open" | "In Progress" | "Resolved") => {
+  const handleStatusFilter = (
+    status: "All" | "Open" | "In Progress" | "Resolved"
+  ) => {
     setStatusFilter(status);
     if (status === "All") setFilteredData(filterResults);
     else setFilteredData(filterResults.filter((t) => t.status === status));
@@ -328,8 +417,12 @@ export default function RaiseTicketMaster() {
     const colors: Record<string, string> = {
       All: isActive ? "bg-gray-800 text-white" : "bg-gray-200 text-gray-800",
       Open: isActive ? "bg-blue-600 text-white" : "bg-blue-100 text-blue-800",
-      "In Progress": isActive ? "bg-yellow-500 text-black" : "bg-yellow-100 text-yellow-800",
-      Resolved: isActive ? "bg-green-600 text-white" : "bg-green-100 text-green-800",
+      "In Progress": isActive
+        ? "bg-yellow-500 text-black"
+        : "bg-yellow-100 text-yellow-800",
+      Resolved: isActive
+        ? "bg-green-600 text-white"
+        : "bg-green-100 text-green-800",
     };
     return colors[status] || "bg-gray-200 text-gray-800";
   };
@@ -337,14 +430,18 @@ export default function RaiseTicketMaster() {
   // Get selected ticket type name for display
   const getSelectedTypeName = () => {
     if (!selectedType || !Array.isArray(ticketTypesData)) return "";
-    const selected = ticketTypesData.find((type: TicketType) => type._id === selectedType);
+    const selected = ticketTypesData.find(
+      (type: TicketType) => type._id === selectedType
+    );
     return selected ? selected.name : "";
   };
 
   // --------------------------- RENDER ---------------------------
   return (
     <main>
-      <ResponseLoader isLoading={isLoading || isFetching || isLoadingTicketTypes} />
+      <ResponseLoader
+        isLoading={isLoading || isFetching || isLoadingTicketTypes}
+      />
 
       <header className="flex flex-col md:flex-row md:items-center justify-between mb-4 space-y-2 md:space-y-0">
         <section className="flex flex-wrap gap-4 items-center">
@@ -362,10 +459,12 @@ export default function RaiseTicketMaster() {
             onResults={setFilteredData}
             className="w-[300px]"
           />
-          <DateRangeFilter
-            onDateRangeChange={(s, e) => setDateRange({ start: s, end: e })}
-            title="Search by Added Date"
-          />
+          <div>
+            <DateRangeFilter
+              onDateRangeChange={(s, e) => setDateRange({ start: s, end: e })}
+              title="Search by Added Date"
+            />
+          </div>
           <ColumnVisibilitySelector
             columns={table.getAllColumns()}
             buttonVariant="outline"
@@ -408,9 +507,12 @@ export default function RaiseTicketMaster() {
                     >
                       <option value="">Select ticket type</option>
                       {isLoadingTicketTypes ? (
-                        <option value="" disabled>Loading ticket types...</option>
+                        <option value="" disabled>
+                          Loading ticket types...
+                        </option>
                       ) : (
-                        Array.isArray(ticketTypesData) && ticketTypesData.map((type: TicketType) => (
+                        Array.isArray(ticketTypesData) &&
+                        ticketTypesData.map((type: TicketType) => (
                           <option key={type._id} value={type._id}>
                             {type.name}
                           </option>
@@ -418,11 +520,18 @@ export default function RaiseTicketMaster() {
                       )}
                     </select>
                     {isLoadingTicketTypes && (
-                      <p className="text-sm text-gray-500">Loading ticket types...</p>
+                      <p className="text-sm text-gray-500">
+                        Loading ticket types...
+                      </p>
                     )}
-                    {!isLoadingTicketTypes && (!Array.isArray(ticketTypesData) || ticketTypesData.length === 0) && (
-                      <p className="text-sm text-red-500">No ticket types available. Please contact administrator.</p>
-                    )}
+                    {!isLoadingTicketTypes &&
+                      (!Array.isArray(ticketTypesData) ||
+                        ticketTypesData.length === 0) && (
+                        <p className="text-sm text-red-500">
+                          No ticket types available. Please contact
+                          administrator.
+                        </p>
+                      )}
                     {selectedType && (
                       <p className="text-sm text-green-600">
                         Selected: {getSelectedTypeName()}
@@ -444,15 +553,26 @@ export default function RaiseTicketMaster() {
                 </div>
                 <DialogFooter>
                   <DialogClose asChild>
-                    <Button ref={closeButtonRef} variant="outline" type="button">
+                    <Button
+                      ref={closeButtonRef}
+                      variant="outline"
+                      type="button"
+                    >
                       Cancel
                     </Button>
                   </DialogClose>
-                  <Button 
-                    type="submit" 
-                    disabled={addTicketMutation.isPending || isLoadingTicketTypes || !Array.isArray(ticketTypesData) || ticketTypesData.length === 0}
+                  <Button
+                    type="submit"
+                    disabled={
+                      addTicketMutation.isPending ||
+                      isLoadingTicketTypes ||
+                      !Array.isArray(ticketTypesData) ||
+                      ticketTypesData.length === 0
+                    }
                   >
-                    {addTicketMutation.isPending ? "Submitting..." : "Submit Ticket"}
+                    {addTicketMutation.isPending
+                      ? "Submitting..."
+                      : "Submit Ticket"}
                   </Button>
                 </DialogFooter>
               </form>
@@ -461,8 +581,51 @@ export default function RaiseTicketMaster() {
         </section>
       </header>
 
+      {/* ---------- EDIT STATUS DIALOG ---------- */}
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Ticket Status</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 mt-4">
+            <div>
+              <Label>Status</Label>
+              <Select value={statusValue} onValueChange={setStatusValue}>
+                <SelectTrigger className="w-full mt-1">
+                  <SelectValue placeholder="Select Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Open">Open</SelectItem>
+                  <SelectItem value="In Progress">In Progress</SelectItem>
+                  <SelectItem value="Resolved">Resolved</SelectItem>
+                  <SelectItem value="Closed">Closed</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex justify-end space-x-2 pt-3">
+              <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                className="bg-yellow-400 text-black hover:bg-yellow-500 border-yellow-500"
+                onClick={() => {
+                  if (selectedTicket && statusValue) {
+                    updateTicketStatusMutation.mutate({
+                      _id: selectedTicket._id,
+                      status: statusValue,
+                    });
+                  }
+                }}
+              >
+                Save
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <section className="mb-4">{tableElement}</section>
-      <FloatingMenu />
+      {/* <FloatingMenu /> */}
     </main>
   );
 }

@@ -267,45 +267,49 @@ export default function RaiseTicketMaster() {
   ], []);
 
   // Table columns for Ticket Types
-  const ticketTypeColumns = useMemo<ColumnDef<TicketType>[]>(() => [
-    {
-      header: "SN",
-      cell: ({ row }) => row.index + 1,
-    },
-    {
-      accessorKey: "name",
-      header: "Ticket Type Name",
-    },
-    {
-      header: "Created Date",
-      cell: ({ row }) => new Date(row.original.createdAt).toLocaleDateString(),
-    },
-    {
-      header: "Actions",
-      cell: ({ row }) => (
-        <div className="space-x-2">
-          <Button
-            size="sm"
-            variant="outline"
-            className="bg-yellow-400 text-black hover:bg-yellow-500 border-yellow-500"
-            onClick={() => handleEditTicketType(row.original)}
-            disabled={updateTicketTypeMutation.isPending}
-          >
-            Edit
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            className="bg-red-500 text-white hover:bg-red-600 border-red-500"
-            onClick={() => handleDeleteTicketType(row.original)}
-            disabled={deleteTicketTypeMutation.isPending}
-          >
-            Delete
-          </Button>
-        </div>
-      ),
-    },
-  ], [updateTicketTypeMutation.isPending, deleteTicketTypeMutation.isPending]);
+  const ticketTypeColumns = useMemo<ColumnDef<TicketType>[]>(
+    () => [
+      {
+        header: "SN",
+        cell: ({ row }) => row.index + 1,
+      },
+      {
+        accessorKey: "name",
+        header: "Ticket Type Name",
+      },
+      {
+        header: "Created Date",
+        cell: ({ row }) =>
+          new Date(row.original.createdAt).toLocaleDateString(),
+      },
+      {
+        header: "Actions",
+        cell: ({ row }) => (
+          <div className="space-x-2">
+            <Button
+              size="sm"
+              variant="outline"
+              className="bg-yellow-400 text-black hover:bg-yellow-500 border-yellow-500 cursor-pointer"
+              onClick={() => handleEditTicketType(row.original)}
+              disabled={updateTicketTypeMutation.isPending}
+            >
+              Edit
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="bg-red-500 text-white hover:bg-red-600 border-red-500 cursor-pointer"
+              onClick={() => handleDeleteTicketType(row.original)}
+              disabled={deleteTicketTypeMutation.isPending}
+            >
+              Delete
+            </Button>
+          </div>
+        ),
+      },
+    ],
+    [updateTicketTypeMutation.isPending, deleteTicketTypeMutation.isPending]
+  );
 
   // Table setup for Tickets
   const { table, tableElement } = CustomTableServerSidePagination({

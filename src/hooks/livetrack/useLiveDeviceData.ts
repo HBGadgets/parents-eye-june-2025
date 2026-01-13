@@ -1,6 +1,6 @@
 // hooks/useLiveDeviceData.ts
 "use client";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { useDeviceStore } from "@/store/deviceStore";
 
 // Hook for all device data streaming

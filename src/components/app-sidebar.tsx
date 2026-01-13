@@ -44,6 +44,7 @@ import {
   Bell,
   CheckCircle,
   XCircle,
+  MessageCircle,
 } from "lucide-react";
 import { GiGps } from "react-icons/gi";
 import Image from "next/image";
@@ -84,6 +85,7 @@ const iconMap: Record<string, React.ElementType> = {
   "Alerts/Events": Bell,
   "Geofence Report": Map,
   "Route Report": Route,
+  "Chat Box": MessageCircle,
   Model: GiGps,
   Category: FileText,
 };
@@ -113,7 +115,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
     setIsLoading(false);
   }, []);
-  
+
   const getSidebarData = React.useCallback(
     (section: string, role: UserRole) => {
       switch (section) {
@@ -232,9 +234,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           ];
         case "Support":
           return [
-            { title: "Contact Us", url: "/dashboard/support/contact-us" },
+            { title: "Chat Box", url: "/dashboard/support/contact-us" },
             { title: "Raise Ticket", url: "/dashboard/support/raise-ticket" },
-            { title: "Answer Ticket", url: "/dashboard/support/answer-ticket" },
+            // { title: "Answer Ticket", url: "/dashboard/support/answer-ticket" },
             { title: "FAQ", url: "/dashboard/support/faq" },
           ];
         default:
