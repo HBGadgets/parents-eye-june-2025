@@ -50,6 +50,7 @@ export interface Device {
   branchId: Branch;
   createdAt: string;
   updatedAt: string;
+  subscriptionEndDate: string;
 }
 
 export interface GetDeviceResponse {

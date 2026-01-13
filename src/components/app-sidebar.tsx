@@ -70,7 +70,7 @@ const iconMap: Record<string, React.ElementType> = {
   "Driver Approve": UserCheck,
   "Student Approve": UserCheck,
   "Supervisor Approve": UserCheck,
-  "Add Device": Smartphone,
+  "Device": Smartphone,
   "Read Device": Smartphone,
   Devices: Smartphone,
   "User Access": Settings,
@@ -122,7 +122,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         case "Master":
           if (role === "superAdmin") {
             return [
-              { title: "Add Device", url: "/dashboard/users/add-device" },
+              { title: "Device", url: "/dashboard/users/add-device" },
               { title: "School Master", url: "/dashboard/users/school-master" },
               { title: "Branch Master", url: "/dashboard/users/branch-master" },
               { title: "User Access", url: "/dashboard/users/user-access" },
@@ -145,7 +145,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             ];
           } else if (role === "school" || role === "branchGroup") {
             return [
-              { title: "Add Device", url: "/dashboard/users/add-device" },
+              { title: "Device", url: "/dashboard/users/add-device" },
               {
                 title: "Branch Master",
                 url: "/dashboard/users/branch-master",
@@ -169,7 +169,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             ];
           } else {
             return [
-              { title: "Add Device", url: "/dashboard/users/add-device" },
+              { title: "Device", url: "/dashboard/users/add-device" },
               {
                 title: "Student Details",
                 url: "/dashboard/school/student-details",

@@ -74,10 +74,10 @@ interface StudentCardProps {
 export const StudentCard: React.FC<StudentCardProps> = ({
   student,
   index,
-  routes, // ✅ Raw routes data
-  routeOpen, // ✅ Added
-  onRouteOpenChange, // ✅ Added
-  isLoadingRoutes, // ✅ Added
+  routes,
+  routeOpen,
+  onRouteOpenChange,
+  isLoadingRoutes,
   branchSelected,
   geofenceSearch,
   onStudentChange,

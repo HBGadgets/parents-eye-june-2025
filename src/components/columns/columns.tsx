@@ -24,9 +24,6 @@ import React, { useMemo } from "react";
 import { Button } from "../ui/button";
 import Image from "next/image";
 import { statusIconMap } from "@/components/statusIconMap";
-import { m } from "framer-motion";
-import { metadata } from "@/app/layout";
-import { max } from "lodash";
 
 export const getModelColumns = (
   setEditTarget: (row: Model) => void,
@@ -285,6 +282,46 @@ export const getStudentColumns = (
   },
 ];
 
+// DEVICE COLUMNS START
+const getDaysRemaining = (dateStr: string) => {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const expiry = new Date(dateStr);
+  expiry.setHours(0, 0, 0, 0);
+
+  const diffTime = expiry.getTime() - today.getTime();
+  return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+};
+
+const getExpiryStyle = (days: number) => {
+  switch (true) {
+    case days < 0:
+      return {
+        color: "bg-red-100 text-red-700",
+        message: "Subscription expired",
+      };
+
+    case days <= 15:
+      return {
+        color: "bg-orange-100 text-orange-700",
+        message: `Expiring in ${days} day${days === 1 ? "" : "s"}`,
+      };
+
+    case days <= 30:
+      return {
+        color: "bg-yellow-100 text-yellow-700",
+        message: `Expiring in ${days} days`,
+      };
+
+    default:
+      return {
+        color: "bg-green-100 text-green-700",
+        message: `Valid for ${days} more days`,
+      };
+  }
+};
+
 export const getDeviceColumns = (
   onEdit: (row: Device) => void,
   onDelete: (row: Device) => void
@@ -300,6 +337,41 @@ export const getDeviceColumns = (
   {
     header: "Sim No",
     accessorKey: "sim",
+  },
+  {
+    id: "lastUpdate",
+    header: "Last Update",
+    cell: ({ row }: any) => {
+      const value = row.original.lastUpdate;
+
+      if (!value) return "-";
+
+      const date = new Date(value);
+
+      return (
+        <div>
+          {date.toLocaleString("en-GB", {
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+            hour12: true,
+            timeZone: "UTC",
+          })}
+        </div>
+      );
+    },
+
+    meta: {
+      wrapConfig: {
+        wrap: "break-word",
+        maxWidth: "200px",
+      },
+    },
+    enableHiding: true,
+    enableSorting: true,
   },
   {
     header: "OverSpeed km/h",
@@ -335,7 +407,6 @@ export const getDeviceColumns = (
       );
     },
   },
-
   {
     id: "school",
     header: "School",
@@ -357,11 +428,57 @@ export const getDeviceColumns = (
     accessorFn: (row: Device) => row.driverObjId?.driverName ?? "—",
   },
   {
-    id: "registerationDate",
-    headers: "Registeration Date",
-    accessorFn: (row: Device) => new Date(row.createdAt).toLocaleDateString(),
+    id: "subscriptionEndDate",
+    header: "Subscription End",
+    cell: ({ row }: any) => {
+      const value = row.original?.subscriptionEndDate;
+      if (!value) return "-";
+
+      const date = new Date(value);
+      const daysRemaining = getDaysRemaining(value);
+      const { color, message } = getExpiryStyle(daysRemaining);
+
+      const formattedDate = date.toLocaleString("en-GB", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: true,
+        timeZone: "UTC",
+      });
+
+      return (
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div
+                className={`px-2 py-1 rounded-md text-sm font-medium inline-block cursor-help ${color}`}
+              >
+                {formattedDate}
+              </div>
+            </TooltipTrigger>
+
+            <TooltipContent side="top" align="center">
+              <p className="text-sm">{message}</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      );
+    },
+
+    meta: {
+      wrapConfig: {
+        wrap: "break-word",
+        maxWidth: "200px",
+      },
+    },
+    enableHiding: true,
+    enableSorting: true,
   },
 ];
+// DEVICE COLUMNS END
 
 export const getLiveVehicleColumns = (): ColumnDef<LiveTrack>[] => [
   {

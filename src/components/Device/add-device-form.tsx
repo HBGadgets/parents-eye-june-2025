@@ -25,31 +25,15 @@ import {
   DropdownItem,
   useDriverDropdown,
 } from "@/hooks/useDropdown";
-import { Loader2 } from "lucide-react";
+import { CalendarIcon, Loader2 } from "lucide-react";
 import { useAddDeviceNew } from "@/hooks/device/useAddDevice(new)";
 import { useAddDeviceOld } from "@/hooks/device/useAddDevice(old)";
 import { useDebounce } from "@/hooks/useDebounce";
-import { routeService } from "@/services/api/routeService";
 import { toast } from "sonner";
 import { deviceApiService } from "@/services/api/deviceApiService";
-
-// Validation schema
-const deviceSchema = z.object({
-  name: z.string().min(1, "Device name is required"),
-  uniqueId: z.string().min(1, "Unique ID is required"),
-  sim: z.string().min(1, "SIM number is required"),
-  schoolId: z.string().min(1, "School is required"),
-  branchId: z.string().min(1, "Branch is required"),
-  routeObjId: z.string().optional(),
-  category: z.string().min(1, "Category is required"),
-  model: z.string().min(1, "Model is required"),
-  driverObjId: z.string().optional(),
-  speed: z.string().optional(),
-  average: z.string().optional(),
-  keyFeature: z.boolean().default(false), // ✅ Added keyFeature
-});
-
-type DeviceFormData = z.infer<typeof deviceSchema>;
+import { DeviceFormData, deviceSchema } from "@/schemas/device.schema";
+import { Calendar } from "../ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
 
 interface AddDeviceFormProps {
   open: boolean;
@@ -95,8 +79,20 @@ export function AddDeviceForm({
       speed: "",
       average: "",
       keyFeature: false,
+      subscriptionEndDate: "",
     },
   });
+
+  const formatDateToZ = (date: Date) => {
+    const utcDate = new Date(
+      Date.UTC(date.getFullYear(), date.getMonth(), date.getDate(), 0, 0, 0, 0)
+    );
+
+    return utcDate.toISOString();
+  };
+
+  const formatDateForUI = (dateStr: string) =>
+    new Date(dateStr).toLocaleDateString("en-GB");
 
   // Watch form fields for dependent dropdowns
   const selectedSchoolId = watch("schoolId");
@@ -174,7 +170,8 @@ export function AddDeviceForm({
         driverObjId: editData.driverObjId?._id || "",
         speed: editData.speed || "",
         average: editData.average || "",
-        keyFeature: editData.keyFeature ?? false, // ✅ Added keyFeature with fallback
+        keyFeature: editData.keyFeature ?? false,
+        subscriptionEndDate: editData.subscriptionEndDate || "",
       });
     } else if (open && !editData) {
       reset({
@@ -189,7 +186,8 @@ export function AddDeviceForm({
         driverObjId: "",
         speed: "",
         average: "",
-        keyFeature: false, // ✅ Reset to false
+        keyFeature: false,
+        subscriptionEndDate: "",
       });
     }
   }, [open, editData, reset]);
@@ -340,6 +338,7 @@ export function AddDeviceForm({
           speed: data.speed,
           average: data.average,
           keyFeature: data.keyFeature,
+          subscriptionEndDate: data.subscriptionEndDate,
         };
 
         // UPDATE NEW API
@@ -388,6 +387,7 @@ export function AddDeviceForm({
           speed: data.speed,
           average: data.average,
           keyFeature: data.keyFeature,
+          subscriptionEndDate: data.subscriptionEndDate,
         };
 
         createDevice(newApiPayload);
@@ -713,6 +713,70 @@ export function AddDeviceForm({
               {errors.average && (
                 <p className="text-sm text-red-500">{errors.average.message}</p>
               )}
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-sm font-medium">
+                Subscription Expiry <span className="text-red-500">*</span>
+              </label>
+
+              <Controller
+                name="subscriptionEndDate"
+                control={control}
+                render={({ field }) => {
+                  const selectedDate = field.value
+                    ? new Date(field.value)
+                    : undefined;
+
+                  return (
+                    <>
+                      <Popover modal>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            className={`w-full justify-start text-left font-normal ${
+                              !field.value ? "text-muted-foreground" : ""
+                            }`}
+                            disabled={isLoading}
+                          >
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {field.value ? (
+                              formatDateForUI(field.value)
+                            ) : (
+                              <span>Select expiry date</span>
+                            )}
+                          </Button>
+                        </PopoverTrigger>
+
+                        <PopoverContent
+                          className="w-auto p-0 z-[9999]"
+                          align="start"
+                        >
+                          <Calendar
+                            mode="single"
+                            selected={selectedDate}
+                            onSelect={(date) => {
+                              if (date) {
+                                field.onChange(formatDateToZ(date));
+                              }
+                            }}
+                            disabled={(date) =>
+                              date < new Date(new Date().setHours(0, 0, 0, 0))
+                            }
+                            captionLayout="dropdown"
+                          />
+                        </PopoverContent>
+                      </Popover>
+
+                      {errors.subscriptionEndDate && (
+                        <p className="text-sm text-red-500">
+                          {errors.subscriptionEndDate.message}
+                        </p>
+                      )}
+                    </>
+                  );
+                }}
+              />
             </div>
 
             <div className="flex items-center gap-2 mt-4">
