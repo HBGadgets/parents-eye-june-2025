@@ -24,6 +24,12 @@ import React, { useMemo } from "react";
 import { Button } from "../ui/button";
 import Image from "next/image";
 import { statusIconMap } from "@/components/statusIconMap";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "../ui/tooltip";
 
 export const getModelColumns = (
   setEditTarget: (row: Model) => void,
@@ -296,6 +302,12 @@ const getDaysRemaining = (dateStr: string) => {
 
 const getExpiryStyle = (days: number) => {
   switch (true) {
+    case days === 0:
+      return {
+        color: "bg-red-100 text-red-700",
+        message: "Subscription expires today",
+      };
+
     case days < 0:
       return {
         color: "bg-red-100 text-red-700",
@@ -431,7 +443,7 @@ export const getDeviceColumns = (
     id: "subscriptionEndDate",
     header: "Subscription End",
     cell: ({ row }: any) => {
-      const value = row.original?.subscriptionEndDate;
+      const value = row.original.subscriptionEndDate;
       if (!value) return "-";
 
       const date = new Date(value);
@@ -442,9 +454,6 @@ export const getDeviceColumns = (
         day: "2-digit",
         month: "2-digit",
         year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-        second: "2-digit",
         hour12: true,
         timeZone: "UTC",
       });
@@ -454,7 +463,7 @@ export const getDeviceColumns = (
           <Tooltip>
             <TooltipTrigger asChild>
               <div
-                className={`px-2 py-1 rounded-md text-sm font-medium inline-block cursor-help ${color}`}
+                className={`px-2 py-1 rounded-md text-sm font-medium inline-block ${color}`}
               >
                 {formattedDate}
               </div>
