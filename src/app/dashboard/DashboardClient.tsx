@@ -1,4 +1,6 @@
 "use client";
+
+import { useRouter } from "next/navigation";
 import { ColumnVisibilitySelector } from "@/components/column-visibility-selector";
 import VehicleMap from "@/components/dashboard/VehicleMap";
 import ResponseLoader from "@/components/ResponseLoader";
@@ -10,7 +12,8 @@ import { Input } from "@/components/ui/input";
 import { useLiveDeviceData } from "@/hooks/livetrack/useLiveDeviceData";
 import { useReverseGeocode } from "@/hooks/useReverseGeocoding";
 import { DeviceData } from "@/types/socket";
-import { ChevronsLeft, ChevronsRight } from "lucide-react";
+import { calculateTimeSince } from "@/util/calculateTimeSince";
+import { ChevronsLeft, ChevronsRight, Locate } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import { LiveTrack } from "@/components/dashboard/LiveTrack.tsx/livetrack";
 import { BottomDrawer } from "@/components/dashboard/bottom-drawer";
@@ -95,6 +98,15 @@ export default function DashboardClient() {
   const { expiredBranches, expiredBranchesCount } = useSubscriptionExpiry(
     showSubscriptionPopup
   );
+  // console.log(
+  //   "🚀 ~ file: DashboardClient.tsx:261 ~ expiredBranchesCount:",
+  //   expiredBranchesCount
+  // );
+  // console.log(
+  //   "🚀 ~ file: DashboardClient.tsx:261 ~ expiredBranches:",
+  //   expiredBranches
+  // );
+
   // Sync local pagination with store pagination
   const [pagination, setPagination] = useState({
     pageIndex: currentPage - 1,
@@ -320,7 +332,7 @@ export default function DashboardClient() {
     columnVisibility,
     onColumnVisibilityChange: setColumnVisibility,
     emptyMessage: "No devices found",
-    pageSizeOptions: [5, 10, 20, 50, 100, 500, 1000],
+    pageSizeOptions: [5, 10, 20, 30, 50],
     enableSorting: true,
     showSerialNumber: true,
     onRowClick: handleDeviceSelection,
@@ -351,34 +363,6 @@ export default function DashboardClient() {
 
     handleOpenRouteTimeline,
   ]);
-
-  // Dummy devices data for subscription expiry
-  const expiringDevices = [
-    {
-      deviceId: 1,
-      name: "MH-12-AB-1234",
-      imei: "356938035643809",
-      expiryDate: "2025-11-05",
-      daysRemaining: 5,
-      status: "critical" as const,
-    },
-    {
-      deviceId: 2,
-      name: "MH-12-CD-5678",
-      imei: "356938035643810",
-      expiryDate: "2025-11-15",
-      daysRemaining: 15,
-      status: "warning" as const,
-    },
-    {
-      deviceId: 3,
-      name: "MH-12-EF-9012",
-      imei: "356938035643811",
-      expiryDate: "2025-11-25",
-      daysRemaining: 25,
-      status: "info" as const,
-    },
-  ];
 
   const handleCloseSubscriptionPopup = () => {
     setShowSubscriptionPopup(false);
@@ -548,11 +532,11 @@ export default function DashboardClient() {
               <section className={`${getMapClass} rounded-lg overflow-hidden`}>
                 {viewState !== "tableExpanded" && (
                   <VehicleMap
-                    vehicles={devices ?? []}
+                    vehicles={devices}
                     height="100%"
                     autoFitBounds={false}
                     showTrails={false}
-                    // clusterMarkers={devices.length > 100}
+                    clusterMarkers={devices.length > 100}
                     zoom={6}
                     selectedVehicleId={selectedVehicleId}
                     onVehicleSelect={setSelectedVehicleId}
