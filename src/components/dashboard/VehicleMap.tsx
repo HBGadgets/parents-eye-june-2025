@@ -509,7 +509,6 @@ const createClusterCustomIcon = (cluster: any) => {
   });
 };
 
-
 const VehicleMap: React.FC<VehicleMapProps> = ({
   vehicles,
   center = [21.99099777777778, 78.92973111111111],
@@ -593,25 +592,25 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
       />
     ));
 
-    if (clusterMarkers && validVehicles.length > 10) {
-      return (
-        <MarkerClusterGroup
-          // disabled={!clusterMarkers || validVehicles.length <= 10}
-          chunkedLoading
-          iconCreateFunction={createClusterCustomIcon}
-          maxClusterRadius={50}
-          spiderfyOnMaxZoom={false}
-          showCoverageOnHover={false}
-          // zoomToBoundsOnClick={true}
-          disableClusteringAtZoom={80}
-        >
-          {markers}
-        </MarkerClusterGroup>
-      );
-    }
+    // if (clusterMarkers && validVehicles.length > 10) {
+    //   return (
+    //     <MarkerClusterGroup
+    //       disabled={!clusterMarkers || validVehicles.length <= 10}
+    //       chunkedLoading
+    //       iconCreateFunction={createClusterCustomIcon}
+    //       maxClusterRadius={50}
+    //       spiderfyOnMaxZoom={false}
+    //       showCoverageOnHover={false}
+    //       // zoomToBoundsOnClick={true}
+    //       disableClusteringAtZoom={80}
+    //     >
+    //       {markers}
+    //     </MarkerClusterGroup>
+    //   );
+    // }
 
     return markers;
-  }, [validVehicles, clusterMarkers, handleVehicleClick, selectedVehicleId]);
+  }, [validVehicles, handleVehicleClick, selectedVehicleId]);
 
   return (
     <div className="vehicle-map-container" style={{ height, width: "100%" }}>
