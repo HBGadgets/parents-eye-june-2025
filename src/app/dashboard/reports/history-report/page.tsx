@@ -503,60 +503,62 @@ function HistoryReportContent() {
   };
 
   const handleShow = () => {
-    const { from, to } = getTodayUtcRange();
     const finalUniqueId = uniqueIdFromUrl || selectedVehicle;
     if (!finalUniqueId) return;
+
+    const finalFrom = fromDate || getTodayUtcRange().from;
+    const finalTo = toDate || getTodayUtcRange().to;
+
     setApiFilters({
       uniqueId: finalUniqueId,
-      from,
-      to,
+      from: finalFrom,
+      to: finalTo,
       period: "Custom",
     });
     setHasGenerated(true);
   };
-
+  
   // Sync uniqueId from URL with dropdown selection and set today's date
-useEffect(() => {
-  if (uniqueIdFromUrl && vehicleData && !selectedVehicle) {
-    const vehicleExists = vehicleData.some(
-      (vehicle: any) => vehicle.uniqueId === uniqueIdFromUrl
-    );
+  useEffect(() => {
+    if (uniqueIdFromUrl && vehicleData && !selectedVehicle) {
+      const vehicleExists = vehicleData.some(
+        (vehicle: any) => vehicle.uniqueId === uniqueIdFromUrl
+      );
 
-    if (vehicleExists) {
-      setSelectedVehicle(uniqueIdFromUrl);
+      if (vehicleExists) {
+        setSelectedVehicle(uniqueIdFromUrl);
 
-      const { from, to } = getTodayUtcRange();
+        const { from, to } = getTodayUtcRange();
 
-      setApiFilters({
-        uniqueId: uniqueIdFromUrl,
-        from,
-        to,
-        period: "Custom",
-      });
+        setApiFilters({
+          uniqueId: uniqueIdFromUrl,
+          from,
+          to,
+          period: "Custom",
+        });
 
-      setFromDate(from);
-      setToDate(to);
+        setFromDate(from);
+        setToDate(to);
 
-      // ✅ Set default date range for DateRangeFilter
-      const today = new Date();
-      setDefaultDateRange({
-        startDate: new Date(
-          today.getFullYear(),
-          today.getMonth(),
-          today.getDate()
-        ),
-        endDate: new Date(
-          today.getFullYear(),
-          today.getMonth(),
-          today.getDate()
-        ),
-      });
+        // ✅ Set default date range for DateRangeFilter
+        const today = new Date();
+        setDefaultDateRange({
+          startDate: new Date(
+            today.getFullYear(),
+            today.getMonth(),
+            today.getDate()
+          ),
+          endDate: new Date(
+            today.getFullYear(),
+            today.getMonth(),
+            today.getDate()
+          ),
+        });
 
-      setHasGenerated(true);
+        setHasGenerated(true);
+      }
     }
-  }
-}, [uniqueIdFromUrl, vehicleData, selectedVehicle]);
-
+  }, [uniqueIdFromUrl, vehicleData, selectedVehicle]);
 
   useEffect(() => {
     if (!historyReport?.deviceDataByTrips) return;
