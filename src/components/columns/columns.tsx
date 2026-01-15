@@ -1167,19 +1167,36 @@ export const getStatusReportColumns = (): ColumnDef<StatusReport>[] => [
     cell: ({ getValue }) => {
       const status = getValue<VehicleStatus>();
       const config = statusIconMap[status];
-
       if (!config) return <span>-</span>;
+      const statusColorMap: Record<string, string> = {
+        "Vehicle Stopped": "text-red-600 bg-red-100",
+        "Vehicle Running": "text-green-600 bg-green-100",
+        "Vehicle Idle": "text-yellow-600 bg-yellow-100",
+        "Vehicle Overspeed": "text-orange-600 bg-orange-100",
+      };
+
 
       return (
         <div className="flex justify-center">
-          <Image
-            src={config.src}
-            alt={config.label}
-            title={config.label}
-            width={40}
-            height={40}
-            className="cursor-pointer"
-          />
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Image
+                src={config.src}
+                alt={config.label}
+                // title={config.label}
+                width={40}
+                height={40}
+                className="cursor-pointer"
+              />
+            </TooltipTrigger>
+            <TooltipContent
+              className={`font-semibold ${
+                statusColorMap[config.label] ?? "text-gray-600"
+              }`}
+            >
+              {config.label}
+            </TooltipContent>
+          </Tooltip>
         </div>
       );
     },
@@ -1202,7 +1219,7 @@ export const getStatusReportColumns = (): ColumnDef<StatusReport>[] => [
     meta: { wrapConfig: { wrap: "wrap", maxWidth: "260px" } },
   },
   {
-    header: "Coordinates",
+    header: "Start Coordinates",
     accessorFn: (row) =>
       `${row.startCoordinate.latitude},${row.startCoordinate.longitude}`,
     cell: ({ getValue }) => {
@@ -1255,7 +1272,7 @@ export const getStatusReportColumns = (): ColumnDef<StatusReport>[] => [
     meta: { wrapConfig: { wrap: "wrap", maxWidth: "260px" } },
   },
   {
-    header: "Coordinates",
+    header: "End Coordinates",
     accessorFn: (row) =>
       `${row.endCoordinate.latitude},${row.endCoordinate.longitude}`,
     cell: ({ getValue }) => {

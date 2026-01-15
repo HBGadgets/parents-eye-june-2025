@@ -15,8 +15,13 @@ import { reverseGeocodeMapTiler } from "@/hooks/useReverseGeocoding";
 import { useExport } from "@/hooks/useExport";
 import { StatusReport } from "@/interface/modal";
 import { api } from "@/services/apiService";
+import DownloadProgress from "@/components/DownloadProgress";
 
 const StatusReportPage: React.FC = () => {
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [downloadProgress, setDownloadProgress] = useState(0);
+  const [downloadLabel, setDownloadLabel] = useState("");
+
   // Table state
   const queryClient = useQueryClient();
   const [tableData, setTableData] = useState<StatusReport[]>([]);
@@ -25,9 +30,16 @@ const StatusReportPage: React.FC = () => {
   const [hasGenerated, setHasGenerated] = useState(false);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
   const [showTable, setShowTable] = useState(false);
-  const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 10 });
+  const [pagination, setPagination] = useState({
+    pageIndex: 0,
+    pageSize: 1000,
+  });
   const [sorting, setSorting] = useState<any[]>([]);
   const lastProcessedRef = React.useRef<string>("");
+  const updateProgress = (percent: number, label: string) => {
+    setDownloadProgress(percent);
+    setDownloadLabel(label);
+  };
 
   // Column definitions
   const columns = getStatusReportColumns();
@@ -152,12 +164,15 @@ const StatusReportPage: React.FC = () => {
         const distance =
           item.distance != null ? (item.distance / 1000).toFixed(2) : "0.00";
 
+        const startCoordinates = `${item.startCoordinate.latitude}, ${item.startCoordinate.longitude}`;
+        const endCoordinates = `${item.endCoordinate.latitude}, ${item.endCoordinate.longitude}`;
+
         return {
           ...item,
           startTime,
           endTime,
-          // startAddress,
-          // endAddress,
+          startCoordinates,
+          endCoordinates,
           distance,
         };
       })
@@ -189,37 +204,55 @@ const StatusReportPage: React.FC = () => {
     );
   };
 
+  // Define columns for export report
   const exportColumns = [
     { key: "name", header: "Vehicle No" },
     { key: "vehicleStatus", header: "Status" },
     { key: "startTime", header: "Start Time" },
     { key: "startLocation", header: "Start Location" },
+    { key: "startCoordinates", header: "Start Coordinates" },
     { key: "time", header: "Duration" },
     { key: "distance", header: "Distance (KM)" },
-    { key: "maxSpeed", header: "Max Speed" },
+    { key: "maxSpeed", header: "Max Speed (KM/H)" },
     { key: "endTime", header: "End Time" },
     { key: "endLocation", header: "End Location" },
+    { key: "endCoordinates", header: "End Coordinates" },
   ];
 
   const handleExportPDF = async () => {
-    let exportData = await fetchStatusReportForExport();
-    exportData = await enrichStatusReportWithAddress(exportData);
-    console.log("exportData", exportData);
-    const preparedData = await prepareExportData(exportData);
+    try {
+      setIsDownloading(true);
+      updateProgress(5, "Fetching report data");
 
-    exportToPDF(preparedData, exportColumns, {
-      title: "Vehicle Status Report",
-      metadata: {
-        Period: "01 Jan 2026 - 01 Jan 2026",
-        Branch: "Nagpur",
-      },
-    });
+      let exportData = await fetchStatusReportForExport();
+
+      updateProgress(30, "Resolving locations");
+      exportData = await enrichStatusReportWithAddress(exportData);
+
+      updateProgress(60, "Preparing report");
+      const preparedData = await prepareExportData(exportData);
+
+      updateProgress(85, "Generating PDF");
+      await exportToPDF(preparedData, exportColumns, {
+        title: "Vehicle Status Report",
+      });
+
+      updateProgress(100, "Download complete");
+    } catch (err) {
+      console.error(err);
+      alert("Failed to export PDF");
+    } finally {
+      setTimeout(() => {
+        setIsDownloading(false);
+        setDownloadProgress(0);
+        setDownloadLabel("");
+      }, 800);
+    }
   };
 
   const handleExportExcel = async () => {
     let exportData = await fetchStatusReportForExport();
     exportData = await enrichStatusReportWithAddress(exportData);
-    console.log("exportData", exportData);
     const preparedData = await prepareExportData(exportData);
 
     exportToExcel(preparedData, exportColumns, {
@@ -252,6 +285,12 @@ const StatusReportPage: React.FC = () => {
   return (
     <div className="p-6">
       <ResponseLoader isLoading={isFetchingStatusReport} />
+
+      <DownloadProgress
+        open={isDownloading}
+        progress={downloadProgress}
+        label={downloadLabel}
+      />
 
       {/* Filter Component */}
       <ReportFilter
