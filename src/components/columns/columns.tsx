@@ -351,41 +351,6 @@ export const getDeviceColumns = (
     accessorKey: "sim",
   },
   {
-    id: "lastUpdate",
-    header: "Last Update",
-    cell: ({ row }: any) => {
-      const value = row.original.lastUpdate;
-
-      if (!value) return "-";
-
-      const date = new Date(value);
-
-      return (
-        <div>
-          {date.toLocaleString("en-GB", {
-            day: "2-digit",
-            month: "2-digit",
-            year: "numeric",
-            hour: "2-digit",
-            minute: "2-digit",
-            second: "2-digit",
-            hour12: true,
-            timeZone: "UTC",
-          })}
-        </div>
-      );
-    },
-
-    meta: {
-      wrapConfig: {
-        wrap: "break-word",
-        maxWidth: "200px",
-      },
-    },
-    enableHiding: true,
-    enableSorting: true,
-  },
-  {
     header: "OverSpeed km/h",
     accessorKey: "speed",
   },
@@ -1203,7 +1168,7 @@ export const getStatusReportColumns = (): ColumnDef<StatusReport>[] => [
       const status = getValue<VehicleStatus>();
       const config = statusIconMap[status];
 
-      if (!config) return "-";
+      if (!config) return <span>-</span>;
 
       return (
         <div className="flex justify-center">
@@ -1219,7 +1184,6 @@ export const getStatusReportColumns = (): ColumnDef<StatusReport>[] => [
       );
     },
   },
-
   {
     header: "Vehicle No",
     accessorKey: "name",
@@ -1228,12 +1192,6 @@ export const getStatusReportColumns = (): ColumnDef<StatusReport>[] => [
     header: "Start Time",
     accessorFn: (row) =>
       new Date(row.startDateTime).toLocaleString("en-GB", {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-        second: "2-digit",
         hour12: true,
         timeZone: "UTC",
       }),
@@ -1241,6 +1199,34 @@ export const getStatusReportColumns = (): ColumnDef<StatusReport>[] => [
   {
     header: "Start Location",
     accessorKey: "startLocation",
+    meta: { wrapConfig: { wrap: "wrap", maxWidth: "260px" } },
+  },
+  {
+    header: "Coordinates",
+    accessorFn: (row) =>
+      `${row.startCoordinate.latitude},${row.startCoordinate.longitude}`,
+    cell: ({ getValue }) => {
+      const value = getValue<string>();
+      const [lat, lng] = value.split(",");
+
+      return (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <a
+              href={`https://www.google.com/maps?q=${lat},${lng}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-600 underline"
+            >
+              {lat}, {lng}
+            </a>
+          </TooltipTrigger>
+          <TooltipContent>Open in Google Maps</TooltipContent>
+        </Tooltip>
+      );
+    },
+    meta: { wrapConfig: { wrap: "wrap", maxWidth: "260px" } },
+    enableSorting: true,
   },
   {
     header: "Duration",
@@ -1255,17 +1241,10 @@ export const getStatusReportColumns = (): ColumnDef<StatusReport>[] => [
     header: "Max Speed",
     accessorKey: "maxSpeed",
   },
-
   {
     header: "End Time",
     accessorFn: (row) =>
       new Date(row.endDateTime).toLocaleString("en-GB", {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-        second: "2-digit",
         hour12: true,
         timeZone: "UTC",
       }),
@@ -1273,8 +1252,37 @@ export const getStatusReportColumns = (): ColumnDef<StatusReport>[] => [
   {
     header: "End Location",
     accessorKey: "endLocation",
+    meta: { wrapConfig: { wrap: "wrap", maxWidth: "260px" } },
   },
+  {
+    header: "Coordinates",
+    accessorFn: (row) =>
+      `${row.endCoordinate.latitude},${row.endCoordinate.longitude}`,
+    cell: ({ getValue }) => {
+      const value = getValue<string>();
+      const [lat, lng] = value.split(",");
+
+      return (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <a
+              href={`https://www.google.com/maps?q=${lat},${lng}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-600 underline"
+            >
+              {lat}, {lng}
+            </a>
+          </TooltipTrigger>
+          <TooltipContent>Open in Google Maps</TooltipContent>
+        </Tooltip>
+      );
+    },
+    meta: { wrapConfig: { wrap: "wrap", maxWidth: "260px" } },
+    enableSorting: true,
+  }
 ];
+
 
 export const getStopReportColumns = (): ColumnDef<StatusReport>[] => [
   {

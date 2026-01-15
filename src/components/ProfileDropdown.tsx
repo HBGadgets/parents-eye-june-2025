@@ -49,7 +49,7 @@ export function ProfileDropdown() {
         </DropdownMenuItem>
         <DropdownMenuItem>
           <Bell className="mr-2 h-4 w-4" />
-          <Link href="/dashboard/notifications">Notifications</Link>
+          <span>Notifications</span>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem>

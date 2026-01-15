@@ -95,55 +95,73 @@ export const useReverseGeocode = () => {
 };
 
 const reverseGeocodeCache = new Map<string, string>();
+const reverseGeocodePromiseCache = new Map<string, Promise<string>>();
 
 export const reverseGeocodeMapTiler = async (
   lat: number,
   lng: number
 ): Promise<string> => {
   const cacheKey = `${lat},${lng}`;
-
-  // ✅ Return cached value
+  console.log("🌍 Reverse geocode API HIT:", cacheKey);
+  // 1️⃣ Return cached result if available
   if (reverseGeocodeCache.has(cacheKey)) {
     return reverseGeocodeCache.get(cacheKey)!;
   }
 
-  try {
-    const response = await axios.get(
-      `https://api.maptiler.com/geocoding/${lng},${lat}.json`,
-      {
-        params: {
-          key: process.env.NEXT_PUBLIC_MAPTILER_API_KEY,
-          language: "en",
-        },
-      }
-    );
-
-    const feature = response.data?.features?.[0];
-    if (!feature) return cacheKey;
-
-    const context = feature.context || [];
-
-    const getContext = (type: string) =>
-      context.find((c: any) => c.id?.startsWith(type))?.text;
-
-    const road = feature.text;
-    const city =
-      getContext("place") || getContext("locality") || getContext("county");
-    const subregion = getContext("subregion");
-    const state = getContext("region");
-    const country = getContext("country");
-    const postal_code = getContext("postal_code");
-
-    const formatted = [road, city, subregion, state, postal_code, country].filter(Boolean).join(", ");
-
-    const result = formatted || cacheKey;
-
-    // ✅ Save to cache
-    reverseGeocodeCache.set(cacheKey, result);
-
-    return result;
-  } catch (error: any) {
-    console.error("Reverse geocode failed:", error.message);
-    return cacheKey;
+  // 2️⃣ If request already in-flight, return SAME promise
+  if (reverseGeocodePromiseCache.has(cacheKey)) {
+    return reverseGeocodePromiseCache.get(cacheKey)!;
   }
+
+  // 3️⃣ Create new request promise
+  const requestPromise = (async () => {
+    try {
+      const response = await axios.get(
+        `https://api.maptiler.com/geocoding/${lng},${lat}.json`,
+        {
+          params: {
+            key: process.env.NEXT_PUBLIC_MAPTILER_API_KEY,
+            language: "en",
+          },
+        }
+      );
+
+      const feature = response.data?.features?.[0];
+      if (!feature) return cacheKey;
+
+      const context = feature.context || [];
+
+      const getContext = (type: string) =>
+        context.find((c: any) => c.id?.startsWith(type))?.text;
+
+      const road = feature.text;
+      const city =
+        getContext("place") || getContext("locality") || getContext("county");
+      const subregion = getContext("subregion");
+      const state = getContext("region");
+      const country = getContext("country");
+      const postal_code = getContext("postal_code");
+
+      const formatted = [road, city, subregion, state, postal_code, country]
+        .filter(Boolean)
+        .join(", ");
+
+      const result = formatted || cacheKey;
+
+      // 4️⃣ Save final result
+      reverseGeocodeCache.set(cacheKey, result);
+      return result;
+    } catch (error: any) {
+      console.error("Reverse geocode failed:", error.message);
+      return cacheKey;
+    } finally {
+      // 5️⃣ Clean up in-flight cache
+      reverseGeocodePromiseCache.delete(cacheKey);
+    }
+  })();
+
+  // 6️⃣ Store promise immediately
+  reverseGeocodePromiseCache.set(cacheKey, requestPromise);
+
+  return requestPromise;
 };

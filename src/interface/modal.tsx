@@ -295,6 +295,11 @@ export interface LiveTrack {
   fuelConsumption?: DoubleRange;
 }
 
+export interface Coordinates {
+  latitude: number;
+  longitude: number;
+}
+
 export interface StatusReport {
   uniqueId: string;
   name: string;
@@ -303,9 +308,9 @@ export interface StatusReport {
   startDateTime: string;
   endDateTime: string;
   startLocation: string;
-  startCoordinates: string;
+  startCoordinate: Coordinates;
   endLocation: string;
-  endCoordinates: string;
+  endCoordinate: Coordinates;
   distance: number;
   maxSpeed: number;
   avgSpeed: number;

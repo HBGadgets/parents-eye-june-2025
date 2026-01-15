@@ -21,6 +21,13 @@ import { Button } from "../ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Building2, GitBranch, Car, Calendar, Filter } from "lucide-react";
 import { ColumnVisibilitySelector } from "../column-visibility-selector";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from "@/components/ui/dropdown-menu";
+import { Download } from "lucide-react";
 
 export interface FilterValues {
   schoolId: string | string[] | null;
@@ -62,6 +69,9 @@ export interface ReportFilterConfig {
   // Array formatting option
   arrayFormat?: "comma" | "array" | "repeat";
   arraySeparator?: string;
+
+  showExport?: boolean;
+  exportOptions?: ("excel" | "pdf")[];
 }
 
 interface ReportFilterProps {
@@ -79,6 +89,8 @@ interface ReportFilterProps {
 
   selectedDevice?: string | null;
   onDeviceChange?: (deviceId: string | null, deviceName: string | null) => void;
+
+  onExportClick?: (type: "excel" | "pdf") => void;
 
   // Multi-select props
   selectedSchools?: string[];
@@ -121,6 +133,8 @@ const defaultConfig: ReportFilterConfig = {
   maxBadges: 2,
   arrayFormat: "comma",
   arraySeparator: ",",
+  showExport: false,
+  exportOptions: ["excel", "pdf"],
 };
 
 export const ReportFilter: React.FC<ReportFilterProps> = ({
@@ -153,6 +167,9 @@ export const ReportFilter: React.FC<ReportFilterProps> = ({
   onDateRangeChange,
 
   table,
+
+  onExportClick,
+
 }) => {
   const mergedConfig = { ...defaultConfig, ...config };
 
@@ -801,7 +818,7 @@ export const ReportFilter: React.FC<ReportFilterProps> = ({
               </CardTitle>
             </div>
           </div>
-          <div>
+          <div className="flex items-center gap-2">
             {table && mergedConfig.showColumnVisibility && (
               <ColumnVisibilitySelector
                 columns={table.getAllColumns()}
@@ -809,6 +826,41 @@ export const ReportFilter: React.FC<ReportFilterProps> = ({
                 buttonSize="default"
                 className="cursor-pointer"
               />
+            )}
+            {mergedConfig.showExport && onExportClick && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="lg"
+                    className=" flex items-center gap-2 cursor-pointer"
+                    disabled={!isValid}
+                  >
+                    <Download className="h-4 w-4" />
+                    Export
+                  </Button>
+                </DropdownMenuTrigger>
+
+                <DropdownMenuContent align="end">
+                  {mergedConfig.exportOptions?.includes("excel") && (
+                    <DropdownMenuItem
+                      className="cursor-pointer"
+                      onClick={() => onExportClick("excel")}
+                    >
+                      Export as Excel
+                    </DropdownMenuItem>
+                  )}
+
+                  {mergedConfig.exportOptions?.includes("pdf") && (
+                    <DropdownMenuItem
+                      className="cursor-pointer"
+                      onClick={() => onExportClick("pdf")}
+                    >
+                      Export as PDF
+                    </DropdownMenuItem>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
             )}
           </div>
         </div>
