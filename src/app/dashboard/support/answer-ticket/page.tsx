@@ -326,6 +326,11 @@ export default function RaiseTicketMaster() {
     emptyMessage: "No tickets found",
     enableSorting: true,
     showSerialNumber: true,
+    // Enable virtualization
+    enableVirtualization: true,
+    estimatedRowHeight: 50,
+    overscan: 5,
+    maxHeight: "600px",
   });
 
   // Table setup for Ticket Types - FIXED VERSION

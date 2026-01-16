@@ -332,7 +332,7 @@ export default function DashboardClient() {
     columnVisibility,
     onColumnVisibilityChange: setColumnVisibility,
     emptyMessage: "No devices found",
-    pageSizeOptions: [5, 10, 20, 30, 50, 100, 500, 1000],
+    pageSizeOptions: [5, 10, 20, 30, 50, 100, 500, "All"],
     enableSorting: true,
     showSerialNumber: true,
     onRowClick: handleDeviceSelection,

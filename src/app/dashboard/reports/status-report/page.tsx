@@ -263,7 +263,6 @@ const StatusReportPage: React.FC = () => {
     } catch (err) {
       console.error(err);
       toast.error("Failed to export Excel");
-
     } finally {
       setTimeout(() => {
         setIsDownloading(false);
@@ -293,6 +292,11 @@ const StatusReportPage: React.FC = () => {
     pageSizeOptions: [5, 10, 20, 30, 50, 100, 200, 500, "All"],
     enableSorting: true,
     showSerialNumber: true,
+    // Enable virtualization
+    enableVirtualization: true,
+    estimatedRowHeight: 50,
+    overscan: 5,
+    maxHeight: "600px",
   });
 
   return (

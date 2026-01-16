@@ -103,7 +103,7 @@ export function CustomTableServerSidePagination<
   onSortingChange,
   sorting = [],
   emptyMessage = "No data available",
-  pageSizeOptions = [10, 20, 30, 40, 50],
+  pageSizeOptions = [10, 20, 30, 40, 50, "All"],
   enableSorting = true,
   manualSorting = true,
   manualPagination = true,
@@ -243,10 +243,14 @@ export function CustomTableServerSidePagination<
     });
   };
 
-  const changePageSize = (pageSize: string) => {
+  const changePageSize = (value: string) => {
+    const isAll = value === "All";
+
     onPaginationChange({
       pageIndex: 0,
-      pageSize: parseInt(pageSize),
+      pageSize: isAll
+        ? totalCount || data.length || pagination.pageSize
+        : parseInt(value, 10),
     });
   };
 
@@ -298,6 +302,8 @@ export function CustomTableServerSidePagination<
     enableVirtualization && virtualRows.length > 0
       ? totalSize! - (virtualRows[virtualRows.length - 1]?.end || 0)
       : 0;
+
+  const isAllSelected = pagination.pageSize >= totalCount && totalCount > 0;
 
   return {
     table,
@@ -512,7 +518,7 @@ export function CustomTableServerSidePagination<
             <div className="flex items-center space-x-2">
               <p className="text-sm font-medium">Rows per page</p>
               <Select
-                value={pagination.pageSize.toString()}
+                value={isAllSelected ? "All" : pagination.pageSize.toString()}
                 onValueChange={changePageSize}
               >
                 <SelectTrigger className="h-8 w-[70px]">

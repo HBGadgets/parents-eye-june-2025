@@ -398,9 +398,14 @@ export default function RaiseTicketMaster() {
     columnVisibility,
     onColumnVisibilityChange: setColumnVisibility,
     emptyMessage: "No tickets found",
-    pageSizeOptions: [5, 10, 20, 30, 50],
+    pageSizeOptions: [5, 10, 20, 30, 50, 100, "All"],
     enableSorting: true,
     showSerialNumber: true,
+    // Enable virtualization
+    enableVirtualization: true,
+    estimatedRowHeight: 50,
+    overscan: 5,
+    maxHeight: "600px",
   });
 
   // --------------------------- STATUS FILTER ---------------------------

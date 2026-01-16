@@ -102,9 +102,14 @@ const TripReportPage: React.FC = () => {
     emptyMessage: isFetchingTripReport
       ? "Loading report data..."
       : "No data available for the selected filters",
-    pageSizeOptions: [5, 10, 20, 30, 50],
+    pageSizeOptions: [5, 10, 20, 30, 50, 100, "All"],
     enableSorting: true,
     showSerialNumber: true,
+    // Enable virtualization
+    enableVirtualization: true,
+    estimatedRowHeight: 50,
+    overscan: 5,
+    maxHeight: "600px",
   });
 
   return (

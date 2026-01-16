@@ -303,9 +303,14 @@ export default function RoutePage() {
     onSortingChange: setSorting,
     sorting,
     emptyMessage: "No routes found",
-    pageSizeOptions: [5, 10, 15, 20, 30],
+    pageSizeOptions: [5, 10, 15, 20, 30, 50, 100, "All"],
     showSerialNumber: true,
     enableSorting: true,
+    // Enable virtualization
+    enableVirtualization: true,
+    estimatedRowHeight: 50,
+    overscan: 5,
+    maxHeight: "600px",
   });
 
   return (

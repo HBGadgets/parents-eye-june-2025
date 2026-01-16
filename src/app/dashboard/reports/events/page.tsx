@@ -564,6 +564,11 @@ const AlertsAndEventsReportPage: React.FC = () => {
     pageSizeOptions: [5, 10, 20, 30, 50],
     enableSorting: false,
     showSerialNumber: false,
+    // Enable virtualization
+    enableVirtualization: true,
+    estimatedRowHeight: 50,
+    overscan: 5,
+    maxHeight: "600px",
   });
 
   return (

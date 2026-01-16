@@ -343,10 +343,15 @@ export default function Driver() {
     sorting,
     emptyMessage: "No drivers found",
     manualPagination: true,
-    pageSizeOptions: [5, 10, 15, 20, 30, 50, 100, 200, 300, 400, 500],
+    pageSizeOptions: [5, 10, 15, 20, 30, 50, 100, 200, 300, 400, 500, "All"],
     showSerialNumber: true,
     enableSorting: true,
     enableMultiSelect: false,
+    // Enable virtualization
+    enableVirtualization: true,
+    estimatedRowHeight: 50,
+    overscan: 5,
+    maxHeight: "600px",
   });
 
   return (

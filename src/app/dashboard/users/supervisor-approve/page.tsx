@@ -192,38 +192,38 @@ export default function Supervisor() {
     setShowForm(true);
   }, []);
 
- const handleFormSubmit = useCallback(
-   async (data: any) => {
-     if (editingSupervisor) {
-       try {
-         updateSupervisor(
-           { id: editingSupervisor._id, payload: data },
-           {
-             onSuccess: () => {
-               setShowForm(false);
-               setEditingSupervisor(null);
-             },
-           }
-         );
-       } catch (err: any) {
-         toast.error(err?.message || "Update failed");
-       }
-     } else {
-       console.log("[Create Supervisor]", data);
-       try {
-         createSupervisor(data, {
-           onSuccess: () => {
-             setShowForm(false);
-             setEditingSupervisor(null);
-           },
-         });
-       } catch (err: any) {
-         toast.error(err?.message || "Create failed");
-       }
-     }
-   },
-   [editingSupervisor, updateSupervisor, createSupervisor]
- );
+  const handleFormSubmit = useCallback(
+    async (data: any) => {
+      if (editingSupervisor) {
+        try {
+          updateSupervisor(
+            { id: editingSupervisor._id, payload: data },
+            {
+              onSuccess: () => {
+                setShowForm(false);
+                setEditingSupervisor(null);
+              },
+            }
+          );
+        } catch (err: any) {
+          toast.error(err?.message || "Update failed");
+        }
+      } else {
+        console.log("[Create Supervisor]", data);
+        try {
+          createSupervisor(data, {
+            onSuccess: () => {
+              setShowForm(false);
+              setEditingSupervisor(null);
+            },
+          });
+        } catch (err: any) {
+          toast.error(err?.message || "Create failed");
+        }
+      }
+    },
+    [editingSupervisor, updateSupervisor, createSupervisor]
+  );
 
   const handleFormClose = useCallback(() => {
     setShowForm(false);
@@ -320,7 +320,6 @@ export default function Supervisor() {
     return cols;
   }, [handleDelete, handleEdit, isApprovingSupervisor, approveSupervisor]);
 
-
   // ---------------- Table ----------------
   const { table, tableElement } = CustomTableServerSidePagination({
     data: supervisor || [],
@@ -333,10 +332,15 @@ export default function Supervisor() {
     sorting,
     emptyMessage: "No supervisors found",
     manualPagination: true,
-    pageSizeOptions: [5, 10, 15, 20, 30, 50, 100, 200, 300, 400, 500],
+    pageSizeOptions: [5, 10, 15, 20, 30, 50, 100, 200, 300, 400, 500, "All"],
     showSerialNumber: true,
     enableSorting: true,
     enableMultiSelect: false,
+    // Enable virtualization
+    enableVirtualization: true,
+    estimatedRowHeight: 50,
+    overscan: 5,
+    maxHeight: "600px",
   });
 
   return (

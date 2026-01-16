@@ -275,6 +275,11 @@ const DistanceReportPage: React.FC = () => {
     pageSizeOptions: [5, 10, 20, 30, 50, 100, 200, 500, "All"],
     enableSorting: true,
     showSerialNumber: true,
+    // Enable virtualization
+    enableVirtualization: true,
+    estimatedRowHeight: 50,
+    overscan: 5,
+    maxHeight: "600px",
   });
 
   return (
@@ -321,7 +326,7 @@ const DistanceReportPage: React.FC = () => {
 
       {/* Table - Stable container with fixed dimensions */}
       {showTable && (
-        <section className="mb-4 min-h-[400px]">
+        <section className="mb-4 min-h-[400px] max-h-[80vh]">
           <div className="w-full overflow-x-auto">{tableElement}</div>
         </section>
       )}
