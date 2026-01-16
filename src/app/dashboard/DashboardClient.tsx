@@ -340,6 +340,11 @@ export default function DashboardClient() {
     getRowId: (row: DeviceData) => row.deviceId,
     selectedRowClassName:
       "bg-blue-100 hover:bg-blue-200 border-l-4 border-blue-500",
+    // Enable virtualization
+    enableVirtualization: true,
+    estimatedRowHeight: 50,
+    overscan: 5,
+    maxHeight: "600px",
   });
 
   const bottomDrawerProps = useMemo(() => {
@@ -470,7 +475,7 @@ export default function DashboardClient() {
 
           {/* Main Layout */}
           <div className="dashboard">
-            <div className="flex gap-0 h-[80vh]">
+            <div className="flex gap-0 h-[90vh]">
               <section className={`overflow-auto ${getTableClass}`}>
                 {viewState === "mapExpanded" && (
                   <div className="absolute top-1/2 left-0 z-50">
@@ -488,9 +493,7 @@ export default function DashboardClient() {
                   </div>
                 )}
 
-                {viewState !== "mapExpanded" && (
-                  <div className="h-[80vh]">{tableElement}</div>
-                )}
+                {viewState !== "mapExpanded" && <div>{tableElement}</div>}
               </section>
 
               {/* Arrow Controls */}

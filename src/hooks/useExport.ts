@@ -1,5 +1,4 @@
 "use client";
-import { toast } from "react-hot-toast";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
@@ -11,6 +10,7 @@ declare module "jspdf" {
 }
 import * as ExcelJS from "exceljs";
 import { saveAs } from "file-saver";
+import { toast } from "sonner";
 
 interface ExportColumn {
   key: string;
@@ -60,8 +60,10 @@ export const useExport = () => {
     config: ExportConfig = {}
   ) => {
     try {
-      if (!data?.length) throw new Error("No data available for PDF export");
-
+      if (!data?.length) {
+        toast.error("No data available for PDF export");
+        throw new Error("No data available for PDF export");
+      }
       const doc = new jsPDF({
         orientation: "landscape",
         unit: "mm",
@@ -207,8 +209,10 @@ export const useExport = () => {
     config: ExportConfig = {}
   ) => {
     try {
-      if (!data?.length) throw new Error("No data available for Excel export");
-
+      if (!data?.length){
+        toast.error("No data available for Excel export");
+         throw new Error("No data available for Excel export");
+}
       const workbook = new ExcelJS.Workbook();
       const worksheet = workbook.addWorksheet("Data Report");
       const compunknownName = config.compunknownName || CONFIG.compunknown.name;

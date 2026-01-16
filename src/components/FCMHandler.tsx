@@ -98,8 +98,10 @@ export default function FCMHandler(): null {
           const title = payload.notification?.title ?? "New Notification";
           const body = payload.notification?.body ?? "";
           const ping = payload.data?.ping ?? 0;
+          const ignition = payload.data?.ignition;
 
           if (ping && Number(ping) === 1) return; // ignore pings
+          if (ignition) return; // ignore ignitions
 
           const timeStamp = payload.data?.timeStamp
             ? new Date(Number(payload.data?.timeStamp))

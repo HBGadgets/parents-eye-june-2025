@@ -1,3 +1,5 @@
+const { Pause } = require("lucide-react");
+
 importScripts(
   "https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"
 );
@@ -21,7 +23,9 @@ messaging.onBackgroundMessage(async (payload) => {
   console.log("📥 Background message received:", payload);
 
   const ping = payload?.data?.ping ?? 0;
-  if (ping && Number(ping) === 1) return;
+  const ignition = payload?.data?.ignition;
+  if (ping && Number(ping) === 1) return; // Ignore pings
+  if (ignition) return; // Ignore ignitions
 
   clients
     .matchAll({ includeUncontrolled: true, type: "window" })

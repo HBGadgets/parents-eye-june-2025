@@ -9,13 +9,14 @@ import { VisibilityState } from "@tanstack/react-table";
 import { CustomTableServerSidePagination } from "@/components/ui/customTable(serverSidePagination)";
 import ResponseLoader from "@/components/ResponseLoader";
 import { getStatusReportColumns } from "@/components/columns/columns";
-import { useReport } from "@/hooks/reports/useReport";
 import { useQueryClient } from "@tanstack/react-query";
 import { reverseGeocodeMapTiler } from "@/hooks/useReverseGeocoding";
 import { useExport } from "@/hooks/useExport";
-import { StatusReport } from "@/interface/modal";
+import { GetStatusReportResponse, StatusReport } from "@/interface/modal";
 import { api } from "@/services/apiService";
 import DownloadProgress from "@/components/DownloadProgress";
+import { useStatusReport } from "@/hooks/reports/useStatusReport";
+import { toast } from "sonner";
 
 const StatusReportPage: React.FC = () => {
   const [isDownloading, setIsDownloading] = useState(false);
@@ -26,7 +27,7 @@ const StatusReportPage: React.FC = () => {
   const queryClient = useQueryClient();
   const [tableData, setTableData] = useState<StatusReport[]>([]);
 
-  const [shouldFetch, setShouldFetch] = useState(false);
+  // const [shouldFetch, setShouldFetch] = useState(false);
   const [hasGenerated, setHasGenerated] = useState(false);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
   const [showTable, setShowTable] = useState(false);
@@ -55,13 +56,19 @@ const StatusReportPage: React.FC = () => {
   });
 
   // Fetch report data using the hook
-  const { statusReport, totalStatusReport, isFetchingStatusReport } = useReport(
+  const { data, isFetching: isFetchingStatusReport } = useStatusReport({
     pagination,
-    apiFilters,
     sorting,
-    "status",
-    hasGenerated
-  );
+    filters: apiFilters,
+    hasGenerated,
+  });
+  const statusReport = data?.data;
+  const totalStatusReport = data?.total || 0;
+  useEffect(() => {
+    console.log("RAW STATUS REPORT", statusReport);
+    console.log("TABLE DATA", tableData);
+  }, [statusReport, tableData]);
+
   // Handle filter submission
   const handleFilterSubmit = useCallback((filters: FilterValues) => {
     // console.log("✅ Filter submitted:", filters);
@@ -85,26 +92,12 @@ const StatusReportPage: React.FC = () => {
       period: "Custom",
     });
 
-    setShouldFetch(true);
+    // setShouldFetch(true);
     setHasGenerated(true);
 
     // Show table
     setShowTable(true);
   }, []);
-
-  useEffect(() => {
-    if (!isFetchingStatusReport && shouldFetch) {
-      setShouldFetch(false);
-    }
-  }, [isFetchingStatusReport, shouldFetch]);
-
-  useEffect(() => {
-    if (shouldFetch && hasGenerated) {
-      queryClient.invalidateQueries({
-        queryKey: ["status-report"],
-      });
-    }
-  }, [shouldFetch, hasGenerated, queryClient]);
 
   useEffect(() => {
     if (!statusReport?.length) {
@@ -246,18 +239,38 @@ const StatusReportPage: React.FC = () => {
         setIsDownloading(false);
         setDownloadProgress(0);
         setDownloadLabel("");
-      }, 800);
+      }, 500);
     }
   };
 
   const handleExportExcel = async () => {
-    let exportData = await fetchStatusReportForExport();
-    exportData = await enrichStatusReportWithAddress(exportData);
-    const preparedData = await prepareExportData(exportData);
+    try {
+      setIsDownloading(true);
+      updateProgress(5, "Fetching report data");
+      let exportData = await fetchStatusReportForExport();
 
-    exportToExcel(preparedData, exportColumns, {
-      title: "Vehicle Status Report",
-    });
+      updateProgress(30, "Resolving locations");
+      exportData = await enrichStatusReportWithAddress(exportData);
+
+      updateProgress(60, "Preparing report");
+      const preparedData = await prepareExportData(exportData);
+
+      updateProgress(85, "Generating PDF");
+      exportToExcel(preparedData, exportColumns, {
+        title: "Vehicle Status Report",
+      });
+      updateProgress(100, "Download complete");
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to export Excel");
+
+    } finally {
+      setTimeout(() => {
+        setIsDownloading(false);
+        setDownloadProgress(0);
+        setDownloadLabel("");
+      }, 500);
+    }
   };
 
   // Table configuration
@@ -277,7 +290,7 @@ const StatusReportPage: React.FC = () => {
       : totalStatusReport === 0
       ? "No data available for the selected filters"
       : "Wait for it....🫣",
-    pageSizeOptions: [5, 10, 20, 30, 50],
+    pageSizeOptions: [5, 10, 20, 30, 50, 100, 200, 500, "All"],
     enableSorting: true,
     showSerialNumber: true,
   });

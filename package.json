@@ -34,7 +34,7 @@
     "@tanstack/react-query-devtools": "^5.81.2",
     "@tanstack/react-query-persist-client": "^5.90.18",
     "@tanstack/react-table": "^8.21.3",
-    "@tanstack/react-virtual": "^3.13.11",
+    "@tanstack/react-virtual": "^3.13.18",
     "@types/lodash.throttle": "^4.1.9",
     "axios": "^1.10.0",
     "chart.js": "^4.5.0",
