@@ -1,19 +1,22 @@
-import { getQueryClient } from "@/lib/queryClient";
 import { create } from "zustand";
 import { jwtDecode } from "jwt-decode";
-import { useDeviceStore } from "./deviceStore";
 import Cookies from "js-cookie";
+import { getQueryClient } from "@/lib/queryClient";
+import { useDeviceStore } from "./deviceStore";
 
 interface DecodedToken {
   id: string;
   username: string;
   role: string;
+  exp?: number;
 }
 
 interface AuthState {
   isAuthenticated: boolean;
   token: string | null;
   decodedToken: DecodedToken | null;
+
+  hydrateAuth: () => void;
   login: (token: string, expiryDays?: number) => void;
   logout: () => void;
 }
@@ -23,21 +26,39 @@ export const useAuthStore = create<AuthState>((set) => ({
   token: null,
   decodedToken: null,
 
-  login: (token: string, expiryDays?: number) => {
-    // Save in cookie/localStorage
-    let cookieString = `token=${token}; path=/`;
+  // 🔥 HYDRATE FROM COOKIE ON APP LOAD
+  hydrateAuth: () => {
+    const token = Cookies.get("token");
 
+    if (!token) return;
+
+    try {
+      const decoded = jwtDecode<DecodedToken>(token);
+
+      // Optional: expiry check
+      if (decoded.exp && decoded.exp * 1000 < Date.now()) {
+        Cookies.remove("token");
+        return;
+      }
+
+      set({
+        isAuthenticated: true,
+        token,
+        decodedToken: decoded,
+      });
+    } catch (err) {
+      console.error("Invalid token", err);
+      Cookies.remove("token");
+    }
+  },
+
+  login: (token: string, expiryDays?: number) => {
     if (expiryDays) {
-      const date = new Date();
-      date.setTime(date.getTime() + expiryDays * 24 * 60 * 60 * 1000);
-      const expires = date.toUTCString();
-      cookieString += `; expires=${expires}`;
+      Cookies.set("token", token, { expires: expiryDays });
+    } else {
+      Cookies.set("token", token);
     }
 
-    document.cookie = cookieString;
-    // localStorage.setItem("token", token);
-
-    // Decode token
     const decoded = jwtDecode<DecodedToken>(token);
 
     set({
@@ -48,13 +69,10 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   logout: () => {
-    // Clear cookie & localStorage
-    document.cookie = "token=; Max-Age=0; path=/";
     Cookies.remove("token");
-    localStorage.removeItem("token");
-    const disconnect = useDeviceStore.getState().disconnect;
 
-    disconnect();
+    // Disconnect sockets
+    useDeviceStore.getState().disconnect();
 
     // Clear react-query cache
     getQueryClient().clear();

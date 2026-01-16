@@ -1,7 +1,6 @@
 import { io, Socket } from "socket.io-client";
 import Cookies from "js-cookie";
 import { AllDeviceResponse, DeviceFilters } from "@/types/socket";
-import { useEffect } from "react";
 
 // ============================================================
 // Type Definitions

@@ -125,7 +125,7 @@ export function CustomTableServerSidePagination<
   enableMultiSelect = false,
   enableVirtualization = false,
   estimatedRowHeight = 50,
-  overscan = 5,
+  overscan = 10,
 }: DataTableProps<T>) {
   const tableContainerRef = useRef<HTMLDivElement>(null);
 
@@ -277,29 +277,42 @@ export function CustomTableServerSidePagination<
 
   const rows = table.getRowModel().rows;
 
+  const shouldVirtualize = enableVirtualization && pagination.pageSize < 300;
+
   const rowVirtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => tableContainerRef.current,
     estimateSize: () => estimatedRowHeight,
+    measureElement: (el) => el?.getBoundingClientRect().height,
     overscan,
-    enabled: enableVirtualization,
+    // enabled: enableVirtualization,
+    enabled: shouldVirtualize,
   });
 
-  const virtualRows = enableVirtualization
-    ? rowVirtualizer.getVirtualItems()
-    : [];
+  // const virtualRows = enableVirtualization
+  //   ? rowVirtualizer.getVirtualItems()
+  //   : [];
+  const virtualRows = shouldVirtualize ? rowVirtualizer.getVirtualItems() : [];
 
-  const totalSize = enableVirtualization
+  const totalSize = shouldVirtualize
     ? rowVirtualizer.getTotalSize()
     : undefined;
 
+  // const paddingTop =
+  //   enableVirtualization && virtualRows.length > 0
+  //     ? virtualRows[0]?.start || 0
+  //     : 0;
+
+  // const paddingBottom =
+  //   enableVirtualization && virtualRows.length > 0
+  //     ? totalSize! - (virtualRows[virtualRows.length - 1]?.end || 0)
+  //     : 0;
+
   const paddingTop =
-    enableVirtualization && virtualRows.length > 0
-      ? virtualRows[0]?.start || 0
-      : 0;
+    shouldVirtualize && virtualRows.length > 0 ? virtualRows[0]?.start || 0 : 0;
 
   const paddingBottom =
-    enableVirtualization && virtualRows.length > 0
+    shouldVirtualize && virtualRows.length > 0
       ? totalSize! - (virtualRows[virtualRows.length - 1]?.end || 0)
       : 0;
 
@@ -317,7 +330,11 @@ export function CustomTableServerSidePagination<
             style={{ maxHeight }}
           >
             <Table>
-              <TableHeader className="sticky top-0 bg-[#f5da6c] z-10">
+              <TableHeader
+                className={`bg-[#f5da6c] ${
+                  shouldVirtualize ? "" : "sticky top-0 z-10"
+                }`}
+              >
                 {table.getHeaderGroups().map((headerGroup) => (
                   <TableRow key={headerGroup.id} className="border-b">
                     {headerGroup.headers.map((header) => (
@@ -379,13 +396,13 @@ export function CustomTableServerSidePagination<
                 </TableBody>
               ) : (
                 <TableBody>
-                  {enableVirtualization && paddingTop > 0 && (
+                  {shouldVirtualize && paddingTop > 0 && (
                     <tr>
                       <td style={{ height: `${paddingTop}px` }} />
                     </tr>
                   )}
                   {rows?.length
-                    ? (enableVirtualization
+                    ? (shouldVirtualize
                         ? virtualRows
                         : rows.map((_, index) => ({ index }))
                       ).map((virtualRow) => {
@@ -432,6 +449,16 @@ export function CustomTableServerSidePagination<
                         return (
                           <TableRow
                             key={row.id}
+                            ref={
+                              shouldVirtualize
+                                ? rowVirtualizer.measureElement
+                                : undefined
+                            }
+                            style={
+                              shouldVirtualize
+                                ? { height: `${estimatedRowHeight}px` }
+                                : undefined
+                            }
                             className={`border-b hover:bg-muted/50 ${
                               enableRowClick && onRowClick
                                 ? "cursor-pointer"
@@ -447,8 +474,10 @@ export function CustomTableServerSidePagination<
                                     ?.wrapConfig
                                 : undefined;
 
-                              const wrapOption =
-                                wrapConfig?.wrap || defaultTextWrap;
+                              const wrapOption = shouldVirtualize
+                                ? "nowrap"
+                                : wrapConfig?.wrap || defaultTextWrap;
+
                               const wrapClasses = getWrapClasses(wrapOption);
                               const wrapStyles = getWrapStyles(wrapConfig);
 
@@ -481,7 +510,7 @@ export function CustomTableServerSidePagination<
                         );
                       })
                     : null}
-                  {enableVirtualization && paddingBottom > 0 && (
+                  {shouldVirtualize && paddingBottom > 0 && (
                     <tr>
                       <td style={{ height: `${paddingBottom}px` }} />
                     </tr>

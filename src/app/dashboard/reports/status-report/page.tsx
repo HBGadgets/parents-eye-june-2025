@@ -295,7 +295,7 @@ const StatusReportPage: React.FC = () => {
     // Enable virtualization
     enableVirtualization: true,
     estimatedRowHeight: 50,
-    overscan: 5,
+    overscan: 10,
     maxHeight: "600px",
   });
 
