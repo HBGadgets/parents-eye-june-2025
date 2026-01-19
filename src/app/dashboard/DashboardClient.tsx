@@ -77,19 +77,42 @@ export default function DashboardClient() {
   const { addresses, loadingAddresses, queueForGeocoding } =
     useReverseGeocode();
 
-  const statusColors: Record<string, string> = {
-    Running:
-      "bg-green-400 text-green-700 hover:bg-green-500 transition-all rounded-lg shadow-sm hover:shadow",
-    Overspeed:
-      "bg-orange-400 text-orange-700 hover:bg-orange-500 transition-all rounded-lg shadow-sm hover:shadow",
-    Idle: "bg-yellow-200 text-yellow-700 hover:bg-yellow-200 transition-all rounded-lg shadow-sm hover:shadow",
-    Stopped:
-      "bg-red-400 text-red-700 hover:bg-red-500 transition-all rounded-lg shadow-sm hover:shadow",
-    Inactive:
-      "bg-gray-400 text-gray-700 hover:bg-gray-500 transition-all rounded-lg shadow-sm hover:shadow",
-    New: "bg-blue-400 text-blue-700 hover:bg-blue-500 transition-all rounded-lg shadow-sm hover:shadow",
-    Total:
-      "bg-purple-400 text-purple-700 hover:bg-purple-500 transition-all rounded-lg shadow-sm hover:shadow",
+  const statusColors: Record<string, { default: string; active: string }> = {
+    Running: {
+      default:
+        "bg-white text-green-600 border border-green-400 hover:bg-green-400 hover:text-white",
+      active: "bg-green-400 text-white border border-green-400",
+    },
+    Overspeed: {
+      default:
+        "bg-white text-orange-600 border border-orange-400 hover:bg-orange-400 hover:text-white",
+      active: "bg-orange-400 text-white border border-orange-400",
+    },
+    Idle: {
+      default:
+        "bg-white text-yellow-600 border border-yellow-400 hover:bg-yellow-400 hover:text-white",
+      active: "bg-yellow-400 text-white border border-yellow-400",
+    },
+    Stopped: {
+      default:
+        "bg-white text-red-600 border border-red-400 hover:bg-red-400 hover:text-white",
+      active: "bg-red-400 text-white border border-red-400",
+    },
+    Inactive: {
+      default:
+        "bg-white text-gray-600 border border-gray-400 hover:bg-gray-400 hover:text-white",
+      active: "bg-gray-400 text-white border border-gray-400",
+    },
+    New: {
+      default:
+        "bg-white text-blue-600 border border-blue-400 hover:bg-blue-400 hover:text-white",
+      active: "bg-blue-400 text-white border border-blue-400",
+    },
+    Total: {
+      default:
+        "bg-white text-purple-600 border border-purple-400 hover:bg-purple-400 hover:text-white",
+      active: "bg-purple-400 text-white border border-purple-400",
+    },
   };
 
   const { devices, counts, isLoading, updateFilters, currentPage, limit } =
@@ -435,14 +458,17 @@ export default function DashboardClient() {
                     }
                     className={`
                       inline-flex items-center justify-center
-                      ${statusColors[label]}
-                      text-white font-semibold text-[9px] sm:text-[10px]
+                      ${
+                        isActive
+                          ? statusColors[label].active
+                          : statusColors[label].default
+                      }
+                      font-semibold text-[9px] sm:text-[10px]
                       px-2 sm:px-3 py-2 sm:py-2.5 rounded-lg
                       shadow-md hover:shadow-lg
                       transform transition-all duration-200 ease-in-out
                       hover:scale-105 active:scale-95
                       focus:outline-none focus:ring-4 focus:ring-opacity-50
-                      border-0
                       min-w-[60px] sm:min-w-[80px]
                       cursor-pointer
                       select-none
