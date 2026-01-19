@@ -23,7 +23,6 @@ const StopReportPage: React.FC = () => {
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState(0);
   const [downloadLabel, setDownloadLabel] = useState("");
-
   const [tableData, setTableData] = useState<StopReport[]>([]);
   const [hasGenerated, setHasGenerated] = useState(false);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
@@ -251,6 +250,11 @@ const StopReportPage: React.FC = () => {
     sorting,
     columnVisibility,
     onColumnVisibilityChange: setColumnVisibility,
+    emptyMessage: isFetching
+      ? "Loading report data..."
+      : totalStopReport === 0
+        ? "No data available for the selected filters"
+        : "Wait for it....🫣",
     pageSizeOptions: [5, 10, 20, 50, 100, "All"],
     enableSorting: true,
     showSerialNumber: true,

@@ -152,12 +152,24 @@ const DistanceReportPage: React.FC = () => {
     return { data: rows, columns };
   };
 
+
   const handleExportPDF = async () => {
     try {
       setIsDownloading(true);
       updateProgress(5, "Fetching distance data");
 
-      const rawData = await fetchDistanceReportForExport();
+      let rawData = await fetchDistanceReportForExport();
+
+      if (rawData?.length && cashedDeviceId?.length) {
+        const deviceMap = new Map<string, string>();
+        (cashedDeviceId as any).forEach((device: any) => {
+          deviceMap.set(String(device.uniqueId), device.name.trim());
+        });
+        rawData = rawData.map((row: any) => ({
+          ...row,
+          name: deviceMap.get(String(row.uniqueId)) ?? row.name,
+        }));
+      }
 
       updateProgress(40, "Preparing report");
       const { data, columns } = prepareDistanceExport(rawData);
@@ -184,7 +196,18 @@ const DistanceReportPage: React.FC = () => {
     try {
       setIsDownloading(true);
       updateProgress(5, "Fetching report data");
-      const exportData = await fetchDistanceReportForExport();
+      let exportData = await fetchDistanceReportForExport();
+
+      if (exportData?.length && cashedDeviceId?.length) {
+        const deviceMap = new Map<string, string>();
+        (cashedDeviceId as any).forEach((device: any) => {
+          deviceMap.set(String(device.uniqueId), device.name.trim());
+        });
+        exportData = exportData.map((row: any) => ({
+          ...row,
+          name: deviceMap.get(String(row.uniqueId)) ?? row.name,
+        }));
+      }
 
       updateProgress(60, "Resolving locations");
       const { data, columns } = prepareDistanceExport(exportData);

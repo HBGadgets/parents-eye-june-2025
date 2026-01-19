@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useMemo, useCallback } from "react";
 import { Checkbox } from "./checkbox";
 import { useVirtualizer } from "@tanstack/react-virtual";
 
@@ -129,7 +129,7 @@ export function CustomTableServerSidePagination<
 }: DataTableProps<T>) {
   const tableContainerRef = useRef<HTMLDivElement>(null);
 
-  const getWrapClasses = (wrapOption: TextWrapOption): string => {
+  const getWrapClasses = useCallback((wrapOption: TextWrapOption): string => {
     const baseClasses = "leading-relaxed";
 
     switch (wrapOption) {
@@ -146,19 +146,20 @@ export function CustomTableServerSidePagination<
       default:
         return `${baseClasses} whitespace-nowrap`;
     }
-  };
+  }, []);
 
-  const getWrapStyles = (
-    wrapConfig?: ColumnWrapConfig
-  ): React.CSSProperties => {
-    if (!wrapConfig) return {};
+  const getWrapStyles = useCallback(
+    (wrapConfig?: ColumnWrapConfig): React.CSSProperties => {
+      if (!wrapConfig) return {};
 
-    return {
-      maxWidth: wrapConfig.maxWidth,
-      minWidth: wrapConfig.minWidth,
-      width: wrapConfig.maxWidth || wrapConfig.minWidth,
-    };
-  };
+      return {
+        maxWidth: wrapConfig.maxWidth,
+        minWidth: wrapConfig.minWidth,
+        width: wrapConfig.maxWidth || wrapConfig.minWidth,
+      };
+    },
+    []
+  );
 
   const selectionColumn: ColumnDef<T> | null = enableMultiSelect
     ? {
@@ -275,7 +276,8 @@ export function CustomTableServerSidePagination<
     ? table.getSelectedRowModel().rows.map((row) => getRowId(row.original as T))
     : [];
 
-  const rows = table.getRowModel().rows;
+  // Use data as dependency since table object is stable
+  const rows = useMemo(() => table.getRowModel().rows, [data, table]);
 
   const rowVirtualizer = useVirtualizer({
     count: rows.length,
@@ -380,9 +382,9 @@ export function CustomTableServerSidePagination<
               ) : (
                 <TableBody>
                   {enableVirtualization && paddingTop > 0 && (
-                    <tr>
-                      <td style={{ height: `${paddingTop}px` }} />
-                    </tr>
+                    <TableRow style={{ height: paddingTop }} aria-hidden="true">
+                      <TableCell colSpan={tableColumns.length} className="p-0 border-0" />
+                    </TableRow>
                   )}
                   {rows?.length
                     ? (enableVirtualization
@@ -437,11 +439,7 @@ export function CustomTableServerSidePagination<
                                 ? rowVirtualizer.measureElement
                                 : undefined
                             }
-                            style={
-                              enableVirtualization
-                                ? { height: `${estimatedRowHeight}px` }
-                                : undefined
-                            }
+                            data-index={enableVirtualization ? virtualRow.index : undefined}
                             className={`border-b hover:bg-muted/50 ${
                               enableRowClick && onRowClick
                                 ? "cursor-pointer"
@@ -492,9 +490,9 @@ export function CustomTableServerSidePagination<
                       })
                     : null}
                   {enableVirtualization && paddingBottom > 0 && (
-                    <tr>
-                      <td style={{ height: `${paddingBottom}px` }} />
-                    </tr>
+                    <TableRow style={{ height: paddingBottom }} aria-hidden="true">
+                      <TableCell colSpan={tableColumns.length} className="p-0 border-0" />
+                    </TableRow>
                   )}
                   {!rows?.length ? (
                     <TableRow>
