@@ -657,10 +657,10 @@ export const getLiveVehicleColumns = (): ColumnDef<LiveTrack>[] => [
                   ? count <= 1
                     ? "bg-red-500"
                     : count <= 2
-                    ? "bg-yellow-500"
-                    : count <= 3
-                    ? "bg-green-400"
-                    : "bg-green-600"
+                      ? "bg-yellow-500"
+                      : count <= 3
+                        ? "bg-green-400"
+                        : "bg-green-600"
                   : "bg-gray-200"
               }`}
               style={{ height }}
@@ -1175,7 +1175,6 @@ export const getStatusReportColumns = (): ColumnDef<StatusReport>[] => [
         "Vehicle Overspeed": "text-orange-600 bg-orange-100",
       };
 
-
       return (
         <div className="flex justify-center">
           <Tooltip>
@@ -1297,9 +1296,8 @@ export const getStatusReportColumns = (): ColumnDef<StatusReport>[] => [
     },
     meta: { wrapConfig: { wrap: "wrap", maxWidth: "260px" } },
     enableSorting: true,
-  }
+  },
 ];
-
 
 export const getStopReportColumns = (): ColumnDef<StatusReport>[] => [
   {
@@ -1332,45 +1330,45 @@ export const getStopReportColumns = (): ColumnDef<StatusReport>[] => [
   },
   {
     header: "Start Time",
-    accessorFn: (row: StopReport) =>
-      new Date(row.arrivalTime).toLocaleString("en-IN", {
-        day: "2-digit",
-        month: "short",
-        year: "numeric",
-        hour: "numeric",
-        minute: "2-digit",
-        second: "2-digit",
-        hour12: true,
-      }),
+   accessorKey: "arrivalTime",
   },
   {
     header: "Duration",
-    accessorKey: "time",
+    accessorKey: "haltTime",
   },
   {
     header: "End Time",
-    accessorFn: (row: StopReport) =>
-      new Date(row.departureTime).toLocaleString("en-IN", {
-        day: "2-digit",
-        month: "short",
-        year: "numeric",
-        hour: "numeric",
-        minute: "2-digit",
-        second: "2-digit",
-        hour12: true,
-      }),
+    accessorKey: "departureTime",
   },
   {
     header: "Address",
-    accessorKey: "address",
+    accessorKey: "location",
+    meta: { wrapConfig: { wrap: "wrap", maxWidth: "260px" } },
   },
   {
     header: "Coordinates",
-    cell: ({ row }: { row: any }) => {
-      const latitude = row.original.latitude;
-      const longitude = row.original.longitude;
-      return `${latitude}, ${longitude}`;
+    accessorFn: (row: StopReport) => `${row.latitude},${row.longitude}`,
+    cell: ({ getValue }) => {
+      const value = getValue<string>();
+      const [lat, lng] = value.split(",");
+
+      return (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <a
+              href={`https://www.google.com/maps?q=${lat},${lng}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-600 underline"
+            >
+              {lat}, {lng}
+            </a>
+          </TooltipTrigger>
+          <TooltipContent>Open in Google Maps</TooltipContent>
+        </Tooltip>
+      );
     },
+    meta: { wrapConfig: { wrap: "wrap", maxWidth: "260px" } },
   },
 ];
 

@@ -125,7 +125,7 @@ export function CustomTableServerSidePagination<
   enableMultiSelect = false,
   enableVirtualization = false,
   estimatedRowHeight = 50,
-  overscan = 10,
+  overscan = 5,
 }: DataTableProps<T>) {
   const tableContainerRef = useRef<HTMLDivElement>(null);
 
@@ -277,42 +277,29 @@ export function CustomTableServerSidePagination<
 
   const rows = table.getRowModel().rows;
 
-  const shouldVirtualize = enableVirtualization && pagination.pageSize < 300;
-
   const rowVirtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => tableContainerRef.current,
     estimateSize: () => estimatedRowHeight,
-    measureElement: (el) => el?.getBoundingClientRect().height,
     overscan,
-    // enabled: enableVirtualization,
-    enabled: shouldVirtualize,
+    enabled: enableVirtualization,
   });
 
-  // const virtualRows = enableVirtualization
-  //   ? rowVirtualizer.getVirtualItems()
-  //   : [];
-  const virtualRows = shouldVirtualize ? rowVirtualizer.getVirtualItems() : [];
+  const virtualRows = enableVirtualization
+    ? rowVirtualizer.getVirtualItems()
+    : [];
 
-  const totalSize = shouldVirtualize
+  const totalSize = enableVirtualization
     ? rowVirtualizer.getTotalSize()
     : undefined;
 
-  // const paddingTop =
-  //   enableVirtualization && virtualRows.length > 0
-  //     ? virtualRows[0]?.start || 0
-  //     : 0;
-
-  // const paddingBottom =
-  //   enableVirtualization && virtualRows.length > 0
-  //     ? totalSize! - (virtualRows[virtualRows.length - 1]?.end || 0)
-  //     : 0;
-
   const paddingTop =
-    shouldVirtualize && virtualRows.length > 0 ? virtualRows[0]?.start || 0 : 0;
+    enableVirtualization && virtualRows.length > 0
+      ? virtualRows[0]?.start || 0
+      : 0;
 
   const paddingBottom =
-    shouldVirtualize && virtualRows.length > 0
+    enableVirtualization && virtualRows.length > 0
       ? totalSize! - (virtualRows[virtualRows.length - 1]?.end || 0)
       : 0;
 
@@ -330,11 +317,7 @@ export function CustomTableServerSidePagination<
             style={{ maxHeight }}
           >
             <Table>
-              <TableHeader
-                className={`bg-[#f5da6c] ${
-                  shouldVirtualize ? "" : "sticky top-0 z-10"
-                }`}
-              >
+              <TableHeader className="sticky top-0 bg-[#f5da6c] z-10">
                 {table.getHeaderGroups().map((headerGroup) => (
                   <TableRow key={headerGroup.id} className="border-b">
                     {headerGroup.headers.map((header) => (
@@ -396,13 +379,13 @@ export function CustomTableServerSidePagination<
                 </TableBody>
               ) : (
                 <TableBody>
-                  {shouldVirtualize && paddingTop > 0 && (
+                  {enableVirtualization && paddingTop > 0 && (
                     <tr>
                       <td style={{ height: `${paddingTop}px` }} />
                     </tr>
                   )}
                   {rows?.length
-                    ? (shouldVirtualize
+                    ? (enableVirtualization
                         ? virtualRows
                         : rows.map((_, index) => ({ index }))
                       ).map((virtualRow) => {
@@ -450,12 +433,12 @@ export function CustomTableServerSidePagination<
                           <TableRow
                             key={row.id}
                             ref={
-                              shouldVirtualize
+                              enableVirtualization
                                 ? rowVirtualizer.measureElement
                                 : undefined
                             }
                             style={
-                              shouldVirtualize
+                              enableVirtualization
                                 ? { height: `${estimatedRowHeight}px` }
                                 : undefined
                             }
@@ -474,10 +457,8 @@ export function CustomTableServerSidePagination<
                                     ?.wrapConfig
                                 : undefined;
 
-                              const wrapOption = shouldVirtualize
-                                ? "nowrap"
-                                : wrapConfig?.wrap || defaultTextWrap;
-
+                              const wrapOption =
+                                wrapConfig?.wrap || defaultTextWrap;
                               const wrapClasses = getWrapClasses(wrapOption);
                               const wrapStyles = getWrapStyles(wrapConfig);
 
@@ -510,7 +491,7 @@ export function CustomTableServerSidePagination<
                         );
                       })
                     : null}
-                  {shouldVirtualize && paddingBottom > 0 && (
+                  {enableVirtualization && paddingBottom > 0 && (
                     <tr>
                       <td style={{ height: `${paddingBottom}px` }} />
                     </tr>
@@ -531,9 +512,9 @@ export function CustomTableServerSidePagination<
           </div>
         </div>
 
-        <div className="flex items-center justify-between px-2">
-          <div className="flex items-center space-x-2 text-sm text-muted-foreground">
-            <span>
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-2 py-2">
+          <div className="flex items-center space-x-2 text-xs sm:text-sm text-muted-foreground order-2 sm:order-1">
+            <span className="hidden sm:inline">
               Showing {pagination.pageIndex * pagination.pageSize + 1} to{" "}
               {Math.min(
                 (pagination.pageIndex + 1) * pagination.pageSize,
@@ -541,21 +522,30 @@ export function CustomTableServerSidePagination<
               )}{" "}
               of {totalCount} results
             </span>
+            <span className="sm:hidden">
+              {pagination.pageIndex * pagination.pageSize + 1}-
+              {Math.min(
+                (pagination.pageIndex + 1) * pagination.pageSize,
+                totalCount
+              )}{" "}
+              of {totalCount}
+            </span>
           </div>
 
-          <div className="flex items-center space-x-6">
+          <div className="flex items-center gap-3 sm:gap-6 order-1 sm:order-2">
             <div className="flex items-center space-x-2">
-              <p className="text-sm font-medium">Rows per page</p>
+              <p className="text-xs sm:text-sm font-medium hidden sm:block">Rows per page</p>
+              <p className="text-xs font-medium sm:hidden">Rows</p>
               <Select
                 value={isAllSelected ? "All" : pagination.pageSize.toString()}
                 onValueChange={changePageSize}
               >
-                <SelectTrigger className="h-8 w-[70px]">
+                <SelectTrigger className="h-8 w-[60px] sm:w-[70px] cursor-pointer text-xs sm:text-sm">
                   <SelectValue placeholder={pagination.pageSize.toString()} />
                 </SelectTrigger>
                 <SelectContent side="top">
                   {pageSizeOptions.map((pageSize) => (
-                    <SelectItem key={pageSize} value={pageSize.toString()}>
+                    <SelectItem key={pageSize} value={pageSize.toString()} className="cursor-pointer">
                       {pageSize}
                     </SelectItem>
                   ))}
@@ -563,17 +553,20 @@ export function CustomTableServerSidePagination<
               </Select>
             </div>
 
-            <div className="flex items-center space-x-2">
-              <div className="flex w-[100px] items-center justify-center text-sm font-medium">
+            <div className="flex items-center space-x-1 sm:space-x-2">
+              <div className="hidden sm:flex w-[100px] items-center justify-center text-sm font-medium">
                 Page {pagination.pageIndex + 1} of {Math.max(1, totalPages)}
               </div>
-              <div className="flex items-center space-x-2">
+              <div className="sm:hidden text-xs font-medium">
+                {pagination.pageIndex + 1}/{Math.max(1, totalPages)}
+              </div>
+              <div className="flex items-center space-x-1">
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => goToPage(0)}
                   disabled={!hasPrevPage}
-                  className="h-8 w-8 p-0"
+                  className="h-8 w-8 p-0 cursor-pointer"
                 >
                   <ChevronsLeft className="h-4 w-4" />
                 </Button>
@@ -582,7 +575,7 @@ export function CustomTableServerSidePagination<
                   size="sm"
                   onClick={() => goToPage(pagination.pageIndex - 1)}
                   disabled={!hasPrevPage}
-                  className="h-8 w-8 p-0"
+                  className="h-8 w-8 p-0 cursor-pointer"
                 >
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
@@ -591,7 +584,7 @@ export function CustomTableServerSidePagination<
                   size="sm"
                   onClick={() => goToPage(pagination.pageIndex + 1)}
                   disabled={!hasNextPage}
-                  className="h-8 w-8 p-0"
+                  className="h-8 w-8 p-0 cursor-pointer"
                 >
                   <ChevronRight className="h-4 w-4" />
                 </Button>
@@ -600,7 +593,7 @@ export function CustomTableServerSidePagination<
                   size="sm"
                   onClick={() => goToPage(totalPages - 1)}
                   disabled={!hasNextPage}
-                  className="h-8 w-8 p-0"
+                  className="h-8 w-8 p-0 cursor-pointer"
                 >
                   <ChevronsRight className="h-4 w-4" />
                 </Button>

@@ -64,10 +64,6 @@ const StatusReportPage: React.FC = () => {
   });
   const statusReport = data?.data;
   const totalStatusReport = data?.total || 0;
-  useEffect(() => {
-    console.log("RAW STATUS REPORT", statusReport);
-    console.log("TABLE DATA", tableData);
-  }, [statusReport, tableData]);
 
   // Handle filter submission
   const handleFilterSubmit = useCallback((filters: FilterValues) => {

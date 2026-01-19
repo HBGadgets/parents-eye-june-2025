@@ -1,6 +1,12 @@
 "use client";
 
-import React, { useState, useCallback, useRef, useEffect } from "react";
+import React, {
+  useState,
+  useCallback,
+  useRef,
+  useEffect,
+  useMemo,
+} from "react";
 import {
   ReportFilter,
   FilterValues,
@@ -8,14 +14,12 @@ import {
 import { VisibilityState } from "@tanstack/react-table";
 import { CustomTableServerSidePagination } from "@/components/ui/customTable(serverSidePagination)";
 import ResponseLoader from "@/components/ResponseLoader";
-import { useReport } from "@/hooks/reports/useReport";
 import { useQueryClient } from "@tanstack/react-query";
 import DownloadProgress from "@/components/DownloadProgress";
 import { useExport } from "@/hooks/useExport";
 import api from "@/lib/axios";
 import { parseUniqueIds } from "@/util/parseUniqueIds";
 import { useDistanceReport } from "@/hooks/reports/useDistanceReport";
-import { set } from "lodash";
 import { toast } from "sonner";
 
 const DistanceReportPage: React.FC = () => {
@@ -23,6 +27,7 @@ const DistanceReportPage: React.FC = () => {
   const queryClient = useQueryClient();
   const [shouldFetch, setShouldFetch] = useState(false);
   const [hasGenerated, setHasGenerated] = useState(false);
+  const [cashedDeviceId, setCashedDeviceId] = useState<string | null>(null);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
   const [showTable, setShowTable] = useState(false);
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 10 });
@@ -30,14 +35,13 @@ const DistanceReportPage: React.FC = () => {
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState(0);
   const [downloadLabel, setDownloadLabel] = useState("");
+  // Store stable columns to prevent shifting during loading
+  const stableColumnsRef = useRef<any[]>([]);
 
   const updateProgress = (percent: number, label: string) => {
     setDownloadProgress(percent);
     setDownloadLabel(label);
   };
-
-  // Store stable columns to prevent shifting during loading
-  const stableColumnsRef = useRef<any[]>([]);
 
   // Filter state for API
   const [apiFilters, setApiFilters] = useState<Record<string, any>>({
@@ -89,6 +93,13 @@ const DistanceReportPage: React.FC = () => {
     // Show table
     setShowTable(true);
   }, []);
+
+  useEffect(() => {
+    const cachedDevices = queryClient.getQueryData<
+      { _id: string; name: string; uniqueId: string }[]
+    >(["device-dropdown-uniqueId", apiFilters.branchId]);
+    setCashedDeviceId(cachedDevices?.data?.data);
+  }, [distanceReport]);
 
   useEffect(() => {
     if (!isFetchingDistanceReport && shouldFetch) {
@@ -255,9 +266,25 @@ const DistanceReportPage: React.FC = () => {
     return newColumns;
   }, [distanceReport, isFetchingDistanceReport]);
 
+  const finalDistanceReport = useMemo(() => {
+    if (!distanceReport?.length || !cashedDeviceId?.length) {
+      return distanceReport ?? [];
+    }
+    // build lookup map: uniqueId -> name
+    const deviceMap = new Map<string, string>();
+    cashedDeviceId.forEach((device) => {
+      deviceMap.set(String(device.uniqueId), device.name.trim());
+    });
+    // return NEW array (no mutation)
+    return distanceReport.map((row) => ({
+      ...row,
+      name: deviceMap.get(String(row.uniqueId)) ?? row.name,
+    }));
+  }, [distanceReport, cashedDeviceId]);
+
   // Table configuration
   const { table, tableElement } = CustomTableServerSidePagination({
-    data: distanceReport ?? [],
+    data: finalDistanceReport ?? [],
     columns,
     pagination,
     totalCount: totalDistanceReport,
@@ -270,9 +297,9 @@ const DistanceReportPage: React.FC = () => {
     emptyMessage: isFetchingDistanceReport
       ? "Loading report data..."
       : totalDistanceReport === 0
-      ? "No data available for the selected filters"
-      : "Wait for it....🫣",
-    pageSizeOptions: [5, 10, 20, 30, 50, 100, 200, 500, "All"],
+        ? "No data available for the selected filters"
+        : "Wait for it....🫣",
+    pageSizeOptions: [5, 10, 20, 30, 50, 100, "All"],
     enableSorting: true,
     showSerialNumber: true,
     // Enable virtualization

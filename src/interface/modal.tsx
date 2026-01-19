@@ -335,6 +335,8 @@ export interface StopReport {
   endLocation: string;
   endCoordinates: string;
   distance: number;
+  latitude: number;
+  longitude: number;
 }
 
 export interface GetStopReportResponse {

@@ -400,11 +400,11 @@ export default function DashboardClient() {
       <div className="relative min-h-screen bg-white">
         {/* Dashboard Content - Always visible in background */}
         <div>
-          <div className="flex justify-between items-start mb-4">
-            <div className="flex items-center gap-3 flex-1">
+          <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-3 mb-4">
+            <div className="flex items-center gap-2 sm:gap-3 w-full lg:w-auto">
               <Input
                 placeholder="Search bus number or name..."
-                className="flex-1 min-w-[300px]"
+                className="flex-1 min-w-0 lg:min-w-[250px] xl:min-w-[300px]"
                 value={searchInput}
                 onChange={(e) => handleSearchChange(e.target.value)}
               />
@@ -419,7 +419,7 @@ export default function DashboardClient() {
             </div>
 
             {/* Device/Status Count Buttons with Filtering */}
-            <div className="flex gap-3">
+            <div className="flex flex-wrap gap-2 w-full lg:w-auto">
               {counts.map((countObj, index) => {
                 const [key, value] = Object.entries(countObj)[0];
                 const label = key.charAt(0).toUpperCase() + key.slice(1);
@@ -436,14 +436,14 @@ export default function DashboardClient() {
                     className={`
                       inline-flex items-center justify-center
                       ${statusColors[label]}
-                      text-white font-semibold text-[10px]
-                      px-3 py-2.5 rounded-lg
+                      text-white font-semibold text-[9px] sm:text-[10px]
+                      px-2 sm:px-3 py-2 sm:py-2.5 rounded-lg
                       shadow-md hover:shadow-lg
                       transform transition-all duration-200 ease-in-out
                       hover:scale-105 active:scale-95
                       focus:outline-none focus:ring-4 focus:ring-opacity-50
                       border-0
-                      min-w-[80px]
+                      min-w-[60px] sm:min-w-[80px]
                       cursor-pointer
                       select-none
                       relative
@@ -475,10 +475,10 @@ export default function DashboardClient() {
 
           {/* Main Layout */}
           <div className="dashboard">
-            <div className="flex gap-0 h-[90vh]">
-              <section className={`overflow-auto ${getTableClass}`}>
+            <div className="flex flex-col lg:flex-row gap-2 lg:gap-0 h-auto lg:h-[80vh] xl:h-[85vh]">
+              <section className={`overflow-auto min-h-[300px] lg:min-h-0 ${getTableClass}`}>
                 {viewState === "mapExpanded" && (
-                  <div className="absolute top-1/2 left-0 z-50">
+                  <div className="absolute top-1/2 left-0 z-50 hidden lg:block">
                     <button
                       onClick={handleExpandTable}
                       className={`p-2 rounded-full border border-gray-300 hover:bg-primary transition-all duration-200 cursor-pointer shadow-lg hover:shadow-xl hover:-translate-y-0.5  ${
@@ -493,12 +493,12 @@ export default function DashboardClient() {
                   </div>
                 )}
 
-                {viewState !== "mapExpanded" && <div>{tableElement}</div>}
+                {viewState !== "mapExpanded" && <div className="min-h-[300px] lg:min-h-0">{tableElement}</div>}
               </section>
 
-              {/* Arrow Controls */}
+              {/* Arrow Controls - hidden on mobile */}
               {!["tableExpanded", "mapExpanded"].includes(viewState) && (
-                <div className="flex flex-col justify-center items-center space-y-2 z-50 absolute top-1/2 right-[48.5%]">
+                <div className="hidden lg:flex flex-col justify-center items-center space-y-2 z-50 absolute top-1/2 right-[48.5%]">
                   <button
                     onClick={handleExpandMap}
                     className={`p-2 rounded-full border border-gray-300 hover:bg-primary transition-all duration-200 cursor-pointer shadow-lg hover:shadow-xl hover:-translate-y-0.5 [animation-duration:_300ms] [animation:_fadeIn_300ms_ease-in_forwards] ${
@@ -532,7 +532,7 @@ export default function DashboardClient() {
               )}
 
               {/* Right Side - Map */}
-              <section className={`${getMapClass} rounded-lg overflow-hidden`}>
+              <section className={`${getMapClass} rounded-lg overflow-hidden min-h-[300px] lg:min-h-0`}>
                 {viewState !== "tableExpanded" && (
                   <VehicleMap
                     vehicles={devices}
@@ -546,7 +546,7 @@ export default function DashboardClient() {
                   />
                 )}
                 {viewState === "tableExpanded" && (
-                  <div className="absolute top-1/2 right-2 z-50">
+                  <div className="absolute top-1/2 right-2 z-50 hidden lg:block">
                     <button
                       onClick={handleExpandMap}
                       className={`p-2 rounded-full border border-gray-300 hover:bg-primary transition-all duration-200 cursor-pointer shadow-lg hover:shadow-xl hover:-translate-y-0.5  ${

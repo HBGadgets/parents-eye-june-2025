@@ -307,4 +307,57 @@
   .field-icon {
     color: hsl(var(--field-icon));
   }
+
+  /* Responsive utilities */
+  .touch-target {
+    @apply min-h-[44px] min-w-[44px];
+  }
+
+  /* Mobile-friendly scrolling */
+  .mobile-scroll {
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+  }
+
+  /* Responsive container */
+  .responsive-container {
+    @apply w-full px-2 sm:px-4 md:px-6 lg:px-8;
+  }
+
+  /* Stack on mobile, row on desktop */
+  .stack-mobile {
+    @apply flex flex-col sm:flex-row;
+  }
+
+  /* Hide on mobile */
+  .hide-mobile {
+    @apply hidden sm:block;
+  }
+
+  /* Show only on mobile */
+  .show-mobile {
+    @apply block sm:hidden;
+  }
+}
+
+/* Mobile-optimized touch targets */
+@media (max-width: 640px) {
+  button, 
+  [role="button"],
+  a,
+  input,
+  select,
+  textarea {
+    min-height: 44px;
+  }
+
+  /* Improve table scrolling on mobile */
+  .overflow-x-auto {
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Reduce padding on mobile for more content space */
+  .mobile-compact {
+    padding: 0.5rem !important;
+  }
 }
