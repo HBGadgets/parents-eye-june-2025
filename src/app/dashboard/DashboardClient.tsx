@@ -367,7 +367,7 @@ export default function DashboardClient() {
     enableVirtualization: true,
     estimatedRowHeight: 20,
     overscan: 5,
-    maxHeight: "calc(100vh - 100px)",
+    maxHeight: "calc(100vh - 200px)",
   });
 
   const bottomDrawerProps = useMemo(() => {
