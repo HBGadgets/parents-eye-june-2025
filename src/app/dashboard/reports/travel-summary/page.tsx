@@ -157,30 +157,63 @@ const TravelSummaryReportPage: React.FC = () => {
     setCashedDeviceId(cachedDevices?.data?.data);
   }, [travelSummaryReport]);
 
-  // Enrich travel summary data with addresses
+  // Enrich travel summary data with addresses (including nested dayWiseTrips)
   const enrichTravelSummaryWithAddress = async (
     rows: TravelSummaryReport[]
   ): Promise<TravelSummaryReport[]> => {
     return Promise.all(
       rows.map(async (row) => {
-        // Skip if no coordinates
-        if (!row.startLat || !row.startLong || !row.endLat || !row.endLong) {
-          return {
-            ...row,
-            startAddress: "-",
-            endAddress: "-",
-          };
+        // Enrich main row addresses
+        let startAddress = "-";
+        let endAddress = "-";
+        
+        if (row.startLat && row.startLong && row.endLat && row.endLong) {
+          const [start, end] = await Promise.all([
+            reverseGeocodeMapTiler(row.startLat, row.startLong),
+            reverseGeocodeMapTiler(row.endLat, row.endLong),
+          ]);
+          startAddress = start || "-";
+          endAddress = end || "-";
         }
 
-        const [startAddress, endAddress] = await Promise.all([
-          reverseGeocodeMapTiler(row.startLat, row.startLong),
-          reverseGeocodeMapTiler(row.endLat, row.endLong),
-        ]);
+        // Enrich nested dayWiseTrips with addresses
+        let enrichedDayWiseTrips = row.dayWiseTrips || [];
+        if (row.dayWiseTrips?.length) {
+          enrichedDayWiseTrips = await Promise.all(
+            row.dayWiseTrips.map(async (trip) => {
+              let tripStartAddress = trip.startAddress || "-";
+              let tripEndAddress = trip.endAddress || "-";
+
+              // Fetch start address if coordinates exist but no address
+              if (!trip.startAddress && trip.startLatitude && trip.startLongitude) {
+                tripStartAddress = await reverseGeocodeMapTiler(
+                  Number(trip.startLatitude),
+                  Number(trip.startLongitude)
+                ) || "-";
+              }
+
+              // Fetch end address if coordinates exist but no address
+              if (!trip.endAddress && trip.endLatitude && trip.endLongitude) {
+                tripEndAddress = await reverseGeocodeMapTiler(
+                  Number(trip.endLatitude),
+                  Number(trip.endLongitude)
+                ) || "-";
+              }
+
+              return {
+                ...trip,
+                startAddress: tripStartAddress,
+                endAddress: tripEndAddress,
+              };
+            })
+          );
+        }
 
         return {
           ...row,
-          startAddress: startAddress || "-",
-          endAddress: endAddress || "-",
+          startAddress,
+          endAddress,
+          dayWiseTrips: enrichedDayWiseTrips,
         };
       })
     );
