@@ -80,38 +80,38 @@ export default function DashboardClient() {
   const statusColors: Record<string, { default: string; active: string }> = {
     Running: {
       default:
-        "bg-white text-green-600 border border-green-400 hover:bg-green-400 hover:text-white",
-      active: "bg-green-400 text-white border border-green-400",
+        "bg-white text-green-600 border border-green-400 hover:bg-[#63be77] hover:text-white",
+      active: "bg-[#63be77] text-white border border-green-400",
     },
     Overspeed: {
       default:
-        "bg-white text-orange-600 border border-orange-400 hover:bg-orange-400 hover:text-white",
-      active: "bg-orange-400 text-white border border-orange-400",
+        "bg-white text-[#df6c1a] border border-[#df6c1a] hover:bg-[#df6c1a] hover:text-white",
+      active: "bg-[#df6c1a] text-white border border-[#df6c1a]",
     },
     Idle: {
       default:
-        "bg-white text-yellow-600 border border-yellow-400 hover:bg-yellow-400 hover:text-white",
-      active: "bg-yellow-400 text-white border border-yellow-400",
+        "bg-white text-[#ffb20e] border border-[#ffb20e] hover:bg-[#ffb20e] hover:text-white",
+      active: "bg-[#ffb20e] text-white border border-[#ffb20e]",
     },
     Stopped: {
       default:
-        "bg-white text-red-600 border border-red-400 hover:bg-red-400 hover:text-white",
-      active: "bg-red-400 text-white border border-red-400",
+        "bg-white text-[#ee6464] border border-[#ee6464] hover:bg-[#ee6464] hover:text-white",
+      active: "bg-[#ee6464] text-white border border-[#ee6464]",
     },
     Inactive: {
       default:
-        "bg-white text-gray-600 border border-gray-400 hover:bg-gray-400 hover:text-white",
-      active: "bg-gray-400 text-white border border-gray-400",
+        "bg-white text-[#949494] border border-[#949494] hover:bg-[#949494] hover:text-white",
+      active: "bg-[#949494] text-white border border-[#949494]",
     },
     New: {
       default:
-        "bg-white text-blue-600 border border-blue-400 hover:bg-blue-400 hover:text-white",
-      active: "bg-blue-400 text-white border border-blue-400",
+        "bg-white text-[#2196f3] border border-[#2196f3] hover:bg-[#2196f3] hover:text-white",
+      active: "bg-[#2196f3] text-white border border-[#2196f3]",
     },
     Total: {
       default:
-        "bg-white text-purple-600 border border-purple-400 hover:bg-purple-400 hover:text-white",
-      active: "bg-purple-400 text-white border border-purple-400",
+        "bg-white text-[#4eb4e1] border border-[#4eb4e1] hover:bg-[#4eb4e1] hover:text-white",
+      active: "bg-[#4eb4e1] text-white border border-[#4eb4e1]",
     },
   };
 
