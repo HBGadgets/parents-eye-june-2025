@@ -365,9 +365,9 @@ export default function DashboardClient() {
       "bg-blue-100 hover:bg-blue-200 border-l-4 border-blue-500",
     // Enable virtualization
     enableVirtualization: true,
-    estimatedRowHeight: 50,
+    estimatedRowHeight: 20,
     overscan: 5,
-    maxHeight: "600px",
+    maxHeight: "calc(100vh - 100px)",
   });
 
   const bottomDrawerProps = useMemo(() => {
