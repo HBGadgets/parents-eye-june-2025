@@ -469,7 +469,7 @@ export default function DashboardClient() {
                       transform transition-all duration-200 ease-in-out
                       hover:scale-105 active:scale-95
                       focus:outline-none focus:ring-4 focus:ring-opacity-50
-                      min-w-[60px] sm:min-w-[80px]
+                      min-w-[40px] sm:min-w-[60px] max-w-[100px]
                       cursor-pointer
                       select-none
                       relative
