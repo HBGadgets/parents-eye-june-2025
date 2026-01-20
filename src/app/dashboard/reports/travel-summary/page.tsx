@@ -17,6 +17,10 @@ import ResponseLoader from "@/components/ResponseLoader";
 import { useReport } from "@/hooks/reports/useReport";
 import { FaPlay, FaPlus, FaMinus } from "react-icons/fa";
 import { TravelTable } from "@/components/travel-summary/TravelTable";
+import { useExport } from "@/hooks/useExport";
+import { api } from "@/services/apiService";
+import DownloadProgress from "@/components/DownloadProgress";
+import { toast } from "sonner";
 import {
   Tooltip,
   TooltipContent,
@@ -25,6 +29,7 @@ import {
 } from "@/components/ui/tooltip";
 import { DayWiseTrips, TravelSummaryReport } from "@/interface/modal";
 import { useQueryClient } from "@tanstack/react-query";
+import { reverseGeocodeMapTiler } from "@/hooks/useReverseGeocoding";
 import { PlaybackHistoryDrawer } from "@/components/travel-summary/playback-history-drawer";
 
 ///////////////////////////////DEMO DATA INTERFACES///////////////////////////////
@@ -64,6 +69,11 @@ interface ExpandedRowData extends TravelSummaryReport {
 }
 
 const TravelSummaryReportPage: React.FC = () => {
+  // Download progress state
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [downloadProgress, setDownloadProgress] = useState(0);
+  const [downloadLabel, setDownloadLabel] = useState("");
+
   // Filter state
   const queryClient = useQueryClient();
   const [shouldFetch, setShouldFetch] = useState(false);
@@ -110,6 +120,13 @@ const TravelSummaryReportPage: React.FC = () => {
     from: undefined,
     to: undefined,
   });
+  const [cashedDeviceId, setCashedDeviceId] = useState<
+    { _id: string; name: string; uniqueId: string }[] | null
+  >(null);
+  
+  // Table data with enriched addresses
+  const [tableData, setTableData] = useState<TravelSummaryReport[]>([]);
+  const lastProcessedRef = React.useRef<string>("");
 
   // Fetch report data using the hook
   const {
@@ -124,74 +141,154 @@ const TravelSummaryReportPage: React.FC = () => {
     hasGenerated
   );
 
-  // Transform day-wise trips data for nested table
+  // Export hook
+  const { exportToPDF, exportToExcel } = useExport();
+
+  // Update progress helper
+  const updateProgress = (percent: number, label: string) => {
+    setDownloadProgress(percent);
+    setDownloadLabel(label);
+  };
+
+  useEffect(() => {
+    const cachedDevices = queryClient.getQueryData<
+      { _id: string; name: string; uniqueId: string }[]
+    >(["device-dropdown-uniqueId", apiFilters.branchId]);
+    setCashedDeviceId(cachedDevices?.data?.data);
+  }, [travelSummaryReport]);
+
+  // Enrich travel summary data with addresses
+  const enrichTravelSummaryWithAddress = async (
+    rows: TravelSummaryReport[]
+  ): Promise<TravelSummaryReport[]> => {
+    return Promise.all(
+      rows.map(async (row) => {
+        // Skip if no coordinates
+        if (!row.startLat || !row.startLong || !row.endLat || !row.endLong) {
+          return {
+            ...row,
+            startAddress: "-",
+            endAddress: "-",
+          };
+        }
+
+        const [startAddress, endAddress] = await Promise.all([
+          reverseGeocodeMapTiler(row.startLat, row.startLong),
+          reverseGeocodeMapTiler(row.endLat, row.endLong),
+        ]);
+
+        return {
+          ...row,
+          startAddress: startAddress || "-",
+          endAddress: endAddress || "-",
+        };
+      })
+    );
+  };
+
+  // Effect to enrich data with addresses when travelSummaryReport changes
+  useEffect(() => {
+    if (!travelSummaryReport?.length) {
+      if (tableData.length !== 0) setTableData([]);
+      return;
+    }
+    const currentHash = JSON.stringify(travelSummaryReport);
+    if (lastProcessedRef.current === currentHash) return;
+    lastProcessedRef.current = currentHash;
+
+    const enrich = async () => {
+      const enriched = await enrichTravelSummaryWithAddress(travelSummaryReport);
+      setTableData(enriched);
+    };
+
+    enrich();
+  }, [travelSummaryReport]);
+
+  // Transform day-wise trips data for nested table (with address fetching)
   const transformDayWiseData = useCallback(
-    (
+    async (
       dayWiseTrips: DayWiseTrips[],
       vehicleName: string
-    ): TravelDetailTableData[] => {
-      return dayWiseTrips.map((trip, index) => ({
-        id: `day-${trip.date}-${index}`,
-        uniqueId: trip.uniqueId,
-        vehicleName: vehicleName,
-        reportDate: new Date(trip.date).toLocaleDateString(),
-        ignitionStart: trip.startTime
-          ? new Date(trip.startTime).toLocaleString("en-GB", {
-              day: "2-digit",
-              month: "2-digit",
-              year: "numeric",
-              hour: "2-digit",
-              minute: "2-digit",
-              second: "2-digit",
-              hour12: true,
-              timeZone: "UTC",
-            })
-          : "-",
-        startLocation: trip.startAddress || "-",
-        startCoordinates:
-          trip.startLatitude && trip.startLongitude ? (
-            <a
-              href={`https://www.google.com/maps?q=${trip.startLatitude},${trip.startLongitude}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-blue-600 underline hover:text-blue-800"
-            >
-              {trip.startLatitude}, {trip.startLongitude}
-            </a>
-          ) : (
-            "-"
-          ),
-        distance: trip.distance,
-        running: trip.runningTime,
-        idle: trip.idleTime,
-        stopped: trip.stopTime,
-        overspeed: trip.overspeedTime,
-        maxSpeed: trip.maxSpeed,
-        avgSpeed: trip.avgSpeed,
-        endLocation: trip.endAddress || "-",
-        endCoordinates: `${trip.endLatitude}, ${trip.endLongitude}` || "-",
-        ignitionStop: trip.endTime
-          ? new Date(trip.endTime).toLocaleString("en-GB", {
-              day: "2-digit",
-              month: "2-digit",
-              year: "numeric",
-              hour: "2-digit",
-              minute: "2-digit",
-              second: "2-digit",
-              hour12: true,
-              timeZone: "UTC",
-            })
-          : "-",
+    ): Promise<TravelDetailTableData[]> => {
+      return Promise.all(
+        dayWiseTrips.map(async (trip, index) => {
+          // Fetch addresses for start and end coordinates
+          let startLocation = trip.startAddress || "-";
+          let endLocation = trip.endAddress || "-";
 
-        play: "▶",
-      }));
+          // Fetch addresses if coordinates exist but no address
+          if (!trip.startAddress && trip.startLatitude && trip.startLongitude) {
+            startLocation = await reverseGeocodeMapTiler(
+              Number(trip.startLatitude),
+              Number(trip.startLongitude)
+            ) || "-";
+          }
+
+          if (!trip.endAddress && trip.endLatitude && trip.endLongitude) {
+            endLocation = await reverseGeocodeMapTiler(
+              Number(trip.endLatitude),
+              Number(trip.endLongitude)
+            ) || "-";
+          }
+
+          return {
+            id: `day-${trip.date}-${index}`,
+            uniqueId: trip.uniqueId,
+            vehicleName: vehicleName,
+            reportDate: new Date(trip.date).toLocaleDateString(),
+            ignitionStart: trip.startTime
+              ? new Date(trip.startTime).toLocaleString("en-GB", {
+                  day: "2-digit",
+                  month: "2-digit",
+                  year: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  second: "2-digit",
+                  hour12: true,
+                  timeZone: "UTC",
+                })
+              : "-",
+            startLocation: startLocation,
+            startCoordinates:
+              trip.startLatitude && trip.startLongitude
+                ? `${trip.startLatitude}, ${trip.startLongitude}`
+                : "-",
+            distance: trip.distance,
+            running: trip.runningTime,
+            idle: trip.idleTime,
+            stopped: trip.stopTime,
+            overspeed: trip.overspeedTime,
+            workingHours: trip.workingHours,
+            maxSpeed: trip.maxSpeed,
+            avgSpeed: trip.avgSpeed,
+            endLocation: endLocation,
+            endCoordinates:
+              trip.endLatitude && trip.endLongitude
+                ? `${trip.endLatitude}, ${trip.endLongitude}`
+                : "-",
+            ignitionStop: trip.endTime
+              ? new Date(trip.endTime).toLocaleString("en-GB", {
+                  day: "2-digit",
+                  month: "2-digit",
+                  year: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  second: "2-digit",
+                  hour12: true,
+                  timeZone: "UTC",
+                })
+              : "-",
+            play: "▶",
+          };
+        })
+      );
     },
     []
   );
 
   // Toggle row expansion
   const toggleRowExpansion = useCallback(
-    (rowId: string, rowData: TravelSummaryReport) => {
+    async (rowId: string, rowData: TravelSummaryReport) => {
       // console.log("🔄 Toggling row expansion for:", rowId);
       const newExpandedRows = new Set(expandedRows);
 
@@ -219,7 +316,7 @@ const TravelSummaryReportPage: React.FC = () => {
         if (!detailedData[rowId] && rowData.dayWiseTrips) {
           try {
             // console.log("🔄 Transforming dayWiseTrips:", rowData.dayWiseTrips);
-            const transformedDetails = transformDayWiseData(
+            const transformedDetails = await transformDayWiseData(
               rowData.dayWiseTrips,
               rowData.name
             );
@@ -276,17 +373,29 @@ const TravelSummaryReportPage: React.FC = () => {
 
   // Transform API data to include row IDs and serial numbers
   const transformedReportData = useMemo(() => {
-    const transformed = travelSummaryReport.map(
-      (item: TravelSummaryReport, index: number) => ({
-        ...item,
-        uniqueId: item.dayWiseTrips?.[0]?.uniqueId,
-        id: `row-${item.uniqueId}-${index}`,
-        sn: pagination.pageIndex * pagination.pageSize + index + 1,
-      })
+    const transformed = tableData.map(
+      (item: TravelSummaryReport, index: number) => {
+        // Resolve uniqueId: prioritize item's own uniqueId, fallback to first dayWiseTrip's uniqueId
+        const resolvedUniqueId = item.uniqueId || item.dayWiseTrips?.[0]?.uniqueId;
+        
+        // Match uniqueId with cachedDeviceId to get the correct vehicle name
+        const matchedDevice = cashedDeviceId?.find(
+          (device) => String(device.uniqueId) === String(resolvedUniqueId)
+        );
+        const vehicleName = matchedDevice?.name || item.name || '-';
+        
+        return {
+          ...item,
+          uniqueId: resolvedUniqueId,
+          name: vehicleName,
+          id: `row-${resolvedUniqueId}-${index}`,
+          sn: pagination.pageIndex * pagination.pageSize + index + 1,
+        };
+      }
     );
     // console.log("📊 Transformed report data:", transformed);
     return transformed;
-  }, [travelSummaryReport, pagination]);
+  }, [tableData, pagination, cashedDeviceId]);
 
   // Create expanded data array with detail rows injected
   const createExpandedData = useCallback((): ExpandedRowData[] => {
@@ -333,7 +442,9 @@ const TravelSummaryReportPage: React.FC = () => {
       },
       { accessorKey: "reportDate", header: "Report Date", size: 120 },
       { accessorKey: "ignitionStart", header: "Ignition Start", size: 180 },
-      { accessorKey: "startLocation", header: "Start Location", size: 250 },
+      { accessorKey: "startLocation", header: "Start Location", meta: {
+      wrapConfig: { wrap: "wrap", maxWidth: "260px" },
+    }, },
       {
         header: "Start Coordinates",
         accessorKey: "startCoordinates",
@@ -369,7 +480,9 @@ const TravelSummaryReportPage: React.FC = () => {
       { accessorKey: "running", header: "Running", size: 120 },
       { accessorKey: "idle", header: "Idle", size: 120 },
       { accessorKey: "stopped", header: "Stopped", size: 120 },
-      { accessorKey: "overspeed", header: "Overspeed", size: 120 },
+      // { accessorKey: "overspeed", header: "Overspeed", size: 120 },
+      {accessorKey: "workingHours", header: "Working Hours", size: 120},
+
       {
         accessorKey: "maxSpeed",
         cell: ({ row }) => {
@@ -400,7 +513,9 @@ const TravelSummaryReportPage: React.FC = () => {
         header: "Avg Speed",
         size: 120,
       },
-      { accessorKey: "endLocation", header: "End Location", size: 250 },
+      { accessorKey: "endLocation", header: "End Location", meta: {
+      wrapConfig: { wrap: "wrap", maxWidth: "260px" },
+    }, },
       {
         accessorKey: "endCoordinates",
         header: "End Co-ordinate",
@@ -598,7 +713,9 @@ const TravelSummaryReportPage: React.FC = () => {
       {
         accessorKey: "startAddress",
         header: "Start Address",
-        size: 300,
+        meta: {
+      wrapConfig: { wrap: "wrap", maxWidth: "260px" },
+    },
         cell: ({ row }) => {
           if (
             row.original.isLoading ||
@@ -612,7 +729,9 @@ const TravelSummaryReportPage: React.FC = () => {
       {
         accessorKey: "startCoordinates",
         header: "Start Coordinate",
-        size: 180,
+        meta: {
+      wrapConfig: { wrap: "wrap", maxWidth: "260px" },
+    },
         cell: ({ row }) => {
           if (
             row.original.isLoading ||
@@ -711,20 +830,20 @@ const TravelSummaryReportPage: React.FC = () => {
           return row.original.stop || "0D, 0H, 0M, 0S";
         },
       },
-      {
-        accessorKey: "overspeed",
-        header: "Overspeed Time",
-        size: 150,
-        cell: ({ row }) => {
-          if (
-            row.original.isLoading ||
-            row.original.isDetailTable ||
-            row.original.isEmpty
-          )
-            return null;
-          return row.original.overspeed || "0D, 0H, 0M, 0S";
-        },
-      },
+      // {
+      //   accessorKey: "overspeed",
+      //   header: "Overspeed Time",
+      //   size: 150,
+      //   cell: ({ row }) => {
+      //     if (
+      //       row.original.isLoading ||
+      //       row.original.isDetailTable ||
+      //       row.original.isEmpty
+      //     )
+      //       return null;
+      //     return row.original.overspeed || "0D, 0H, 0M, 0S";
+      //   },
+      // },
       {
         accessorKey: "workingHours",
         header: "Working Hours",
@@ -773,7 +892,9 @@ const TravelSummaryReportPage: React.FC = () => {
       {
         accessorKey: "endAddress",
         header: "End Address",
-        size: 300,
+        meta: {
+      wrapConfig: { wrap: "wrap", maxWidth: "260px" },
+    },
         cell: ({ row }) => {
           if (
             row.original.isLoading ||
@@ -787,7 +908,9 @@ const TravelSummaryReportPage: React.FC = () => {
       {
         accessorKey: "endCoordinates",
         header: "End Coordinate",
-        size: 180,
+       meta: {
+      wrapConfig: { wrap: "wrap", maxWidth: "260px" },
+    },
         cell: ({ row }) => {
           if (
             row.original.isLoading ||
@@ -896,6 +1019,183 @@ const TravelSummaryReportPage: React.FC = () => {
     setShowTable(true);
   }, []);
 
+  // Fetch travel summary data for export
+  const fetchTravelSummaryForExport = async (): Promise<TravelSummaryReport[]> => {
+    // Convert uniqueId to array of numbers
+    let uniqueIdArray: number[] = [];
+    if (Array.isArray(apiFilters.uniqueId)) {
+      uniqueIdArray = apiFilters.uniqueId.map((id: string | number) => Number(id));
+    } else if (typeof apiFilters.uniqueId === 'string' && apiFilters.uniqueId) {
+      // Handle comma-separated string
+      uniqueIdArray = apiFilters.uniqueId.split(',').map((id: string) => Number(id.trim()));
+    } else if (apiFilters.uniqueId) {
+      uniqueIdArray = [Number(apiFilters.uniqueId)];
+    }
+    
+    // Build query params
+    const queryParams = new URLSearchParams({
+      from: apiFilters.from,
+      to: apiFilters.to,
+      period: "Custom",
+      page: "1",
+      limit: "all",
+      ...(sorting?.[0]?.id && { sortBy: sorting[0].id }),
+      ...(sorting?.[0]?.id && { sortOrder: sorting[0].desc ? "desc" : "asc" }),
+    }).toString();
+    
+    const res = await api.post(`/report/travel-summary-report?${queryParams}`, {
+      uniqueIds: uniqueIdArray,
+    });
+    // console.log("✅ Export data:", res);
+    return res?.reportData ?? [];
+  };
+
+  // Prepare export data - format dates and values
+  const prepareExportData = async (data: TravelSummaryReport[]) => {
+    return data.map((item) => {
+      // Match uniqueId with cachedDeviceId to get the correct vehicle name
+      const resolvedUniqueId = item.uniqueId || item.dayWiseTrips?.[0]?.uniqueId;
+      const matchedDevice = cashedDeviceId?.find(
+        (device) => String(device.uniqueId) === String(resolvedUniqueId)
+      );
+      const vehicleName = matchedDevice?.name || item.name || '-';
+
+      const distance = item.distance != null ? Number(item.distance).toFixed(2) : "0.00";
+      const maxSpeed = item.maxSpeed != null ? Number(item.maxSpeed).toFixed(2) : "0.00";
+      const avgSpeed = item.avgSpeed != null ? Number(item.avgSpeed).toFixed(2) : "0.00";
+
+      const startCoordinates = item.startLat && item.startLong
+        ? `${item.startLat}, ${item.startLong}`
+        : "-";
+      const endCoordinates = item.endLat && item.endLong
+        ? `${item.endLat}, ${item.endLong}`
+        : "-";
+
+      return {
+        ...item,
+        vehicleName,
+        distance,
+        maxSpeed,
+        avgSpeed,
+        startCoordinates,
+        endCoordinates,
+        running: item.running || "0D, 0H, 0M, 0S",
+        idle: item.idle || "0D, 0H, 0M, 0S",
+        stop: item.stop || "0D, 0H, 0M, 0S",
+        workingHours: item.workingHours || "0D, 0H, 0M, 0S",
+        startAddress: item.startAddress || "-",
+        endAddress: item.endAddress || "-",
+      };
+    });
+  };
+
+  // Export columns definition
+  const exportColumns = [
+    { key: "vehicleName", header: "Vehicle No" },
+    { key: "startAddress", header: "Start Address" },
+    { key: "startCoordinates", header: "Start Coordinates" },
+    { key: "distance", header: "Distance (KM)" },
+    { key: "running", header: "Running Time" },
+    { key: "idle", header: "Idle Time" },
+    { key: "stop", header: "Stop Time" },
+    { key: "workingHours", header: "Working Hours" },
+    { key: "maxSpeed", header: "Max Speed (KM/H)" },
+    { key: "avgSpeed", header: "Avg Speed (KM/H)" },
+    { key: "endAddress", header: "End Address" },
+    { key: "endCoordinates", header: "End Coordinates" },
+  ];
+
+  // Nested table columns for day-wise trips
+  const nestedExportColumns = [
+    { key: "date", header: "Date", formatter: (value: unknown) => value ? new Date(value as string).toLocaleDateString() : "--" },
+    { key: "startTime", header: "Ignition Start", formatter: (value: unknown) => value ? new Date(value as string).toLocaleString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: true, timeZone: "UTC" }) : "--" },
+    { key: "startAddress", header: "Start Location" },
+    { key: "distance", header: "Distance" },
+    { key: "runningTime", header: "Running" },
+    { key: "idleTime", header: "Idle" },
+    { key: "stopTime", header: "Stopped" },
+    { key: "workingHours", header: "Working Hours" },
+    { key: "maxSpeed", header: "Max Speed", formatter: (value: unknown) => value != null ? Number(value).toFixed(2) : "0.00" },
+    { key: "avgSpeed", header: "Avg Speed", formatter: (value: unknown) => value != null ? Number(value).toFixed(2) : "0.00" },
+    { key: "endAddress", header: "End Location" },
+    { key: "endTime", header: "Ignition Stop", formatter: (value: unknown) => value ? new Date(value as string).toLocaleString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: true, timeZone: "UTC" }) : "--" },
+  ];
+
+  // Handle PDF export
+  const handleExportPDF = async () => {
+    try {
+      setIsDownloading(true);
+      updateProgress(5, "Fetching report data");
+
+      let exportData = await fetchTravelSummaryForExport();
+
+      updateProgress(30, "Resolving locations");
+      exportData = await enrichTravelSummaryWithAddress(exportData);
+
+      updateProgress(60, "Preparing report");
+      const preparedData = await prepareExportData(exportData);
+
+      updateProgress(85, "Generating PDF");
+      await exportToPDF(preparedData, exportColumns, {
+        title: "Travel Summary Report",
+        nestedTable: {
+          dataKey: "dayWiseTrips",
+          columns: nestedExportColumns,
+          title: "Day-Wise Details",
+        },
+      });
+
+      updateProgress(100, "Download complete");
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to export PDF");
+    } finally {
+      setTimeout(() => {
+        setIsDownloading(false);
+        setDownloadProgress(0);
+        setDownloadLabel("");
+      }, 500);
+    }
+  };
+
+  // Handle Excel export
+  const handleExportExcel = async () => {
+    try {
+      setIsDownloading(true);
+      updateProgress(5, "Fetching report data");
+
+      let exportData = await fetchTravelSummaryForExport();
+
+      updateProgress(30, "Resolving locations");
+      exportData = await enrichTravelSummaryWithAddress(exportData);
+      
+      console.log("✅ Export data:", exportData);
+      updateProgress(60, "Preparing report");
+      const preparedData = await prepareExportData(exportData);
+
+      updateProgress(85, "Generating Excel");
+      exportToExcel(preparedData, exportColumns, {
+        title: "Travel Summary Report",
+        nestedTable: {
+          dataKey: "dayWiseTrips",
+          columns: nestedExportColumns,
+          title: "Day-Wise Details",
+        },
+      });
+
+      updateProgress(100, "Download complete");
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to export Excel");
+    } finally {
+      setTimeout(() => {
+        setIsDownloading(false);
+        setDownloadProgress(0);
+        setDownloadLabel("");
+      }, 500);
+    }
+  };
+
   // Create expanded data array
   const expandedDataArray = createExpandedData();
 
@@ -927,6 +1227,10 @@ const TravelSummaryReportPage: React.FC = () => {
     setPlaybackOpen(true);
   };
 
+  useEffect(() => {
+    console.log("expandedDataArray", expandedDataArray)
+  }, [expandedDataArray])
+
   // Table configuration
   const { table, tableElement } = CustomTableServerSidePagination({
     data: expandedDataArray,
@@ -940,8 +1244,8 @@ const TravelSummaryReportPage: React.FC = () => {
     columnVisibility,
     onColumnVisibilityChange: setColumnVisibility,
     emptyMessage: isFetchingTravelSummaryReport
-      ? "Loading report data..."
-      : "No data available for the selected filters",
+      ? "Loading report data..." : totalTravelSummaryReport === 0 ? "No data available for the selected filters"
+      : "Wait for it....🫣",
     pageSizeOptions: [5, 10, 20, 30, 50, 100, "All"],
     enableSorting: false,
     showSerialNumber: false,
@@ -953,6 +1257,12 @@ const TravelSummaryReportPage: React.FC = () => {
   return (
     <div className="p-6">
       <ResponseLoader isLoading={isFetchingTravelSummaryReport} />
+
+      <DownloadProgress
+        open={isDownloading}
+        progress={downloadProgress}
+        label={downloadLabel}
+      />
 
       {/* Filter Component */}
       <ReportFilter
@@ -978,6 +1288,15 @@ const TravelSummaryReportPage: React.FC = () => {
           multiSelectDevice: true,
           showBadges: true,
           maxBadges: 2,
+          showExport: true,
+          exportOptions: ["excel", "pdf"],
+        }}
+        onExportClick={(type) => {
+          if (type === "excel") {
+            handleExportExcel();
+          } else {
+            handleExportPDF();
+          }
         }}
       />
 

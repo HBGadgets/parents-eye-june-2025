@@ -16,7 +16,16 @@ interface ExportColumn {
   key: string;
   header: string;
   width?: number;
-  formatter?: (value: unknown) => string;
+  formatter?: (value: unknown, row?: unknown) => string;
+}
+
+interface NestedTableConfig {
+  /** Key in the data item that contains the nested array */
+  dataKey: string;
+  /** Columns for the nested table */
+  columns: ExportColumn[];
+  /** Optional title for nested table section */
+  title?: string;
 }
 
 interface ExportConfig {
@@ -29,6 +38,8 @@ interface ExportConfig {
     secondary?: number[];
     background?: number[];
   };
+  /** Optional nested table configuration */
+  nestedTable?: NestedTableConfig;
 }
 
 export const useExport = () => {
@@ -127,7 +138,7 @@ export const useExport = () => {
         })
       );
 
-      // Generate table
+      // Generate main table
       autoTable(doc, {
         startY: config.metadata ? 65 : 45,
         head: [tableHeaders],
@@ -148,13 +159,7 @@ export const useExport = () => {
         alternateRowStyles: {
           fillColor: CONFIG.colors.background,
         },
-        // columnStyles: columns.reduce((acc, col, idx) => {
-        //   if (col.width) acc[idx] = { cellWidth: col.width }
-        //   return acc
-        // }, {} as unknown),
-
         tableWidth: "auto",
-
         margin: { left: 15, right: 15 },
         didDrawPage: () => {
           if (doc.getCurrentPageInfo().pageNumber > 1) {
@@ -165,6 +170,76 @@ export const useExport = () => {
           }
         },
       });
+
+      // Handle nested tables if configured
+      if (config.nestedTable) {
+        const { dataKey, columns: nestedColumns, title: nestedTitle } = config.nestedTable;
+        
+        data.forEach((item: any, index: number) => {
+          const nestedData = item[dataKey];
+          if (!nestedData?.length) return;
+
+          // Get current Y position after main table
+          let yPos = (doc as any).lastAutoTable?.finalY || 45;
+          yPos += 10;
+
+          // Check if we need a new page
+          if (yPos > doc.internal.pageSize.height - 50) {
+            doc.addPage();
+            yPos = 20;
+          }
+
+          // Add nested table title
+          const parentIdentifier = item.vehicleName || item.name || `Row ${index + 1}`;
+          doc.setFontSize(10);
+          doc.setFont(CONFIG.fonts.primary, "bold");
+          doc.setTextColor(...CONFIG.colors.tertiary);
+          doc.text(
+            nestedTitle ? `${nestedTitle} - ${parentIdentifier}` : `Details for ${parentIdentifier}`,
+            15,
+            yPos
+          );
+          yPos += 5;
+
+          // Prepare nested table data
+          const nestedHeaders = nestedColumns.map((col) => col.header);
+          const nestedRows = nestedData.map((nestedItem: any) =>
+            nestedColumns.map((col) => {
+              const value = col.key.includes(".")
+                ? col.key.split(".").reduce((obj: any, key: string) => obj?.[key], nestedItem)
+                : nestedItem[col.key];
+              return col.formatter
+                ? col.formatter(value, nestedItem)
+                : value?.toString() || "--";
+            })
+          );
+
+          // Generate nested table
+          autoTable(doc, {
+            startY: yPos,
+            head: [nestedHeaders],
+            body: nestedRows,
+            theme: "grid",
+            styles: {
+              fontSize: 7,
+              cellPadding: 1.5,
+              halign: "center",
+              lineColor: CONFIG.colors.border,
+              lineWidth: 0.1,
+            },
+            headStyles: {
+              fillColor: CONFIG.colors.secondary,
+              textColor: [0, 0, 0],
+              fontStyle: "bold",
+            },
+            alternateRowStyles: {
+              fillColor: [255, 255, 255],
+            },
+            tableWidth: "auto",
+            margin: { left: 20, right: 20 },
+          });
+        });
+      }
 
       // Footer with page numbers
       const pageCount = doc.getNumberOfPages();
@@ -273,10 +348,10 @@ export const useExport = () => {
       });
 
       // Data rows
-      data.forEach((item) => {
+      data.forEach((item: any) => {
         const rowData = columns.map((col) => {
           const value = col.key.includes(".")
-            ? col.key.split(".").reduce((obj, key) => obj?.[key], item)
+            ? col.key.split(".").reduce((obj: any, key: string) => obj?.[key], item)
             : item[col.key];
           return col.formatter
             ? col.formatter(value, item)
@@ -293,6 +368,78 @@ export const useExport = () => {
             right: { style: "thin" },
           };
         });
+
+        // Handle nested table if configured
+        if (config.nestedTable) {
+          const { dataKey, columns: nestedColumns, title: nestedTitle } = config.nestedTable;
+          const nestedData = item[dataKey];
+          
+          if (nestedData?.length) {
+            // Add spacer and nested title
+            worksheet.addRow([]);
+            const parentIdentifier = item.vehicleName || item.name || 'Details';
+            const nestedTitleRow = worksheet.addRow([
+              nestedTitle ? `${nestedTitle} - ${parentIdentifier}` : `Day-Wise Details for ${parentIdentifier}`
+            ]);
+            nestedTitleRow.font = { bold: true, size: 10, italic: true };
+            nestedTitleRow.fill = {
+              type: "pattern",
+              pattern: "solid",
+              fgColor: { argb: "E8E8E8" },
+            };
+            worksheet.mergeCells(
+              `A${nestedTitleRow.number}:${String.fromCharCode(64 + nestedColumns.length)}${nestedTitleRow.number}`
+            );
+
+            // Add nested headers
+            const nestedHeaderRow = worksheet.addRow(nestedColumns.map((col) => col.header));
+            nestedHeaderRow.eachCell((cell) => {
+              cell.font = { bold: true, size: 10, color: { argb: "000000" } };
+              cell.fill = {
+                type: "pattern",
+                pattern: "solid",
+                fgColor: { argb: "FFE58A" },
+              };
+              cell.alignment = { vertical: "middle", horizontal: "center" };
+              cell.border = {
+                top: { style: "thin" },
+                bottom: { style: "thin" },
+                left: { style: "thin" },
+                right: { style: "thin" },
+              };
+            });
+
+            // Add nested data rows
+            nestedData.forEach((nestedItem: any) => {
+              const nestedRowData = nestedColumns.map((col) => {
+                const value = col.key.includes(".")
+                  ? col.key.split(".").reduce((obj: any, key: string) => obj?.[key], nestedItem)
+                  : nestedItem[col.key];
+                return col.formatter
+                  ? col.formatter(value, nestedItem)
+                  : value?.toString() || "--";
+              });
+
+              const nestedDataRow = worksheet.addRow(nestedRowData);
+              nestedDataRow.eachCell((cell) => {
+                cell.font = { size: 10 };
+                cell.fill = {
+                  type: "pattern",
+                  pattern: "solid",
+                  fgColor: { argb: "FAFAFA" },
+                };
+                cell.border = {
+                  top: { style: "thin" },
+                  bottom: { style: "thin" },
+                  left: { style: "thin" },
+                  right: { style: "thin" },
+                };
+              });
+            });
+
+            worksheet.addRow([]); // Spacer after nested table
+          }
+        }
       });
 
       // Column widths

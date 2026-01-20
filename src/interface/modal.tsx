@@ -452,6 +452,7 @@ export interface DayWiseTrips {
   runningTime: string;
   idleTime: string;
   stopTime: string;
+  workingHours: string;
   overspeedTime: string;
   startLatitude: string;
   startLongitude: string;
@@ -470,8 +471,14 @@ export interface TravelSummaryReport {
   distance: string;
   running: string;
   idle: string;
+  stop: string;
   stopped: string;
   overspeed: string;
+  workingHours: string;
+  startLat: number;
+  startLong: number;
+  endLat: number;
+  endLong: number;
   startCoordinates: string;
   startAddress: string;
   endCoordinates: string;
