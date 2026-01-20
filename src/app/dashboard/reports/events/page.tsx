@@ -17,6 +17,11 @@ import ResponseLoader from "@/components/ResponseLoader";
 import { useReport } from "@/hooks/reports/useReport";
 import { FaPlay, FaPlus, FaMinus, FaMapMarkedAlt } from "react-icons/fa";
 import { TravelTable } from "@/components/travel-summary/TravelTable";
+import { useExport } from "@/hooks/useExport";
+import { api } from "@/services/apiService";
+import DownloadProgress from "@/components/DownloadProgress";
+import { toast } from "sonner";
+import { reverseGeocodeMapTiler } from "@/hooks/useReverseGeocoding";
 import {
   Tooltip,
   TooltipContent,
@@ -55,6 +60,11 @@ interface ExpandedRowData extends AlertsAndEventsReport {
 }
 
 const AlertsAndEventsReportPage: React.FC = () => {
+  // Download progress state
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [downloadProgress, setDownloadProgress] = useState(0);
+  const [downloadLabel, setDownloadLabel] = useState("");
+
   // Filter state
   const queryClient = useQueryClient();
   const [shouldFetch, setShouldFetch] = useState(false);
@@ -66,6 +76,10 @@ const AlertsAndEventsReportPage: React.FC = () => {
     startDate: string;
     endDate: string;
   } | null>(null);
+
+  // Table data with enriched addresses
+  const [tableData, setTableData] = useState<AlertsAndEventsReport[]>([]);
+  const lastProcessedRef = React.useRef<string>("");
 
   // Table state
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
@@ -108,6 +122,70 @@ const AlertsAndEventsReportPage: React.FC = () => {
     totalAlertsAndEventsReport,
     isFetchingAlertsAndEventsReport,
   } = useReport(pagination, apiFilters, sorting, "alerts-events", hasGenerated);
+
+  // Export hook
+  const { exportToPDF, exportToExcel } = useExport();
+
+  // Update progress helper
+  const updateProgress = (percent: number, label: string) => {
+    setDownloadProgress(percent);
+    setDownloadLabel(label);
+  };
+
+  // Enrich events data with addresses
+  const enrichEventsReportWithAddress = async (
+    rows: AlertsAndEventsReport[]
+  ): Promise<AlertsAndEventsReport[]> => {
+    return Promise.all(
+      rows.map(async (row) => {
+        // Enrich nested eventArray with addresses
+        let enrichedEventArray = row.eventArray || [];
+        if (row.eventArray?.length) {
+          enrichedEventArray = await Promise.all(
+            row.eventArray.map(async (event) => {
+              let address = event.geofenceAddress || "-";
+
+              // Fetch address if coordinates exist but no address
+              if (!event.geofenceAddress && event.latitude && event.longitude) {
+                address = await reverseGeocodeMapTiler(
+                  Number(event.latitude),
+                  Number(event.longitude)
+                ) || "-";
+              }
+
+              return {
+                ...event,
+                geofenceAddress: address,
+              };
+            })
+          );
+        }
+
+        return {
+          ...row,
+          eventArray: enrichedEventArray,
+        };
+      })
+    );
+  };
+
+  // Effect to enrich data with addresses when alertsAndEventsReport changes
+  useEffect(() => {
+    if (!alertsAndEventsReport?.length) {
+      if (tableData.length !== 0) setTableData([]);
+      return;
+    }
+    const currentHash = JSON.stringify(alertsAndEventsReport);
+    if (lastProcessedRef.current === currentHash) return;
+    lastProcessedRef.current = currentHash;
+
+    const enrich = async () => {
+      const enriched = await enrichEventsReportWithAddress(alertsAndEventsReport);
+      setTableData(enriched);
+    };
+
+    enrich();
+  }, [alertsAndEventsReport]);
 
   const transformEventsData = useCallback(
     (row: AlertsAndEventsReport): AlertsAndEventsDetailTableData[] => {
@@ -221,7 +299,7 @@ const AlertsAndEventsReportPage: React.FC = () => {
 
   // Transform API data to include row IDs and serial numbers
   const transformedReportData = useMemo(() => {
-    const transformed = alertsAndEventsReport.map(
+    const transformed = tableData.map(
       (item: AlertsAndEventsReport, index: number) => ({
         ...item,
         uniqueId: item.uniqueId,
@@ -229,9 +307,8 @@ const AlertsAndEventsReportPage: React.FC = () => {
         sn: pagination.pageIndex * pagination.pageSize + index + 1,
       })
     );
-    // console.log("📊 Transformed report data:", transformed);
     return transformed;
-  }, [alertsAndEventsReport, pagination]);
+  }, [tableData, pagination]);
 
   // Create expanded data array with detail rows injected
   const createExpandedData = useCallback((): ExpandedRowData[] => {
@@ -529,6 +606,136 @@ const AlertsAndEventsReportPage: React.FC = () => {
     setShowTable(true);
   }, []);
 
+  // Fetch events report data for export
+  const fetchEventsReportForExport = async (): Promise<AlertsAndEventsReport[]> => {
+    // Convert uniqueId to array of numbers
+    let uniqueIdArray: number[] = [];
+    if (Array.isArray(apiFilters.uniqueId)) {
+      uniqueIdArray = apiFilters.uniqueId.map((id: string | number) => Number(id));
+    } else if (typeof apiFilters.uniqueId === 'string' && apiFilters.uniqueId) {
+      // Handle comma-separated string
+      uniqueIdArray = apiFilters.uniqueId.split(',').map((id: string) => Number(id.trim()));
+    } else if (apiFilters.uniqueId) {
+      uniqueIdArray = [Number(apiFilters.uniqueId)];
+    }
+    
+    // Build query params
+    const queryParams = new URLSearchParams({
+      from: apiFilters.from,
+      to: apiFilters.to,
+      period: "Custom",
+      page: "1",
+      limit: String(totalAlertsAndEventsReport || 1000),
+      ...(sorting?.[0]?.id && { sortBy: sorting[0].id }),
+      ...(sorting?.[0]?.id && { sortOrder: sorting[0].desc ? "desc" : "asc" }),
+    }).toString();
+    
+    const res = await api.post(`/report/allevents?${queryParams}`, {
+      uniqueId: uniqueIdArray,
+    });
+    return res?.data ?? [];
+  };
+
+  // Prepare export data - format dates and values
+  const prepareExportData = (data: AlertsAndEventsReport[]) => {
+    return data.map((item) => {
+      return {
+        ...item,
+        vehicleName: item.deviceName || item.name || "-",
+        eventCount: item.eventArray?.length || 0,
+      };
+    });
+  };
+
+  // Export columns definition
+  const exportColumns = [
+    { key: "vehicleName", header: "Vehicle Number" },
+    { key: "eventCount", header: "Number of Events" },
+  ];
+
+  // Nested table columns for event data
+  const nestedExportColumns = [
+    { key: "eventTime", header: "Event Time", formatter: (value: unknown) => value ? new Date(value as string).toLocaleString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true, timeZone: "UTC" }) : "--" },
+    { key: "eventType", header: "Event Type" },
+    { key: "latitude", header: "Latitude", formatter: (value: unknown) => value != null ? String(value) : "--" },
+    { key: "longitude", header: "Longitude", formatter: (value: unknown) => value != null ? String(value) : "--" },
+    { key: "geofenceAddress", header: "Address" },
+  ];
+
+  // Handle PDF export
+  const handleExportPDF = async () => {
+    try {
+      setIsDownloading(true);
+      updateProgress(5, "Fetching report data");
+
+      let exportData = await fetchEventsReportForExport();
+
+      updateProgress(30, "Resolving addresses");
+      exportData = await enrichEventsReportWithAddress(exportData);
+
+      updateProgress(60, "Preparing report");
+      const preparedData = prepareExportData(exportData);
+
+      updateProgress(85, "Generating PDF");
+      await exportToPDF(preparedData, exportColumns, {
+        title: "Alerts and Events Report",
+        nestedTable: {
+          dataKey: "eventArray",
+          columns: nestedExportColumns,
+          title: "Event Details",
+        },
+      });
+
+      updateProgress(100, "Download complete");
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to export PDF");
+    } finally {
+      setTimeout(() => {
+        setIsDownloading(false);
+        setDownloadProgress(0);
+        setDownloadLabel("");
+      }, 500);
+    }
+  };
+
+  // Handle Excel export
+  const handleExportExcel = async () => {
+    try {
+      setIsDownloading(true);
+      updateProgress(5, "Fetching report data");
+
+      let exportData = await fetchEventsReportForExport();
+
+      updateProgress(30, "Resolving addresses");
+      exportData = await enrichEventsReportWithAddress(exportData);
+
+      updateProgress(60, "Preparing report");
+      const preparedData = prepareExportData(exportData);
+
+      updateProgress(85, "Generating Excel");
+      exportToExcel(preparedData, exportColumns, {
+        title: "Alerts and Events Report",
+        nestedTable: {
+          dataKey: "eventArray",
+          columns: nestedExportColumns,
+          title: "Event Details",
+        },
+      });
+
+      updateProgress(100, "Download complete");
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to export Excel");
+    } finally {
+      setTimeout(() => {
+        setIsDownloading(false);
+        setDownloadProgress(0);
+        setDownloadLabel("");
+      }, 500);
+    }
+  };
+
   // Create expanded data array
   const expandedDataArray = createExpandedData();
 
@@ -559,7 +766,7 @@ const AlertsAndEventsReportPage: React.FC = () => {
     columnVisibility,
     onColumnVisibilityChange: setColumnVisibility,
     emptyMessage: isFetchingAlertsAndEventsReport
-      ? "Loading report data..."
+      ? "Loading report data..." : totalAlertsAndEventsReport === 0 ? "Wait for it...🫣"
       : "No data available for the selected filters",
     pageSizeOptions: [5, 10, 20, 30, 50],
     enableSorting: false,
@@ -574,6 +781,12 @@ const AlertsAndEventsReportPage: React.FC = () => {
   return (
     <div className="p-6">
       <ResponseLoader isLoading={isFetchingAlertsAndEventsReport} />
+
+      <DownloadProgress
+        open={isDownloading}
+        progress={downloadProgress}
+        label={downloadLabel}
+      />
 
       {/* Filter Component */}
       <ReportFilter
@@ -598,7 +811,16 @@ const AlertsAndEventsReportPage: React.FC = () => {
           multiSelectDevice: true,
           showBadges: true,
           maxBadges: 2,
+          // showExport: true,
+          // exportOptions: ["excel", "pdf"],
         }}
+        // onExportClick={(type) => {
+        //   if (type === "excel") {
+        //     handleExportExcel();
+        //   } else {
+        //     handleExportPDF();
+        //   }
+        // }}
       />
 
       {/* Table */}

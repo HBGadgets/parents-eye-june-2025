@@ -17,18 +17,17 @@ import ResponseLoader from "@/components/ResponseLoader";
 import { useReport } from "@/hooks/reports/useReport";
 import { FaPlay, FaPlus, FaMinus, FaMapMarkedAlt } from "react-icons/fa";
 import { TravelTable } from "@/components/travel-summary/TravelTable";
+import { useExport } from "@/hooks/useExport";
+import { api } from "@/services/apiService";
+import DownloadProgress from "@/components/DownloadProgress";
+import { toast } from "sonner";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import {
-  DayWiseTrips,
-  RouteReport,
-  RouteShiftRow,
-  RouteReport,
-} from "@/interface/modal";
+import {RouteReport} from "@/interface/modal";
 import { useQueryClient } from "@tanstack/react-query";
 import { PlaybackHistoryDrawer } from "@/components/travel-summary/playback-history-drawer";
 
@@ -64,6 +63,11 @@ interface ExpandedRowData extends RouteReport {
 }
 
 const RouteReportPage: React.FC = () => {
+  // Download progress state
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [downloadProgress, setDownloadProgress] = useState(0);
+  const [downloadLabel, setDownloadLabel] = useState("");
+
   // Filter state
   const queryClient = useQueryClient();
   const [shouldFetch, setShouldFetch] = useState(false);
@@ -119,6 +123,15 @@ const RouteReportPage: React.FC = () => {
     "route",
     hasGenerated
   );
+
+  // Export hook
+  const { exportToPDF, exportToExcel } = useExport();
+
+  // Update progress helper
+  const updateProgress = (percent: number, label: string) => {
+    setDownloadProgress(percent);
+    setDownloadLabel(label);
+  };
 
   const transformRouteShiftData = useCallback(
     (route: any): RouteDetailTableData[] => {
@@ -789,6 +802,155 @@ const RouteReportPage: React.FC = () => {
     setShowTable(true);
   }, []);
 
+  // Fetch route report data for export
+  const fetchRouteReportForExport = async (): Promise<RouteReport[]> => {
+    // Convert uniqueId to array of numbers
+    let uniqueIdArray: number[] = [];
+    if (Array.isArray(apiFilters.uniqueId)) {
+      uniqueIdArray = apiFilters.uniqueId.map((id: string | number) => Number(id));
+    } else if (typeof apiFilters.uniqueId === 'string' && apiFilters.uniqueId) {
+      // Handle comma-separated string
+      uniqueIdArray = apiFilters.uniqueId.split(',').map((id: string) => Number(id.trim()));
+    } else if (apiFilters.uniqueId) {
+      uniqueIdArray = [Number(apiFilters.uniqueId)];
+    }
+    
+    // Build query params
+    const queryParams = new URLSearchParams({
+      from: apiFilters.from,
+      to: apiFilters.to,
+      period: "Custom",
+      page: "1",
+      limit: totalRouteReport,
+      ...(sorting?.[0]?.id && { sortBy: sorting[0].id }),
+      ...(sorting?.[0]?.id && { sortOrder: sorting[0].desc ? "desc" : "asc" }),
+    }).toString();
+    
+    const res = await api.post(`/report/routeCompletion?${queryParams}`, {
+      uniqueIds: uniqueIdArray,
+    });
+    return res?.data ?? [];
+  };
+
+  // Prepare export data - format dates and values
+  const prepareExportData = (data: RouteReport[]) => {
+    return data.map((item) => {
+      const startCoordinates = item.startPointArea?.center
+        ? `${item.startPointArea.center[0]}, ${item.startPointArea.center[1]}`
+        : "-";
+      const endCoordinates = item.endPointArea?.center
+        ? `${item.endPointArea.center[0]}, ${item.endPointArea.center[1]}`
+        : "-";
+
+      return {
+        ...item,
+        vehicleName: item.deviceName || "-",
+        routeNumber: item.routeNumber || "-",
+        startPointName: item.startPointName || "-",
+        endPointName: item.endPointName || "-",
+        startPointAddress: item.startPointAddress || "-",
+        endPointAddress: item.endPointAddress || "-",
+        startCoordinates,
+        endCoordinates,
+        driverName: typeof item.driverName === 'object' ? (item.driverName as any)?.driverName || "-" : item.driverName || "-",
+        lateCompletionCount: item.lateCompletionCount ?? 0,
+        routeCompletionTime: item.routeCompletionTime || "-",
+      };
+    });
+  };
+
+  // Export columns definition
+  const exportColumns = [
+    { key: "vehicleName", header: "Vehicle Number" },
+    { key: "routeNumber", header: "Route Number" },
+    { key: "startPointName", header: "First Stop Name" },
+    { key: "startPointAddress", header: "First Stop Address" },
+    { key: "startCoordinates", header: "First Stop Coordinates" },
+    { key: "endPointName", header: "Last Stop Name" },
+    { key: "endPointAddress", header: "Last Stop Address" },
+    { key: "endCoordinates", header: "Last Stop Coordinates" },
+    { key: "driverName", header: "Driver Name" },
+    { key: "lateCompletionCount", header: "Late Completion Count" },
+    { key: "routeCompletionTime", header: "Route Completion Time (Min)" },
+  ];
+
+  // Nested table columns for shift data
+  const nestedExportColumns = [
+    { key: "date", header: "Date" },
+    { key: "shift", header: "Shift" },
+    { key: "startEnterTime", header: "Trip Start Time", formatter: (value: unknown) => value ? new Date(value as string).toLocaleString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true, timeZone: "UTC" }) : "--" },
+    { key: "endEnterTime", header: "Trip End Time", formatter: (value: unknown) => value ? new Date(value as string).toLocaleString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true, timeZone: "UTC" }) : "--" },
+    { key: "durationMinutes", header: "Duration (Min)", formatter: (value: unknown) => value != null ? `${value} min` : "0 min" },
+  ];
+
+  // Handle PDF export
+  const handleExportPDF = async () => {
+    try {
+      setIsDownloading(true);
+      updateProgress(5, "Fetching report data");
+
+      const exportData = await fetchRouteReportForExport();
+
+      updateProgress(40, "Preparing report");
+      const preparedData = prepareExportData(exportData);
+
+      updateProgress(70, "Generating PDF");
+      await exportToPDF(preparedData, exportColumns, {
+        title: "Route Report",
+        nestedTable: {
+          dataKey: "shift",
+          columns: nestedExportColumns,
+          title: "Shift-Wise Details",
+        },
+      });
+
+      updateProgress(100, "Download complete");
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to export PDF");
+    } finally {
+      setTimeout(() => {
+        setIsDownloading(false);
+        setDownloadProgress(0);
+        setDownloadLabel("");
+      }, 500);
+    }
+  };
+
+  // Handle Excel export
+  const handleExportExcel = async () => {
+    try {
+      setIsDownloading(true);
+      updateProgress(5, "Fetching report data");
+
+      const exportData = await fetchRouteReportForExport();
+
+      updateProgress(40, "Preparing report");
+      const preparedData = prepareExportData(exportData);
+
+      updateProgress(70, "Generating Excel");
+      exportToExcel(preparedData, exportColumns, {
+        title: "Route Report",
+        nestedTable: {
+          dataKey: "shift",
+          columns: nestedExportColumns,
+          title: "Shift-Wise Details",
+        },
+      });
+
+      updateProgress(100, "Download complete");
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to export Excel");
+    } finally {
+      setTimeout(() => {
+        setIsDownloading(false);
+        setDownloadProgress(0);
+        setDownloadLabel("");
+      }, 500);
+    }
+  };
+
   // Create expanded data array
   const expandedDataArray = createExpandedData();
 
@@ -846,6 +1008,12 @@ const RouteReportPage: React.FC = () => {
     <div className="p-6">
       <ResponseLoader isLoading={isFetchingRouteReport} />
 
+      <DownloadProgress
+        open={isDownloading}
+        progress={downloadProgress}
+        label={downloadLabel}
+      />
+
       {/* Filter Component */}
       <ReportFilter
         onSubmit={handleFilterSubmit}
@@ -870,6 +1038,15 @@ const RouteReportPage: React.FC = () => {
           multiSelectDevice: true,
           showBadges: true,
           maxBadges: 2,
+          showExport: true,
+          exportOptions: ["excel", "pdf"],
+        }}
+        onExportClick={(type) => {
+          if (type === "excel") {
+            handleExportExcel();
+          } else {
+            handleExportPDF();
+          }
         }}
       />
 

@@ -566,6 +566,7 @@ export interface RouteReport {
   driverName?: Driver;
   lateCompletionCount?: number;
   startPointArea?: { center: [number, number]; radius: number };
+  endPointArea?: { center: [number, number]; radius: number };
   deviceName: string;
   routeCompletionTime: string;
   shift: RouteShiftRow[];

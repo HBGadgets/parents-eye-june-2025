@@ -27,7 +27,7 @@ const IdleReportPage: React.FC = () => {
   const [hasGenerated, setHasGenerated] = useState(false);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
   const [showTable, setShowTable] = useState(false);
-  const [cashedDeviceId, setCashedDeviceId] = useState<string | null>(null);
+  const [cashedDeviceId, setCashedDeviceId] = useState<{ uniqueId: string; name: string }[] | null>(null);
   const [pagination, setPagination] = useState({
     pageIndex: 0,
     pageSize: 10,
@@ -85,15 +85,11 @@ const IdleReportPage: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    const cachedDevices = queryClient.getQueryData<
-      { _id: string; name: string; uniqueId: string }[]
-    >(["device-dropdown-uniqueId", apiFilters.branchId]);
-    setCashedDeviceId(cachedDevices?.data?.data);
+    const cachedDevices = queryClient.getQueryData<{
+      data: { data: { _id: string; name: string; uniqueId: string }[] };
+    }>(["device-dropdown-uniqueId", apiFilters.branchId]);
+    setCashedDeviceId(cachedDevices?.data?.data ?? null);
   }, [idleReport]);
-
-  useEffect(() => {
-    console.log(cashedDeviceId);
-  }, [cashedDeviceId]);
 
   useEffect(() => {
     if (!idleReport.length) {
@@ -111,7 +107,7 @@ const IdleReportPage: React.FC = () => {
     };
 
     enrich();
-  }, [idleReport]);
+  }, [idleReport, cashedDeviceId]);
 
   const enrichIdleReportWithAddress = async (
     rows: IdleReport[],
@@ -157,11 +153,11 @@ const IdleReportPage: React.FC = () => {
             second: "2-digit",
             hour12: true,
           },
-        );
+        )
 
         const name = cashedDeviceId?.find(
           (item: { uniqueId: string; name: string }) =>
-            item.uniqueId === row.uniqueId,
+            Number(item.uniqueId) === data?.data?.uniqueId,
         )?.name;
 
         return {
