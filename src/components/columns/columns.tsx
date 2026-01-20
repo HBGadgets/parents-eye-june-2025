@@ -1511,12 +1511,14 @@ export const GetTripReportColumns = (): ColumnDef<TripReport>[] => [
 
   {
     header: "Start Coordinates",
-    accessorFn: (row) => ({
+    accessorFn: (row: TripReport) => ({
       lat: row.startLatitude,
       lng: row.startLongitude,
     }),
     cell: ({ getValue }) => {
       const { lat, lng } = getValue<{ lat: number; lng: number }>();
+      const displayLat = lat != null ? Number(lat).toFixed(6) : "-";
+      const displayLng = lng != null ? Number(lng).toFixed(6) : "-";
       return (
         <a
           href={`https://www.google.com/maps?q=${lat},${lng}`}
@@ -1524,7 +1526,7 @@ export const GetTripReportColumns = (): ColumnDef<TripReport>[] => [
           rel="noopener noreferrer"
           className="text-blue-600 underline"
         >
-          {lat?.toFixed(6)}, {lng?.toFixed(6)}
+          {displayLat}, {displayLng}
         </a>
       );
     },
@@ -1555,12 +1557,14 @@ export const GetTripReportColumns = (): ColumnDef<TripReport>[] => [
 
   {
     header: "End Coordinates",
-    accessorFn: (row) => ({
-      lat: row.startLatitude,
-      lng: row.startLongitude,
+    accessorFn: (row: TripReport) => ({
+      lat: row.endLatitude,
+      lng: row.endLongitude,
     }),
     cell: ({ getValue }) => {
       const { lat, lng } = getValue<{ lat: number; lng: number }>();
+      const displayLat = lat != null ? Number(lat).toFixed(6) : "-";
+      const displayLng = lng != null ? Number(lng).toFixed(6) : "-";
       return (
         <a
           href={`https://www.google.com/maps?q=${lat},${lng}`}
@@ -1568,7 +1572,7 @@ export const GetTripReportColumns = (): ColumnDef<TripReport>[] => [
           rel="noopener noreferrer"
           className="text-blue-600 underline"
         >
-          {lat?.toFixed(6)}, {lng?.toFixed(6)}
+          {displayLat}, {displayLng}
         </a>
       );
     },

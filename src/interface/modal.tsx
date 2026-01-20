@@ -419,19 +419,25 @@ export interface GetGeofenceAlertsResponse {
 }
 
 export interface TripReport {
-  uniqueId: string;
+  _id: string;
+  uniqueId: string | number;
   name: string;
   startTime: string;
   endTime: string;
   duration: string;
-  maxSpeed: string;
-  avgSpeed: string;
-  distance: string;
-  totalDistance: string;
+  maxSpeed: string | number;
+  avgSpeed: string | number;
+  distance: string | number;
+  totalDistance?: string | number;
+  startLatitude: string | number;
+  startLongitude: string | number;
+  endLatitude: string | number;
+  endLongitude: string | number;
   startCoordinates: string;
   startAddress: string;
   endCoordinates: string;
   endAddress: string;
+  [key: string]: unknown;
 }
 
 export interface GetTripReportResponse {

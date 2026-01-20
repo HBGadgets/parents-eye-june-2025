@@ -12,7 +12,7 @@ import { getStatusReportColumns } from "@/components/columns/columns";
 import { useQueryClient } from "@tanstack/react-query";
 import { reverseGeocodeMapTiler } from "@/hooks/useReverseGeocoding";
 import { useExport } from "@/hooks/useExport";
-import { GetStatusReportResponse, StatusReport } from "@/interface/modal";
+import {  StatusReport } from "@/interface/modal";
 import { api } from "@/services/apiService";
 import DownloadProgress from "@/components/DownloadProgress";
 import { useStatusReport } from "@/hooks/reports/useStatusReport";
