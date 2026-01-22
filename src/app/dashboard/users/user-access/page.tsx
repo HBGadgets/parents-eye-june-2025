@@ -40,6 +40,9 @@ import { ChevronDown, X, Edit, Trash2, EyeOff, Eye } from "lucide-react";
 import SearchComponent from "@/components/ui/SearchOnlydata";
 import { Combobox } from "@/components/ui/combobox";
 import { createPortal } from "react-dom";
+import authAxios from "@/lib/authAxios";
+import Cookies from "js-cookie";
+import { toast } from "sonner";
 
 interface BranchGroupAccess {
   _id: string;
@@ -176,9 +179,8 @@ const TableBranchDropdown: React.FC<{
             : "Assign Branches"}
         </span>
         <ChevronDown
-          className={`h-4 w-4 text-gray-500 transition-transform flex-shrink-0 ml-2 ${
-            isOpen ? "rotate-180" : ""
-          }`}
+          className={`h-4 w-4 text-gray-500 transition-transform flex-shrink-0 ml-2 ${isOpen ? "rotate-180" : ""
+            }`}
         />
       </button>
 
@@ -342,9 +344,8 @@ const BranchDropdown: React.FC<{
           )}
         </div>
         <ChevronDown
-          className={`h-4 w-4 text-gray-500 transition-transform flex-shrink-0 ${
-            isOpen ? "rotate-180" : ""
-          }`}
+          className={`h-4 w-4 text-gray-500 transition-transform flex-shrink-0 ${isOpen ? "rotate-180" : ""
+            }`}
         />
       </button>
 
@@ -578,6 +579,35 @@ export default function UserAccessPage() {
     },
     onError: (err: any) =>
       setError(err.response?.data?.message || "Failed to delete branch group"),
+  });
+
+  const deactivateMutation = useMutation({
+    mutationFn: async (branchGroup: any) => {
+      const token = Cookies.get("token");
+      return await authAxios.put(
+        `/user/deactivate/${branchGroup._id}`,
+        {
+          Active: !branchGroup.Active,
+          userRole: branchGroup.role,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["branchGroups"] });
+      toast.success("Branch group status updated successfully.");
+      fetchBranchGroups();
+    },
+    onError: (err: any) => {
+      toast.error(
+        `Failed to update branch group status: ${err.response?.data?.message || err.message
+        }`
+      );
+    },
   });
 
   // Handlers
@@ -874,6 +904,16 @@ export default function UserAccessPage() {
               className:
                 "bg-yellow-400 hover:bg-yellow-500 text-red-600 font-semibold py-1 px-3 rounded-md cursor-pointer transition-colors duration-200",
             },
+            {
+              type: "button",
+              label: (row as any).Active ? "Deactivate" : "Activate",
+              onClick: () => deactivateMutation.mutate(row),
+              className: `${(row as any).Active
+                ? "bg-red-100 text-red-700 hover:bg-red-200"
+                : "bg-green-100 text-green-700 hover:bg-green-200"
+                } cursor-pointer w-24`,
+              disabled: deactivateMutation.isPending,
+            },
           ],
           render: () => (
             <div className="flex gap-2">
@@ -895,7 +935,11 @@ export default function UserAccessPage() {
             </div>
           ),
         }),
-        meta: { flex: 1.5, minWidth: 220 },
+        meta: {
+          minWidth: 280,
+          maxWidth: 320,
+          width: 300,
+        },
       },
     ],
     [branchOptions, handleTableBranchesUpdate]

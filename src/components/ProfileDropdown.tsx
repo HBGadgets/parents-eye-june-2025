@@ -72,15 +72,15 @@ export function ProfileDropdown() {
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuItem>
+        {/* <DropdownMenuItem>
           <User className="mr-2 h-4 w-4" />
           <span>Account</span>
-        </DropdownMenuItem>
-        <DropdownMenuItem>
-          <CreditCard className="mr-2 h-4 w-4" />
+        </DropdownMenuItem> */}
+        {/* <DropdownMenuItem> */}
+          {/* <CreditCard className="mr-2 h-4 w-4" /> */}
           {/* <span>Billing</span> */}
-          <Link href="/dashboard/billing">Billing</Link>
-        </DropdownMenuItem>
+          {/* <Link href="/dashboard/billing">Billing</Link> */}
+        {/* </DropdownMenuItem> */}
         <DropdownMenuSub>
           <DropdownMenuSubTrigger className="cursor-pointer">
             <Bell className="mr-2 h-4 w-4" />

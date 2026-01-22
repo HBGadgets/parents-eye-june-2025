@@ -44,6 +44,7 @@ import { ExpirationDatePicker } from "@/components/ui/ExpirationDatePicker";
 import Cookies from "js-cookie";
 import { toast } from "sonner";
 import { BranchNotificationCell } from "@/components/branch-master/BranchNotificationCell";
+import authAxios from "@/lib/authAxios";
 
 type branchAccess = {
   _id: string;
@@ -812,11 +813,20 @@ export default function BranchMaster() {
   });
 
   const deactivateMutation = useMutation({
-    mutationFn: async (branch: { _id: string; Active?: boolean }) => {
-      return await axios.post(`/auth/user/deactivate/${branch._id}`, {
-        Active: !branch.Active,
-        userRole: role,
-      });
+    mutationFn: async (branch: any) => {
+      const token = Cookies.get("token");
+      return await authAxios.put(
+        `/user/deactivate/${branch._id}`,
+        {
+          Active: !branch.Active,
+          userRole: branch.role,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["branches"] });

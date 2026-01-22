@@ -34,6 +34,9 @@ import ResponseLoader from "@/components/ResponseLoader";
 // import { CustomFilter } from "@/components/ui/CustomFilter";
 import { ColumnVisibilitySelector } from "@/components/column-visibility-selector";
 import { Eye, EyeOff } from "lucide-react";
+import authAxios from "@/lib/authAxios";
+import Cookies from "js-cookie";
+import { toast } from "sonner";
 
 declare module "@tanstack/react-table" {
   interface ColumnMeta<TData, TValue> {
@@ -173,22 +176,36 @@ export default function SchoolMaster() {
             className: "text-red-600 cursor-pointer",
             disabled: false,
           },
+          {
+            type: "button",
+            label: (row as any).Active ? "Deactivate" : "Activate",
+            onClick: () => deactivateMutation.mutate(row),
+            className: `${(row as any).Active
+                ? "bg-red-100 text-red-700 hover:bg-red-200"
+                : "bg-green-100 text-green-700 hover:bg-green-200"
+              } w-24`,
+            disabled: deactivateMutation.isPending,
+          },
         ],
       }),
-      meta: { flex: 1.5, minWidth: 150, maxWidth: 200 },
+      meta: {
+        minWidth: 280,
+        maxWidth: 320,
+        width: 300,
+      },
       enableSorting: false,
       enableHiding: true,
     },
   ];
 
-  // columns for export
-  const columnsForExport = [
-    { key: "schoolName", header: "School Name" },
-    { key: "mobileNo", header: "Mobile" },
-    { key: "username", header: "School Username" },
-    { key: "password", header: "School Password" },
-    { key: "createdAt", header: "Registration Date" },
-  ];
+  // // columns for export
+  // const columnsForExport = [
+  //   { key: "schoolName", header: "School Name" },
+  //   { key: "mobileNo", header: "Mobile" },
+  //   { key: "username", header: "School Username" },
+  //   { key: "password", header: "School Password" },
+  //   { key: "createdAt", header: "Registration Date" },
+  // ];
 
   // Define the fields for the edit dialog
   const schoolFieldConfigs: FieldConfig[] = [
@@ -279,6 +296,34 @@ export default function SchoolMaster() {
     },
     onError: (err) => {
       alert("Failed to delete school.\nerror: " + err);
+    },
+  });
+
+  const deactivateMutation = useMutation({
+    mutationFn: async (school: any) => {
+      const token = Cookies.get("token");
+      return await authAxios.put(
+        `/user/deactivate/${school._id}`,
+        {
+          Active: !school.Active,
+          userRole: school.role,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["schools"] });
+      toast.success("School status updated successfully.");
+    },
+    onError: (err: any) => {
+      toast.error(
+        `Failed to update school status: ${err.response?.data?.message || err.message
+        }`
+      );
     },
   });
 
