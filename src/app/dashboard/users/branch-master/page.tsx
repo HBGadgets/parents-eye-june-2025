@@ -7,6 +7,7 @@ import React, {
   useRef,
   useMemo,
 } from "react";
+import axios from "axios";
 import {
   Dialog,
   DialogClose,
@@ -257,7 +258,7 @@ const BranchEditDialog = ({
                 }}
                 placeholder="Select expiration date"
                 minDate={new Date()}
-                // disabled={!isVerified}
+              // disabled={!isVerified}
               />
             )}
 
@@ -489,8 +490,8 @@ export default function BranchMaster() {
       (isBranchGroup
         ? assignedBranches.length > 0
         : !isSuperAdmin
-        ? !!userSchoolId
-        : true),
+          ? !!userSchoolId
+          : true),
   });
 
   // FIXED: Filter branches based on user role
@@ -812,9 +813,9 @@ export default function BranchMaster() {
 
   const deactivateMutation = useMutation({
     mutationFn: async (branch: { _id: string; Active?: boolean }) => {
-      return await api.post(`/auth/user/deactivate/${branch._id}`, {
+      return await axios.post(`/auth/user/deactivate/${branch._id}`, {
         Active: !branch.Active,
-        userRole: "branch",
+        userRole: role,
       });
     },
     onSuccess: () => {
@@ -823,8 +824,7 @@ export default function BranchMaster() {
     },
     onError: (err: any) => {
       toast.error(
-        `Failed to update branch status: ${
-          err.response?.data?.message || err.message
+        `Failed to update branch status: ${err.response?.data?.message || err.message
         }`
       );
     },
@@ -951,16 +951,16 @@ export default function BranchMaster() {
 
       ...(isSuperAdmin
         ? [
-            {
-              header: "School Name",
-              accessorFn: (row) => ({
-                type: "text",
-                value: row.schoolId.schoolName ?? "",
-              }),
-              meta: { flex: 1, minWidth: 200, maxWidth: 300 },
-              enableHiding: true,
-            },
-          ]
+          {
+            header: "School Name",
+            accessorFn: (row) => ({
+              type: "text",
+              value: row.schoolId.schoolName ?? "",
+            }),
+            meta: { flex: 1, minWidth: 200, maxWidth: 300 },
+            enableHiding: true,
+          },
+        ]
         : []),
 
       {
@@ -1017,85 +1017,82 @@ export default function BranchMaster() {
 
       ...(isSuperAdmin
         ? [
-            {
-              header: "Access",
-              accessorFn: (row) => ({
-                type: "group",
-                items: [
-                  {
-                    type: "button",
-                    label: row.fullAccess
-                      ? "Grant Limited Access"
-                      : "Grant Full Access",
-                    onClick: () => setAccessTarget(row),
-                    disabled: accessMutation.isPending,
-                    className: `w-38 text-center text-sm bg-yellow-400 hover:bg-yellow-500 font-semibold rounded-full px-4 py-2 ${
-                      row.fullAccess ? "text-red-600" : "text-emerald-600"
+          {
+            header: "Access",
+            accessorFn: (row) => ({
+              type: "group",
+              items: [
+                {
+                  type: "button",
+                  label: row.fullAccess
+                    ? "Grant Limited Access"
+                    : "Grant Full Access",
+                  onClick: () => setAccessTarget(row),
+                  disabled: accessMutation.isPending,
+                  className: `w-38 text-center text-sm bg-yellow-400 hover:bg-yellow-500 font-semibold rounded-full px-4 py-2 ${row.fullAccess ? "text-red-600" : "text-emerald-600"
                     }`,
+                },
+              ],
+            }),
+            meta: { flex: 1.5, minWidth: 230 },
+            enableSorting: false,
+            enableHiding: true,
+          },
+          {
+            header: "Notifications",
+            // ✅ Use cell for custom components
+            accessorFn: (row) => (
+              <BranchNotificationCell branchId={row._id} />
+            ),
+            meta: { flex: 1.5, minWidth: 230 },
+            enableSorting: false,
+            enableHiding: true,
+          },
+          {
+            header: "Action",
+            accessorFn: (row) => ({
+              type: "group",
+              items: [
+                {
+                  type: "button",
+                  label: "Edit",
+                  className:
+                    "bg-yellow-400 hover:bg-yellow-500 text-[#733e0a] font-semibold cursor-pointer text-xs py-1.5 px-2.5 rounded-md whitespace-nowrap",
+                  onClick: () => {
+                    setEditTarget(row);
+                    setEditDialogOpen(true);
                   },
-                ],
-              }),
-              meta: { flex: 1.5, minWidth: 230 },
-              enableSorting: false,
-              enableHiding: true,
-            },
-            {
-              header: "Notifications",
-              // ✅ Use cell for custom components
-              accessorFn: (row) => (
-                <BranchNotificationCell branchId={row._id} />
-              ),
-              meta: { flex: 1.5, minWidth: 230 },
-              enableSorting: false,
-              enableHiding: true,
-            },
-            {
-              header: "Action",
-              accessorFn: (row) => ({
-                type: "group",
-                items: [
-                  {
-                    type: "button",
-                    label: "Edit",
-                    className:
-                      "bg-yellow-400 hover:bg-yellow-500 text-[#733e0a] font-semibold py-1 px-3 rounded-md",
-                    onClick: () => {
-                      setEditTarget(row);
-                      setEditDialogOpen(true);
-                    },
-                    disabled: accessMutation.isPending,
-                  },
-                  {
-                    type: "button",
-                    label: "Delete",
-                    className:
-                      "bg-yellow-400 hover:bg-yellow-500 text-red-600 font-semibold py-1 px-3 rounded-md",
-                    onClick: () => setDeleteTarget(row),
-                    disabled: deletebranchMutation.isPending,
-                  },
-                  {
-                    type: "button",
-                    label: row.Active ? "Deactivate" : "Activate",
-                    className: `w-24 text-center text-sm font-semibold rounded-full px-4 py-2 ${
-                      row.Active
-                        ? "bg-red-500 hover:bg-red-600 text-white"
-                        : "bg-green-500 hover:bg-green-600 text-white"
+                  disabled: accessMutation.isPending,
+                },
+                {
+                  type: "button",
+                  label: "Delete",
+                  className:
+                    "bg-yellow-400 hover:bg-yellow-500 text-red-600 font-semibold cursor-pointer xt-xs py-1.5 px-2.5 rounded-md whitespace-nowrap cursor-pointer",
+                  onClick: () => setDeleteTarget(row),
+                  disabled: deletebranchMutation.isPending,
+                },
+                {
+                  type: "button",
+                  label: row.Active ? "Deactivate" : "Activate",
+                  className: `text-center text-xs font-semibold rounded-full py-1.5 px-3 whitespace-nowrap cursor-pointer ${row.Active
+                    ? "bg-red-500 hover:bg-red-600 text-white"
+                    : "bg-green-500 hover:bg-green-600 text-white"
                     }`,
-                    onClick: () => deactivateMutation.mutate(row),
-                    disabled: deactivateMutation.isPending,
-                  },
-                ],
-              }),
-              meta: {
-                flex: 1.5,
-                minWidth: 200,
-                maxWidth: 200,
-                width: 200,
-              },
-              enableSorting: false,
-              enableHiding: true,
+                  onClick: () => deactivateMutation.mutate(row),
+                  disabled: deactivateMutation.isPending,
+                },
+              ],
+            }),
+            meta: {
+              minWidth: 280,
+              maxWidth: 320,
+              width: 300,
             },
-          ]
+            enableSorting: false,
+            enableHiding: true,
+          },
+        ]
         : []),
     ],
     [
@@ -1338,9 +1335,8 @@ export default function BranchMaster() {
           {(isSuperAdmin || isSchoolRole || isBranchGroup) && (
             <Alert<branchAccess>
               title="Are you absolutely sure?"
-              description={`You are about to give ${accessTarget?.branchName} ${
-                accessTarget?.fullAccess ? "limited" : "full"
-              } access.`}
+              description={`You are about to give ${accessTarget?.branchName} ${accessTarget?.fullAccess ? "limited" : "full"
+                } access.`}
               actionButton={(target) => {
                 accessMutation.mutate({
                   _id: target._id,

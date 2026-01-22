@@ -8,6 +8,10 @@ import authAxios from "@/lib/authAxios";
 import Cookies from "js-cookie";
 import { time } from "console";
 import { useNotificationStore } from "@/store/notificationStore";
+import {
+  getStoredPreferences,
+  isNotificationEnabled,
+} from "@/util/notificationPrefs";
 
 const vapidKey = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY!;
 
@@ -98,10 +102,17 @@ export default function FCMHandler(): null {
           const title = payload.notification?.title ?? "New Notification";
           const body = payload.notification?.body ?? "";
           const ping = payload.data?.ping ?? 0;
-          const ignition = payload.data?.ignition;
+          const type = payload.data?.type;
 
           if (ping && Number(ping) === 1) return; // ignore pings
-          if (ignition) return; // ignore ignitions
+          // if (type === "ignition") return; // ignore ignitions
+
+          // Check preferences
+          const blockedTypes = getStoredPreferences();
+          if (!isNotificationEnabled(type, blockedTypes)) {
+            console.log(`Suppressing ${type} notification based on preferences`);
+            return;
+          }
 
           const timeStamp = payload.data?.timeStamp
             ? new Date(Number(payload.data?.timeStamp))
@@ -120,7 +131,7 @@ export default function FCMHandler(): null {
           });
 
           // 🔔 Play sound
-          notificationSound.play().catch(() => {});
+          notificationSound.play().catch(() => { });
 
           // 🪟 Show toast
           toast.custom(() => (
