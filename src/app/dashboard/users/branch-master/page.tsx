@@ -17,7 +17,6 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { CustomTable, CellContent } from "@/components/ui/CustomTable";
-import { DynamicEditDialog, FieldConfig } from "@/components/ui/EditModal";
 import SearchComponent from "@/components/ui/SearchOnlydata";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -40,13 +39,10 @@ import { Alert } from "@/components/Alert";
 import ResponseLoader from "@/components/ResponseLoader";
 import { CustomFilter } from "@/components/ui/CustomFilter";
 import { ColumnVisibilitySelector } from "@/components/column-visibility-selector";
-// import { DatePicker } from "@/components/ui/datePicker";
 import { ExpirationDatePicker } from "@/components/ui/ExpirationDatePicker";
 import Cookies from "js-cookie";
 import { toast } from "sonner";
-import { values } from "lodash";
 import { BranchNotificationCell } from "@/components/branch-master/BranchNotificationCell";
-import { useBranchNotifications } from "@/hooks/useAssignBranchNotification";
 
 type branchAccess = {
   _id: string;
@@ -629,60 +625,60 @@ export default function BranchMaster() {
     }
   }, [filteredBranches]);
 
-  // Debug effect
-  useEffect(() => {
-    // console.log("[Branch Master - Data Flow Debug]:", {
-    //   isLoading,
-    //   branchesCount: branches?.length,
-    //   filteredBranchesCount: filteredBranches?.length,
-    //   filteredDataCount: filteredData?.length,
-    //   filterResultsCount: filterResults?.length,
-    //   userSchoolId,
-    //   assignedBranches,
-    //   assignedBranchesCount: assignedBranches.length,
-    //   normalizedRole,
-    //   isBranchGroup,
-    // });
-  }, [
-    isLoading,
-    branches,
-    filteredBranches,
-    filteredData,
-    filterResults,
-    userSchoolId,
-    assignedBranches,
-    normalizedRole,
-    isBranchGroup,
-  ]);
+  // // Debug effect
+  // useEffect(() => {
+  //   // console.log("[Branch Master - Data Flow Debug]:", {
+  //   //   isLoading,
+  //   //   branchesCount: branches?.length,
+  //   //   filteredBranchesCount: filteredBranches?.length,
+  //   //   filteredDataCount: filteredData?.length,
+  //   //   filterResultsCount: filterResults?.length,
+  //   //   userSchoolId,
+  //   //   assignedBranches,
+  //   //   assignedBranchesCount: assignedBranches.length,
+  //   //   normalizedRole,
+  //   //   isBranchGroup,
+  //   // });
+  // }, [
+  //   isLoading,
+  //   branches,
+  //   filteredBranches,
+  //   filteredData,
+  //   filterResults,
+  //   userSchoolId,
+  //   assignedBranches,
+  //   normalizedRole,
+  //   isBranchGroup,
+  // ]);
 
-  // Columns for export
-  const columnsForExport = [
-    { key: "branchName", header: "Branch Name" },
-    ...(isSuperAdmin
-      ? [{ key: "schoolId.schoolName", header: "School Name" }]
-      : []),
-    { key: "mobileNo", header: "Mobile" },
-    { key: "email", header: "Email" },
-    { key: "username", header: "branch Username" },
-    { key: "password", header: "branch Password" },
-    { key: "subscriptionExpirationDate", header: "Expiration Date" },
-    { key: "createdAt", header: "Registration Date" },
-    ...(isSuperAdmin || isSchoolRole || isBranchGroup
-      ? [
-          {
-            key: "fullAccess",
-            header: "Access Level",
-            formatter: (val: boolean) =>
-              val ? "Full Access" : "Limited Access",
-          },
-        ]
-      : []),
-  ];
+  // // Columns for export
+  // const columnsForExport = [
+  //   { key: "branchName", header: "Branch Name" },
+  //   ...(isSuperAdmin
+  //     ? [{ key: "schoolId.schoolName", header: "School Name" }]
+  //     : []),
+  //   { key: "mobileNo", header: "Mobile" },
+  //   { key: "email", header: "Email" },
+  //   { key: "username", header: "branch Username" },
+  //   { key: "password", header: "branch Password" },
+  //   { key: "subscriptionExpirationDate", header: "Expiration Date" },
+  //   { key: "createdAt", header: "Registration Date" },
+  //   ...(isSuperAdmin || isSchoolRole || isBranchGroup
+  //     ? [
+  //         {
+  //           key: "fullAccess",
+  //           header: "Access Level",
+  //           formatter: (val: boolean) =>
+  //             val ? "Full Access" : "Limited Access",
+  //         },
+  //       ]
+  //     : []),
+  // ];
 
-  const handleVerificationSuccess = () => {
-    setIsVerified(true);
-    setIsVerificationDialogOpen(false);
-  };
+  // const handleVerificationSuccess = () => {
+  //   setIsVerified(true);
+  //   setIsVerificationDialogOpen(false);
+  // };
 
   // Mutation to add a new branch
   // const addbranchMutation = useMutation({
@@ -810,6 +806,26 @@ export default function BranchMaster() {
     onError: (err: any) => {
       alert(
         `Failed to delete branch: ${err.response?.data?.message || err.message}`
+      );
+    },
+  });
+
+  const deactivateMutation = useMutation({
+    mutationFn: async (branch: { _id: string; Active?: boolean }) => {
+      return await api.post(`/auth/user/deactivate/${branch._id}`, {
+        Active: !branch.Active,
+        userRole: "branch",
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["branches"] });
+      toast.success("Branch status updated successfully.");
+    },
+    onError: (err: any) => {
+      toast.error(
+        `Failed to update branch status: ${
+          err.response?.data?.message || err.message
+        }`
       );
     },
   });
@@ -1056,6 +1072,17 @@ export default function BranchMaster() {
                       "bg-yellow-400 hover:bg-yellow-500 text-red-600 font-semibold py-1 px-3 rounded-md",
                     onClick: () => setDeleteTarget(row),
                     disabled: deletebranchMutation.isPending,
+                  },
+                  {
+                    type: "button",
+                    label: row.Active ? "Deactivate" : "Activate",
+                    className: `w-24 text-center text-sm font-semibold rounded-full px-4 py-2 ${
+                      row.Active
+                        ? "bg-red-500 hover:bg-red-600 text-white"
+                        : "bg-green-500 hover:bg-green-600 text-white"
+                    }`,
+                    onClick: () => deactivateMutation.mutate(row),
+                    disabled: deactivateMutation.isPending,
                   },
                 ],
               }),

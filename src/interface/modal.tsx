@@ -27,6 +27,7 @@ export interface Branch {
   role: string;
   subscriptionExpirationDate: string;
   createdAt: string;
+  Active?: boolean;
 }
 
 export interface Device {
