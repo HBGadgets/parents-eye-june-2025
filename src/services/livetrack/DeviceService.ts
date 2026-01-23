@@ -424,9 +424,10 @@ class DeviceService {
     if (this.streamingMode === "single") {
       this.stopAllSingleDeviceStreams();
     }
-
+    console.log("BEFORE EMMITING: ", new Date())
     setTimeout(() => {
       this.socket?.emit("request-all-device-data", filters);
+      console.log("AFTER EMITTING: ", new Date())
     }, 1000)
   }
 
