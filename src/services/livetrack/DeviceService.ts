@@ -425,7 +425,9 @@ class DeviceService {
       this.stopAllSingleDeviceStreams();
     }
 
-    this.socket.emit("request-all-device-data", filters);
+    setTimeout(() => {
+      this.socket?.emit("request-all-device-data", filters);
+    }, 1000)
   }
 
   /**
