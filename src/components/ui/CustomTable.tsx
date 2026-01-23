@@ -27,7 +27,7 @@ export type CellContent =
 interface CustomTableProps<TData extends RowData> {
   data: TData[];
   columns: ColumnDef<TData, unknown>[];
-  pageSizeArray?: number[];
+  pageSizeArray?: any[];
   maxHeight?: number;
   minHeight?: number;
   rowHeight?: number;
@@ -91,7 +91,7 @@ const renderCellContent = (content: unknown): React.ReactNode => {
 export function CustomTable<TData extends RowData>({
   data,
   columns,
-  pageSizeArray = [10, 20, 30],
+  pageSizeArray = [10, 20, 30, "All"],
   maxHeight = 480,
   minHeight = 100,
   rowHeight = 48,
@@ -142,11 +142,16 @@ export function CustomTable<TData extends RowData>({
   // useEffect(() => {
   //   setPagination((prev) => ({ ...prev, pageIndex: 0 }));
   // }, [data]);
-  const pageCount = Math.ceil(finalData.length / pagination.pageSize);
-  const paginatedData = finalData.slice(
-    pagination.pageIndex * pagination.pageSize,
-    (pagination.pageIndex + 1) * pagination.pageSize
-  );
+
+  // Handle "All" option - when pageSize equals data length, show all rows
+  const isShowingAll = pagination.pageSize >= finalData.length;
+  const pageCount = isShowingAll ? 1 : Math.ceil(finalData.length / pagination.pageSize);
+  const paginatedData = isShowingAll
+    ? finalData
+    : finalData.slice(
+      pagination.pageIndex * pagination.pageSize,
+      (pagination.pageIndex + 1) * pagination.pageSize
+    );
 
   const serialNumberColumn: ColumnDef<TData, unknown> = {
     id: "serialNumber",
@@ -266,11 +271,10 @@ export function CustomTable<TData extends RowData>({
                       style={getColumnStyle(header.column)}
                     >
                       <div
-                        className={`flex items-center justify-center gap-1 w-full ${
-                          header.column.getCanSort()
+                        className={`flex items-center justify-center gap-1 w-full ${header.column.getCanSort()
                             ? "cursor-pointer select-none"
                             : ""
-                        }`}
+                          }`}
                         onClick={header.column.getToggleSortingHandler()}
                       >
                         <span className="truncate">
@@ -335,9 +339,9 @@ export function CustomTable<TData extends RowData>({
                             <div className="break-words overflow-wrap-anywhere leading-relaxed">
                               {cell.column.id === "serialNumber"
                                 ? flexRender(
-                                    cell.column.columnDef.cell,
-                                    cell.getContext()
-                                  )
+                                  cell.column.columnDef.cell,
+                                  cell.getContext()
+                                )
                                 : renderCellContent(cell.getValue())}
                             </div>
                           </div>

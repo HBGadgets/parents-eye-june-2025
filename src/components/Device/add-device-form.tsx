@@ -3,7 +3,6 @@
 import React, { useEffect, useState, useMemo } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import * as z from "zod";
 import { Combobox, ComboboxItem } from "@/components/ui/combobox";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -76,8 +75,8 @@ export function AddDeviceForm({
       category: "",
       model: "",
       driverObjId: "",
-      speed: "",
-      average: "",
+      speed: 0,
+      average: 0,
       keyFeature: false,
       subscriptionEndDate: "",
     },
@@ -168,8 +167,8 @@ export function AddDeviceForm({
         category: editData.category || "",
         model: editData.model || "",
         driverObjId: editData.driverObjId?._id || "",
-        speed: editData.speed || "",
-        average: editData.average || "",
+        speed: editData.speed || 0,
+        average: editData.average || 0,
         keyFeature: editData.keyFeature ?? false,
         subscriptionEndDate: editData.subscriptionEndDate || "",
       });
@@ -184,8 +183,8 @@ export function AddDeviceForm({
         category: "",
         model: "",
         driverObjId: "",
-        speed: "",
-        average: "",
+        speed: 0,
+        average: 0,
         keyFeature: false,
         subscriptionEndDate: "",
       });
@@ -238,11 +237,11 @@ export function AddDeviceForm({
   const driverItems: ComboboxItem[] = useMemo(() => {
     const drivers = driversData
       ? driversData.pages.flatMap((page) =>
-          (page.data || []).map((driverObjId: DropdownItem) => ({
-            value: driverObjId._id || "",
-            label: driverObjId.driverName || "Unknown driverObjId",
-          }))
-        )
+        (page.data || []).map((driverObjId: DropdownItem) => ({
+          value: driverObjId._id || "",
+          label: driverObjId.driverName || "Unknown driverObjId",
+        }))
+      )
       : [];
 
     if (isEditMode && editData?.driverObjId?._id) {
@@ -734,9 +733,8 @@ export function AddDeviceForm({
                         <PopoverTrigger asChild>
                           <Button
                             variant="outline"
-                            className={`w-full justify-start text-left font-normal ${
-                              !field.value ? "text-muted-foreground" : ""
-                            }`}
+                            className={`w-full justify-start text-left font-normal ${!field.value ? "text-muted-foreground" : ""
+                              }`}
                             disabled={isLoading}
                           >
                             <CalendarIcon className="mr-2 h-4 w-4" />

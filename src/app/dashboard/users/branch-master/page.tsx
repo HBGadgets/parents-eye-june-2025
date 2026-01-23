@@ -965,7 +965,7 @@ export default function BranchMaster() {
             header: "School Name",
             accessorFn: (row) => ({
               type: "text",
-              value: row.schoolId.schoolName ?? "",
+              value: row.schoolId?.schoolName ?? "",
             }),
             meta: { flex: 1, minWidth: 200, maxWidth: 300 },
             enableHiding: true,
@@ -1333,7 +1333,7 @@ export default function BranchMaster() {
           columns={columns}
           columnVisibility={columnVisibility}
           onColumnVisibilityChange={setColumnVisibility}
-          pageSizeArray={[10, 20, 50]}
+          pageSizeArray={[10, 20, 50, "All"]}
           maxHeight={600}
           minHeight={200}
           showSerialNumber={true}
@@ -1407,29 +1407,6 @@ export default function BranchMaster() {
           />
         )}
       </section>
-
-      {/* <section>
-        <FloatingMenu
-          onExportPdf={() => {
-            exportToPDF(filteredData, columnsForExport, {
-              title: "branch Master Report",
-              companyName: "Parents Eye",
-              metadata: {
-                Total: `${filteredData.length} branches`,
-              },
-            });
-          }}
-          onExportExcel={() => {
-            exportToExcel(filteredData, columnsForExport, {
-              title: "branch Master Report",
-              companyName: "Parents Eye",
-              metadata: {
-                Total: `${filteredData.length} branches`,
-              },
-            });
-          }}
-        />
-      </section> */}
     </main>
   );
 }
