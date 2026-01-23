@@ -237,17 +237,19 @@ export const useDeviceStore = create<DeviceState>()(
                 }
               }
 
-              // Request initial data
+              // Request initial data after a short auth settle delay
               const state = get();
-              if (window.location.pathname === "/dashboard") {
-                deviceService.requestDeviceData(state.filters);
-              }
+              setTimeout(() => {
+                if (window.location.pathname === "/dashboard") {
+                  deviceService.requestDeviceData(state.filters);
+                }
 
-              if (state.activeSingleDevices.size > 0) {
-                state.activeSingleDevices.forEach((uniqueId) => {
-                  deviceService.requestSingleDeviceData(uniqueId, false);
-                });
-              }
+                if (state.activeSingleDevices.size > 0) {
+                  state.activeSingleDevices.forEach((uniqueId) => {
+                    deviceService.requestSingleDeviceData(uniqueId, false);
+                  });
+                }
+              }, 1000);
             },
 
             onError: (error: string) => {
