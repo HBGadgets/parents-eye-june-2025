@@ -1114,6 +1114,8 @@ export default function BranchMaster() {
     ]
   );
 
+  
+
   const table = useReactTable({
     data: filteredData,
     columns,
