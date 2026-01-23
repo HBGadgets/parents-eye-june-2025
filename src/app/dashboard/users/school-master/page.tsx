@@ -181,8 +181,8 @@ export default function SchoolMaster() {
             label: (row as any).Active ? "Deactivate" : "Activate",
             onClick: () => deactivateMutation.mutate(row),
             className: `${(row as any).Active
-                ? "bg-red-100 text-red-700 hover:bg-red-200"
-                : "bg-green-100 text-green-700 hover:bg-green-200"
+              ? "bg-red-100 text-red-700 hover:bg-red-200"
+              : "bg-green-100 text-green-700 hover:bg-green-200"
               } w-24`,
             disabled: deactivateMutation.isPending,
           },
@@ -398,9 +398,9 @@ export default function SchoolMaster() {
       await addSchoolMutation.mutateAsync(data);
       closeButtonRef.current?.click();
       form.reset();
-      alert("School added successfully.");
+      toast.success("School added successfully.");
     } catch (err) {
-      alert("Failed to add school.\nerror: " + err);
+      toast.error(err.response?.data.message);
     }
   };
 
