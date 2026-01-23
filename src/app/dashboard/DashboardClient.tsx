@@ -37,6 +37,8 @@ export default function DashboardClient() {
 
   // Debounce timer ref
   const searchDebounceRef = useRef<NodeJS.Timeout | null>(null);
+  const authRequestRef = useRef(false);
+  const authRequestTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const [sorting, setSorting] = useState([]);
   const [columnVisibility, setColumnVisibility] = useState({});
@@ -115,8 +117,17 @@ export default function DashboardClient() {
     },
   };
 
-  const { devices, counts, isLoading, updateFilters, currentPage, limit } =
-    useLiveDeviceData();
+  const {
+    devices,
+    counts,
+    isLoading,
+    updateFilters,
+    currentPage,
+    limit,
+    isConnected,
+    isAuthenticated,
+    filters,
+  } = useLiveDeviceData();
 
   const { expiredBranches, expiredBranchesCount } = useSubscriptionExpiry(
     showSubscriptionPopup
@@ -165,6 +176,39 @@ export default function DashboardClient() {
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (!isConnected || !isAuthenticated) {
+      authRequestRef.current = false;
+      if (authRequestTimeoutRef.current) {
+        clearTimeout(authRequestTimeoutRef.current);
+        authRequestTimeoutRef.current = null;
+      }
+      return;
+    }
+
+    if (authRequestRef.current) {
+      return;
+    }
+
+    authRequestRef.current = true;
+    authRequestTimeoutRef.current = setTimeout(() => {
+      updateFilters({ page: filters.page, limit: filters.limit });
+    }, 1000);
+
+    return () => {
+      if (authRequestTimeoutRef.current) {
+        clearTimeout(authRequestTimeoutRef.current);
+        authRequestTimeoutRef.current = null;
+      }
+    };
+  }, [
+    isConnected,
+    isAuthenticated,
+    updateFilters,
+    filters.page,
+    filters.limit,
+  ]);
 
   // **Debounced Search Handler**
   const handleSearchChange = useCallback(
