@@ -134,13 +134,12 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
     return L.divIcon({
       className: "course-arrow",
       html: `
-        <div style="transform: rotate(${
-          course + 180
+        <div style="transform: rotate(${course + 180
         }deg); width: ${size}px; height: ${size}px; display: flex; align-items: center; justify-content: center;">
           <div style="display: flex; flex-direction: column; align-items: center; margin-top: -3px;">
             <svg width="${Math.round(size * 0.75)}" height="${Math.round(
-        size * 0.75
-      )}" viewBox="0 0 24 24" fill="none" style="filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.7));">
+          size * 0.75
+        )}" viewBox="0 0 24 24" fill="none" style="filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.7));">
               <path d="M7 10L12 15L17 10" stroke="white" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
           </div>
@@ -242,9 +241,8 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
   <div style="font-size: 12px; margin-bottom: 10px;">
     <div style="display: grid; grid-template-columns: 60px 1fr; gap: 6px 8px;">
       <span style="color: #6b7280; font-weight: 500;">Speed:</span>
-      <span style="color: #111827; font-weight: 600;">${
-        point.speed?.toFixed(1) || "N/A"
-      } km/h</span>
+      <span style="color: #111827; font-weight: 600;">${point.speed?.toFixed(1) || "N/A"
+                } km/h</span>
       
       <span style="color: #6b7280; font-weight: 500;">Time:</span>
       <span style="color: #111827;">${formattedTime}</span>
@@ -257,9 +255,8 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
     font-size: 12px;
   ">
     <div style="color: #6b7280; font-weight: 500; margin-bottom: 4px;">Address</div>
-    <div style="color: #111827; line-height: 1.4;">${
-      speedCache.current.get(i) || "Loading..."
-    }</div>
+    <div style="color: #111827; line-height: 1.4;">${speedCache.current.get(i) || "Loading..."
+                }</div>
   </div>
 </div>
 `
@@ -293,9 +290,8 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
   <div style="font-size: 12px; margin-bottom: 10px;">
     <div style="display: grid; grid-template-columns: 60px 1fr; gap: 6px 8px;">
       <span style="color: #6b7280; font-weight: 500;">Speed:</span>
-      <span style="color: #111827; font-weight: 600;">${
-        point.speed?.toFixed(1) || "N/A"
-      } km/h</span>
+      <span style="color: #111827; font-weight: 600;">${point.speed?.toFixed(1) || "N/A"
+                    } km/h</span>
       
       <span style="color: #6b7280; font-weight: 500;">Time:</span>
       <span style="color: #111827;">${formattedTime}</span>
@@ -308,9 +304,8 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
     font-size: 12px;
   ">
     <div style="color: #6b7280; font-weight: 500; margin-bottom: 4px;">Address</div>
-    <div style="color: #111827; line-height: 1.4;">${
-      speedCache.current.get(i) || "Loading..."
-    }</div>
+    <div style="color: #111827; line-height: 1.4;">${speedCache.current.get(i) || "Loading..."
+                    }</div>
   </div>
 </div>
 `
@@ -342,9 +337,8 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
   <div style="font-size: 12px; margin-bottom: 10px;">
     <div style="display: grid; grid-template-columns: 60px 1fr; gap: 6px 8px;">
       <span style="color: #6b7280; font-weight: 500;">Speed:</span>
-      <span style="color: #111827; font-weight: 600;">${
-        point.speed?.toFixed(1) || "N/A"
-      } km/h</span>
+      <span style="color: #111827; font-weight: 600;">${point.speed?.toFixed(1) || "N/A"
+                    } km/h</span>
       
       <span style="color: #6b7280; font-weight: 500;">Time:</span>
       <span style="color: #111827;">${formattedTime}</span>
@@ -357,9 +351,8 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
     font-size: 12px;
   ">
     <div style="color: #6b7280; font-weight: 500; margin-bottom: 4px;">Address</div>
-    <div style="color: #111827; line-height: 1.4;">${
-      speedCache.current.get(i) || "Loading..."
-    }</div>
+    <div style="color: #111827; line-height: 1.4;">${speedCache.current.get(i) || "Loading..."
+                    }</div>
   </div>
 </div>
 `
@@ -535,6 +528,7 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
         color: "#0ea5e9",
         weight: 4,
         opacity: 0.8,
+        smoothFactor: 0, // Fix for marker drifting off the line
       }).addTo(map);
 
       const startPoint = data[0];
@@ -601,9 +595,8 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
     margin-bottom: 10px;
   ">
     <div style="color: #6b7280; font-weight: 500; margin-bottom: 4px;">Address</div>
-    <div style="color: #111827; line-height: 1.4;">${
-      startAddress || "Loading address..."
-    }</div>
+    <div style="color: #111827; line-height: 1.4;">${startAddress || "Loading address..."
+        }</div>
   </div>
   
   <div style="
@@ -678,9 +671,8 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
     margin-bottom: 10px;
   ">
     <div style="color: #6b7280; font-weight: 500; margin-bottom: 4px;">Address</div>
-    <div style="color: #111827; line-height: 1.4;">${
-      endAddress || "Loading address..."
-    }</div>
+    <div style="color: #111827; line-height: 1.4;">${endAddress || "Loading address..."
+        }</div>
   </div>
   
   <div style="
@@ -726,13 +718,36 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
 
     const totalDuration = BASE_PLAYBACK_SECONDS / playbackSpeed;
     const segmentCount = points.length - 1;
-    const uniformDuration = Math.max(totalDuration / segmentCount, 0.1);
-    const durations = Array(segmentCount).fill(uniformDuration);
 
-    const player = new MarkerPlayer(mapRef.current!, points, totalDuration, {
-      icon: createVehicleIcon(),
-    });
-    player.setDuration && player.setDuration(durations);
+    // Calculate real durations based on timestamps
+    const realDurations: number[] = [];
+    let calculatedTotalDuration = 0;
+
+    for (let i = 0; i < data.length - 1; i++) {
+      const t1 = new Date(data[i].createdAt).getTime();
+      const t2 = new Date(data[i + 1].createdAt).getTime();
+      let diffSeconds = (t2 - t1) / 1000;
+
+      // Fallback for bad data or zero time difference
+      if (diffSeconds < 0.1) diffSeconds = 0.1;
+
+      realDurations.push(diffSeconds);
+      calculatedTotalDuration += diffSeconds;
+    }
+
+    // Apply playback speed
+    const adjustedDurations = realDurations.map(d => d / playbackSpeed);
+
+    const player = new MarkerPlayer(
+      mapRef.current!,
+      points,
+      adjustedDurations,
+      {
+        icon: createVehicleIcon(),
+      }
+    );
+
+
 
     markerPlayerRef.current = player;
     currentAngleRef.current = data[0]?.course ?? 0;
@@ -853,9 +868,8 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
     font-size: 12px;
   ">
     <div style="color: #6b7280; font-weight: 500; margin-bottom: 4px;">Address</div>
-    <div style="color: #111827; line-height: 1.4;">${
-      stopAddressMap[stop.id] ?? "Fetching address..."
-    }</div>
+    <div style="color: #111827; line-height: 1.4;">${stopAddressMap[stop.id] ?? "Fetching address..."
+        }</div>
   </div>
 </div>
 `);
@@ -1011,14 +1025,13 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
         handleStop={handleStop}
         isPlaying={isPlaying}
         historyData={data}
-        isExpanded={isExpanded}
+        isExpanded={isExpanded || false}
       />
       <div className="absolute top-20 left-4 flex flex-col gap-2 z-[1000]">
         {/* Satellite Toggle */}
         <button
-          className={`w-10 h-10 bg-card cursor-pointer border border-border rounded flex items-center justify-center hover:bg-secondary transition-colors ${
-            isSatelliteView ? "bg-primary text-primary-foreground" : ""
-          }`}
+          className={`w-10 h-10 bg-card cursor-pointer border border-border rounded flex items-center justify-center hover:bg-secondary transition-colors ${isSatelliteView ? "bg-primary text-primary-foreground" : ""
+            }`}
           onClick={() => setIsSatelliteView(!isSatelliteView)}
           title={isSatelliteView ? "Normal Map" : "Satellite View"}
         >
@@ -1048,9 +1061,8 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
 
         {/* Traffic Toggle */}
         <button
-          className={`w-10 h-10 bg-card cursor-pointer border border-border rounded flex items-center justify-center hover:bg-secondary transition-colors ${
-            showTraffic ? "bg-primary text-primary-foreground" : ""
-          }`}
+          className={`w-10 h-10 bg-card cursor-pointer border border-border rounded flex items-center justify-center hover:bg-secondary transition-colors ${showTraffic ? "bg-primary text-primary-foreground" : ""
+            }`}
           onClick={() => setShowTraffic(!showTraffic)}
           title={showTraffic ? "Hide Traffic" : "Show Traffic"}
         >
