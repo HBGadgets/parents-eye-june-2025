@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useMemo } from "react";
-import { useForm, Controller } from "react-hook-form";
+import { useForm, Controller, SubmitHandler } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Combobox, ComboboxItem } from "@/components/ui/combobox";
 import { Button } from "@/components/ui/button";
@@ -261,7 +261,7 @@ export function AddDeviceForm({
   }, [driversData, isEditMode, editData?.driverObjId]);
 
   // Submit handler
-  const onSubmit = async (data: DeviceFormData) => {
+  const onSubmit: SubmitHandler<DeviceFormData> = async (data) => {
     console.log("Submitted data:", data);
     try {
       const routeId = data?.routeObjId || editData?.routeObjId?._id;

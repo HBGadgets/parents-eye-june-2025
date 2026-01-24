@@ -10,9 +10,9 @@ export const deviceSchema = z.object({
   category: z.string().min(1, "Category is required"),
   model: z.string().min(1, "Model is required"),
   driverObjId: z.string().optional(),
-  speed: z.string().optional(),
-  average: z.string().optional(),
-  keyFeature: z.boolean().default(false),
+  speed: z.coerce.number().optional(),
+  average: z.coerce.number().optional(),
+  keyFeature: z.boolean(),
   subscriptionEndDate: z.string().min(1, "Subscription Expiry is required"),
 });
 
