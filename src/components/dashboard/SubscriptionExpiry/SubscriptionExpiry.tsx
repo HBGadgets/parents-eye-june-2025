@@ -96,7 +96,7 @@ export const SubscriptionExpiry: React.FC<SubscriptionExpiryProps> = ({
     });
   };
 
-  if (!isOpen) return null;
+  if (!isOpen || branches.length === 0) return null;
 
   return (
     <>
