@@ -435,7 +435,7 @@ export const StudentCard: React.FC<StudentCardProps> = ({
 
         {/* PICKUP */}
         <div className="space-y-1">
-          <label className="text-sm font-medium">Pickup Location *</label>
+          <label className="text-sm font-medium">Pickup Location</label>
           <Combobox
             items={pickupGeofenceItems}
             value={student.pickupGeoId}
@@ -470,7 +470,7 @@ export const StudentCard: React.FC<StudentCardProps> = ({
 
         {/* DROP */}
         <div className="space-y-1">
-          <label className="text-sm font-medium">Drop Location *</label>
+          <label className="text-sm font-medium">Drop Location</label>
           <Combobox
             items={dropGeofenceItems}
             value={student.dropGeoId}

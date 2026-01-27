@@ -443,14 +443,12 @@ export default function AddStudentForm({
     for (const student of students) {
       const requiredFields = [
         "childName",
-        "routeObjId",
-        "pickupGeoId",
-        "dropGeoId",
+        "routeObjId"
       ];
 
       for (const field of requiredFields) {
         if (!student[field]) {
-          alert("All student fields are required");
+          alert("Mandatory fields are required");
           return;
         }
       }
@@ -627,22 +625,22 @@ export default function AddStudentForm({
             {(decodedTokenRole === "superAdmin" ||
               decodedTokenRole === "school" ||
               decodedTokenRole === "branchGroup") && (
-              <div className="space-y-1">
-                <label className="text-sm font-medium">Branch *</label>
-                <Combobox
-                  items={branchItems}
-                  value={selectedBranchId}
-                  onValueChange={onBranchChange}
-                  placeholder={
-                    selectedSchoolId ? "Select Branch" : "Select school first"
-                  }
-                  searchPlaceholder="Search branch..."
-                  emptyMessage="No branches found"
-                  width="w-full"
-                  disabled={!selectedSchoolId}
-                />
-              </div>
-            )}
+                <div className="space-y-1">
+                  <label className="text-sm font-medium">Branch *</label>
+                  <Combobox
+                    items={branchItems}
+                    value={selectedBranchId}
+                    onValueChange={onBranchChange}
+                    placeholder={
+                      selectedSchoolId ? "Select Branch" : "Select school first"
+                    }
+                    searchPlaceholder="Search branch..."
+                    emptyMessage="No branches found"
+                    width="w-full"
+                    disabled={!selectedSchoolId}
+                  />
+                </div>
+              )}
 
             {/* PARENT */}
             <div className="space-y-1">
@@ -742,8 +740,8 @@ export default function AddStudentForm({
               {initialData
                 ? "Update Student"
                 : students.length > 1
-                ? `Create ${students.length} Students`
-                : "Create Student"}
+                  ? `Create ${students.length} Students`
+                  : "Create Student"}
             </Button>
           </div>
         </CardContent>
