@@ -173,6 +173,7 @@ const approveStudent = useMutation({
 
     createStudent: createStudentMutation.mutate,
     updateStudent: updateStudentMutation.mutate,
+    updateStudentAsync: updateStudentMutation.mutateAsync,
     deleteStudent: deleteStudentMutation.mutate,
     exportExcel: exportExcelMutation.mutate,
     exportPdf: exportPdfMutation.mutate,

@@ -228,7 +228,7 @@ export default function StudentDetails() {
     total,
     isLoading,
     deleteStudent,
-    updateStudent,
+    updateStudentAsync,
     createStudent,
     exportExcel,
     exportPdf,
@@ -238,11 +238,6 @@ export default function StudentDetails() {
     isDeleteLoading,
     isApproveLoading,
   } = useStudent(pagination, sorting, filters);
-
-  // ---------------- Auto Close Form on Success ----------------
-  useEffect(() => {
-    if (!isLoading) setShowForm(false);
-  }, [isLoading]);
 
   // ---------------- Clear Filters ----------------
   const handleClearFilters = useCallback(() => {
@@ -304,9 +299,8 @@ export default function StudentDetails() {
         );
 
         toast.success("Upload successful", {
-          description: `${
-            response.count || response.data?.count || 0
-          } students imported successfully`,
+          description: `${response.count || response.data?.count || 0
+            } students imported successfully`,
         });
 
         // Close dialog and refresh data
@@ -407,16 +401,14 @@ export default function StudentDetails() {
                     disabled={isApproveLoading}
                     className={`
                   px-3 py-1 text-xs font-medium rounded transition-all duration-200
-                  ${
-                    status === value
-                      ? color
-                      : "bg-transparent text-gray-600 hover:bg-gray-100"
-                  }
-                  ${
-                    isApproveLoading
-                      ? "opacity-50 cursor-not-allowed"
-                      : "cursor-pointer"
-                  }
+                  ${status === value
+                        ? color
+                        : "bg-transparent text-gray-600 hover:bg-gray-100"
+                      }
+                  ${isApproveLoading
+                        ? "opacity-50 cursor-not-allowed"
+                        : "cursor-pointer"
+                      }
                 `}
                   >
                     {label}
@@ -478,9 +470,8 @@ export default function StudentDetails() {
           <Button
             variant="outline"
             size="default"
-            className={`cursor-pointer flex items-center gap-2 ${
-              !hasActiveFilters ? "opacity-50 cursor-not-allowed" : ""
-            }`}
+            className={`cursor-pointer flex items-center gap-2 ${!hasActiveFilters ? "opacity-50 cursor-not-allowed" : ""
+              }`}
             onClick={handleClearFilters}
             disabled={!hasActiveFilters}
           >
@@ -492,11 +483,10 @@ export default function StudentDetails() {
             onClick={handleBulkDelete}
             variant={selectedCount ? "destructive" : "outline"}
             size="sm"
-            className={`transition shrink-0 ${
-              !selectedCount || isDeleteLoading
+            className={`transition shrink-0 ${!selectedCount || isDeleteLoading
                 ? "cursor-not-allowed"
                 : "cursor-pointer"
-            }`}
+              }`}
           >
             {isDeleteLoading ? "Deleting..." : `Delete (${selectedCount})`}
           </Button>
@@ -583,21 +573,21 @@ export default function StudentDetails() {
           {(role === "superAdmin" ||
             role === "school" ||
             role === "branchGroup") && (
-            <Combobox
-              items={filterBranchItems}
-              value={filterBranchId}
-              onValueChange={(val) => {
-                setFilterBranchId(val || undefined);
-                setFilterRouteId(undefined);
-              }}
-              placeholder="Filter Branch"
-              searchPlaceholder="Search Branch..."
-              className="cursor-pointer"
-              width="w-[130px]"
-              emptyMessage="No branches found"
-              disabled={role === "superAdmin" && !filterSchoolId}
-            />
-          )}
+              <Combobox
+                items={filterBranchItems}
+                value={filterBranchId}
+                onValueChange={(val) => {
+                  setFilterBranchId(val || undefined);
+                  setFilterRouteId(undefined);
+                }}
+                placeholder="Filter Branch"
+                searchPlaceholder="Search Branch..."
+                className="cursor-pointer"
+                width="w-[130px]"
+                emptyMessage="No branches found"
+                disabled={role === "superAdmin" && !filterSchoolId}
+              />
+            )}
 
           {/* ROUTE FILTER */}
           <Combobox
@@ -672,9 +662,10 @@ export default function StudentDetails() {
           <AddStudentForm
             initialData={editStudent}
             onClose={closeModal}
-            onSubmit={(data) => {
+            onSubmit={async (data) => {
               if (editStudent) {
-                updateStudent({ id: editStudent._id, payload: data });
+                await updateStudentAsync({ id: editStudent._id, payload: data });
+                closeModal();
               } else {
                 createStudent(data);
               }
