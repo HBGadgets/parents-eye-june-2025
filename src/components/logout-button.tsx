@@ -10,17 +10,6 @@ export function LogoutButton() {
   const logout = useAuthStore((state) => state.logout);
   const router = useRouter();
 
-  const clearAllCookies = () => {
-    console.log("[Logout] Clearing all cookies");
-    Object.keys(Cookies.get()).forEach((cookieName) => {
-      Cookies.remove(cookieName, { path: "/" });
-      Cookies.remove(cookieName, {
-        path: "/",
-        domain: window.location.hostname,
-      });
-    });
-  };
-
   const handleLogout = async () => {
     try {
       /**delete fcm token */
@@ -62,7 +51,7 @@ export function LogoutButton() {
   };
 
   return (
-    <span onClick={handleLogout} className="cursor-pointer ml-2">
+    <span onClick={handleLogout} className="cursor-pointer ml-2 w-full">
       Logout
     </span>
   );

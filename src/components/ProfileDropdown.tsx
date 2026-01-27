@@ -77,9 +77,9 @@ export function ProfileDropdown() {
           <span>Account</span>
         </DropdownMenuItem> */}
         {/* <DropdownMenuItem> */}
-          {/* <CreditCard className="mr-2 h-4 w-4" /> */}
-          {/* <span>Billing</span> */}
-          {/* <Link href="/dashboard/billing">Billing</Link> */}
+        {/* <CreditCard className="mr-2 h-4 w-4" /> */}
+        {/* <span>Billing</span> */}
+        {/* <Link href="/dashboard/billing">Billing</Link> */}
         {/* </DropdownMenuItem> */}
         <DropdownMenuSub>
           <DropdownMenuSubTrigger className="cursor-pointer">
@@ -126,7 +126,7 @@ export function ProfileDropdown() {
           </DropdownMenuPortal>
         </DropdownMenuSub>
         <DropdownMenuSeparator />
-        <DropdownMenuItem className="cursor-pointer">
+        <DropdownMenuItem>
           <LogOut />
           <LogoutButton />
         </DropdownMenuItem>
