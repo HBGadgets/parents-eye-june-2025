@@ -30,263 +30,269 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "../ui/tooltip";
+import { headers } from "next/headers";
 
 export const getModelColumns = (
   setEditTarget: (row: Model) => void,
   setDeleteTarget: (row: Model) => void
 ): ColumnDef<Model, CellContent>[] => [
-  {
-    header: "Model Name",
-    accessorFn: (row) => ({
-      type: "text",
-      value: row.modelName ?? "",
-    }),
-    meta: { minWidth: 570 },
-    enableHiding: true,
-  },
+    {
+      header: "Model Name",
+      accessorFn: (row) => ({
+        type: "text",
+        value: row.modelName ?? "",
+      }),
+      meta: { minWidth: 570 },
+      enableHiding: true,
+    },
 
-  {
-    header: "Action",
-    accessorFn: (row) => ({
-      type: "group",
-      items: [
-        {
-          type: "button",
-          label: "Edit",
-          onClick: () => setEditTarget(row),
-          className:
-            "cursor-pointer bg-yellow-500 hover:bg-yellow-600 text-white",
-        },
-        {
-          type: "button",
-          label: "Delete",
-          onClick: () => setDeleteTarget(row),
-          className: "cursor-pointer bg-red-500 hover:bg-red-600 text-white",
-        },
-      ],
-    }),
-    meta: { minWidth: 570 },
-    enableSorting: false,
-    enableHiding: true,
-  },
-];
+    {
+      header: "Action",
+      accessorFn: (row) => ({
+        type: "group",
+        items: [
+          {
+            type: "button",
+            label: "Edit",
+            onClick: () => setEditTarget(row),
+            className:
+              "cursor-pointer bg-yellow-500 hover:bg-yellow-600 text-white",
+          },
+          {
+            type: "button",
+            label: "Delete",
+            onClick: () => setDeleteTarget(row),
+            className: "cursor-pointer bg-red-500 hover:bg-red-600 text-white",
+          },
+        ],
+      }),
+      meta: { minWidth: 570 },
+      enableSorting: false,
+      enableHiding: true,
+    },
+  ];
 
 export const getCategoryColumns = (
   setEditTarget: (row: Category) => void,
   setDeleteTarget: (row: Category) => void
 ): ColumnDef<Category, CellContent>[] => [
-  {
-    header: "Category Name",
-    accessorFn: (row) => ({
-      type: "text",
-      value: row.categoryName ?? "",
-    }),
-    meta: { minWidth: 570 },
-  },
-  {
-    header: "Action",
-    accessorFn: (row) => ({
-      type: "group",
-      items: [
-        {
-          type: "button",
-          label: "Edit",
-          onClick: () => setEditTarget(row),
-          className: "bg-yellow-500 hover:bg-yellow-600 text-white",
-        },
-        {
-          type: "button",
-          label: "Delete",
-          onClick: () => setDeleteTarget(row),
-          className: "bg-red-500 hover:bg-red-600 text-white",
-        },
-      ],
-    }),
-    meta: { minWidth: 570 },
-    enableSorting: false,
-  },
-];
+    {
+      header: "Category Name",
+      accessorFn: (row) => ({
+        type: "text",
+        value: row.categoryName ?? "",
+      }),
+      meta: { minWidth: 570 },
+    },
+    {
+      header: "Action",
+      accessorFn: (row) => ({
+        type: "group",
+        items: [
+          {
+            type: "button",
+            label: "Edit",
+            onClick: () => setEditTarget(row),
+            className: "bg-yellow-500 hover:bg-yellow-600 text-white",
+          },
+          {
+            type: "button",
+            label: "Delete",
+            onClick: () => setDeleteTarget(row),
+            className: "bg-red-500 hover:bg-red-600 text-white",
+          },
+        ],
+      }),
+      meta: { minWidth: 570 },
+      enableSorting: false,
+    },
+  ];
 
 export const getRouteColumns = (
   onEdit: (row: Route) => void,
   onDelete: (row: Route) => void
 ): ColumnDef<Route>[] => [
-  {
-    header: "Route No",
-    accessorKey: "routeNumber",
-  },
-  {
-    header: "Device",
-    accessorKey: "deviceObjId.name",
-  },
-  {
-    header: "School",
-    accessorKey: "schoolId.schoolName",
-  },
-  {
-    header: "Branch",
-    accessorKey: "branchId.branchName",
-  },
-  {
-    id: "firstGeofence",
-    header: "First Stop",
-    accessorFn: (row: Route) => row.startPointGeoId?.geofenceName ?? "—",
-  },
-  {
-    id: "firstGeofenceAddress",
-    header: "First Stop Address",
-    accessorFn: (row: Route) => row.startPointGeoId?.address ?? "—",
-    meta: {
-      wrapConfig: { wrap: "wrap", maxWidth: "260px" },
+    {
+      header: "Route No",
+      accessorKey: "routeNumber",
     },
-  },
-  {
-    id: "lastGeofence",
-    header: "School Point (last stop)",
-    accessorFn: (row: Route) => row.endPointGeoId?.geofenceName ?? "—",
-  },
-  {
-    id: "lastGeofenceAddress",
-    header: "School Point (last stop)",
-    accessorFn: (row: Route) => row.endPointGeoId?.address ?? "—",
-    meta: {
-      wrapConfig: { wrap: "wrap", maxWidth: "260px" },
+    {
+      header: "Device",
+      accessorKey: "deviceObjId.name",
     },
-  },
-  {
-    header: "Route Completion Time",
-    accessorFn: (row: Route) =>
-      `${row.routeCompletionTime ? `${row.routeCompletionTime} Min` : "—"}`,
-  },
-  {
-    header: "Action",
-    cell: ({ row }) => {
-      const data = row.original;
+    {
+      header: "School",
+      accessorKey: "schoolId.schoolName",
+    },
+    {
+      header: "Branch",
+      accessorKey: "branchId.branchName",
+    },
+    {
+      id: "firstGeofence",
+      header: "First Stop",
+      accessorFn: (row: Route) => row.startPointGeoId?.geofenceName ?? "—",
+    },
+    {
+      id: "firstGeofenceAddress",
+      header: "First Stop Address",
+      accessorFn: (row: Route) => row.startPointGeoId?.address ?? "—",
+      meta: {
+        wrapConfig: { wrap: "wrap", maxWidth: "260px" },
+      },
+    },
+    {
+      id: "lastGeofence",
+      header: "School Point (last stop)",
+      accessorFn: (row: Route) => row.endPointGeoId?.geofenceName ?? "—",
+    },
+    {
+      id: "lastGeofenceAddress",
+      header: "School Point (last stop)",
+      accessorFn: (row: Route) => row.endPointGeoId?.address ?? "—",
+      meta: {
+        wrapConfig: { wrap: "wrap", maxWidth: "260px" },
+      },
+    },
+    {
+      header: "Route Completion Time",
+      accessorFn: (row: Route) =>
+        `${row.routeCompletionTime ? `${row.routeCompletionTime} Min` : "—"}`,
+    },
+    {
+      header: "Action",
+      cell: ({ row }) => {
+        const data = row.original;
 
-      return (
-        <div className="flex justify-center gap-2">
-          <button
-            className="bg-yellow-500 text-white px-3 py-1 rounded text-xs cursor-pointer"
-            onClick={(e) => {
-              e.stopPropagation();
-              onEdit(data);
-            }}
-          >
-            Edit
-          </button>
+        return (
+          <div className="flex justify-center gap-2">
+            <button
+              className="bg-yellow-500 text-white px-3 py-1 rounded text-xs cursor-pointer"
+              onClick={(e) => {
+                e.stopPropagation();
+                onEdit(data);
+              }}
+            >
+              Edit
+            </button>
 
-          <button
-            className="bg-red-500 text-white px-3 py-1 rounded text-xs cursor-pointer"
-            onClick={(e) => {
-              e.stopPropagation();
-              onDelete(data);
-            }}
-          >
-            Delete
-          </button>
-        </div>
-      );
+            <button
+              className="bg-red-500 text-white px-3 py-1 rounded text-xs cursor-pointer"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete(data);
+              }}
+            >
+              Delete
+            </button>
+          </div>
+        );
+      },
+      enableSorting: false,
     },
-    enableSorting: false,
-  },
-];
+  ];
 
 export const getStudentColumns = (
   onEdit: (row: Student) => void,
   onDelete: (row: Student) => void
 ): ColumnDef<Student>[] => [
-  {
-    header: "Student Name",
-    accessorKey: "childName",
-  },
-  {
-    header: "Class",
-    accessorKey: "className",
-  },
-  {
-    header: "Section",
-    accessorKey: "section",
-  },
-  {
-    header: "Age",
-    accessorKey: "age",
-  },
-  {
-    header: "Parent Name",
-    accessorFn: (row: Student) => row.parentId?.parentName ?? "—",
-  },
-  {
-    id: "pickupLocation",
-    header: "Pickup Location",
-    accessorFn: (row: Student) => row.pickupGeoId?.geofenceName ?? "—",
-  },
-  {
-    id: "pickupTime",
-    header: "Pickup Time",
-    accessorFn: (row: Student) => row.pickupGeoId?.pickupTime ?? "—",
-  },
-  {
-    id: "dropLocation",
-    header: "Drop Location",
-    accessorFn: (row: Student) => row.dropGeoId?.geofenceName ?? "—",
-  },
-  {
-    id: "dropTime",
-    header: "Drop Time",
-    accessorFn: (row: Student) => row.dropGeoId?.dropTime ?? "—",
-  },
-  {
-    id: "route",
-    headers: "Route",
-    accessorFn: (row: Student) => row.routeObjId?.routeNumber ?? "—",
-  },
-  {
-    id: "school",
-    headers: "School",
-    accessorFn: (row: Student) => row.schoolId?.schoolName ?? "—",
-  },
-  {
-    id: "branch",
-    headers: "Branch",
-    accessorFn: (row: Student) => row.branchId?.branchName ?? "—",
-  },
-  {
-    id: "registerationDate",
-    headers: "Registeration Date",
-    accessorFn: (row: Student) => new Date(row.createdAt).toLocaleDateString(),
-  },
-  {
-    header: "Action",
-    cell: ({ row }) => {
-      const data = row.original;
-
-      return (
-        <div className="flex justify-center gap-2">
-          <button
-            className="bg-yellow-500 text-white px-3 py-1 rounded text-xs cursor-pointer"
-            onClick={(e) => {
-              e.stopPropagation();
-              onEdit(data);
-            }}
-          >
-            Edit
-          </button>
-
-          <button
-            className="bg-red-500 text-white px-3 py-1 rounded text-xs cursor-pointer"
-            onClick={(e) => {
-              e.stopPropagation();
-              onDelete(data);
-            }}
-          >
-            Delete
-          </button>
-        </div>
-      );
+    {
+      header: "Student Name",
+      accessorKey: "childName",
     },
-    enableSorting: false,
-  },
-];
+    {
+      header: "Class",
+      accessorKey: "className",
+    },
+    {
+      header: "Section",
+      accessorKey: "section",
+    },
+    {
+      header: "Age",
+      accessorKey: "age",
+    },
+    {
+      header: "Parent Name",
+      accessorFn: (row: Student) => row.parentId?.parentName ?? "—",
+    },
+    {
+      id: "pickupLocation",
+      header: "Pickup Location",
+      accessorFn: (row: Student) => row.pickupGeoId?.geofenceName ?? "—",
+    },
+    {
+      id: "pickupTime",
+      header: "Pickup Time",
+      accessorFn: (row: Student) => row.pickupGeoId?.pickupTime ?? "—",
+    },
+    {
+      id: "dropLocation",
+      header: "Drop Location",
+      accessorFn: (row: Student) => row.dropGeoId?.geofenceName ?? "—",
+    },
+    {
+      id: "dropTime",
+      header: "Drop Time",
+      accessorFn: (row: Student) => row.dropGeoId?.dropTime ?? "—",
+    },
+    {
+      id: "route",
+      headers: "Route",
+      accessorFn: (row: Student) => row.routeObjId?.routeNumber ?? "—",
+    },
+    {
+      id: "device",
+      headers: "Vehicle No.",
+      accessorFn: (row: Student) => row.routeObjId?.deviceObjId?.name ?? "—",
+    },
+    {
+      id: "school",
+      headers: "School",
+      accessorFn: (row: Student) => row.schoolId?.schoolName ?? "—",
+    },
+    {
+      id: "branch",
+      headers: "Branch",
+      accessorFn: (row: Student) => row.branchId?.branchName ?? "—",
+    },
+    {
+      id: "registerationDate",
+      headers: "Registeration Date",
+      accessorFn: (row: Student) => new Date(row.createdAt).toLocaleDateString(),
+    },
+    {
+      header: "Action",
+      cell: ({ row }) => {
+        const data = row.original;
+
+        return (
+          <div className="flex justify-center gap-2">
+            <button
+              className="bg-yellow-500 text-white px-3 py-1 rounded text-xs cursor-pointer"
+              onClick={(e) => {
+                e.stopPropagation();
+                onEdit(data);
+              }}
+            >
+              Edit
+            </button>
+
+            <button
+              className="bg-red-500 text-white px-3 py-1 rounded text-xs cursor-pointer"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete(data);
+              }}
+            >
+              Delete
+            </button>
+          </div>
+        );
+      },
+      enableSorting: false,
+    },
+  ];
 
 // DEVICE COLUMNS START
 const getDaysRemaining = (dateStr: string) => {
@@ -338,120 +344,119 @@ export const getDeviceColumns = (
   onEdit: (row: Device) => void,
   onDelete: (row: Device) => void
 ): ColumnDef<Device>[] => [
-  {
-    header: "Device Name",
-    accessorKey: "name",
-  },
-  {
-    header: "Unique Id",
-    accessorKey: "uniqueId",
-  },
-  {
-    header: "Sim No",
-    accessorKey: "sim",
-  },
-  {
-    header: "OverSpeed km/h",
-    accessorKey: "speed",
-  },
-  {
-    header: "Average km/l",
-    accessorKey: "average",
-  },
-
-  {
-    header: "Model",
-    accessorKey: "model",
-  },
-  {
-    header: "Category",
-    accessorKey: "category",
-  },
-  {
-    header: "Key Feature",
-    accessorKey: "keyFeature",
-    cell: ({ row }) => {
-      const value = row.original.keyFeature;
-
-      return (
-        <span
-          className={`px-2 py-1 rounded text-xs font-medium ${
-            value ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600"
-          }`}
-        >
-          {value ? "Key switch available" : "Key switch not available"}
-        </span>
-      );
+    {
+      header: "Device Name",
+      accessorKey: "name",
     },
-  },
-  {
-    id: "school",
-    header: "School",
-    accessorFn: (row: Device) => row.schoolId?.schoolName ?? "—",
-  },
-  {
-    id: "branch",
-    header: "Branch",
-    accessorFn: (row: Device) => row.branchId?.branchName ?? "—",
-  },
-  {
-    id: "route",
-    header: "Route",
-    accessorFn: (row: Device) => row.routeObjId?.routeNumber ?? "—",
-  },
-  {
-    id: "driver",
-    header: "Driver",
-    accessorFn: (row: Device) => row.driverObjId?.driverName ?? "—",
-  },
-  {
-    id: "subscriptionEndDate",
-    header: "Subscription End",
-    cell: ({ row }: any) => {
-      const value = row.original.subscriptionEndDate;
-      if (!value) return "-";
-
-      const date = new Date(value);
-      const daysRemaining = getDaysRemaining(value);
-      const { color, message } = getExpiryStyle(daysRemaining);
-
-      const formattedDate = date.toLocaleString("en-GB", {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-        hour12: true,
-        timeZone: "UTC",
-      });
-
-      return (
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <div
-                className={`px-2 py-1 rounded-md text-sm font-medium inline-block ${color}`}
-              >
-                {formattedDate}
-              </div>
-            </TooltipTrigger>
-
-            <TooltipContent side="top" align="center">
-              <p className="text-sm">{message}</p>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-      );
+    {
+      header: "Unique Id",
+      accessorKey: "uniqueId",
+    },
+    {
+      header: "Sim No",
+      accessorKey: "sim",
+    },
+    {
+      header: "OverSpeed km/h",
+      accessorKey: "speed",
+    },
+    {
+      header: "Average km/l",
+      accessorKey: "average",
     },
 
-    meta: {
-      wrapConfig: {
-        wrap: "break-word",
-        maxWidth: "200px",
+    {
+      header: "Model",
+      accessorKey: "model",
+    },
+    {
+      header: "Category",
+      accessorKey: "category",
+    },
+    {
+      header: "Key Feature",
+      accessorKey: "keyFeature",
+      cell: ({ row }) => {
+        const value = row.original.keyFeature;
+
+        return (
+          <span
+            className={`px-2 py-1 rounded text-xs font-medium ${value ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600"
+              }`}
+          >
+            {value ? "Key switch available" : "Key switch not available"}
+          </span>
+        );
       },
     },
-    enableHiding: true,
-    enableSorting: true,
-  },
-];
+    {
+      id: "school",
+      header: "School",
+      accessorFn: (row: Device) => row.schoolId?.schoolName ?? "—",
+    },
+    {
+      id: "branch",
+      header: "Branch",
+      accessorFn: (row: Device) => row.branchId?.branchName ?? "—",
+    },
+    {
+      id: "route",
+      header: "Route",
+      accessorFn: (row: Device) => row.routeObjId?.routeNumber ?? "—",
+    },
+    {
+      id: "driver",
+      header: "Driver",
+      accessorFn: (row: Device) => row.driverObjId?.driverName ?? "—",
+    },
+    {
+      id: "subscriptionEndDate",
+      header: "Subscription End",
+      cell: ({ row }: any) => {
+        const value = row.original.subscriptionEndDate;
+        if (!value) return "-";
+
+        const date = new Date(value);
+        const daysRemaining = getDaysRemaining(value);
+        const { color, message } = getExpiryStyle(daysRemaining);
+
+        const formattedDate = date.toLocaleString("en-GB", {
+          day: "2-digit",
+          month: "2-digit",
+          year: "numeric",
+          hour12: true,
+          timeZone: "UTC",
+        });
+
+        return (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div
+                  className={`px-2 py-1 rounded-md text-sm font-medium inline-block ${color}`}
+                >
+                  {formattedDate}
+                </div>
+              </TooltipTrigger>
+
+              <TooltipContent side="top" align="center">
+                <p className="text-sm">{message}</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        );
+      },
+
+      meta: {
+        wrapConfig: {
+          wrap: "break-word",
+          maxWidth: "200px",
+        },
+      },
+      enableHiding: true,
+      enableSorting: true,
+    },
+  ];
 // DEVICE COLUMNS END
 
 export const getLiveVehicleColumns = (): ColumnDef<LiveTrack>[] => [
@@ -505,7 +510,7 @@ export const getLiveVehicleColumns = (): ColumnDef<LiveTrack>[] => [
         };
         return (
           statusToImageUrl[
-            String(vehicleStatus) as keyof typeof statusToImageUrl
+          String(vehicleStatus) as keyof typeof statusToImageUrl
           ] || statusToImageUrl.inactive
         );
       }, [vehicleStatus]);
@@ -652,8 +657,7 @@ export const getLiveVehicleColumns = (): ColumnDef<LiveTrack>[] => [
           bars.push(
             <div
               key={i}
-              className={`w-1 rounded-sm transition-colors duration-200 ${
-                isActive
+              className={`w-1 rounded-sm transition-colors duration-200 ${isActive
                   ? count <= 1
                     ? "bg-red-500"
                     : count <= 2
@@ -662,7 +666,7 @@ export const getLiveVehicleColumns = (): ColumnDef<LiveTrack>[] => [
                         ? "bg-green-400"
                         : "bg-green-600"
                   : "bg-gray-200"
-              }`}
+                }`}
               style={{ height }}
             />
           );
@@ -764,401 +768,401 @@ export const getParentsColumns = (
   onEdit: (row: Parent) => void,
   onDelete: (row: Parent) => void
 ): ColumnDef<Parent>[] => [
-  {
-    header: "Parent Name",
-    accessorKey: "parentName",
-  },
-  {
-    header: "Username",
-    accessorKey: "username",
-  },
-  {
-    header: "Password",
-    accessorKey: "password",
-    cell: ({ row }) => {
-      const [show, setShow] = React.useState(false);
-      const password = row.original.password;
-
-      return (
-        <div className="flex items-center justify-center gap-2">
-          <span className="font-mono">
-            {show ? password : "•".repeat(password?.length || 8)}
-          </span>
-
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              setShow((prev) => !prev);
-            }}
-            className="p-1 hover:bg-gray-200 rounded"
-          >
-            {show ? (
-              <EyeOff className="h-4 w-4 text-gray-700" />
-            ) : (
-              <Eye className="h-4 w-4 text-gray-700" />
-            )}
-          </button>
-        </div>
-      );
+    {
+      header: "Parent Name",
+      accessorKey: "parentName",
     },
-  },
-  {
-    header: "Email",
-    accessorKey: "email",
-  },
-  { header: "Mobile No.", accessorKey: "mobileNo" },
-  {
-    id: "school",
-    header: "School",
-    accessorFn: (row: Parent) => row.schoolId?.schoolName ?? "—",
-  },
-  {
-    id: "branch",
-    header: "Branch",
-    accessorFn: (row: Parent) => row.branchId?.branchName ?? "—",
-  },
-  {
-    id: "registerationDate",
-    headers: "Registeration Date",
-    accessorFn: (row: Parent) => new Date(row.createdAt).toLocaleDateString(),
-  },
-  {
-    header: "Action",
-    cell: ({ row }) => {
-      const data = row.original;
-
-      return (
-        <div className="flex justify-center gap-2">
-          <button
-            className="bg-yellow-500 text-white px-3 py-1 rounded text-xs cursor-pointer"
-            onClick={(e) => {
-              e.stopPropagation();
-              onEdit(data);
-            }}
-          >
-            Edit
-          </button>
-
-          <button
-            className="bg-red-500 text-white px-3 py-1 rounded text-xs cursor-pointer"
-            onClick={(e) => {
-              e.stopPropagation();
-              onDelete(data);
-            }}
-          >
-            Delete
-          </button>
-        </div>
-      );
+    {
+      header: "Username",
+      accessorKey: "username",
     },
-    enableSorting: false,
-  },
-];
+    {
+      header: "Password",
+      accessorKey: "password",
+      cell: ({ row }) => {
+        const [show, setShow] = React.useState(false);
+        const password = row.original.password;
+
+        return (
+          <div className="flex items-center justify-center gap-2">
+            <span className="font-mono">
+              {show ? password : "•".repeat(password?.length || 8)}
+            </span>
+
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setShow((prev) => !prev);
+              }}
+              className="p-1 hover:bg-gray-200 rounded"
+            >
+              {show ? (
+                <EyeOff className="h-4 w-4 text-gray-700" />
+              ) : (
+                <Eye className="h-4 w-4 text-gray-700" />
+              )}
+            </button>
+          </div>
+        );
+      },
+    },
+    {
+      header: "Email",
+      accessorKey: "email",
+    },
+    { header: "Mobile No.", accessorKey: "mobileNo" },
+    {
+      id: "school",
+      header: "School",
+      accessorFn: (row: Parent) => row.schoolId?.schoolName ?? "—",
+    },
+    {
+      id: "branch",
+      header: "Branch",
+      accessorFn: (row: Parent) => row.branchId?.branchName ?? "—",
+    },
+    {
+      id: "registerationDate",
+      headers: "Registeration Date",
+      accessorFn: (row: Parent) => new Date(row.createdAt).toLocaleDateString(),
+    },
+    {
+      header: "Action",
+      cell: ({ row }) => {
+        const data = row.original;
+
+        return (
+          <div className="flex justify-center gap-2">
+            <button
+              className="bg-yellow-500 text-white px-3 py-1 rounded text-xs cursor-pointer"
+              onClick={(e) => {
+                e.stopPropagation();
+                onEdit(data);
+              }}
+            >
+              Edit
+            </button>
+
+            <button
+              className="bg-red-500 text-white px-3 py-1 rounded text-xs cursor-pointer"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete(data);
+              }}
+            >
+              Delete
+            </button>
+          </div>
+        );
+      },
+      enableSorting: false,
+    },
+  ];
 
 export const getGeofenceCoumns = (
   onEdit: (row: Geofence) => void,
   onDelete: (row: Geofence) => void
 ): ColumnDef<Geofence>[] => [
-  {
-    id: "name",
-    header: "Device Name",
-    accessorFn: (row) => row.route?.device?.name || "N/A",
-    enableHiding: true,
-    enableSorting: true,
-  },
-  {
-    id: "geofenceName",
-    header: "Geofence Name",
-    accessorFn: (row) => row.geofenceName || "N/A",
-    enableHiding: true,
-    enableSorting: true,
-  },
-  {
-    id: "address",
-    headers: "Address",
-    accessorFn: (row) => row.address || "N/A",
-    enableHiding: false,
-    enableSorting: false,
-    meta: { wrapConfig: { wrap: "wrap", minWidth: "360px" } },
-  },
-  {
-    id: "schoolName",
-    header: "School Name",
-    accessorFn: (row) => row.school?.schoolName || "N/A",
-    enableHiding: true,
-    enableSorting: true,
-  },
-  {
-    id: "branchName",
-    header: "Branch Name",
-    accessorFn: (row) => row.branch?.branchName || "N/A",
-    enableHiding: true,
-    enableSorting: true,
-  },
-  {
-    id: "routeNumber",
-    header: "Route Number",
-    accessorFn: (row) => row.route?.routeNumber || "N/A",
-    enableHiding: true,
-    enableSorting: true,
-  },
-  {
-    id: "pickupTime",
-    header: "Pickup Time",
-    accessorFn: (row) => row.pickupTime || "N/A",
-    enableHiding: true,
-    enableSorting: true,
-  },
-  {
-    id: "dropTime",
-    header: "Drop Time",
-    accessorFn: (row) => row.dropTime || "N/A",
-    enableHiding: true,
-    enableSorting: true,
-  },
-  {
-    id: "actions",
-    header: "Actions",
-    cell: ({ row }) => (
-      <div className="flex items-center justify-center gap-2">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={(e) => {
-            e.stopPropagation();
-            onEdit(row.original); // Use the callback
-          }}
-          className="cursor-pointer bg-[#f3c623] hover:bg-[#D3A80C]"
-        >
-          Edit
-        </Button>
-        <Button
-          variant="destructive"
-          size="sm"
-          onClick={(e) => {
-            e.stopPropagation();
-            onDelete(row.original); // Use the callback
-          }}
-          className="cursor-pointer hover:bg-red-700"
-        >
-          Delete
-        </Button>
-      </div>
-    ),
-    enableSorting: false,
-    enableHiding: false,
-  },
-];
+    {
+      id: "name",
+      header: "Device Name",
+      accessorFn: (row) => row.route?.device?.name || "N/A",
+      enableHiding: true,
+      enableSorting: true,
+    },
+    {
+      id: "geofenceName",
+      header: "Geofence Name",
+      accessorFn: (row) => row.geofenceName || "N/A",
+      enableHiding: true,
+      enableSorting: true,
+    },
+    {
+      id: "address",
+      headers: "Address",
+      accessorFn: (row) => row.address || "N/A",
+      enableHiding: false,
+      enableSorting: false,
+      meta: { wrapConfig: { wrap: "wrap", minWidth: "360px" } },
+    },
+    {
+      id: "schoolName",
+      header: "School Name",
+      accessorFn: (row) => row.school?.schoolName || "N/A",
+      enableHiding: true,
+      enableSorting: true,
+    },
+    {
+      id: "branchName",
+      header: "Branch Name",
+      accessorFn: (row) => row.branch?.branchName || "N/A",
+      enableHiding: true,
+      enableSorting: true,
+    },
+    {
+      id: "routeNumber",
+      header: "Route Number",
+      accessorFn: (row) => row.route?.routeNumber || "N/A",
+      enableHiding: true,
+      enableSorting: true,
+    },
+    {
+      id: "pickupTime",
+      header: "Pickup Time",
+      accessorFn: (row) => row.pickupTime || "N/A",
+      enableHiding: true,
+      enableSorting: true,
+    },
+    {
+      id: "dropTime",
+      header: "Drop Time",
+      accessorFn: (row) => row.dropTime || "N/A",
+      enableHiding: true,
+      enableSorting: true,
+    },
+    {
+      id: "actions",
+      header: "Actions",
+      cell: ({ row }) => (
+        <div className="flex items-center justify-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={(e) => {
+              e.stopPropagation();
+              onEdit(row.original); // Use the callback
+            }}
+            className="cursor-pointer bg-[#f3c623] hover:bg-[#D3A80C]"
+          >
+            Edit
+          </Button>
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete(row.original); // Use the callback
+            }}
+            className="cursor-pointer hover:bg-red-700"
+          >
+            Delete
+          </Button>
+        </div>
+      ),
+      enableSorting: false,
+      enableHiding: false,
+    },
+  ];
 
 export const getDriverColumns = (
   onEdit: (row: Driver) => void,
   onDelete: (row: Driver) => void
 ): ColumnDef<Driver>[] => [
-  {
-    header: "Driver Name",
-    accessorKey: "driverName",
-  },
-  {
-    header: "Mobile No",
-    accessorKey: "mobileNo",
-  },
-  {
-    header: "Email",
-    accessorKey: "email",
-  },
-  {
-    id: "School",
-    header: "school",
-    accessorFn: (row: Driver) => row.schoolId?.schoolName ?? "—",
-  },
-  {
-    id: "Branch",
-    header: "branch",
-    accessorFn: (row: Driver) => row.branchId?.branchName ?? "—",
-  },
-  {
-    id: "vehicleNo",
-    header: "vehicle No",
-    accessorFn: (row: Driver) => row.deviceObjId?.name ?? "—",
-  },
-  {
-    id: "route",
-    header: "Route",
-    accessorFn: (row: Driver) => row.routeObjId?.routeNumber ?? "—",
-  },
-  {
-    header: "Username",
-    accessorKey: "username",
-  },
-  {
-    header: "Password",
-    accessorKey: "password",
-    cell: ({ row }) => {
-      const [show, setShow] = React.useState(false);
-      const password = row.original.password;
+    {
+      header: "Driver Name",
+      accessorKey: "driverName",
+    },
+    {
+      header: "Mobile No",
+      accessorKey: "mobileNo",
+    },
+    {
+      header: "Email",
+      accessorKey: "email",
+    },
+    {
+      id: "School",
+      header: "school",
+      accessorFn: (row: Driver) => row.schoolId?.schoolName ?? "—",
+    },
+    {
+      id: "Branch",
+      header: "branch",
+      accessorFn: (row: Driver) => row.branchId?.branchName ?? "—",
+    },
+    {
+      id: "vehicleNo",
+      header: "vehicle No",
+      accessorFn: (row: Driver) => row.deviceObjId?.name ?? "—",
+    },
+    {
+      id: "route",
+      header: "Route",
+      accessorFn: (row: Driver) => row.routeObjId?.routeNumber ?? "—",
+    },
+    {
+      header: "Username",
+      accessorKey: "username",
+    },
+    {
+      header: "Password",
+      accessorKey: "password",
+      cell: ({ row }) => {
+        const [show, setShow] = React.useState(false);
+        const password = row.original.password;
 
-      return (
+        return (
+          <div className="flex items-center justify-center gap-2">
+            <span className="font-mono">
+              {show ? password : "•".repeat(password?.length || 8)}
+            </span>
+
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setShow((prev) => !prev);
+              }}
+              className="p-1 hover:bg-gray-200 rounded cursor-pointer"
+            >
+              {show ? (
+                <EyeOff className="h-4 w-4 text-gray-700" />
+              ) : (
+                <Eye className="h-4 w-4 text-gray-700" />
+              )}
+            </button>
+          </div>
+        );
+      },
+    },
+    {
+      id: "registrationDate",
+      header: "Registration Date",
+      accessorFn: (row: Device) => new Date(row.createdAt).toLocaleDateString(),
+    },
+    {
+      id: "actions",
+      header: "Actions",
+      cell: ({ row }) => (
         <div className="flex items-center justify-center gap-2">
-          <span className="font-mono">
-            {show ? password : "•".repeat(password?.length || 8)}
-          </span>
-
-          <button
-            type="button"
+          <Button
+            variant="outline"
+            size="sm"
             onClick={(e) => {
               e.stopPropagation();
-              setShow((prev) => !prev);
+              onEdit(row.original); // Use the callback
             }}
-            className="p-1 hover:bg-gray-200 rounded cursor-pointer"
+            className="cursor-pointer bg-[#f3c623] hover:bg-[#D3A80C]"
           >
-            {show ? (
-              <EyeOff className="h-4 w-4 text-gray-700" />
-            ) : (
-              <Eye className="h-4 w-4 text-gray-700" />
-            )}
-          </button>
+            Edit
+          </Button>
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete(row.original); // Use the callback
+            }}
+            className="cursor-pointer hover:bg-red-700"
+          >
+            Delete
+          </Button>
         </div>
-      );
+      ),
+      enableSorting: false,
+      enableHiding: false,
     },
-  },
-  {
-    id: "registrationDate",
-    header: "Registration Date",
-    accessorFn: (row: Device) => new Date(row.createdAt).toLocaleDateString(),
-  },
-  {
-    id: "actions",
-    header: "Actions",
-    cell: ({ row }) => (
-      <div className="flex items-center justify-center gap-2">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={(e) => {
-            e.stopPropagation();
-            onEdit(row.original); // Use the callback
-          }}
-          className="cursor-pointer bg-[#f3c623] hover:bg-[#D3A80C]"
-        >
-          Edit
-        </Button>
-        <Button
-          variant="destructive"
-          size="sm"
-          onClick={(e) => {
-            e.stopPropagation();
-            onDelete(row.original); // Use the callback
-          }}
-          className="cursor-pointer hover:bg-red-700"
-        >
-          Delete
-        </Button>
-      </div>
-    ),
-    enableSorting: false,
-    enableHiding: false,
-  },
-];
+  ];
 
 export const getSupervisorColumns = (
   onEdit: (row: Supervisor) => void,
   onDelete: (row: Supervisor) => void
 ): ColumnDef<Supervisor>[] => [
-  { header: "Supervisor Name", accessorKey: "supervisorName" },
-  { header: "Email", accessorKey: "email" },
-  { header: "Mobile No", accessorKey: "mobileNo" },
-  { header: "Username", accessorKey: "username" },
-  {
-    header: "Password",
-    accessorKey: "password",
-    cell: ({ row }) => {
-      const [show, setShow] = React.useState(false);
-      const password = row.original.password;
+    { header: "Supervisor Name", accessorKey: "supervisorName" },
+    { header: "Email", accessorKey: "email" },
+    { header: "Mobile No", accessorKey: "mobileNo" },
+    { header: "Username", accessorKey: "username" },
+    {
+      header: "Password",
+      accessorKey: "password",
+      cell: ({ row }) => {
+        const [show, setShow] = React.useState(false);
+        const password = row.original.password;
 
-      return (
+        return (
+          <div className="flex items-center justify-center gap-2">
+            <span className="font-mono">
+              {show ? password : "•".repeat(password?.length || 8)}
+            </span>
+
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setShow((prev) => !prev);
+              }}
+              className="p-1 hover:bg-gray-200 rounded cursor-pointer"
+            >
+              {show ? (
+                <EyeOff className="h-4 w-4 text-gray-700" />
+              ) : (
+                <Eye className="h-4 w-4 text-gray-700" />
+              )}
+            </button>
+          </div>
+        );
+      },
+    },
+    {
+      id: "school",
+      header: "School",
+      accessorFn: (row: Supervisor) => row.schoolId?.schoolName ?? "—",
+    },
+    {
+      id: "branch",
+      header: "Branch",
+      accessorFn: (row: Supervisor) => row.branchId?.branchName ?? "—",
+    },
+    {
+      id: "route",
+      header: "Route",
+      accessorFn: (row: Supervisor) => row.routeObjId?.routeNumber ?? "—",
+    },
+    {
+      id: "vehicleNo",
+      header: "Vehicle No",
+      accessorFn: (row: Supervisor) => row.deviceObjId?.name ?? "—",
+    },
+    {
+      id: "registrationDate",
+      header: "Registration Date",
+      accessorFn: (row: Supervisor) =>
+        new Date(row.createdAt).toLocaleDateString(),
+    },
+    {
+      id: "actions",
+      header: "Actions",
+      cell: ({ row }) => (
         <div className="flex items-center justify-center gap-2">
-          <span className="font-mono">
-            {show ? password : "•".repeat(password?.length || 8)}
-          </span>
-
-          <button
-            type="button"
+          <Button
+            variant="outline"
+            size="sm"
             onClick={(e) => {
               e.stopPropagation();
-              setShow((prev) => !prev);
+              onEdit(row.original); // Use the callback
             }}
-            className="p-1 hover:bg-gray-200 rounded cursor-pointer"
+            className="cursor-pointer bg-[#f3c623] hover:bg-[#D3A80C]"
           >
-            {show ? (
-              <EyeOff className="h-4 w-4 text-gray-700" />
-            ) : (
-              <Eye className="h-4 w-4 text-gray-700" />
-            )}
-          </button>
+            Edit
+          </Button>
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete(row.original); // Use the callback
+            }}
+            className="cursor-pointer hover:bg-red-700"
+          >
+            Delete
+          </Button>
         </div>
-      );
+      ),
+      enableSorting: false,
+      enableHiding: false,
     },
-  },
-  {
-    id: "school",
-    header: "School",
-    accessorFn: (row: Supervisor) => row.schoolId?.schoolName ?? "—",
-  },
-  {
-    id: "branch",
-    header: "Branch",
-    accessorFn: (row: Supervisor) => row.branchId?.branchName ?? "—",
-  },
-  {
-    id: "route",
-    header: "Route",
-    accessorFn: (row: Supervisor) => row.routeObjId?.routeNumber ?? "—",
-  },
-  {
-    id: "vehicleNo",
-    header: "Vehicle No",
-    accessorFn: (row: Supervisor) => row.deviceObjId?.name ?? "—",
-  },
-  {
-    id: "registrationDate",
-    header: "Registration Date",
-    accessorFn: (row: Supervisor) =>
-      new Date(row.createdAt).toLocaleDateString(),
-  },
-  {
-    id: "actions",
-    header: "Actions",
-    cell: ({ row }) => (
-      <div className="flex items-center justify-center gap-2">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={(e) => {
-            e.stopPropagation();
-            onEdit(row.original); // Use the callback
-          }}
-          className="cursor-pointer bg-[#f3c623] hover:bg-[#D3A80C]"
-        >
-          Edit
-        </Button>
-        <Button
-          variant="destructive"
-          size="sm"
-          onClick={(e) => {
-            e.stopPropagation();
-            onDelete(row.original); // Use the callback
-          }}
-          className="cursor-pointer hover:bg-red-700"
-        >
-          Delete
-        </Button>
-      </div>
-    ),
-    enableSorting: false,
-    enableHiding: false,
-  },
-];
+  ];
 
 export const getStatusReportColumns = (): ColumnDef<StatusReport>[] => [
   {
@@ -1189,9 +1193,8 @@ export const getStatusReportColumns = (): ColumnDef<StatusReport>[] => [
               />
             </TooltipTrigger>
             <TooltipContent
-              className={`font-semibold ${
-                statusColorMap[config.label] ?? "text-gray-600"
-              }`}
+              className={`font-semibold ${statusColorMap[config.label] ?? "text-gray-600"
+                }`}
             >
               {config.label}
             </TooltipContent>
@@ -1330,7 +1333,7 @@ export const getStopReportColumns = (): ColumnDef<StatusReport>[] => [
   },
   {
     header: "Start Time",
-   accessorKey: "arrivalTime",
+    accessorKey: "arrivalTime",
   },
   {
     header: "Duration",
