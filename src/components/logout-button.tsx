@@ -40,6 +40,7 @@ export function LogoutButton() {
       /** delete fmc token */
 
       logout(); // clear state + token
+      console.log("TOKEN: ", Cookies.get("token"))
       router.push("/login"); // redirect to login page
       // window.location.reload();
     } catch (error) {
