@@ -55,7 +55,7 @@ export const RouteTimeline: React.FC<RouteTimelineProps> = ({
     <Sheet open={isOpen} onOpenChange={onOpenChange}>
       <SheetContent
         side="right"
-        className="w-full sm:w-[440px] p-0 overflow-hidden border-l border-border bg-background"
+        className="w-full sm:w-[440px] sm:max-w-[440px] p-0 overflow-hidden border-l border-border bg-background"
       >
         {/* Header */}
         <SheetHeader className="p-5 pb-4 border-b border-border bg-card">
