@@ -56,7 +56,7 @@ export function ProfileDropdown() {
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Avatar className="cursor-pointer">
-          <AvatarImage src="https://github.com/shadcn.png" alt="@shadcn" />
+          <AvatarImage src={`https://api.dicebear.com/9.x/initials/svg?radius=0&seed=${username}`} alt="avatar" />
           <AvatarFallback>SC</AvatarFallback>
         </Avatar>
       </DropdownMenuTrigger>
@@ -127,7 +127,7 @@ export function ProfileDropdown() {
         </DropdownMenuSub>
         <DropdownMenuSeparator />
         <DropdownMenuItem>
-          <LogOut />
+          {/* <LogOut /> */}
           <LogoutButton />
         </DropdownMenuItem>
       </DropdownMenuContent>

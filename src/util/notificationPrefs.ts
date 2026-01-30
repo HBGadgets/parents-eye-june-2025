@@ -15,9 +15,10 @@ export const NOTIFICATION_TYPES: { label: string; value: NotificationType }[] =
     { label: "SOS", value: "sos" },
     { label: "Geofence", value: "geofence" },
     { label: "Pickup/Drop", value: "pickup-drop" },
-    { label: "General", value: "general" },
+    // { label: "General", value: "general" },
   ];
 
+  // IndexedDB constants
 const DB_NAME = "notification-prefs-db";
 const STORE_NAME = "prefs";
 const KEY = "blocked-types";

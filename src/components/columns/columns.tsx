@@ -216,6 +216,42 @@ export const getStudentColumns = (
       accessorFn: (row: Student) => row.parentId?.parentName ?? "—",
     },
     {
+      header: "Username",
+      accessorFn: (row: Student) => row.parentId?.username ?? "—",
+    },
+    {
+      header: "Password",
+      accessorKey: "password",
+      cell: ({ row }) => {
+        const [show, setShow] = React.useState(false);
+        const password = row.original.parentId?.password ?? "—"
+
+        return (
+          <div className="flex items-center justify-center gap-2">
+            <span className="font-mono">
+              {show ? password : "•".repeat(password?.length || 8)}
+            </span>
+
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setShow((prev) => !prev);
+              }}
+              className="p-1 hover:bg-gray-200 rounded cursor-pointer"
+            >
+              {show ? (
+                <EyeOff className="h-4 w-4 text-gray-700" />
+              ) : (
+                <Eye className="h-4 w-4 text-gray-700" />
+              )}
+            </button>
+          </div>
+        );
+      },
+    },
+
+    {
       id: "pickupLocation",
       header: "Pickup Location",
       accessorFn: (row: Student) => row.pickupGeoId?.geofenceName ?? "—",
@@ -657,14 +693,14 @@ export const getLiveVehicleColumns = (): ColumnDef<LiveTrack>[] => [
             <div
               key={i}
               className={`w-1 rounded-sm transition-colors duration-200 ${isActive
-                  ? count <= 1
-                    ? "bg-red-500"
-                    : count <= 2
-                      ? "bg-yellow-500"
-                      : count <= 3
-                        ? "bg-green-400"
-                        : "bg-green-600"
-                  : "bg-gray-200"
+                ? count <= 1
+                  ? "bg-red-500"
+                  : count <= 2
+                    ? "bg-yellow-500"
+                    : count <= 3
+                      ? "bg-green-400"
+                      : "bg-green-600"
+                : "bg-gray-200"
                 }`}
               style={{ height }}
             />
@@ -794,7 +830,7 @@ export const getParentsColumns = (
                 e.stopPropagation();
                 setShow((prev) => !prev);
               }}
-              className="p-1 hover:bg-gray-200 rounded"
+              className="p-1 hover:bg-gray-200 rounded cursor-pointer"
             >
               {show ? (
                 <EyeOff className="h-4 w-4 text-gray-700" />
