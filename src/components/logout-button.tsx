@@ -2,9 +2,11 @@
 
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/authStore";
+import { useNotificationStore } from "@/store/notificationStore";
 import { getMessaging, deleteToken } from "firebase/messaging";
 import { app } from "@/util/firebase"; // or wherever your Firebase app is initialized
 import Cookies from "js-cookie";
+import { LogOut } from "lucide-react";
 
 export function LogoutButton() {
   const logout = useAuthStore((state) => state.logout);
@@ -37,6 +39,13 @@ export function LogoutButton() {
       indexedDB.deleteDatabase("firebase-installations-database");
 
       localStorage.removeItem("fcm_token");
+
+      // Clear persistent stores
+      useNotificationStore.getState().clearNotifications();
+      localStorage.removeItem("ct-notifications");
+      localStorage.removeItem("device-store");
+      localStorage.removeItem("userId");
+
       /** delete fmc token */
 
       logout(); // clear state + token
@@ -52,8 +61,8 @@ export function LogoutButton() {
   };
 
   return (
-    <span onClick={handleLogout} className="cursor-pointer ml-2 w-full">
-      Logout
+    <span onClick={handleLogout} className="cursor-pointer ml-2 w-full flex items-center gap-3">
+      <LogOut /> Logout
     </span>
   );
 }
