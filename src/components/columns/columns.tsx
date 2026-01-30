@@ -30,7 +30,6 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "../ui/tooltip";
-import { headers } from "next/headers";
 
 export const getModelColumns = (
   setEditTarget: (row: Model) => void,
