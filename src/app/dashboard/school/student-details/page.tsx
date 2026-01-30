@@ -437,7 +437,7 @@ export default function StudentDetails() {
       onSortingChange: setSorting,
       sorting,
       emptyMessage: "No students found",
-      pageSizeOptions: [5, 10, 15, 20, 30],
+      pageSizeOptions: [5, 10, 15, 20, 30, "All"],
       showSerialNumber: true,
       enableSorting: true,
       enableMultiSelect: true,
@@ -484,8 +484,8 @@ export default function StudentDetails() {
             variant={selectedCount ? "destructive" : "outline"}
             size="sm"
             className={`transition shrink-0 ${!selectedCount || isDeleteLoading
-                ? "cursor-not-allowed"
-                : "cursor-pointer"
+              ? "cursor-not-allowed"
+              : "cursor-pointer"
               }`}
           >
             {isDeleteLoading ? "Deleting..." : `Delete (${selectedCount})`}
