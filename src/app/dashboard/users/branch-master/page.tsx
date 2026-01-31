@@ -371,7 +371,7 @@ export default function BranchMaster() {
       let assignedBranchIds: string[] = [];
       if (role === "branchgroup" && decoded?.AssignedBranch) {
         assignedBranchIds = decoded.AssignedBranch.map(
-          (branch: any) => branch._id
+          (branch: any) => branch?._id
         );
         // console.log("[BranchGroup Role] Assigned Branches extracted:", {
         //   assignedBranchIds,
@@ -521,20 +521,20 @@ export default function BranchMaster() {
       const filtered = branches.filter((branch) => {
         const branchSchoolId =
           typeof branch.schoolId === "object"
-            ? branch.schoolId._id
-            : branch.schoolId;
+            ? branch?.schoolId?._id
+            : branch?.schoolId;
         return branchSchoolId === userSchoolId;
       });
       // console.log("[School Role Filtered]:", filtered.length);
       return filtered;
     } else if (isBranchRole && userBranchId) {
-      const filtered = branches.filter((branch) => branch._id === userBranchId);
+      const filtered = branches.filter((branch) => branch?._id === userBranchId);
       // console.log("[Branch Role Filtered]:", filtered.length);
       return filtered;
     } else if (isBranchGroup && assignedBranches.length > 0) {
       // FIXED: Filter branches that match assigned branch IDs
       const filtered = branches.filter((branch) => {
-        const isInAssignedBranches = assignedBranches.includes(branch._id);
+        const isInAssignedBranches = assignedBranches.includes(branch?._id);
 
         if (isInAssignedBranches) {
           // console.log("[BranchGroup - Including Branch]:", {
@@ -581,16 +581,16 @@ export default function BranchMaster() {
 
     // Filter schools based on role
     if ((isSchoolRole || isBranchGroup) && userSchoolId) {
-      filteredSchools = schoolData.filter((s) => s._id === userSchoolId);
+      filteredSchools = schoolData.filter((s) => s?._id === userSchoolId);
     } else if (isBranchRole && userSchoolId) {
-      filteredSchools = schoolData.filter((s) => s._id === userSchoolId);
+      filteredSchools = schoolData.filter((s) => s?._id === userSchoolId);
     }
 
     return filteredSchools
-      .filter((s) => s._id && s.schoolName)
+      .filter((s) => s?._id && s?.schoolName)
       .map((s) => ({
-        label: s.schoolName,
-        value: s._id,
+        label: s?.schoolName,
+        value: s?._id,
       }));
   }, [schoolData, isSchoolRole, isBranchRole, isBranchGroup, userSchoolId]);
 
@@ -1351,8 +1351,8 @@ export default function BranchMaster() {
                 } access.`}
               actionButton={(target) => {
                 accessMutation.mutate({
-                  _id: target._id,
-                  fullAccess: !target.fullAccess,
+                  _id: target?._id,
+                  fullAccess: !target?.fullAccess,
                 });
               }}
               target={accessTarget}
@@ -1369,7 +1369,7 @@ export default function BranchMaster() {
               title="Are you absolutely sure?"
               description={`This will permanently delete ${deleteTarget?.branchName} and all associated data.`}
               actionButton={(target) => {
-                deletebranchMutation.mutate(target._id);
+                deletebranchMutation.mutate(target?._id);
                 setDeleteTarget(null);
               }}
               target={deleteTarget}
@@ -1386,7 +1386,7 @@ export default function BranchMaster() {
           <BranchEditDialog
             data={{
               ...editTarget,
-              schoolId: editTarget.schoolId._id,
+              schoolId: editTarget?.schoolId?._id,
             }}
             isOpen={editDialogOpen}
             onClose={() => {
