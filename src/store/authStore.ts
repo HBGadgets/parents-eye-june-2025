@@ -8,6 +8,7 @@ interface DecodedToken {
   id: string;
   username: string;
   role: string;
+  schoolId?: string;
   exp?: number;
 }
 
