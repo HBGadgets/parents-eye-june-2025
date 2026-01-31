@@ -33,7 +33,7 @@ import {
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/services/apiService";
 import { useSchoolData } from "@/hooks/useSchoolData";
-import { branch } from "@/interface/modal";
+import { Branch as branch } from "@/interface/modal";
 import { useExport } from "@/hooks/useExport";
 import { formatDate } from "@/util/formatDate";
 import { Alert } from "@/components/Alert";
@@ -627,87 +627,51 @@ export default function BranchMaster() {
     }
   }, [filteredBranches]);
 
-  // // Debug effect
-  // useEffect(() => {
-  //   // console.log("[Branch Master - Data Flow Debug]:", {
-  //   //   isLoading,
-  //   //   branchesCount: branches?.length,
-  //   //   filteredBranchesCount: filteredBranches?.length,
-  //   //   filteredDataCount: filteredData?.length,
-  //   //   filterResultsCount: filterResults?.length,
-  //   //   userSchoolId,
-  //   //   assignedBranches,
-  //   //   assignedBranchesCount: assignedBranches.length,
-  //   //   normalizedRole,
-  //   //   isBranchGroup,
-  //   // });
-  // }, [
-  //   isLoading,
-  //   branches,
-  //   filteredBranches,
-  //   filteredData,
-  //   filterResults,
-  //   userSchoolId,
-  //   assignedBranches,
-  //   normalizedRole,
-  //   isBranchGroup,
-  // ]);
 
-  // // Columns for export
-  // const columnsForExport = [
-  //   { key: "branchName", header: "Branch Name" },
-  //   ...(isSuperAdmin
-  //     ? [{ key: "schoolId.schoolName", header: "School Name" }]
-  //     : []),
-  //   { key: "mobileNo", header: "Mobile" },
-  //   { key: "email", header: "Email" },
-  //   { key: "username", header: "branch Username" },
-  //   { key: "password", header: "branch Password" },
-  //   { key: "subscriptionExpirationDate", header: "Expiration Date" },
-  //   { key: "createdAt", header: "Registration Date" },
-  //   ...(isSuperAdmin || isSchoolRole || isBranchGroup
-  //     ? [
-  //         {
-  //           key: "fullAccess",
-  //           header: "Access Level",
-  //           formatter: (val: boolean) =>
-  //             val ? "Full Access" : "Limited Access",
-  //         },
-  //       ]
-  //     : []),
-  // ];
+  // Columns for export
+  const columnsForExport = [
+    { key: "branchName", header: "Branch Name" },
+    ...(isSuperAdmin
+      ? [{ key: "schoolId.schoolName", header: "School Name" }]
+      : []),
+    { key: "mobileNo", header: "Mobile" },
+    { key: "email", header: "Email" },
+    { key: "username", header: "Username" },
+    { key: "password", header: "Password" },
+    { key: "subscriptionExpirationDate", header: "Expiration Date" },
+    { key: "createdAt", header: "Registration Date" },
+    ...(isSuperAdmin || isSchoolRole || isBranchGroup
+      ? [
+        {
+          key: "fullAccess",
+          header: "Access Level",
+          formatter: (val: unknown) =>
+            (val as boolean) ? "Full Access" : "Limited Access",
+        },
+      ]
+      : []),
+  ];
 
-  // const handleVerificationSuccess = () => {
-  //   setIsVerified(true);
-  //   setIsVerificationDialogOpen(false);
-  // };
+  const handleExportPDF = () => {
+    const dataToExport = filteredData.length > 0 ? filteredData : branches || [];
+    exportToPDF(dataToExport, columnsForExport, {
+      title: "Branch Master Report",
+      filename: "branch_master_report",
+    });
+  };
 
-  // Mutation to add a new branch
-  // const addbranchMutation = useMutation({
-  //   mutationFn: async (newbranch: any) => {
-  //     const branch = await api.post("/branch", newbranch);
-  //     return branch.branch;
-  //   },
-  //   onSuccess: (createdbranch, variables) => {
-  //     const school = schoolData?.find((s) => s._id === variables.schoolId);
-  //     const newBranchWithSchool: branch = {
-  //       ...createdbranch,
-  //       password: variables.password,
-  //       schoolId: {
-  //         _id: createdbranch.schoolId,
-  //         schoolName: school?.schoolName || "Unknown School",
-  //       },
-  //     };
+  const handleExportExcel = () => {
+    const dataToExport = filteredData.length > 0 ? filteredData : branches || [];
+    exportToExcel(dataToExport, columnsForExport, {
+      title: "Branch Master Report",
+      filename: "branch_master_report",
+    });
+  };
 
-  //     queryClient.setQueryData<branch[]>(["branches"], (oldbranches = []) => {
-  //       return [...oldbranches, newBranchWithSchool];
-  //     });
-  //   },
-  // });
   // Mutation to add a new branch
   const addbranchMutation = useMutation({
     mutationFn: async (newbranch: any) => {
-      const response = await api.post("branch", newbranch);
+      const response = await api.post("branch", newbranch) as { branch: branch };
       return response.branch;
     },
     onSuccess: () => {
@@ -1114,7 +1078,7 @@ export default function BranchMaster() {
     ]
   );
 
-  
+
 
   const table = useReactTable({
     data: filteredData,
@@ -1144,10 +1108,10 @@ export default function BranchMaster() {
           </div>
           {(isSuperAdmin || isSchoolRole || isBranchGroup) && (
             <CustomFilter
-              data={filterResults}
-              originalData={filterResults}
+              data={filterResults as any[]}
+              originalData={filterResults as any[]}
               filterFields={["fullAccess"]}
-              onFilter={handleCustomFilter}
+              onFilter={handleCustomFilter as any}
               placeholder={"Filter by Access"}
               className="w-[180px]"
               valueFormatter={(value) =>
@@ -1165,7 +1129,13 @@ export default function BranchMaster() {
           />
         </section>
 
-        <section>
+        <section className="flex flex-wrap gap-2 items-center mb-4">
+          <Button variant="outline" onClick={handleExportPDF} className="gap-2">
+            Export PDF
+          </Button>
+          <Button variant="outline" onClick={handleExportExcel} className="gap-2">
+            Export Excel
+          </Button>
           {(isSuperAdmin || isSchoolRole || isBranchGroup) && (
             <Dialog>
               <DialogTrigger asChild>
@@ -1345,7 +1315,7 @@ export default function BranchMaster() {
       <section>
         <div>
           {(isSuperAdmin || isSchoolRole || isBranchGroup) && (
-            <Alert<branchAccess>
+            <Alert<branch>
               title="Are you absolutely sure?"
               description={`You are about to give ${accessTarget?.branchName} ${accessTarget?.fullAccess ? "limited" : "full"
                 } access.`}

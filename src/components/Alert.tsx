@@ -17,6 +17,7 @@ type AlertProps<T> = {
   target: T | null;
   setTarget: (target: T | null) => void;
   butttonText: string;
+  dialogClassName?: string;
 };
 
 export function Alert<T>({
@@ -26,10 +27,11 @@ export function Alert<T>({
   target,
   setTarget,
   butttonText,
+  dialogClassName,
 }: AlertProps<T>) {
   return (
     <AlertDialog open={!!target} onOpenChange={() => setTarget(null)}>
-      <AlertDialogContent className="max-w-md w-full">
+      <AlertDialogContent className={`max-w-md w-full ${dialogClassName || ""}`}>
         <AlertDialogHeader>
           <AlertDialogTitle>{title}</AlertDialogTitle>
           <AlertDialogDescription>{description}</AlertDialogDescription>
