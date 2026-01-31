@@ -37,7 +37,7 @@ export const useBranchDropdown = (
   skipSchoolId: boolean = false
 ) => {
   console.log("Fetching branches for schoolId:", schoolId);
-  return useQuery<DropdownResponse<DropdownItem>>({
+  return useQuery({
     queryKey: ["branch-dropdown", skipSchoolId ? undefined : schoolId],
     queryFn: () =>
       dropdownService.getBranches(skipSchoolId ? undefined : schoolId),

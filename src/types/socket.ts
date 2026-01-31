@@ -33,8 +33,10 @@ export interface DeviceData {
 export interface DeviceFilters {
   page: number;
   limit: number;
-  filter: "all" | "running" | "idle" | "stopped" | "inactive" | "new";
+  filter: "all" | "running" | "idle" | "stopped" | "inactive" | "new" | "overspeed";
   searchTerm: string;
+  branchId?: string;
+  schoolId?: string;
 }
 
 // Response structure from all-device-data event

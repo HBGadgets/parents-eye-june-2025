@@ -22,6 +22,23 @@ import { getLiveVehicleColumns } from "@/components/columns/columns";
 import { RouteTimeline } from "@/components/dashboard/route/route-timeline";
 import { useSubscriptionExpiry } from "@/hooks/subscription/useSubscription";
 import { SubscriptionExpiry } from "@/components/dashboard/SubscriptionExpiry/SubscriptionExpiry";
+import { useBranchDropdown, useSchoolDropdown } from "@/hooks/useDropdown";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Button } from "@/components/ui/button";
+import { ListFilter, X } from "lucide-react";
+import { useAuthStore } from "@/store/authStore";
+import { Combobox } from "@/components/ui/combobox";
 
 type ViewState = "split" | "tableExpanded" | "mapExpanded";
 type StatusFilter = "all" | "running" | "idle" | "stopped" | "inactive" | "new";
@@ -128,6 +145,40 @@ export default function DashboardClient() {
     isAuthenticated,
     filters,
   } = useLiveDeviceData();
+
+  const { decodedToken } = useAuthStore();
+  const rawRole = (decodedToken?.role || "").toLowerCase();
+
+  const userRole = useMemo(() => {
+    if (["superadmin", "super_admin", "admin", "root"].includes(rawRole)) return "superadmin";
+    if (["school", "schooladmin"].includes(rawRole)) return "school";
+    if (["branch", "branchadmin"].includes(rawRole)) return "branch";
+    if (["branchgroup"].includes(rawRole)) return "branchGroup";
+    return rawRole;
+  }, [rawRole]);
+
+  console.log("🚀 ~ DashboardClient ~ userRole:", userRole, "rawRole:", rawRole);
+
+  const userSchoolId = decodedToken?.schoolId || (userRole === "school" ? decodedToken?.id : undefined);
+
+  const [isSchoolDropdownOpen, setIsSchoolDropdownOpen] = useState(false);
+  const { data: schoolData } = useSchoolDropdown(isSchoolDropdownOpen);
+
+  // Set initial filters based on role
+  useEffect(() => {
+    if (userRole === "school" || userRole === "branchGroup") {
+      updateFilters({ schoolId: userSchoolId });
+    }
+  }, [userRole, userSchoolId, updateFilters]);
+
+  const [isBranchDropdownOpen, setIsBranchDropdownOpen] = useState(false);
+  const { data: branchData } = useBranchDropdown(
+    filters.schoolId,
+    isBranchDropdownOpen,
+    !filters.schoolId
+  );
+
+  console.log("🚀 ~ DashboardClient ~ filters:", filters);
 
   const { expiredBranches, expiredBranchesCount } = useSubscriptionExpiry(
     showSubscriptionPopup
@@ -471,7 +522,7 @@ export default function DashboardClient() {
             <div className="flex items-center gap-2 sm:gap-3 w-full lg:w-auto">
               <Input
                 placeholder="Search bus number or name..."
-                className="flex-1 min-w-0 lg:min-w-[250px] xl:min-w-[300px]"
+                className="flex-1 min-w-0 lg:min-w-[200px] xl:min-w-[250px]"
                 value={searchInput}
                 onChange={(e) => handleSearchChange(e.target.value)}
               />
@@ -480,6 +531,87 @@ export default function DashboardClient() {
                 buttonVariant="outline"
                 buttonSize="default"
               />
+
+              {userRole !== "branch" && (
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="h-10 gap-2 ml-2 cursor-pointer">
+                      <ListFilter className="h-4 w-4" />
+                      Filters
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-80" align="end">
+                    <div className="space-y-4">
+                      {/* School Dropdown */}
+                      {userRole === "superadmin" && (
+                        <div className="space-y-2">
+                          <h4 className="font-medium text-sm leading-none mb-2">School</h4>
+                          <Combobox
+                            items={[
+                              { label: "All Schools", value: "all" },
+                              ...(schoolData?.map((school: any) => ({
+                                label: school.schoolName,
+                                value: school._id,
+                              })) || []),
+                            ]}
+                            value={filters.schoolId || "all"}
+                            onValueChange={(value) =>
+                              updateFilters({
+                                schoolId: value === "all" ? undefined : value,
+                                branchId: undefined, // Reset branch when school changes
+                              })
+                            }
+                            onOpenChange={setIsSchoolDropdownOpen}
+                            placeholder="Select School"
+                            searchPlaceholder="Search school..."
+                            width="w-full"
+                          />
+                        </div>
+                      )}
+
+                      {/* Branch Dropdown */}
+                      <div className="space-y-2">
+                        <h4 className="font-medium text-sm leading-none mb-2">Branch</h4>
+                        <Combobox
+                          items={[
+                            { label: "All Branches", value: "all" },
+                            ...(branchData?.map((branch: any) => ({
+                              label: branch.branchName,
+                              value: branch._id,
+                            })) || []),
+                          ]}
+                          value={filters.branchId || "all"}
+                          onValueChange={(value) =>
+                            updateFilters({ branchId: value === "all" ? undefined : value })
+                          }
+                          onOpenChange={setIsBranchDropdownOpen}
+                          placeholder="Select Branch"
+                          searchPlaceholder="Search branch..."
+                          width="w-full"
+                        />
+                      </div>
+
+                      {/* Clear Filters Button */}
+                      <Button
+                        variant="ghost"
+                        className="w-full justify-start text-muted-foreground hover:text-foreground cursor-pointer"
+                        onClick={() =>
+                          updateFilters({
+                            schoolId:
+                              userRole === "school" || userRole === "branchGroup"
+                                ? userSchoolId
+                                : undefined,
+                            branchId: undefined,
+                          })
+                        }
+                      >
+                        <X className="mr-2 h-4 w-4" />
+                        Clear Filters
+                      </Button>
+                    </div>
+                  </PopoverContent>
+                </Popover>
+              )}
 
               {/* Added margin for spacing */}
               <div className="ml-4"></div>
@@ -502,10 +634,9 @@ export default function DashboardClient() {
                     }
                     className={`
                       inline-flex items-center justify-center
-                      ${
-                        isActive
-                          ? statusColors[label].active
-                          : statusColors[label].default
+                      ${isActive
+                        ? statusColors[label].active
+                        : statusColors[label].default
                       }
                       font-semibold text-[9px] sm:text-[10px]
                       px-2 sm:px-3 py-2 sm:py-2.5 rounded-lg
@@ -519,10 +650,9 @@ export default function DashboardClient() {
                       relative
                       overflow-hidden
                       group
-                      ${
-                        isActive
-                          ? "status-button-active ring-4 ring-blue-300"
-                          : ""
+                      ${isActive
+                        ? "status-button-active ring-4 ring-blue-300"
+                        : ""
                       }
                     `}
                     type="button"
@@ -551,11 +681,10 @@ export default function DashboardClient() {
                   <div className="absolute top-1/2 left-0 z-50 hidden lg:block">
                     <button
                       onClick={handleExpandTable}
-                      className={`p-2 rounded-full border border-gray-300 hover:bg-primary transition-all duration-200 cursor-pointer shadow-lg hover:shadow-xl hover:-translate-y-0.5  ${
-                        viewState === "mapExpanded"
-                          ? "bg-blue-100"
-                          : "bg-white text-gray-600"
-                      }`}
+                      className={`p-2 rounded-full border border-gray-300 hover:bg-primary transition-all duration-200 cursor-pointer shadow-lg hover:shadow-xl hover:-translate-y-0.5  ${viewState === "mapExpanded"
+                        ? "bg-blue-100"
+                        : "bg-white text-gray-600"
+                        }`}
                       title={"Expand table"}
                     >
                       <ChevronsRight className="w-4 h-4" />
@@ -571,11 +700,10 @@ export default function DashboardClient() {
                 <div className="hidden lg:flex flex-col justify-center items-center space-y-2 z-50 absolute top-1/2 right-[48.5%]">
                   <button
                     onClick={handleExpandMap}
-                    className={`p-2 rounded-full border border-gray-300 hover:bg-primary transition-all duration-200 cursor-pointer shadow-lg hover:shadow-xl hover:-translate-y-0.5 [animation-duration:_300ms] [animation:_fadeIn_300ms_ease-in_forwards] ${
-                      viewState === "mapExpanded"
-                        ? "bg-blue-100 "
-                        : "bg-white text-gray-600"
-                    }`}
+                    className={`p-2 rounded-full border border-gray-300 hover:bg-primary transition-all duration-200 cursor-pointer shadow-lg hover:shadow-xl hover:-translate-y-0.5 [animation-duration:_300ms] [animation:_fadeIn_300ms_ease-in_forwards] ${viewState === "mapExpanded"
+                      ? "bg-blue-100 "
+                      : "bg-white text-gray-600"
+                      }`}
                     title={
                       viewState === "mapExpanded" ? "Show both" : "Expand map"
                     }
@@ -585,11 +713,10 @@ export default function DashboardClient() {
 
                   <button
                     onClick={handleExpandTable}
-                    className={`p-2 rounded-full border border-gray-300 hover:bg-primary transition-all duration-200 cursor-pointer shadow-lg hover:shadow-xl hover:-translate-y-0.5  [animation-duration:_500ms] [animation:_fadeIn_300ms_ease-in_forwards] ${
-                      viewState === "tableExpanded"
-                        ? "bg-blue-100"
-                        : "bg-white text-gray-600"
-                    }`}
+                    className={`p-2 rounded-full border border-gray-300 hover:bg-primary transition-all duration-200 cursor-pointer shadow-lg hover:shadow-xl hover:-translate-y-0.5  [animation-duration:_500ms] [animation:_fadeIn_300ms_ease-in_forwards] ${viewState === "tableExpanded"
+                      ? "bg-blue-100"
+                      : "bg-white text-gray-600"
+                      }`}
                     title={
                       viewState === "tableExpanded"
                         ? "Show both"
@@ -619,11 +746,10 @@ export default function DashboardClient() {
                   <div className="absolute top-1/2 right-2 z-50 hidden lg:block">
                     <button
                       onClick={handleExpandMap}
-                      className={`p-2 rounded-full border border-gray-300 hover:bg-primary transition-all duration-200 cursor-pointer shadow-lg hover:shadow-xl hover:-translate-y-0.5  ${
-                        viewState === "mapExpanded"
-                          ? "bg-blue-100 "
-                          : "bg-white text-gray-600"
-                      }`}
+                      className={`p-2 rounded-full border border-gray-300 hover:bg-primary transition-all duration-200 cursor-pointer shadow-lg hover:shadow-xl hover:-translate-y-0.5  ${viewState === "mapExpanded"
+                        ? "bg-blue-100 "
+                        : "bg-white text-gray-600"
+                        }`}
                       title={
                         viewState === "mapExpanded" ? "Show both" : "Expand map"
                       }

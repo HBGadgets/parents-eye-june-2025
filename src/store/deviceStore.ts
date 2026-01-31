@@ -19,6 +19,8 @@ export interface DeviceFilters {
     | "inactive"
     | "new";
   searchTerm: string;
+  branchId?: string;
+  schoolId?: string;
 }
 
 // Enhanced auth data interface
@@ -477,7 +479,12 @@ export const useDeviceStore = create<DeviceState>()(
         const state = get();
         const updatedFilters = { ...state.filters, ...newFilters };
 
-        if (newFilters.filter || newFilters.searchTerm !== undefined) {
+        if (
+          newFilters.filter ||
+          newFilters.searchTerm !== undefined ||
+          newFilters.branchId !== undefined ||
+          newFilters.schoolId !== undefined
+        ) {
           updatedFilters.page = 1;
         }
 
