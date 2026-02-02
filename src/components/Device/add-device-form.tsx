@@ -762,6 +762,8 @@ export function AddDeviceForm({
                               date < new Date(new Date().setHours(0, 0, 0, 0))
                             }
                             captionLayout="dropdown"
+                            fromYear={new Date().getFullYear()}
+                            toYear={new Date().getFullYear() + 20}
                           />
                         </PopoverContent>
                       </Popover>
