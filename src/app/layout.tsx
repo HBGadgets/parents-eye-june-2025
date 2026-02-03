@@ -4,6 +4,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/providers";
 import { Toaster } from "@/components/ui/sonner";
+import { GoogleAnalytics } from "@next/third-parties/google";
 import { useAuthStore } from "@/store/authStore";
 import { useEffect } from "react";
 // import RouteTransitionWrapper from "@/components/RouteTransitionWrapper";
@@ -28,11 +29,11 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-   const hydrateAuth = useAuthStore((s) => s.hydrateAuth);
+  const hydrateAuth = useAuthStore((s) => s.hydrateAuth);
 
-   useEffect(() => {
-     hydrateAuth();
-   }, [hydrateAuth]);
+  useEffect(() => {
+    hydrateAuth();
+  }, [hydrateAuth]);
 
   return (
     <html lang="en">
@@ -46,6 +47,7 @@ export default function RootLayout({
           {/* {children} */}
         </Providers>
         <Toaster position="bottom-right" richColors />
+        <GoogleAnalytics gaId={process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID || ""} />
       </body>
     </html>
   );
