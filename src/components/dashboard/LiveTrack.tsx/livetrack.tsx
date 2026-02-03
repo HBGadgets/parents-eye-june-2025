@@ -40,10 +40,18 @@ interface RouteNo {
   routeName?: string;
 }
 
+interface SchoolId {
+  schoolId?: string;
+}
+
+interface BranchId {
+  branchId?: string;
+}
+
 interface LiveTrackProps {
   open?: boolean;
   setOpen?: (open: boolean) => void;
-  selectedImei?: Imei | UniqueId | RouteNo | null;
+  selectedImei?: Imei | UniqueId | RouteNo | SchoolId | BranchId | null;
 }
 
 const DISTANCE_THRESHOLD = 500; // 500 meters
@@ -195,6 +203,8 @@ export const LiveTrack = ({ open, setOpen, selectedImei }: LiveTrackProps) => {
       showTrail: true,
       routeName: selectedImei?.routeName,
       routeObjId: selectedImei?.routeObjId,
+      schoolId: selectedImei?.schoolId,
+      branchId: selectedImei?.branchId,
     }),
     [deviceData]
   );
