@@ -36,10 +36,14 @@ interface UniqueId {
   uniqueId?: number;
 }
 
+interface RouteNo {
+  routeName?: string;
+}
+
 interface LiveTrackProps {
   open?: boolean;
   setOpen?: (open: boolean) => void;
-  selectedImei?: Imei | UniqueId | null;
+  selectedImei?: Imei | UniqueId | RouteNo | null;
 }
 
 const DISTANCE_THRESHOLD = 500; // 500 meters
@@ -189,6 +193,8 @@ export const LiveTrack = ({ open, setOpen, selectedImei }: LiveTrackProps) => {
       vehicle: deviceData,
       autoCenter: true,
       showTrail: true,
+      routeName: selectedImei?.routeName,
+      routeObjId: selectedImei?.routeObjId,
     }),
     [deviceData]
   );
@@ -196,12 +202,12 @@ export const LiveTrack = ({ open, setOpen, selectedImei }: LiveTrackProps) => {
   // Get address and loading state
   const address = useMemo(() => {
     if (!deviceData?.deviceId) return null;
-    return addresses[deviceData.deviceId] || null;
+    return addresses[deviceData?.deviceId] || null;
   }, [deviceData?.deviceId, addresses]);
 
   const isLoadingAddress = useMemo(() => {
     if (!deviceData?.deviceId) return false;
-    return loadingAddresses[deviceData.deviceId] || false;
+    return loadingAddresses[deviceData?.deviceId] || false;
   }, [deviceData?.deviceId, loadingAddresses]);
 
   if (!currentImei) {

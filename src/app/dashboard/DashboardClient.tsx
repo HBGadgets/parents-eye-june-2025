@@ -68,9 +68,13 @@ export default function DashboardClient() {
   const [selectedImei, setSelectedImei] = useState<{
     uniqueId: number;
     name: string;
+    routeName?: string;
+    routeObjId?: string;
   }>({
     uniqueId: 0,
     name: "",
+    routeName: "",
+    routeObjId: "",
   });
   const [isRouteTimelineOpen, setIsRouteTimelineOpen] = useState(false);
   const [routeTimelineData, setRouteTimelineData] = useState<{
@@ -393,9 +397,9 @@ export default function DashboardClient() {
     [queueForGeocoding]
   );
 
-  const handleOpenLiveTrack = (uniqueId: number, name: string) => {
+  const handleOpenLiveTrack = (uniqueId: number, name: string, routeName?: string, routeObjId?: string) => {
     setOpen(true);
-    setSelectedImei({ uniqueId, name });
+    setSelectedImei({ uniqueId, name, routeName, routeObjId });
   };
 
   useEffect(() => {

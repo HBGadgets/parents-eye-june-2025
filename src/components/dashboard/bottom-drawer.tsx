@@ -18,7 +18,7 @@ interface BottomDrawerProps {
   selectedDevice: any;
   addresses: any;
   loadingAddresses: any;
-  handleOpenLiveTrack: (imei: string, name: string) => void;
+  handleOpenLiveTrack: (imei: string, name: string, routeName: string) => void;
   onOpenRouteTimeline: (
     uniqueId: number,
     deviceName: string,
@@ -99,7 +99,8 @@ export const BottomDrawer = ({
                     if (selectedDevice?.uniqueId) {
                       handleOpenLiveTrack(
                         selectedDevice?.uniqueId,
-                        selectedDevice?.name
+                        selectedDevice?.name,
+                        selectedDevice?.routeName
                       );
                     }
                   }}

@@ -89,6 +89,7 @@ interface SingleDeviceLiveTrackProps {
   showTrail?: boolean;
   schoolId?: string;
   branchId?: string;
+  routeName?: string;
   routeObjId?: string;
 }
 
@@ -391,13 +392,14 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
   showTrail = false,
   schoolId,
   branchId,
+  routeName,
   routeObjId,
 }) => {
   const mapRef = useRef<L.Map | null>(null);
   const smoothSpeed = useSmoothSocketSpeed(
     vehicle?.speed,
     5000,
-    vehicle?.attributes.motion
+    vehicle?.attributes?.motion
   );
   const [vehiclePath, setVehiclePath] = useState<[number, number][]>([]);
   const animationRef = useRef<number | null>(null);
@@ -434,9 +436,9 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
   const sorting = useMemo(() => [], []);
   const filters = useMemo(
     () => ({
-      routeId: vehicle?.routeId || "",
+      routeId: routeObjId || "",
     }),
-    [vehicle?.routeId]
+    [routeObjId]
   );
   // TanStack Query hooks for geofence management
   const queryParams = useMemo(
@@ -760,9 +762,8 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
         />
 
         <TileLayer
-          url={`https://{s}.google.com/vt/lyrs=${
-            isSatelliteView ? "s" : "m"
-          }&x={x}&y={y}&z={z}`}
+          url={`https://{s}.google.com/vt/lyrs=${isSatelliteView ? "s" : "m"
+            }&x={x}&y={y}&z={z}`}
           subdomains={["mt0", "mt1", "mt2", "mt3"]}
         />
 
@@ -770,9 +771,8 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
 
         {showTraffic && (
           <TileLayer
-            url={`https://{s}.google.com/vt/lyrs=${
-              isSatelliteView ? "s" : "m"
-            }@221097413,traffic&x={x}&y={y}&z={z}`}
+            url={`https://{s}.google.com/vt/lyrs=${isSatelliteView ? "s" : "m"
+              }@221097413,traffic&x={x}&y={y}&z={z}`}
             subdomains={["mt0", "mt1", "mt2", "mt3"]}
           />
         )}
@@ -854,16 +854,15 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
         <div>
           Network Status:{" "}
           <span
-            className={`${
-              vehicle?.gsmSignal ? "text-green-600" : "text-red-600"
-            } px-1 py-0.5 rounded font-semibold`}
+            className={`${vehicle?.gsmSignal ? "text-green-600" : "text-red-600"
+              } px-1 py-0.5 rounded font-semibold`}
           >
             {vehicle?.gsmSignal ? "Online" : "Offline"}
           </span>
         </div>
         <div>
           Route No:{" "}
-          {vehicle?.routeNumber ? vehicle.routeNumber : "Not assigned"}
+          {routeName ? routeName : "Not assigned"}
         </div>
         <div>
           Geofences: {geofenceByRoute ? geofenceByRoute?.length : "loading..."}
@@ -872,15 +871,15 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
           Last Update:{" "}
           {vehicle?.lastUpdate
             ? new Date(vehicle.lastUpdate).toLocaleString("en-GB", {
-                day: "2-digit",
-                month: "2-digit",
-                year: "numeric",
-                hour: "2-digit",
-                minute: "2-digit",
-                second: "2-digit",
-                hour12: true,
-                timeZone: "UTC",
-              })
+              day: "2-digit",
+              month: "2-digit",
+              year: "numeric",
+              hour: "2-digit",
+              minute: "2-digit",
+              second: "2-digit",
+              hour12: true,
+              timeZone: "UTC",
+            })
             : "loading..."}
         </div>
         <div>
@@ -957,7 +956,7 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
           onCancel={handleGeofenceCancel}
           schoolId={vehicle?.schoolId}
           branchId={vehicle?.branchId}
-          routeObjId={vehicle?.routeId}
+          routeObjId={routeObjId}
           role={userRole as UserRole}
         />
       )}
