@@ -748,6 +748,7 @@ export default function DashboardClient() {
                     zoom={6}
                     selectedVehicleId={selectedVehicleId}
                     onVehicleSelect={setSelectedVehicleId}
+                    activeFilter={activeStatus}
                   />
                 )}
                 {viewState === "tableExpanded" && (

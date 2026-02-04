@@ -54,6 +54,7 @@ interface VehicleMapProps {
   showTrails?: boolean;
   clusterMarkers?: boolean;
   autoFitBounds?: boolean;
+  activeFilter?: string;
 }
 
 // Optimized marker component with proper memoization
@@ -236,9 +237,8 @@ const VehicleBusMarker = React.memo(
               <div className="detail-row">
                 <span className="label">Network:</span>
                 <span
-                  className={`value ${
-                    vehicle.gsmSignal ? "online" : "offline"
-                  }`}
+                  className={`value ${vehicle.gsmSignal ? "online" : "offline"
+                    }`}
                 >
                   {vehicle.gsmSignal ? "Online" : "Offline"}
                 </span>
@@ -445,26 +445,26 @@ const MapResizeHandler = () => {
 };
 
 // Optimized map controls
-const MapControls = ({
-  onFitBounds,
-  vehicleCount,
-}: {
-  onFitBounds: () => void;
-  vehicleCount: number;
-}) => {
-  return (
-    <div className="map-controls">
-      <button
-        className="map-control-button fit-bounds-btn"
-        onClick={onFitBounds}
-        title="Fit all vehicles in view"
-      >
-        <span className="control-icon">🎯</span>
-        <span className="control-text">Fit All ({vehicleCount})</span>
-      </button>
-    </div>
-  );
-};
+// const MapControls = ({
+//   onFitBounds,
+//   vehicleCount,
+// }: {
+//   onFitBounds: () => void;
+//   vehicleCount: number;
+// }) => {
+//   return (
+//     <div className="map-controls">
+//       <button
+//         className="map-control-button fit-bounds-btn"
+//         onClick={onFitBounds}
+//         title="Fit all vehicles in view"
+//       >
+//         <span className="control-icon">🎯</span>
+//         <span className="control-text">Fit All ({vehicleCount})</span>
+//       </button>
+//     </div>
+//   );
+// };
 
 // Custom cluster icon - memoized
 const createClusterCustomIcon = (cluster: any) => {
@@ -519,6 +519,7 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
   showTrails = false,
   clusterMarkers = true,
   autoFitBounds = false,
+  activeFilter,
 }) => {
   const mapRef = useRef<L.Map | null>(null);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
@@ -572,6 +573,13 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
       setShouldFitBounds(true);
     }
   }, [validVehicles.length]);
+
+  // Trigger fit bounds when active filter changes
+  useEffect(() => {
+    if (validVehicles.length > 0) {
+      setShouldFitBounds(true);
+    }
+  }, [activeFilter, validVehicles.length]);
 
   // Reset bounds fitting flag
   const handleBoundsFitted = useCallback(() => {
@@ -650,10 +658,10 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
       </MapContainer>
 
       {/* Map Controls */}
-      <MapControls
+      {/* <MapControls
         onFitBounds={handleFitBounds}
         vehicleCount={validVehicles.length}
-      />
+      /> */}
     </div>
   );
 };
