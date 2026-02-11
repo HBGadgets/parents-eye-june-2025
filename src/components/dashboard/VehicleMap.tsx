@@ -220,8 +220,22 @@ const VehicleBusMarker = React.memo(
               </div>
               <div className="detail-row">
                 <span className="label">Last Update:</span>
-                <span className="value">{formattedLastUpdate}</span>
+                <span className="value">
+                  {vehicle?.lastUpdate
+                    ? new Date(vehicle.lastUpdate).toLocaleString("en-GB", {
+                      day: "2-digit",
+                      month: "2-digit",
+                      year: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                      second: "2-digit",
+                      hour12: true,
+                      timeZone: "UTC",
+                    })
+                    : "N/A"}
+                </span>
               </div>
+
               <div className="detail-row">
                 <span className="label">Since:</span>
                 <span className="value">
