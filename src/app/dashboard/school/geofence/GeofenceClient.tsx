@@ -11,12 +11,15 @@ import {
   DialogClose,
 } from "@/components/ui/dialog";
 import { X, Trash2, FilterX } from "lucide-react";
+import { useExport } from "@/hooks/useExport";
+import { FloatingMenu } from "@/components/floatingMenu";
 import { DialogTitle } from "@radix-ui/react-dialog";
 import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
 import { CustomTableServerSidePagination } from "@/components/ui/customTable(serverSidePagination)";
 import type { Branch, Geofence, Route, School } from "@/interface/modal";
 import { useGeofence } from "@/hooks/useGeofence";
 import { getGeofenceCoumns } from "@/components/columns/columns";
+import { geofenceService } from "@/services/api/geofenceSerevice";
 import { jwtDecode } from "jwt-decode";
 import Cookies from "js-cookie";
 import { Combobox } from "@/components/ui/combobox";
@@ -39,6 +42,7 @@ type Filters = {
 };
 
 export default function GeofenceClient() {
+  const { exportToPDF, exportToExcel } = useExport();
   const [open, setOpen] = useState(false);
   const [pagination, setPagination] = useState({
     pageIndex: 0,
@@ -298,11 +302,10 @@ export default function GeofenceClient() {
             {/* Bulk Delete Button */}
             <Button
               variant="destructive"
-              className={`cursor-pointer flex items-center gap-2 ${
-                selectedRows.length > 0
-                  ? "bg-red-500 hover:bg-red-600 text-white"
-                  : "cursor-not-allowed opacity-50"
-              }`}
+              className={`cursor-pointer flex items-center gap-2 ${selectedRows.length > 0
+                ? "bg-red-500 hover:bg-red-600 text-white"
+                : "cursor-not-allowed opacity-50"
+                }`}
               onClick={() => handleBulkDelete(selectedRows)}
               disabled={isDeleteLoading || selectedRows.length === 0}
             >
@@ -382,26 +385,25 @@ export default function GeofenceClient() {
             {(role === "superAdmin" ||
               role === "school" ||
               role === "branchGroup") && (
-              <Combobox
-                items={branchItems}
-                value={filterBranchId}
-                onValueChange={(val) => setFilterBranchId(val || undefined)}
-                placeholder="Filter Branch"
-                searchPlaceholder="Search Branch..."
-                width="w-[150px]"
-                className="cursor-pointer"
-                emptyMessage="No branches found"
-                disabled={role === "superAdmin" && !filterSchoolId}
-              />
-            )}
+                <Combobox
+                  items={branchItems}
+                  value={filterBranchId}
+                  onValueChange={(val) => setFilterBranchId(val || undefined)}
+                  placeholder="Filter Branch"
+                  searchPlaceholder="Search Branch..."
+                  width="w-[150px]"
+                  className="cursor-pointer"
+                  emptyMessage="No branches found"
+                  disabled={role === "superAdmin" && !filterSchoolId}
+                />
+              )}
 
             {/* CLEAR FILTERS BUTTON */}
             <Button
               variant="outline"
               size="default"
-              className={`cursor-pointer flex items-center gap-2 ${
-                !hasActiveFilters ? "opacity-50 cursor-not-allowed" : ""
-              }`}
+              className={`cursor-pointer flex items-center gap-2 ${!hasActiveFilters ? "opacity-50 cursor-not-allowed" : ""
+                }`}
               onClick={handleClearFilters}
               disabled={!hasActiveFilters}
             >
@@ -425,6 +427,103 @@ export default function GeofenceClient() {
       <main className="flex-1 min-h-0 pb-3">
         <section>{tableElement}</section>
       </main>
+
+      <FloatingMenu
+        onExportPdf={async () => {
+          try {
+            const response = await geofenceService.getGeofence({
+              page: 1,
+              limit: total, // Fetch all records
+              search: filters.search,
+              branchId: filters.branchId,
+              schoolId: filters.schoolId,
+            });
+
+            const allGeofences = response.data || [];
+
+            const exportColumns = [
+              { key: "deviceName", header: "Device Name" },
+              { key: "geofenceName", header: "Geofence Name" },
+              { key: "address", header: "Address" },
+              { key: "latitude", header: "Latitude" },
+              { key: "longitude", header: "Longitude" },
+              { key: "schoolName", header: "School Name" },
+              { key: "branchName", header: "Branch Name" },
+              { key: "routeNumber", header: "Route Number" },
+              { key: "pickupTime", header: "Pickup Time" },
+              { key: "dropTime", header: "Drop Time" },
+            ];
+            const exportData = allGeofences.map((g: any) => ({
+              deviceName: g.route?.device?.name || "N/A",
+              geofenceName: g.geofenceName || "N/A",
+              address: g.address || "N/A",
+              latitude: g.area?.center?.[0] || "N/A",
+              longitude: g.area?.center?.[1] || "N/A",
+              schoolName: g.school?.schoolName || "N/A",
+              branchName: g.branch?.branchName || "N/A",
+              routeNumber: g.route?.routeNumber || "N/A",
+              pickupTime: g.pickupTime || "N/A",
+              dropTime: g.dropTime || "N/A",
+            }));
+            exportToPDF(exportData, exportColumns, {
+              title: "Geofence Report",
+              compunknownName: "Parents Eye",
+              metadata: {
+                Total: `${exportData.length} geofences`,
+              },
+            });
+          } catch (error) {
+            console.error("Failed to fetch data for PDF export", error);
+          }
+        }}
+        onExportExcel={async () => {
+          try {
+            const response = await geofenceService.getGeofence({
+              page: 1,
+              limit: total, // Fetch all records
+              search: filters.search,
+              branchId: filters.branchId,
+              schoolId: filters.schoolId,
+            });
+
+            const allGeofences = response.data || [];
+
+            const exportColumns = [
+              { key: "deviceName", header: "Device Name" },
+              { key: "geofenceName", header: "Geofence Name" },
+              { key: "address", header: "Address" },
+              { key: "latitude", header: "Latitude" },
+              { key: "longitude", header: "Longitude" },
+              { key: "schoolName", header: "School Name" },
+              { key: "branchName", header: "Branch Name" },
+              { key: "routeNumber", header: "Route Number" },
+              { key: "pickupTime", header: "Pickup Time" },
+              { key: "dropTime", header: "Drop Time" },
+            ];
+            const exportData = allGeofences.map((g: any) => ({
+              deviceName: g.route?.device?.name || "N/A",
+              geofenceName: g.geofenceName || "N/A",
+              address: g.address || "N/A",
+              latitude: g.area?.center?.[0] || "N/A",
+              longitude: g.area?.center?.[1] || "N/A",
+              schoolName: g.school?.schoolName || "N/A",
+              branchName: g.branch?.branchName || "N/A",
+              routeNumber: g.route?.routeNumber || "N/A",
+              pickupTime: g.pickupTime || "N/A",
+              dropTime: g.dropTime || "N/A",
+            }));
+            exportToExcel(exportData, exportColumns, {
+              title: "Geofence Report",
+              compunknownName: "Parents Eye",
+              metadata: {
+                Total: `${exportData.length} geofences`,
+              },
+            });
+          } catch (error) {
+            console.error("Failed to fetch data for Excel export", error);
+          }
+        }}
+      />
     </div>
   );
 }
