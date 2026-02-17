@@ -42,11 +42,11 @@ export default function DashboardLayout({
     if (!store.isConnected) return;
 
     if (isDashboard) {
-      console.log("[Dashboard] Subscribing to all device data");
-      console.log("[Dashboard] Connection Status: ", store.streamingMode);
+      // console.log("[Dashboard] Subscribing to all device data");
+      // console.log("[Dashboard] Connection Status: ", store.streamingMode);
       store.switchToAllDevices(); // emit / subscribe
     } else {
-      console.log("[Dashboard] Unsubscribing from all device data");
+      // console.log("[Dashboard] Unsubscribing from all device data");
       store.stopAllDeviceData(); // stop emits / listeners
     }
   }, [isDashboard, store.isConnected]);

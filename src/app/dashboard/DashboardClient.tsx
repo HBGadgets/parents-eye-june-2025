@@ -165,7 +165,7 @@ export default function DashboardClient() {
     return rawRole;
   }, [rawRole]);
 
-  console.log("🚀 ~ DashboardClient ~ userRole:", userRole, "rawRole:", rawRole);
+  // console.log("🚀 ~ DashboardClient ~ userRole:", userRole, "rawRole:", rawRole);
 
   const userSchoolId = decodedToken?.schoolId || (userRole === "school" ? decodedToken?.id : undefined);
 
@@ -186,7 +186,7 @@ export default function DashboardClient() {
     !filters.schoolId
   );
 
-  console.log("🚀 ~ DashboardClient ~ filters:", filters);
+  // console.log("🚀 ~ DashboardClient ~ filters:", filters);
 
   const { expiredBranches, expiredBranchesCount } = useSubscriptionExpiry(
     showSubscriptionPopup

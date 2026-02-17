@@ -36,7 +36,7 @@ export const useBranchDropdown = (
   shouldFetch: boolean = true,
   skipSchoolId: boolean = false
 ) => {
-  console.log("Fetching branches for schoolId:", schoolId);
+  // console.log("Fetching branches for schoolId:", schoolId);
   return useQuery({
     queryKey: ["branch-dropdown", skipSchoolId ? undefined : schoolId],
     queryFn: () =>
@@ -92,7 +92,7 @@ export const useRouteDropdown = (
   branchId?: string,
   shouldFetch: boolean = true
 ) => {
-  console.log("Fetching routes for branchId:", branchId);
+  // console.log("Fetching routes for branchId:", branchId);
   return useQuery<DropdownResponse<DropdownItem>>({
     queryKey: ["route-dropdown", branchId],
     queryFn: async () => await dropdownService.getRoutes(branchId),

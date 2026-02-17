@@ -29,7 +29,7 @@ import { GeofenceForm } from "./form/GeofenceForm";
 import { useGeofence, useGeofenceByUniqueId } from "@/hooks/useGeofence";
 import { calculateTimeSince } from "@/util/calculateTimeSince";
 import { Geofence } from "@/interface/modal";
-import { useDistance } from "@/hooks/useDistance";
+// import { useDistance } from "@/hooks/useDistance";
 import { reverseGeocodeMapTiler } from "@/hooks/useReverseGeocoding";
 import { useSmoothSocketSpeed } from "@/hooks/useSmoothRandomSpeed";
 
@@ -407,7 +407,7 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
   const startPointRef = useRef<[number, number] | null>(null);
   const targetPointRef = useRef<[number, number] | null>(null);
   const currentPathRef = useRef<[number, number][]>([]);
-  const { distance } = useDistance(vehicle?.uniqueId);
+  // const { distance } = useDistance(vehicle?.uniqueId);
   const maxPathPoints = 500;
   const animationDuration = 10000;
   const samplingInterval = 500;
@@ -892,13 +892,10 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
 
         <div>
           Distance:{" "}
-          {(
-            (distance?.distance ?? 0) +
-            (vehicle?.attributes?.distance ?? 0) / 1000
-          ).toFixed(2)}{" "}
+          {vehicle?.todayKm?.toFixed(2)}{" "}
           km
         </div>
-        <div>Odometer: {`${distance?.totalDistance} km`}</div>
+        <div>Odometer: {`${vehicle?.attributes?.totalDistance} km`}</div>
         <div>
           Speed Limit: {vehicle?.speedLimit && `${vehicle.speedLimit} km/h`}
         </div>
