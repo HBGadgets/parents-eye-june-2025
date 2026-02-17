@@ -621,11 +621,15 @@ export const getLiveVehicleColumns = (): ColumnDef<LiveTrack>[] => [
     enableSorting: true,
   },
   {
+    header: "Todays Km",
+    accessorKey: "todayKm",
+  },
+  {
     id: "since",
     header: "Since",
     cell: ({ row }: any) => {
-      const timeSince = calculateTimeSince(row.original.lastUpdate);
-      return <div>{timeSince}</div>;
+      // const timeSince = calculateTimeSince(row.original.lastUpdate);
+      return <div>{row.original.stateDuration}</div>;
     },
     meta: { flex: 1, minWidth: 100, maxWidth: 200 },
     enableHiding: true,
