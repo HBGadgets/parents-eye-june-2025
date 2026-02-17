@@ -895,7 +895,7 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
           {vehicle?.todayKm?.toFixed(2)}{" "}
           km
         </div>
-        <div>Odometer: {`${vehicle?.attributes?.totalDistance} km`}</div>
+        <div>Odometer: {`${((vehicle?.attributes?.totalDistance!) / 1000).toFixed(2)} km`}</div>
         <div>
           Speed Limit: {vehicle?.speedLimit && `${vehicle.speedLimit} km/h`}
         </div>
