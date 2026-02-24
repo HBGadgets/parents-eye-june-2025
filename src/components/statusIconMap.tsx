@@ -23,3 +23,15 @@ export const statusIconMap: Record<VehicleStatus, StatusIconConfig> = {
     label: "Vehicle Overspeed",
   },
 };
+
+export const VALID_VEHICLE_CATEGORIES = [
+  "BUS"
+];
+
+export const getValidDeviceCategory = (category?: string): string => {
+  if (!category) return "BUS";
+  const normalizedCategory = category.toUpperCase();
+  return VALID_VEHICLE_CATEGORIES.includes(normalizedCategory)
+    ? normalizedCategory
+    : "BUS";
+};

@@ -139,18 +139,20 @@ export function AddDeviceForm({
 
   // Reset dependent dropdowns when parent changes
   useEffect(() => {
-    if (selectedSchoolId && !isEditMode) {
-      setValue("branchId", "");
-      setValue("routeObjId", "");
-      setValue("driverObjId", "");
-    }
+    // If we're changing the school (even to empty), clear branch, route, driver
+    // In edit mode, we skip the VERY FIRST render (when form is just populated),
+    // but we can track dirty state or simply rely on the fact that if selectedSchoolId
+    // changes AFTER initial population, we clear children. 
+    // Wait, the easiest way to handle this without complex refs is just handling the
+    // value change explicitly in the Combobox onChange for school and branch, OR
+    // using a previous value ref.
+
+    // Let's modify the onValueChange directly in the JSX instead of using useEffect 
+    // to avoid clearing data during initial edit population.
   }, [selectedSchoolId, setValue, isEditMode]);
 
   useEffect(() => {
-    if (selectedBranchId && !isEditMode) {
-      setValue("routeObjId", "");
-      setValue("driverObjId", "");
-    }
+    // Handled in onChange
   }, [selectedBranchId, setValue, isEditMode]);
 
   // Populate form for edit mode
@@ -227,8 +229,14 @@ export function AddDeviceForm({
     });
   };
 
-  const schoolItems = transformToComboboxItems(schools);
-  const branchItems = transformToComboboxItems(branches);
+  const schoolItems = [
+    { value: "none", label: "None (Deselect)" },
+    ...transformToComboboxItems(schools),
+  ];
+  const branchItems = [
+    { value: "none", label: "None (Deselect)" },
+    ...transformToComboboxItems(branches),
+  ];
   const routeItems = transformToComboboxItems(routes);
   const categoryItems = transformToComboboxItems(categories, "category");
   const modelItems = transformToComboboxItems(models, "model");
@@ -328,12 +336,12 @@ export function AddDeviceForm({
           name: data.name,
           uniqueId: data.uniqueId,
           sim: data.sim,
-          schoolId: data.schoolId,
-          branchId: data.branchId,
-          routeObjId: data.routeObjId || undefined,
+          schoolId: data.schoolId || null,
+          branchId: data.branchId || null,
+          routeObjId: data.routeObjId || null,
           category: data.category,
           model: data.model,
-          driverObjId: data.driverObjId || undefined,
+          driverObjId: data.driverObjId || null,
           speed: data.speed,
           average: data.average,
           keyFeature: data.keyFeature,
@@ -494,7 +502,16 @@ export function AddDeviceForm({
                   <Combobox
                     items={schoolItems}
                     value={field.value}
-                    onValueChange={field.onChange}
+                    onValueChange={(val) => {
+                      const newValue = (val === "none" || val === undefined) ? "" : val;
+                      if (newValue !== field.value) {
+                        field.onChange(newValue);
+                        // Also clear dependent fields
+                        setValue("branchId", "");
+                        setValue("routeObjId", "");
+                        setValue("driverObjId", "");
+                      }
+                    }}
                     placeholder="Select school"
                     searchPlaceholder="Search schools..."
                     emptyMessage="No school found"
@@ -520,9 +537,18 @@ export function AddDeviceForm({
                 control={control}
                 render={({ field }) => (
                   <Combobox
+                    key={field.value || 'empty'}
                     items={branchItems}
                     value={field.value}
-                    onValueChange={field.onChange}
+                    onValueChange={(val) => {
+                      const newValue = (val === "none" || val === undefined) ? "" : val;
+                      if (newValue !== field.value) {
+                        field.onChange(newValue);
+                        // Also clear dependent fields
+                        setValue("routeObjId", "");
+                        setValue("driverObjId", "");
+                      }
+                    }}
                     placeholder={
                       !selectedSchoolId
                         ? "Select school first"
@@ -557,6 +583,7 @@ export function AddDeviceForm({
                 control={control}
                 render={({ field }) => (
                   <Combobox
+                    key={field.value || 'empty'}
                     items={routeItems}
                     value={field.value}
                     onValueChange={field.onChange}
@@ -587,6 +614,7 @@ export function AddDeviceForm({
                 control={control}
                 render={({ field }) => (
                   <Combobox
+                    key={field.value || 'empty'}
                     items={driverItems}
                     value={field.value}
                     onValueChange={field.onChange}

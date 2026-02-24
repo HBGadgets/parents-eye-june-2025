@@ -14,6 +14,7 @@ import type { Point } from "@/types/marker-player.types";
 import { PlaybackControls } from "./playback-controls";
 import { LiaTrafficLightSolid } from "react-icons/lia";
 import { Satellite } from "lucide-react";
+import { getValidDeviceCategory } from "@/components/statusIconMap";
 
 // Fix for default markers
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -35,6 +36,7 @@ interface VehicleMapProps {
   stops?: any[];
   onStopClick?: (stop: any) => void;
   stopAddressMap: Record<number, string>;
+  deviceCategory?: string;
 }
 
 type RoutePoint = {
@@ -50,12 +52,10 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
   stops,
   onStopClick,
   stopAddressMap,
+  deviceCategory = "CAR",
 }) => {
-  const MIN_BASE_SECONDS = 100000;
-  const BASE_PLAYBACK_SECONDS = Math.max(
-    MIN_BASE_SECONDS,
-    Math.ceil(data.length / 100)
-  );
+  // Minimum segment duration in ms (one animation frame)
+  const MIN_SEGMENT_MS = 16;
 
   const DEFAULT_CENTER: [number, number] = [30.73448, 79.067696];
   const mapContainerRef = useRef<HTMLDivElement>(null);
@@ -92,24 +92,27 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
 
   // Vehicle icon
   const createVehicleIcon = useCallback(() => {
+    const size = 100;
+    const category = "BUS";
     return L.divIcon({
-      className: "vehicle-marker",
+      className: "",
       html: `
       <div class="vehicle-rotator" style="
-        width: 32px;
-        height: 32px;
+        width: ${size}px;
+        height: ${size}px;
         display: flex;
         align-items: center;
         justify-content: center;
         transform-origin: center center;
+        overflow: hidden;
       ">
-        <img src="/Top Y.svg" width="32" height="32" />
+        <img src="/BUS/top-view/green.svg" style="width:${size}px; height:${size}px; max-width:${size}px; max-height:${size}px; object-fit:contain; display:block; filter:drop-shadow(0 2px 4px rgba(0,0,0,0.3));" />
       </div>
     `,
-      iconSize: [32, 32],
-      iconAnchor: [16, 16],
+      iconSize: [size, size],
+      iconAnchor: [size / 2, size / 2],
     });
-  }, []);
+  }, [deviceCategory]);
 
   const createFlagIcon = useCallback(
     (color: "green" | "red", size: number = 24) => {
@@ -716,27 +719,21 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
     }));
 
 
-    const totalDuration = BASE_PLAYBACK_SECONDS / playbackSpeed;
-    const segmentCount = points.length - 1;
+    // Fixed visual speed: marker moves at constant meters/sec regardless of route length
+    const PLAYBACK_METERS_PER_SEC = 150; // meters per second at 1x
+    const distances: number[] = [];
 
-    // Calculate real durations based on timestamps
-    const realDurations: number[] = [];
-    let calculatedTotalDuration = 0;
-
-    for (let i = 0; i < data.length - 1; i++) {
-      const t1 = new Date(data[i].createdAt).getTime();
-      const t2 = new Date(data[i + 1].createdAt).getTime();
-      let diffSeconds = (t2 - t1) / 1000;
-
-      // Fallback for bad data or zero time difference
-      if (diffSeconds < 0.1) diffSeconds = 0.1;
-
-      realDurations.push(diffSeconds);
-      calculatedTotalDuration += diffSeconds;
+    for (let i = 0; i < points.length - 1; i++) {
+      const d = L.latLng(points[i].latlng).distanceTo(
+        L.latLng(points[i + 1].latlng)
+      );
+      distances.push(d);
     }
 
-    // Apply playback speed
-    const adjustedDurations = realDurations.map(d => d / playbackSpeed);
+    // duration(ms) = distance(m) / speed(m/s) * 1000, scaled by playback speed
+    const adjustedDurations = distances.map(d =>
+      Math.max((d / PLAYBACK_METERS_PER_SEC * 1000) / playbackSpeed, MIN_SEGMENT_MS)
+    );
 
     const player = new MarkerPlayer(
       mapRef.current!,
@@ -751,6 +748,8 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
 
     markerPlayerRef.current = player;
     currentAngleRef.current = data[0]?.course ?? 0;
+
+    let lastProgressUpdate = 0;
 
     player.setOnUpdate((latlng, index) => {
       const bounds = mapRef.current!.getBounds();
@@ -768,14 +767,19 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
         smoothRotateVehicle((player as any).marker, bearing);
       }
 
-      const percent = (index / (data.length - 1)) * 100;
-      setProgress(percent);
-      onProgressChange?.(percent);
+      // Only update slider, NOT the chart (chart is too expensive)
+      const now = performance.now();
+      if (now - lastProgressUpdate > 200) {
+        lastProgressUpdate = now;
+        const percent = (index / (data.length - 1)) * 100;
+        setProgress(percent);
+      }
     });
 
     player.setOnComplete(() => {
       setIsPlaying(false);
-      setProgress(0);
+      setProgress(100);
+      onProgressChange?.(100);
       currentAngleRef.current = data[0]?.course ?? 0;
     });
 
@@ -896,33 +900,25 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
     });
   }, [activeStopId]);
 
-  // Handle speed changes
+  // Handle speed changes — recompute distance-based durations
   useEffect(() => {
     if (!markerPlayerRef.current || data.length < 2) return;
 
-    // Shorter total time => faster movement
-    const scaledTotalDuration = BASE_PLAYBACK_SECONDS / playbackSpeed;
-
-    // Recreate distance-based durations for this shorter/longer total time
-    const points: Point[] = data.map((d) => ({
-      latlng: { lat: d.latitude, lng: d.longitude },
-      course: d.course,
-    }));
-
-    // Use the same logic as createDurations(distance-based)
-    let totalDistance = 0;
+    const PLAYBACK_METERS_PER_SEC = 150;
     const distances: number[] = [];
 
-    for (let i = 0; i < points.length - 1; i++) {
-      const d = L.latLng(points[i].latlng).distanceTo(points[i + 1].latlng);
+    for (let i = 0; i < data.length - 1; i++) {
+      const d = L.latLng(data[i].latitude, data[i].longitude).distanceTo(
+        L.latLng(data[i + 1].latitude, data[i + 1].longitude)
+      );
       distances.push(d);
-      totalDistance += d;
     }
 
-    if (totalDistance === 0 || distances.length === 0) return;
+    if (distances.length === 0) return;
 
-    const ratio = scaledTotalDuration / totalDistance;
-    const durations = distances.map((d) => Math.max(d * ratio, 0.1));
+    const durations = distances.map(d =>
+      Math.max((d / PLAYBACK_METERS_PER_SEC * 1000) / playbackSpeed, MIN_SEGMENT_MS)
+    );
 
     markerPlayerRef.current.setDuration(durations);
   }, [playbackSpeed, data]);
@@ -952,11 +948,14 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
     if (isPlaying) {
       markerPlayerRef.current.pause();
       setIsPlaying(false);
+      // Sync chart on pause
+      const progress = markerPlayerRef.current.getProgress();
+      onProgressChange?.(progress);
     } else {
       markerPlayerRef.current.start();
       setIsPlaying(true);
     }
-  }, [isPlaying]);
+  }, [isPlaying, onProgressChange]);
 
   const handleStop = useCallback(() => {
     if (!markerPlayerRef.current) {
@@ -966,8 +965,9 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
     markerPlayerRef.current.stop();
     setIsPlaying(false);
     setProgress(0);
+    onProgressChange?.(0);
     currentAngleRef.current = data[0]?.course ?? 0;
-  }, [data]);
+  }, [data, onProgressChange]);
 
   const handleSpeedChange = useCallback((speed: number) => {
     if (!markerPlayerRef.current) return;
