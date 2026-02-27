@@ -93,7 +93,7 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
   // Vehicle icon
   const createVehicleIcon = useCallback(() => {
     const size = 100;
-    const category = "BUS";
+    const category = getValidDeviceCategory(deviceCategory);
     return L.divIcon({
       className: "",
       html: `
@@ -106,7 +106,7 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
         transform-origin: center center;
         overflow: hidden;
       ">
-        <img src="/BUS/top-view/green.svg" style="width:${size}px; height:${size}px; max-width:${size}px; max-height:${size}px; object-fit:contain; display:block; filter:drop-shadow(0 2px 4px rgba(0,0,0,0.3));" />
+        <img src="/${category}/top-view/green.svg" style="width:${size}px; height:${size}px; max-width:${size}px; max-height:${size}px; object-fit:contain; display:block; filter:drop-shadow(0 2px 4px rgba(0,0,0,0.3));" />
       </div>
     `,
       iconSize: [size, size],
@@ -767,12 +767,13 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
         smoothRotateVehicle((player as any).marker, bearing);
       }
 
-      // Only update slider, NOT the chart (chart is too expensive)
+      // Throttled progress update (every 200ms)
       const now = performance.now();
       if (now - lastProgressUpdate > 200) {
         lastProgressUpdate = now;
         const percent = (index / (data.length - 1)) * 100;
         setProgress(percent);
+        onProgressChange?.(percent);
       }
     });
 

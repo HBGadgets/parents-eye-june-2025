@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useEffect, useState, useRef, Suspense } from "react";
+import { useMemo, useEffect, useState, useRef, useCallback, Suspense } from "react";
 import { Combobox } from "@/components/ui/combobox";
 import DateRangeFilter from "@/components/ui/DateRangeFilter";
 import { Button } from "@/components/ui/button";
@@ -8,7 +8,7 @@ import FullScreenSpinner from "@/components/RouteLoader";
 import { formatDateToYYYYMMDD } from "@/util/formatDate";
 import { api } from "@/services/apiService";
 import TripsSidebar from "@/components/history/sliding-side-bar";
-import { Menu, Gauge, Clock } from "lucide-react";
+import { Menu, Gauge, Clock, MapPinOff } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useDeviceDropdownWithUniqueIdForHistory } from "@/hooks/useDropdown";
@@ -97,6 +97,12 @@ function HistoryReportContent() {
   const [playbackProgress, setPlaybackProgress] = useState(0);
   const [throttledProgress, setThrottledProgress] = useState(0);
   const progressUpdateRef = useRef<number>();
+
+  // ✅ Refs for direct DOM manipulation (avoids React re-renders during playback)
+  const playbackProgressRef = useRef(0);
+  const speedRef = useRef<HTMLSpanElement>(null);
+  const timestampRef = useRef<HTMLSpanElement>(null);
+  const distanceCoveredRef = useRef<HTMLSpanElement>(null);
 
   const [defaultDateRange, setDefaultDateRange] = useState<{
     startDate: Date;
@@ -212,6 +218,8 @@ function HistoryReportContent() {
         day: "2-digit",
         month: "2-digit",
         year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
         hour12: true,
         timeZone: "UTC",
       });
@@ -268,6 +276,12 @@ function HistoryReportContent() {
     () => ({
       responsive: true,
       maintainAspectRatio: false,
+      layout: {
+        padding: {
+          top: 0,
+          bottom: 0,
+        },
+      },
       // animation: true, // ✅ Completely disable animations
       animations: false,
       transitions: {
@@ -331,12 +345,15 @@ function HistoryReportContent() {
           display: true,
           title: {
             display: true,
-            text: "Timeline",
-            font: { size: 12 },
+            text: "Timestamp",
+            font: { size: 18 },
           },
           ticks: {
-            maxTicksLimit: 8,
+            maxTicksLimit: 70,
             font: { size: 10 },
+            minRotation: 45,
+            maxRotation: 45,
+            autoSkip: true,
           },
           grid: {
             color: "rgba(0, 0, 0, 0.1)",
@@ -589,6 +606,60 @@ function HistoryReportContent() {
     setIsMapExpanded(!isMapExpanded);
   };
 
+  // ✅ Imperative progress handler — updates DOM directly without triggering React re-renders
+  const handlePlaybackProgress = useCallback(
+    (progress: number) => {
+      playbackProgressRef.current = progress;
+
+      if (!activePlayback || activePlayback.length === 0) return;
+
+      const idx = Math.round((progress / 100) * (activePlayback.length - 1));
+      const data = activePlayback[idx];
+      if (!data) return;
+
+      // Update speed
+      if (speedRef.current) {
+        speedRef.current.textContent = `${data.speed.toFixed(1)} kmph`;
+      }
+
+      // Update timestamp
+      if (timestampRef.current) {
+        const d = new Date(data.createdAt);
+        if (!isNaN(d.getTime())) {
+          const dateStr = d.toLocaleString("en-GB", {
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric",
+            hour12: true,
+            timeZone: "UTC",
+          });
+          const timeStr = d.toLocaleString("en-GB", {
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+            hour12: true,
+            timeZone: "UTC",
+          });
+          timestampRef.current.textContent = `${dateStr} ${timeStr}`;
+        } else {
+          timestampRef.current.textContent = "-- : --";
+        }
+      }
+
+      // Update incremental distance
+      if (distanceCoveredRef.current) {
+        const first = activePlayback[0];
+        const incDist = Math.max(
+          0,
+          (data?.attributes?.totalDistance ?? 0) -
+          (first?.attributes?.totalDistance ?? 0)
+        );
+        distanceCoveredRef.current.textContent = `${(incDist / 1000).toFixed(2)} km`;
+      }
+    },
+    [activePlayback]
+  );
+
   return (
     <>
       <section>
@@ -708,17 +779,28 @@ function HistoryReportContent() {
                   }`}
                 style={{ zIndex: 0 }}
               >
-                <VehicleMap
-                  data={activePlayback}
-                  stops={showStopsOnMap ? derivedStops : []}
-                  activeStopId={activeStopId}
-                  onStopClick={(id) => setActiveStopId(id)}
-                  currentIndex={displayIndex}
-                  isExpanded={isMapExpanded}
-                  onProgressChange={setPlaybackProgress}
-                  stopAddressMap={stopAddressMap}
-                  deviceCategory={deviceCategoryFromUrl || "CAR"}
-                />
+                {hasGenerated && (!activePlayback || activePlayback.length === 0) ? (
+                  <div className="flex flex-col items-center justify-center w-full h-full bg-white/50 backdrop-blur-sm rounded-lg border-2 border-dashed border-gray-300">
+                    <MapPinOff className="w-16 h-16 text-gray-400 mb-4" />
+                    <h3 className="text-xl font-semibold text-gray-700">No History Available</h3>
+                    <p className="text-gray-500 mt-2 text-center max-w-md px-4">
+                      No playback data found for the selected vehicle and date range.
+                      <br />Please try adjusting your filters.
+                    </p>
+                  </div>
+                ) : (
+                  <VehicleMap
+                    data={activePlayback}
+                    stops={showStopsOnMap ? derivedStops : []}
+                    activeStopId={activeStopId}
+                    onStopClick={(id) => setActiveStopId(id)}
+                    currentIndex={displayIndex}
+                    isExpanded={isMapExpanded}
+                    onProgressChange={handlePlaybackProgress}
+                    stopAddressMap={stopAddressMap}
+                    deviceCategory={deviceCategoryFromUrl || "CAR"}
+                  />
+                )}
 
                 <div>
                   <div
@@ -776,7 +858,7 @@ function HistoryReportContent() {
           {/* ✅ Metrics Section with Speed Graph */}
           <div className="w-full">
             <div className="lg:col-span-2">
-              <Card className="p-4 bg-[var(--gradient-panel)] rounded-t-none border-border shadow-[var(--shadow-panel)] space-y-3">
+              <Card className="p-2 bg-[var(--gradient-panel)] rounded-t-none border-border shadow-[var(--shadow-panel)] space-y-1">
                 {/* Info Row */}
                 {currentData && activePlayback.length > 1 && (
                   <div className="flex gap-6 items-center flex-wrap">
@@ -784,7 +866,7 @@ function HistoryReportContent() {
                     <div className="flex items-center gap-2 text-muted-foreground text-sm">
                       <Gauge className="w-4 h-4" />
                       <span>Speed</span>
-                      <span className="bg-gray-200 px-2 py-1 rounded-sm">
+                      <span ref={speedRef} className="bg-gray-200 px-2 py-1 rounded-sm">
                         {currentData.speed.toFixed(1)} kmph
                       </span>
                     </div>
@@ -793,7 +875,7 @@ function HistoryReportContent() {
                     <div className="flex items-center gap-2 text-muted-foreground text-sm">
                       <Clock className="w-4 h-4" />
                       <span>Timestamp</span>
-                      <span className="bg-gray-200 px-2 py-1 rounded-sm">
+                      <span ref={timestampRef} className="bg-gray-200 px-2 py-1 rounded-sm">
                         {date === "Invalid Date"
                           ? "-- : --"
                           : `${date} ${time}`}
@@ -805,7 +887,7 @@ function HistoryReportContent() {
                       <GiPathDistance className="w-4 h-4" />
                       <span>Distance Covered</span>
                       {/* Incremental distance till current playback */}
-                      <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded-sm font-medium">
+                      <span ref={distanceCoveredRef} className="bg-blue-100 text-blue-700 px-2 py-1 rounded-sm font-medium">
                         {(incrementalDistance / 1000).toFixed(2)} km
                       </span>
 
@@ -814,6 +896,87 @@ function HistoryReportContent() {
                       <span className="bg-green-100 text-green-700 px-2 py-1 rounded-sm font-medium">
                         {(odometerDistance / 1000).toFixed(2)} km
                       </span>
+                    </div>
+
+                    {/* Trip Info */}
+                    <div className="flex items-center gap-2 text-muted-foreground text-sm border-l pl-4 border-gray-300">
+                      <span className="font-semibold text-black flex items-center">
+                        {selectedTripIndex !== null ? (
+                          `Trip ${selectedTripIndex + 1}`
+                        ) : (
+                          <>
+                            Overall Playback
+                            <span className="ml-2 text-xs font-normal text-muted-foreground bg-slate-100 px-2 py-0.5 rounded-sm border border-slate-200 flex flex-col sm:flex-row sm:items-center gap-1">
+                              <span>
+                                {trips.length} Trips • {derivedStops.length} Stops
+                              </span>
+                              {trips.length > 0 && (
+                                <span className="hidden sm:inline text-gray-400">|</span>
+                              )}
+                              {trips.length > 0 && (
+                                <span>
+                                  {new Date(trips[0][0].createdAt).toLocaleString("en-GB", {
+                                    day: "2-digit",
+                                    month: "2-digit",
+                                    year: "numeric",
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                    second: "2-digit",
+                                    hour12: true,
+                                    timeZone: "UTC",
+                                  })}
+                                  {" - "}
+                                  {new Date(
+                                    trips[trips.length - 1][
+                                      trips[trips.length - 1].length - 1
+                                    ].createdAt
+                                  ).toLocaleString("en-GB", {
+                                    day: "2-digit",
+                                    month: "2-digit",
+                                    year: "numeric",
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                    second: "2-digit",
+                                    hour12: true,
+                                    timeZone: "UTC",
+                                  })}
+                                </span>
+                              )}
+                            </span>
+                          </>
+                        )}
+                      </span>
+                      {selectedTripIndex !== null && trips[selectedTripIndex] && (
+                        <span className="bg-gray-100 text-gray-600 px-2 py-1 rounded-sm text-xs">
+                          {new Date(
+                            trips[selectedTripIndex][0].createdAt
+                          ).toLocaleString("en-GB", {
+                            day: "2-digit",
+                            month: "2-digit",
+                            year: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                            second: "2-digit",
+                            hour12: true,
+                            timeZone: "UTC",
+                          })}
+                          {" - "}
+                          {new Date(
+                            trips[selectedTripIndex][
+                              trips[selectedTripIndex].length - 1
+                            ].createdAt
+                          ).toLocaleString("en-GB", {
+                            day: "2-digit",
+                            month: "2-digit",
+                            year: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                            second: "2-digit",
+                            hour12: true,
+                            timeZone: "UTC",
+                          })}
+                        </span>
+                      )}
                     </div>
 
                     {/* Total Distance (Calculated)
@@ -834,7 +997,7 @@ function HistoryReportContent() {
                 {!isMapExpanded &&
                   activePlayback &&
                   activePlayback.length > 1 && (
-                    <div style={{ height: "150px" }}>
+                    <div style={{ height: "180px" }}>
                       <SpeedTimelineGraph
                         data={chartData}
                         options={chartOptions}
@@ -850,6 +1013,7 @@ function HistoryReportContent() {
           {/* Sliding Side Bar */}
           <TripsSidebar
             trips={trips}
+            selectedTripIndex={selectedTripIndex}
             isOpen={isSidebarOpen}
             fromDate={fromDate}
             toDate={toDate}

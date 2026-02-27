@@ -18,12 +18,12 @@ import {
   TripReport,
 } from "@/interface/modal";
 import { CellContent } from "@/components/ui/CustomTable";
-import { Eye, EyeOff, Locate } from "lucide-react";
+import { Eye, EyeOff, Locate, WifiOff } from "lucide-react";
 import { calculateTimeSince } from "@/util/calculateTimeSince";
 import React, { useMemo } from "react";
 import { Button } from "../ui/button";
 import Image from "next/image";
-import { statusIconMap } from "@/components/statusIconMap";
+import { getValidDeviceCategory, statusIconMap } from "@/components/statusIconMap";
 import {
   Tooltip,
   TooltipContent,
@@ -494,65 +494,60 @@ export const getDeviceColumns = (
   ];
 // DEVICE COLUMNS END
 
-export const getLiveVehicleColumns = (): ColumnDef<LiveTrack>[] => [
-  {
+export const getLiveVehicleColumns = (userRole: string): ColumnDef<LiveTrack>[] => [
+   {
     id: "status",
     header: "Status",
     cell: ({ row }: any) => {
-      const vehicle = row.original;
-      const vehicleStatus = useMemo(() => {
-        const lastUpdateTime = new Date(vehicle.lastUpdate).getTime();
-        const currentTime = new Date().getTime();
-        const timeDifference = currentTime - lastUpdateTime;
-        const thirtyFiveHoursInMs = 35 * 60 * 60 * 1000;
+      const isExpired = row.original.expired;
+      const isSuperAdmin = userRole === "superadmin";
 
-        // Check for overspeeding
-        const speedLimit = parseFloat(vehicle.speedLimit) || 60;
-        if (vehicle.speed > speedLimit) return "overspeed";
+      if (isExpired && !isSuperAdmin) {
+        const validCategory = getValidDeviceCategory(row.original.category);
+        const imageUrl = `/BUS/side-view/grey.svg`;
 
-        // Check if vehicle is inactive
-        if (vehicle.latitude === 0 && vehicle.longitude === 0) return "noData";
-
-        if (timeDifference > thirtyFiveHoursInMs) return "inactive";
-
-        // Extract vehicle attributes
-        const { ignition } = vehicle.attributes;
-        const speed = vehicle.speed;
-        if (ignition === true) {
-          if (speed > 5 && speed < speedLimit) {
-            return "running";
-          } else {
-            return "idle";
-          }
-        } else if (ignition === false) {
-          return "stopped";
-        }
-      }, [
-        vehicle.speed,
-        vehicle.speedLimit,
-        vehicle.lastUpdate,
-        vehicle.attributes.ignition,
-      ]);
-
-      const imageUrl = useMemo(() => {
-        const statusToImageUrl = {
-          running: "/bus/side-view/green-bus.svg",
-          idle: "/bus/side-view/yellow-bus.svg",
-          stopped: "/bus/side-view/red-bus.svg",
-          inactive: "/bus/side-view/grey-bus.svg",
-          overspeed: "/bus/side-view/orange-bus.svg",
-          noData: "/bus/side-view/blue-bus.svg",
-        };
         return (
-          statusToImageUrl[
-          String(vehicleStatus) as keyof typeof statusToImageUrl
-          ] || statusToImageUrl.inactive
-        );
-      }, [vehicleStatus]);
+          <div className="flex items-center justify-center flex-shrink-0" title="Subscription Expired">
+            <img
+              src={imageUrl}
+              className="w-16 h-auto max-w-16 min-w-16 opacity-50 grayscale cursor-not-allowed"
+              alt="Subscription Expired"
+            />
+          </div>
+        )
+      }
 
+      // Inline computation instead of useMemo (hooks cannot be used in cell renderers)
+      const validCategory = getValidDeviceCategory(row.original.category);
+      const statusToImageUrl: Record<string, string> = {
+        running: `/BUS/side-view/green.svg`,
+        idle: `/BUS/side-view/yellow.svg`,
+        stopped: `/BUS/side-view/red.svg`,
+        inactive: `/BUS/side-view/grey.svg`,
+        overspeed: `/BUS/side-view/orange.svg`,
+        new: `/BUS/side-view/blue.svg`,
+      };
+      const imageUrl =
+        statusToImageUrl[String(row.original.category)] || statusToImageUrl.new;
+      const lastUpdate = row.original.lastUpdate;
+      let isOfflineByTime = false;
+      if (lastUpdate) {
+        // Backend often sends local time but appends "Z", causing JS to parse it as future UTC time.
+        // Stripping "Z" makes it parse as local time, ensuring diff matches what the user sees.
+        const parsedStr = String(lastUpdate).replace(/Z$/i, "");
+        const diff = Date.now() - new Date(parsedStr).getTime();
+        isOfflineByTime = diff > 60000;
+      }
+
+      const showOffline = row.original.status === "offline" || isOfflineByTime;
       return (
-        <div>
-          <img src={imageUrl} className="w-20" alt="school bus status" />
+        <div className="relative flex items-center justify-center flex-shrink-0">
+          <img src={imageUrl} className="w-16 h-auto max-w-16 min-w-16" alt="vehicle status" />
+          {showOffline && (
+            <div className="absolute -top-1 -right-1" title="Offline">
+              <WifiOff className="w-5 h-5 text-red-500 bg-white rounded-full p-0.5 shadow-sm" />
+            </div>
+          )}
         </div>
       );
     },

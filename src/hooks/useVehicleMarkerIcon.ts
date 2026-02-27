@@ -9,12 +9,12 @@ interface UseVehicleMarkerIconProps {
 }
 
 const defaultStatusImageMap: Record<VehicleStatus, string> = {
-  running: "/bus/top-view/green-top.svg",
-  idle: "/bus/top-view/yellow-top.svg",
-  stopped: "/bus/top-view/red-top.svg",
-  inactive: "/bus/top-view/gray-top.svg",
-  overspeeding: "/bus/top-view/orange-top.svg",
-  noData: "/bus/top-view/blue-top.svg",
+  running: "/BUS/top-view/green.svg",
+  idle: "/BUS/top-view/yellow.svg",
+  stopped: "/BUS/top-view/red.svg",
+  inactive: "/BUS/top-view/gray.svg",
+  overspeeding: "/BUS/top-view/orange.svg",
+  new: "/BUS/top-view/blue.svg",
 };
 
 export const useVehicleMarkerIcon = ({
@@ -23,7 +23,7 @@ export const useVehicleMarkerIcon = ({
   statusImageMap = defaultStatusImageMap,
 }: UseVehicleMarkerIconProps) => {
   const imageUrl = useMemo(() => {
-    return statusImageMap[status] || statusImageMap.inactive;
+    return statusImageMap[status] || statusImageMap.new;
   }, [status, statusImageMap]);
 
   const icon = useMemo(() => {
