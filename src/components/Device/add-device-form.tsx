@@ -786,9 +786,9 @@ export function AddDeviceForm({
                                 field.onChange(formatDateToZ(date));
                               }
                             }}
-                            disabled={(date) =>
-                              date < new Date(new Date().setHours(0, 0, 0, 0))
-                            }
+                            // disabled={(date) =>
+                            //   date < new Date(new Date().setHours(0, 0, 0, 0))
+                            // }
                             captionLayout="dropdown"
                             fromYear={new Date().getFullYear()}
                             toYear={new Date().getFullYear() + 20}
