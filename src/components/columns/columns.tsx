@@ -495,7 +495,7 @@ export const getDeviceColumns = (
 // DEVICE COLUMNS END
 
 export const getLiveVehicleColumns = (userRole: string): ColumnDef<LiveTrack>[] => [
-   {
+  {
     id: "status",
     header: "Status",
     cell: ({ row }: any) => {
@@ -1288,7 +1288,7 @@ export const getStatusReportColumns = (): ColumnDef<StatusReport>[] => [
   {
     header: "Distance (km)",
     accessorFn: (row) =>
-      row.distance != null ? (row.distance / 1000).toFixed(2) : "0.00",
+      row.distance != null ? row.distance.toFixed(2) : "0.00",
   },
   {
     header: "Max Speed",
