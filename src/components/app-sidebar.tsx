@@ -45,6 +45,7 @@ import {
   CheckCircle,
   XCircle,
   MessageCircle,
+  Ticket,
 } from "lucide-react";
 import { GiGps } from "react-icons/gi";
 import Image from "next/image";
@@ -88,6 +89,7 @@ const iconMap: Record<string, React.ElementType> = {
   "Chat Box": MessageCircle,
   Model: GiGps,
   Category: FileText,
+  "Ticket Types": Ticket,
 };
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
@@ -142,6 +144,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               // { title: "Notification", url: "/dashboard/users/notification" },
               { title: "Model", url: "/dashboard/master/model" },
               { title: "Category", url: "/dashboard/master/category" },
+              { title: "Custom Notification", url: "/dashboard/master/custom-notification" },
+              { title: "Ticket Types", url: "/dashboard/support/ticket-types" },
             ];
           } else if (role === "school" || role === "branchGroup") {
             return [

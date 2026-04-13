@@ -1,5 +1,3 @@
-import { uniqueId } from "lodash";
-
 export interface School {
   _id: string;
   schoolName: string;
@@ -583,4 +581,28 @@ export interface PickupAndDrop {
   child: Student;
   school: School;
   branch: Branch;
+}
+
+export interface CustomNotification {
+  _id: string;
+  title: string;
+  message: string;
+  audioUrl?: string;
+  routeObjIds: string[] | Route[];
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface GetCustomNotificationResponse {
+  success: boolean;
+  data: CustomNotification[];
+  totalCount: number;
+}
+
+export interface TicketType {
+  _id: string;
+  name: string;
+  description: string;
+  createdAt: string;
+  updatedAt: string;
 }

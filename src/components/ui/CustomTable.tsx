@@ -28,8 +28,8 @@ interface CustomTableProps<TData extends RowData> {
   data: TData[];
   columns: ColumnDef<TData, unknown>[];
   pageSizeArray?: any[];
-  maxHeight?: number;
-  minHeight?: number;
+  maxHeight?: number | string;
+  minHeight?: number | string;
   rowHeight?: number;
   showSerialNumber?: boolean;
   noDataMessage?: string;
@@ -91,7 +91,7 @@ const renderCellContent = (content: unknown): React.ReactNode => {
 export function CustomTable<TData extends RowData>({
   data,
   columns,
-  pageSizeArray = [10, 20, 30, "All"],
+  pageSizeArray = [20, 50, "All"],
   maxHeight = 480,
   minHeight = 100,
   rowHeight = 48,
@@ -138,7 +138,7 @@ export function CustomTable<TData extends RowData>({
     return () => observer.disconnect();
   }, []);
 
-  const finalData = data;
+  const finalData = Array.isArray(data) ? data : [];
   // useEffect(() => {
   //   setPagination((prev) => ({ ...prev, pageIndex: 0 }));
   // }, [data]);
@@ -192,14 +192,19 @@ export function CustomTable<TData extends RowData>({
   const rows = table.getRowModel().rows;
 
   const adaptiveHeight = useMemo(() => {
-    if (finalData.length === 0) return Math.max(minHeight, 150);
+    if (typeof maxHeight === "string") return maxHeight;
+    const maxH = maxHeight;
+    const minH = typeof minHeight === "number" ? minHeight : 100;
+
+    if (finalData.length === 0) return Math.max(minH, 150);
+
     const actualRowHeight = isMobile
       ? Math.max(rowHeight, 80)
       : Math.max(rowHeight, 60);
     const calculatedHeight = rows.length * actualRowHeight;
     const headerHeight = 48;
     const totalContentHeight = calculatedHeight + headerHeight;
-    return Math.max(minHeight, Math.min(maxHeight, totalContentHeight));
+    return Math.max(minH, Math.min(maxH, totalContentHeight));
   }, [
     rows.length,
     rowHeight,
@@ -225,7 +230,7 @@ export function CustomTable<TData extends RowData>({
   const getColumnStyle = (col: unknown) => {
     const meta = col.columnDef?.meta || {};
     const baseWidth = meta.minWidth || (isMobile ? 80 : 100);
-    const maxWidth = meta.maxWidth || 300;
+    const maxWidth = meta.maxWidth || 2000;
     return {
       width: baseWidth + "px",
       minWidth: baseWidth + "px",
@@ -253,27 +258,27 @@ export function CustomTable<TData extends RowData>({
       <div className="rounded-md border bg-background w-full flex flex-col overflow-hidden">
         <div
           ref={tableScrollRef}
-          className="flex-1 overflow-auto"
+          className="overflow-scroll relative"
           style={{
-            height: adaptiveHeight + "px",
+            maxHeight: typeof adaptiveHeight === "number" ? `${adaptiveHeight}px` : adaptiveHeight,
             WebkitOverflowScrolling: "touch",
           }}
         >
           <div style={{ width: tableWidth, minWidth: totalMinWidth + "px" }}>
             {/* Header */}
-            <div className="sticky top-0 z-10 bg-muted border-b">
+            <div className="sticky top-0 z-20 bg-primary border-b">
               {table.getHeaderGroups().map((hg) => (
-                <div key={hg.id} className={shouldExpand ? "flex" : "flex"}>
+                <div key={hg.id} className="flex">
                   {hg.headers.map((header) => (
                     <div
                       key={header.id}
-                      className="flex bg-primary items-center px-2 py-2 sm:px-4 sm:py-3 text-xs sm:text-sm font-medium uppercase tracking-wider border-r last:border-r-0 text-black"
+                      className="flex items-center px-2 py-2 sm:px-4 sm:py-3 text-xs sm:text-sm font-medium uppercase tracking-wider border-r last:border-r-0 text-black"
                       style={getColumnStyle(header.column)}
                     >
                       <div
                         className={`flex items-center justify-center gap-1 w-full ${header.column.getCanSort()
-                            ? "cursor-pointer select-none"
-                            : ""
+                          ? "cursor-pointer select-none"
+                          : ""
                           }`}
                         onClick={header.column.getToggleSortingHandler()}
                       >
@@ -286,6 +291,7 @@ export function CustomTable<TData extends RowData>({
                         {header.column.getCanSort() && (
                           <CustomArrowUpDown
                             direction={header.column.getIsSorted()}
+
                           />
                         )}
                       </div>

@@ -18,7 +18,7 @@ import {
   TripReport,
 } from "@/interface/modal";
 import { CellContent } from "@/components/ui/CustomTable";
-import { Eye, EyeOff, Locate, WifiOff } from "lucide-react";
+import { Eye, EyeOff, Locate, Music, WifiOff } from "lucide-react";
 import { calculateTimeSince } from "@/util/calculateTimeSince";
 import React, { useMemo } from "react";
 import { Button } from "../ui/button";
@@ -1640,4 +1640,45 @@ export const getRouteReportColumns = (): ColumnDef<GeofenceAlerts>[] => [
   { header: "Out Time", accessorKey: "outTime" },
   { header: "Halt Time", accessorKey: "haltTime" },
   { header: "Created At", accessorKey: "createdAt" },
+];
+
+export const getCustomNotificationColumns = (): ColumnDef<any>[] => [
+  {
+    header: "Title",
+    accessorKey: "title",
+  },
+  {
+    header: "Message",
+    accessorKey: "message",
+    meta: {
+      wrapConfig: { wrap: "break-word", maxWidth: "400px" },
+    },
+  },
+  {
+    header: "Audio",
+    accessorKey: "audioUrl",
+    cell: ({ row }: { row: any }) => {
+      const audioUrl = row.original.audioUrl;
+      if (!audioUrl) return "No Audio";
+      return (
+        <div className="flex items-center gap-2">
+          <Music className="h-4 w-4" />
+          <span className="text-xs truncate max-w-[100px]">{audioUrl}</span>
+        </div>
+      );
+    },
+  },
+  {
+    header: "Routes",
+    accessorFn: (row: any) => {
+      const routes = row.routeObjIds;
+      if (!routes || routes.length === 0) return "—";
+      if (typeof routes[0] === "string") return `${routes.length} Route(s)`;
+      return (routes as any[]).map((r) => r.routeNumber || r.routeName).join(", ");
+    },
+  },
+  {
+    header: "Sent At",
+    accessorFn: (row: any) => new Date(row.createdAt).toLocaleString(),
+  },
 ];
