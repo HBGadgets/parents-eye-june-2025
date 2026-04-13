@@ -1,6 +1,7 @@
-import React, { useState, useRef, useMemo, useCallback } from "react";
+import React, { useState, useRef, useMemo, useCallback, useEffect } from "react";
 import { Checkbox } from "./checkbox";
 import { useVirtualizer } from "@tanstack/react-virtual";
+import { prepare, layout } from "@chenglou/pretext";
 
 import {
   useReactTable,
@@ -279,10 +280,45 @@ export function CustomTableServerSidePagination<
   // Use data as dependency since table object is stable
   const rows = useMemo(() => table.getRowModel().rows, [data, table]);
 
+  // Pre-calculate line heights for better estimation
+  const FONT_STYLE = '14px "Inter", sans-serif';
+  const LINE_HEIGHT = 20;
+  const PADDING_VERTICAL = 16; // 8px top + 8px bottom
+
   const rowVirtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => tableContainerRef.current,
-    estimateSize: () => estimatedRowHeight,
+    estimateSize: useCallback((index: number) => {
+      const row = rows[index];
+      if (!row) return estimatedRowHeight;
+      if (isExpandedRow(row.original)) return 100; // Fixed size for expanded rows
+
+      // If virtualization is enabled, we use pretext to estimate height
+      // based on the columns that are likely to wrap
+      let maxHeight = estimatedRowHeight;
+
+      row.getVisibleCells().forEach((cell) => {
+        const meta = cell.column.columnDef.meta as any;
+        const wrapConfig = meta?.wrapConfig;
+        
+        // Only measure if wrapping is enabled and we have text content
+        if (wrapConfig?.wrap !== "nowrap" && typeof cell.getValue() === "string") {
+          const text = cell.getValue() as string;
+          const maxWidth = parseInt(wrapConfig?.maxWidth || "200", 10);
+          
+          try {
+            const prepared = prepare(text, FONT_STYLE);
+            const measurement = layout(prepared, maxWidth, LINE_HEIGHT);
+            const cellHeight = measurement.height + PADDING_VERTICAL;
+            if (cellHeight > maxHeight) maxHeight = cellHeight;
+          } catch (e) {
+            console.warn("Pretext measurement failed", e);
+          }
+        }
+      });
+
+      return maxHeight;
+    }, [rows, estimatedRowHeight]),
     overscan,
     enabled: enableVirtualization,
   });
@@ -312,20 +348,20 @@ export function CustomTableServerSidePagination<
     selectedRows,
     tableElement: (
       <div className="space-y-4">
-        <div className="border rounded-lg overflow-hidden">
+        <div className="border rounded-lg">
           <div
             ref={tableContainerRef}
-            className="overflow-y-auto"
-            style={{ maxHeight }}
+            className="overflow-auto scrollbar-thin scrollbar-thumb-muted-foreground/20"
+            style={{ maxHeight, position: 'relative' }}
           >
-            <Table>
-              <TableHeader className="sticky top-0 bg-[#f5da6c] z-10">
+            <Table wrapperClassName="overflow-visible">
+              <TableHeader className="sticky top-0 bg-[#f5da6c] z-20 shadow-sm">
                 {table.getHeaderGroups().map((headerGroup) => (
-                  <TableRow key={headerGroup.id} className="border-b">
+                  <TableRow key={headerGroup.id} className="border-b hover:bg-transparent">
                     {headerGroup.headers.map((header) => (
                       <TableHead
                         key={header.id}
-                        className="bg-[#f5da6c] text-foreground px-2 py-2 sm:px-4 sm:py-3 text-xs sm:text-sm font-medium uppercase tracking-wider border-r last:border-r-0"
+                        className="bg-[#f5da6c] text-foreground px-2 py-2 sm:px-4 sm:py-3 text-xs sm:text-sm font-semibold uppercase tracking-wider border-r last:border-r-0 sticky top-0"
                         style={{
                           width: header.id === "serialNumber" ? "60px" : "auto",
                           minWidth:
