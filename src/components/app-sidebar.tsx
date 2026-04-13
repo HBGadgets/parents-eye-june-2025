@@ -144,7 +144,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               // { title: "Notification", url: "/dashboard/users/notification" },
               { title: "Model", url: "/dashboard/master/model" },
               { title: "Category", url: "/dashboard/master/category" },
-              { title: "Custom Notification", url: "/dashboard/master/custom-notification" },
               { title: "Ticket Types", url: "/dashboard/support/ticket-types" },
             ];
           } else if (role === "school" || role === "branchGroup") {
