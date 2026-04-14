@@ -7,6 +7,8 @@ import React, {
   useRef,
   useMemo,
 } from "react";
+import { jwtDecode } from "jwt-decode";
+import Cookies from "js-cookie";
 import {
   Dialog,
   DialogClose,
@@ -21,8 +23,8 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import DateRangeFilter from "@/components/ui/DateRangeFilter";
 import { FloatingMenu } from "@/components/floatingMenu";
-import { useSchoolData } from "@/hooks/useSchoolData";
-import { useBranchData } from "@/hooks/useBranchData";
+import { useSchoolDropdown, useBranchDropdown } from "@/hooks/useDropdown";
+import { Combobox } from "@/components/ui/combobox";
 import {
   VisibilityState,
   type ColumnDef,
@@ -103,10 +105,54 @@ export default function RaiseTicketMaster() {
   // Form states
   const [selectedType, setSelectedType] = useState("");
   const [description, setDescription] = useState("");
+  const [selectedSchool, setSelectedSchool] = useState("");
+  const [selectedBranch, setSelectedBranch] = useState("");
+  const [userInfo, setUserInfo] = useState<any>(null);
+
+  useEffect(() => {
+    const token = Cookies.get("token");
+    if (token) {
+      try {
+        const decoded = jwtDecode<any>(token);
+        setUserInfo(decoded);
+      } catch (err) {
+        console.error("Error decoding token:", err);
+      }
+    }
+  }, []);
+
+
+  const isSuperAdmin = useMemo(() => {
+    if (!userInfo?.role) return false;
+    const rawRole = userInfo.role;
+    return ["superAdmin"].includes(rawRole);
+  }, [userInfo]);
 
   const { exportToPDF, exportToExcel } = useExport();
-  const { data: schoolData } = useSchoolData();
-  const { data: branchData } = useBranchData();
+
+  const [isSchoolDropdownOpen, setIsSchoolDropdownOpen] = useState(false);
+  const { data: schoolDropdownData } = useSchoolDropdown(isSchoolDropdownOpen);
+
+  const [isBranchDropdownOpen, setIsBranchDropdownOpen] = useState(false);
+  const { data: branchDropdownData } = useBranchDropdown(
+    selectedSchool,
+    isBranchDropdownOpen,
+    !selectedSchool
+  );
+
+  const schoolItems = useMemo(() => {
+    return (schoolDropdownData || []).map((s: any) => ({
+      label: s.schoolName || s.name || "N/A",
+      value: s._id,
+    }));
+  }, [schoolDropdownData]);
+
+  const branchItems = useMemo(() => {
+    return (branchDropdownData || []).map((b: any) => ({
+      label: b.branchName || b.name || "N/A",
+      value: b._id,
+    }));
+  }, [branchDropdownData]);
 
   // --------------------------- TICKET TYPES API ---------------------------
   const {
@@ -147,37 +193,6 @@ export default function RaiseTicketMaster() {
     },
   });
 
-  // --------------------------- LOAD USER INFO ---------------------------
-  const getUserInfo = () => {
-    if (typeof window === "undefined") return null;
-    try {
-      const userData = localStorage.getItem("user");
-      if (userData) {
-        const user = JSON.parse(userData);
-        return {
-          email: user.email || "user@example.com",
-          schoolId: user.schoolId || "68788bcf7fe7ec5e0429bbe9",
-          branchId: user.branchId || "6878ced3cf6cab94db74b243",
-          role: user.role || "user",
-        };
-      }
-      return {
-        email: "user@example.com",
-        schoolId: "68788bcf7fe7ec5e0429bbe9",
-        branchId: "6878ced3cf6cab94db74b243",
-        role: "user",
-      };
-    } catch (error) {
-      console.error("Error reading user info:", error);
-      return {
-        email: "user@example.com",
-        schoolId: "68788bcf7fe7ec5e0429bbe9",
-        branchId: "6878ced3cf6cab94db74b243",
-        role: "user",
-      };
-    }
-  };
-
   // --------------------------- UPDATE DATA AFTER FETCH ---------------------------
   useEffect(() => {
     if (ticketsData?.tickets) {
@@ -212,9 +227,9 @@ export default function RaiseTicketMaster() {
         ...data,
         type: selectedTicketType
           ? {
-              _id: selectedTicketType._id,
-              name: selectedTicketType.name,
-            }
+            _id: selectedTicketType._id,
+            name: selectedTicketType.name,
+          }
           : { _id: selectedType, name: "Unknown Type" },
       };
 
@@ -237,16 +252,17 @@ export default function RaiseTicketMaster() {
     if (!selectedType) return alert("Please select a ticket type");
     if (!description.trim()) return alert("Please enter a description");
 
-    const userInfo = getUserInfo();
-    if (!userInfo)
-      return alert("User information not found. Please login again.");
+    if (isSuperAdmin) {
+      if (!selectedSchool) return alert("Please select an Admin (School)");
+      if (!selectedBranch) return alert("Please select a User (Branch)");
+    }
 
     const data = {
       type: selectedType,
       description: description.trim(),
-      schoolId: userInfo.schoolId,
-      branchId: userInfo.branchId,
-      email: userInfo.email,
+      schoolId: isSuperAdmin ? selectedSchool : userInfo?.schoolId || "",
+      branchId: isSuperAdmin ? selectedBranch : userInfo?.branchId || "",
+      email: userInfo?.email || userInfo?.username || "user@example.com",
       status: "Open",
     };
 
@@ -258,6 +274,8 @@ export default function RaiseTicketMaster() {
   const resetForm = () => {
     setSelectedType("");
     setDescription("");
+    setSelectedSchool("");
+    setSelectedBranch("");
   };
 
   const handleDialogClose = () => resetForm();
@@ -266,7 +284,7 @@ export default function RaiseTicketMaster() {
   const renderStatusButton = (status: string) => {
     let colorClass = "bg-gray-300 text-gray-800";
     if (status === "Open") colorClass = "bg-blue-500 text-white";
-    else if (status === "In Progress") colorClass = "bg-yellow-500 text-black";
+    else if (status === "In Progress") colorClass = "bg-blue-500 text-white";
     else if (status === "Resolved") colorClass = "bg-green-500 text-white";
     else if (status === "Closed") colorClass = "bg-gray-500 text-white";
     return (
@@ -337,11 +355,11 @@ export default function RaiseTicketMaster() {
         cell: ({ row }) => row.original.type?.name || "N/A",
       },
       {
-        header: "School",
+        header: "Admin",
         cell: ({ row }) => row.original.schoolId?.schoolName || "N/A",
       },
       {
-        header: "Branch",
+        header: "User",
         cell: ({ row }) => row.original.branchId?.branchName || "N/A",
       },
       {
@@ -370,7 +388,7 @@ export default function RaiseTicketMaster() {
           <Button
             size="sm"
             variant="outline"
-            className="bg-yellow-400 text-black hover:bg-yellow-500 border-yellow-500"
+            className="bg-blue-500 text-white hover:bg-blue-600 border-blue-600"
             onClick={() => {
               setSelectedTicket(row.original);
               setStatusValue(row.original.status);
@@ -423,8 +441,8 @@ export default function RaiseTicketMaster() {
       All: isActive ? "bg-gray-800 text-white" : "bg-gray-200 text-gray-800",
       Open: isActive ? "bg-blue-600 text-white" : "bg-blue-100 text-blue-800",
       "In Progress": isActive
-        ? "bg-yellow-500 text-black"
-        : "bg-yellow-100 text-yellow-800",
+        ? "bg-blue-500 text-white"
+        : "bg-blue-100 text-blue-800",
       Resolved: isActive
         ? "bg-green-600 text-white"
         : "bg-green-100 text-green-800",
@@ -492,7 +510,7 @@ export default function RaiseTicketMaster() {
         <section>
           <Dialog onOpenChange={(open) => !open && handleDialogClose()}>
             <DialogTrigger asChild>
-              <Button variant="default">Raise Ticket</Button>
+              <Button variant="default" className="text-black cursor-pointer">Raise Ticket</Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-[500px]">
               <form onSubmit={handleSubmit} className="space-y-4">
@@ -500,30 +518,66 @@ export default function RaiseTicketMaster() {
                   <DialogTitle>Raise New Ticket</DialogTitle>
                 </DialogHeader>
                 <div className="grid gap-6">
+                  {isSuperAdmin && (
+                    <>
+                      <div className="grid gap-2">
+                        <Label>Admin (School) *</Label>
+                        <Combobox
+                          items={schoolItems}
+                          value={selectedSchool}
+                          onValueChange={(val) => {
+                            setSelectedSchool(val || "");
+                            setSelectedBranch(""); // Reset branch when school changes
+                          }}
+                          open={isSchoolDropdownOpen}
+                          onOpenChange={setIsSchoolDropdownOpen}
+                          placeholder="Select School"
+                          searchPlaceholder="Search school..."
+                          width="w-full"
+                        />
+                      </div>
+
+                      <div className="grid gap-2">
+                        <Label>User (Branch) *</Label>
+                        <Combobox
+                          items={branchItems}
+                          value={selectedBranch}
+                          onValueChange={(val) => setSelectedBranch(val || "")}
+                          open={isBranchDropdownOpen}
+                          onOpenChange={setIsBranchDropdownOpen}
+                          disabled={!selectedSchool}
+                          placeholder={
+                            selectedSchool
+                              ? "Select Branch"
+                              : "Please select a school first"
+                          }
+                          searchPlaceholder="Search branch..."
+                          width="w-full"
+                        />
+                      </div>
+                    </>
+                  )}
                   <div className="grid gap-2">
                     <Label htmlFor="ticketType">Type *</Label>
-                    <select
-                      id="ticketType"
-                      value={selectedType}
-                      onChange={(e) => setSelectedType(e.target.value)}
-                      className="border border-gray-300 rounded-md p-2 w-full"
-                      required
-                      disabled={isLoadingTicketTypes}
-                    >
-                      <option value="">Select ticket type</option>
-                      {isLoadingTicketTypes ? (
-                        <option value="" disabled>
-                          Loading ticket types...
-                        </option>
-                      ) : (
-                        Array.isArray(ticketTypesData) &&
-                        ticketTypesData.map((type: TicketType) => (
-                          <option key={type._id} value={type._id}>
-                            {type.name}
-                          </option>
-                        ))
-                      )}
-                    </select>
+                    <Select value={selectedType} onValueChange={setSelectedType}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select ticket type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {isLoadingTicketTypes ? (
+                          <SelectItem value="loading" disabled>
+                            Loading ticket types...
+                          </SelectItem>
+                        ) : (
+                          Array.isArray(ticketTypesData) &&
+                          ticketTypesData.map((type: TicketType) => (
+                            <SelectItem key={type._id} value={type._id}>
+                              {type.name}
+                            </SelectItem>
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
                     {isLoadingTicketTypes && (
                       <p className="text-sm text-gray-500">
                         Loading ticket types...
@@ -568,6 +622,7 @@ export default function RaiseTicketMaster() {
                   </DialogClose>
                   <Button
                     type="submit"
+                    className="text-white"
                     disabled={
                       addTicketMutation.isPending ||
                       isLoadingTicketTypes ||
@@ -612,7 +667,7 @@ export default function RaiseTicketMaster() {
                 Cancel
               </Button>
               <Button
-                className="bg-yellow-400 text-black hover:bg-yellow-500 border-yellow-500"
+                className="bg-blue-500 text-white hover:bg-blue-600 border-blue-600"
                 onClick={() => {
                   if (selectedTicket && statusValue) {
                     updateTicketStatusMutation.mutate({
