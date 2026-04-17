@@ -330,7 +330,7 @@ export default function RaiseTicketMaster() {
     enableVirtualization: true,
     estimatedRowHeight: 50,
     overscan: 5,
-    maxHeight: "600px",
+    maxHeight: "calc(100vh - 200px)",
   });
 
   // Table setup for Ticket Types - FIXED VERSION
@@ -348,6 +348,7 @@ export default function RaiseTicketMaster() {
     emptyMessage: "No ticket types found",
     enableSorting: false,
     showSerialNumber: false,
+    maxHeight: "calc(100vh - 200px)",
   });
 
   // Filter by status

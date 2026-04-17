@@ -1,3 +1,4 @@
+
 "use client";
 
 import AddStudentForm from "@/components/add-student/add-student";
@@ -441,6 +442,7 @@ export default function StudentDetails() {
       showSerialNumber: true,
       enableSorting: true,
       enableMultiSelect: true,
+      maxHeight: "calc(100vh - 200px)",
     }
   );
 
@@ -629,19 +631,21 @@ export default function StudentDetails() {
             Bulk Upload
           </Button>
 
-          <Button
-            onClick={() => {
-              setEditStudent(null);
-              setFormSchoolId(undefined);
-              setFormBranchId(undefined);
-              setFormParentId(undefined);
-              setShowForm(true);
-            }}
-            size="sm"
-            className="cursor-pointer shrink-0 whitespace-nowrap"
-          >
-            Add Student
-          </Button>
+          {role === "superAdmin" && (
+            <Button
+              onClick={() => {
+                setEditStudent(null);
+                setFormSchoolId(undefined);
+                setFormBranchId(undefined);
+                setFormParentId(undefined);
+                setShowForm(true);
+              }}
+              size="sm"
+              className="cursor-pointer shrink-0 whitespace-nowrap"
+            >
+              Add Student
+            </Button>
+          )}
         </div>
       </div>
 

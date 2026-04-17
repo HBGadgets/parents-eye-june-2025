@@ -267,7 +267,7 @@ export default function ParentsMaster() {
     enableVirtualization: true,
     estimatedRowHeight: 50,
     overscan: 5,
-    maxHeight: "600px",
+    maxHeight: "calc(100vh - 200px)",
   });
 
   return (

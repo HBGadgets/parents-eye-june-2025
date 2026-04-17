@@ -1284,7 +1284,7 @@ const TravelSummaryReportPage: React.FC = () => {
     showSerialNumber: false,
     // Virtualization disabled - nested expandable rows have variable heights
     enableVirtualization: false,
-    maxHeight: "600px",
+    maxHeight: "calc(100vh - 200px)",
   });
 
   return (

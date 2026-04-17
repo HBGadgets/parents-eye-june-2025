@@ -290,6 +290,7 @@ export default function GeofenceClient() {
       showSerialNumber: true,
       enableMultiSelect: true,
       getRowId: (row) => row._id,
+      maxHeight: "calc(100vh - 200px)",
     }
   );
 
