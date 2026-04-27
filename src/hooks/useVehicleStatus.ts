@@ -18,6 +18,7 @@ interface UseVehicleStatusProps {
   longitude: number;
   attributes: VehicleAttributes;
   category: string;
+  deviceCategory: string;
 }
 
 export type VehicleStatus =
@@ -38,33 +39,52 @@ export const useVehicleStatus = ({
   category,
 }: UseVehicleStatusProps): VehicleStatus => {
   return useMemo(() => {
-    // Check if vehicle has no data
     if (latitude === 0 && longitude === 0) return "noData";
 
-    // Check if vehicle is inactive
     const lastUpdateTime = new Date(lastUpdate).getTime();
     const currentTime = new Date().getTime();
     const timeDifference = currentTime - lastUpdateTime;
     const thirtyFiveHoursInMs = 35 * 60 * 60 * 1000;
 
     if (category === "inactive") return "inactive";
+    if (timeDifference > thirtyFiveHoursInMs) return "inactive";
 
-    // Check for overspeeding
     const parsedSpeedLimit = parseFloat(speedLimit) || 60;
     if (speed > parsedSpeedLimit) return "overspeeding";
 
-    // Determine status based on ignition and speed
-    const { ignition } = attributes;
+    const runningConditions = [
+      speed > 5,
+      attributes.motion === true,
+      attributes.ignition === true,
+    ];
 
-    if (ignition === true) {
-      if (speed > 5 && speed < parsedSpeedLimit) {
-        return "running";
-      } else {
-        return "idle";
-      }
-    } else if (ignition === false) {
-      return "stopped";
-    }
+    const idleConditions = [
+      speed < 5,
+      attributes.motion === false,
+      attributes.ignition === true,
+    ];
+
+    const stoppedConditions = [
+      speed < 5,
+      attributes.motion === false,
+      attributes.ignition === false,
+    ];
+
+    // Order matters for ties — running > idle > stopped
+    const scores: Record<VehicleStatus, number> = {
+      running: runningConditions.filter(Boolean).length,
+      idle: idleConditions.filter(Boolean).length,
+      stopped: stoppedConditions.filter(Boolean).length,
+      inactive: 0,
+      overspeeding: 0,
+      noData: 0,
+    };
+
+    const winner = (
+      Object.entries(scores) as [VehicleStatus, number][]
+    ).reduce((a, b) => (b[1] > a[1] ? b : a));
+
+    if (winner[1] >= 2) return winner[0];
 
     return "noData";
   }, [speed, speedLimit, lastUpdate, latitude, longitude, attributes]);

@@ -15,6 +15,10 @@ import Cookies from "js-cookie";
 import { ColumnVisibilitySelector } from "@/components/column-visibility-selector";
 import { SearchBar } from "@/components/search-bar/SearchBarPagination";
 import { Combobox } from "@/components/ui/combobox";
+import { useExport } from "@/hooks/useExport";
+import { parentService } from "@/services/api/parentService";
+import { FileDown, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 
 type Filters = {
   search?: string;
@@ -49,6 +53,9 @@ export default function ParentsMaster() {
   const [decodedToken, setDecodedToken] = useState<DecodedToken>({ role: "" });
   const [showAddParent, setShowAddParent] = useState(false);
   const [selectedParent, setSelectedParent] = useState<Parent | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
+
+  const { exportToExcel, exportToPDF } = useExport();
 
   const role = decodedToken.role || "";
 
@@ -250,6 +257,75 @@ export default function ParentsMaster() {
     [handleEdit, handleDelete]
   );
 
+  const exportColumns = useMemo(
+    () => [
+      { key: "parentName", header: "Parent Name" },
+      { key: "mobileNo", header: "Mobile No" },
+      { key: "email", header: "Email" },
+      { key: "username", header: "Username" },
+      { key: "password", header: "Password" },
+      {
+        key: "schoolId.schoolName",
+        header: "School",
+        formatter: (_: any, row: any) =>
+          typeof row.schoolId === "object" ? row.schoolId?.schoolName : "--",
+      },
+      {
+        key: "branchId.branchName",
+        header: "Branch",
+        formatter: (_: any, row: any) =>
+          typeof row.branchId === "object" ? row.branchId?.branchName : "--",
+      },
+      {
+        key: "isActive",
+        header: "Status",
+        formatter: (val: any) => (val ? "Active" : "Inactive"),
+      },
+      {
+        key: "createdAt",
+        header: "Created At",
+        formatter: (val: any) =>
+          val ? new Date(val).toLocaleDateString() : "--",
+      },
+    ],
+    []
+  );
+
+  const handleExport = useCallback(
+    async (type: "excel" | "pdf") => {
+      try {
+        setIsExporting(true);
+        const res = await parentService.getParents({
+          ...filters,
+          page: 1,
+          limit: total || 1000,
+          sortBy: sorting[0]?.id,
+          sortOrder: sorting[0]?.desc ? "desc" : "asc",
+        });
+
+        const exportData = res.data || [];
+
+        if (type === "pdf") {
+          await exportToPDF(exportData, exportColumns, {
+            title: "Parents Master Report",
+            filename: `parents_report_${new Date().getTime()}`,
+          });
+        } else {
+          await exportToExcel(exportData, exportColumns, {
+            title: "Parents Master Report",
+            filename: `parents_report_${new Date().getTime()}`,
+          });
+        }
+      } catch (error) {
+        console.error("Export failed:", error);
+        toast.error("Failed to export data");
+      } finally {
+        setIsExporting(false);
+      }
+    },
+    [filters, total, sorting, exportColumns, exportToExcel, exportToPDF]
+  );
+
   const { table, tableElement } = CustomTableServerSidePagination({
     data: parents || [],
     columns,
@@ -330,19 +406,48 @@ export default function ParentsMaster() {
           </div>
         </div>
 
-        {/* Add Parent Button */}
-        <Button
-          className="cursor-pointer"
-          onClick={() => {
-            setSelectedParent(null);
-            setSchoolId(undefined);
-            setBranchId(undefined);
-            setShowAddParent(true);
-          }}
-          disabled={isCreateLoading}
-        >
-          {isCreateLoading ? "Adding..." : "Add Parent"}
-        </Button>
+        <div className="flex gap-2 items-center">
+          <Button
+            variant="outline"
+            className="cursor-pointer"
+            onClick={() => handleExport("excel")}
+            disabled={isExporting}
+          >
+            {isExporting ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <FileDown className="mr-2 h-4 w-4" />
+            )}
+            Export Excel
+          </Button>
+          <Button
+            variant="outline"
+            className="cursor-pointer"
+            onClick={() => handleExport("pdf")}
+            disabled={isExporting}
+          >
+            {isExporting ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <FileDown className="mr-2 h-4 w-4" />
+            )}
+            Export PDF
+          </Button>
+
+          {/* Add Parent Button */}
+          <Button
+            className="cursor-pointer"
+            onClick={() => {
+              setSelectedParent(null);
+              setSchoolId(undefined);
+              setBranchId(undefined);
+              setShowAddParent(true);
+            }}
+            disabled={isCreateLoading}
+          >
+            {isCreateLoading ? "Adding..." : "Add Parent"}
+          </Button>
+        </div>
       </div>
 
       {/* Table */}
