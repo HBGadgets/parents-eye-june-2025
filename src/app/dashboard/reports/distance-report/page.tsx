@@ -144,9 +144,22 @@ const DistanceReportPage: React.FC = () => {
     );
 
     const columns = [
-      { key: "name", header: "Vehicle Name" },
-      ...dateKeys.map((d) => ({ key: d, header: d })),
-      { key: "totalKm", header: "Total KM" },
+      {
+        key: "name",
+        header: "Vehicle Name",
+        formatter: (_: unknown, row: any) =>
+          `${row.name || "--"}\n${row.uniqueId || "--"}`,
+      },
+
+      ...dateKeys.map((d) => ({
+        key: d,
+        header: d,
+      })),
+
+      {
+        key: "totalKm",
+        header: "Total KM",
+      },
     ];
 
     return { data: rows, columns };
@@ -173,9 +186,13 @@ const DistanceReportPage: React.FC = () => {
 
       updateProgress(40, "Preparing report");
       const { data, columns } = prepareDistanceExport(rawData);
-
+      
+      // remove uniqueId from pdf
+      const pdfColumns = columns.filter(
+        (col) => col.key !== "uniqueId"
+      );
       updateProgress(75, "Generating PDF");
-      await exportToPDF(data, columns, {
+      await exportToPDF(data, pdfColumns, {
         title: "Vehicle Distance Report",
       });
 

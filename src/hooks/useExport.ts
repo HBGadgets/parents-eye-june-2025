@@ -1,16 +1,17 @@
 "use client";
+
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import * as ExcelJS from "exceljs";
+import { saveAs } from "file-saver";
+import { toast } from "sonner";
 
-// Extend jsPDF type to include autoTable
+// Extend jsPDF type
 declare module "jspdf" {
   interface jsPDF {
     autoTable: typeof autoTable;
   }
 }
-import * as ExcelJS from "exceljs";
-import { saveAs } from "file-saver";
-import { toast } from "sonner";
 
 interface ExportColumn {
   key: string;
@@ -20,25 +21,21 @@ interface ExportColumn {
 }
 
 interface NestedTableConfig {
-  /** Key in the data item that contains the nested array */
   dataKey: string;
-  /** Columns for the nested table */
   columns: ExportColumn[];
-  /** Optional title for nested table section */
   title?: string;
 }
 
 interface ExportConfig {
   filename?: string;
   title?: string;
-  compunknownName?: string;
+  companyName?: string;
   metadata?: Record<string, string>;
   colors?: {
     primary?: number[];
     secondary?: number[];
     background?: number[];
   };
-  /** Optional nested table configuration */
   nestedTable?: NestedTableConfig;
 }
 
@@ -51,9 +48,19 @@ export const useExport = () => {
       background: [249, 250, 251] as [number, number, number],
       border: [220, 220, 220] as [number, number, number],
     },
-    compunknown: { name: "Parents Eye" },
-    fonts: { primary: "helvetica" },
-    layout: { margin: 15, lineHeight: 6 },
+
+    company: {
+      name: "Parents Eye",
+    },
+
+    fonts: {
+      primary: "helvetica",
+    },
+
+    layout: {
+      margin: 10,
+      lineHeight: 6,
+    },
   };
 
   const formatDate = (date: Date) =>
@@ -65,280 +72,398 @@ export const useExport = () => {
       })
       .replace(",", "");
 
+  // EXCEL COLUMN NAME FIX (supports > 26 columns)
+  const getExcelColumnName = (colNumber: number) => {
+    let dividend = colNumber;
+    let columnName = "";
+
+    while (dividend > 0) {
+      const modulo = (dividend - 1) % 26;
+
+      columnName =
+        String.fromCharCode(65 + modulo) + columnName;
+
+      dividend = Math.floor((dividend - modulo) / 26);
+    }
+
+    return columnName;
+  };
+
+  // ===========================
+  // PDF EXPORT
+  // ===========================
+
   const exportToPDF = async (
-    data: unknown[],
+    data: any[],
     columns: ExportColumn[],
     config: ExportConfig = {}
   ) => {
     try {
       if (!data?.length) {
         toast.error("No data available for PDF export");
-        throw new Error("No data available for PDF export");
+        return;
       }
+
       const doc = new jsPDF({
         orientation: "landscape",
         unit: "mm",
-        format: "a4",
+        format: "a3", // IMPORTANT FOR MANY COLUMNS
       });
-      const compunknownName = config.compunknownName || CONFIG.compunknown.name;
+
+      const companyName =
+        config.companyName || CONFIG.company.name;
+
       const title = config.title || "Data Report";
+
       const filename =
         config.filename ||
         `${title.replace(/\s+/g, "_")}_${
           new Date().toISOString().split("T")[0]
         }.pdf`;
 
-      // Header
+      // ===========================
+      // HEADER
+      // ===========================
+
       doc.setFillColor(...CONFIG.colors.primary);
-      doc.rect(15, 15, 8, 8, "F");
+
+      doc.rect(10, 10, 8, 8, "F");
+
       doc.setFont(CONFIG.fonts.primary, "bold");
+
       doc.setFontSize(16);
+
       doc.setTextColor(...CONFIG.colors.tertiary);
-      doc.text(compunknownName, 28, 21);
+
+      doc.text(companyName, 22, 16);
 
       doc.setDrawColor(...CONFIG.colors.primary);
+
       doc.setLineWidth(0.5);
-      doc.line(15, 25, doc.internal.pageSize.width - 15, 25);
 
-      // Title and date
-      doc.setFontSize(20);
-      doc.text(title, 15, 35);
-
-      const currentDate = formatDate(new Date());
-      doc.setTextColor(...CONFIG.colors.tertiary);
-      doc.setFontSize(10);
-      const dateText = `Generated: ${currentDate}`;
-      doc.text(
-        dateText,
-        doc.internal.pageSize.width - 15 - doc.getTextWidth(dateText),
-        21
+      doc.line(
+        10,
+        22,
+        doc.internal.pageSize.width - 10,
+        22
       );
 
-      // Metadata
+      // TITLE
+
+      doc.setFontSize(18);
+
+      doc.text(title, 10, 32);
+
+      const currentDate = formatDate(new Date());
+
+      doc.setFontSize(10);
+
+      const dateText = `Generated: ${currentDate}`;
+
+      doc.text(
+        dateText,
+        doc.internal.pageSize.width -
+          10 -
+          doc.getTextWidth(dateText),
+        16
+      );
+
+      // ===========================
+      // METADATA
+      // ===========================
+
+      let startY = 40;
+
       if (config.metadata) {
-        let yPos = 45;
         doc.setFontSize(10);
+
         doc.setFont(CONFIG.fonts.primary, "bold");
-        Object.entries(config.metadata).forEach(([key, value]) => {
-          doc.text(`${key}: ${value}`, 15, yPos);
-          yPos += 6;
-        });
+
+        Object.entries(config.metadata).forEach(
+          ([key, value]) => {
+            doc.text(`${key}: ${value}`, 10, startY);
+
+            startY += 6;
+          }
+        );
+
+        startY += 5;
       }
 
-      // Table data
-      const tableHeaders = columns.map((col) => col.header);
+      // ===========================
+      // TABLE DATA
+      // ===========================
+
+      const tableHeaders = columns.map(
+        (col) => col.header
+      );
+
       const tableRows = data.map((item) =>
         columns.map((col) => {
           const value = col.key.includes(".")
-            ? col.key.split(".").reduce((obj, key) => obj?.[key], item)
+            ? col.key
+                .split(".")
+                .reduce(
+                  (obj: any, key) => obj?.[key],
+                  item
+                )
             : item[col.key];
+
           return col.formatter
-            ? col.formatter(value, item) // 👈 pass the whole row too
+            ? col.formatter(value, item)
             : value?.toString() || "--";
         })
       );
 
-      // Generate main table
+      // ===========================
+      // MAIN TABLE
+      // ===========================
+
       autoTable(doc, {
-        startY: config.metadata ? 65 : 45,
+        startY,
+
         head: [tableHeaders],
+
         body: tableRows,
+
         theme: "grid",
+
+        tableWidth: "wrap",
+
+        horizontalPageBreak: true,
+
+        horizontalPageBreakRepeat: 0,
+
         styles: {
-          fontSize: 8,
-          cellPadding: 2,
+          fontSize: 5,
+          cellPadding: 1,
+          overflow: "linebreak",
           halign: "center",
+          valign: "middle",
           lineColor: CONFIG.colors.border,
           lineWidth: 0.1,
         },
+
         headStyles: {
           fillColor: CONFIG.colors.primary,
           textColor: 255,
           fontStyle: "bold",
+          fontSize: 6,
         },
+
         alternateRowStyles: {
           fillColor: CONFIG.colors.background,
         },
-        tableWidth: "auto",
-        margin: { left: 15, right: 15 },
+
+        margin: {
+          left: 5,
+          right: 5,
+        },
+
         didDrawPage: () => {
-          if (doc.getCurrentPageInfo().pageNumber > 1) {
+          if (
+            doc.getCurrentPageInfo().pageNumber > 1
+          ) {
             doc.setFontSize(12);
-            doc.setFont(CONFIG.fonts.primary, "bold");
-            doc.setTextColor(...CONFIG.colors.tertiary);
-            doc.text(title, 15, 10);
+
+            doc.setFont(
+              CONFIG.fonts.primary,
+              "bold"
+            );
+
+            doc.text(title, 10, 10);
           }
         },
       });
 
-      // Handle nested tables if configured
-      if (config.nestedTable) {
-        const { dataKey, columns: nestedColumns, title: nestedTitle } = config.nestedTable;
-        
-        data.forEach((item: any, index: number) => {
-          const nestedData = item[dataKey];
-          if (!nestedData?.length) return;
+      // ===========================
+      // FOOTER
+      // ===========================
 
-          // Get current Y position after main table
-          let yPos = (doc as any).lastAutoTable?.finalY || 45;
-          yPos += 10;
-
-          // Check if we need a new page
-          if (yPos > doc.internal.pageSize.height - 50) {
-            doc.addPage();
-            yPos = 20;
-          }
-
-          // Add nested table title
-          const parentIdentifier = item.vehicleName || item.name || `Row ${index + 1}`;
-          doc.setFontSize(10);
-          doc.setFont(CONFIG.fonts.primary, "bold");
-          doc.setTextColor(...CONFIG.colors.tertiary);
-          doc.text(
-            nestedTitle ? `${nestedTitle} - ${parentIdentifier}` : `Details for ${parentIdentifier}`,
-            15,
-            yPos
-          );
-          yPos += 5;
-
-          // Prepare nested table data
-          const nestedHeaders = nestedColumns.map((col) => col.header);
-          const nestedRows = nestedData.map((nestedItem: any) =>
-            nestedColumns.map((col) => {
-              const value = col.key.includes(".")
-                ? col.key.split(".").reduce((obj: any, key: string) => obj?.[key], nestedItem)
-                : nestedItem[col.key];
-              return col.formatter
-                ? col.formatter(value, nestedItem)
-                : value?.toString() || "--";
-            })
-          );
-
-          // Generate nested table
-          autoTable(doc, {
-            startY: yPos,
-            head: [nestedHeaders],
-            body: nestedRows,
-            theme: "grid",
-            styles: {
-              fontSize: 7,
-              cellPadding: 1.5,
-              halign: "center",
-              lineColor: CONFIG.colors.border,
-              lineWidth: 0.1,
-            },
-            headStyles: {
-              fillColor: CONFIG.colors.secondary,
-              textColor: [0, 0, 0],
-              fontStyle: "bold",
-            },
-            alternateRowStyles: {
-              fillColor: [255, 255, 255],
-            },
-            tableWidth: "auto",
-            margin: { left: 20, right: 20 },
-          });
-        });
-      }
-
-      // Footer with page numbers
       const pageCount = doc.getNumberOfPages();
+
       for (let i = 1; i <= pageCount; i++) {
         doc.setPage(i);
+
         doc.setDrawColor(...CONFIG.colors.border);
-        doc.setLineWidth(0.5);
+
         doc.line(
-          15,
-          doc.internal.pageSize.height - 15,
-          doc.internal.pageSize.width - 15,
-          doc.internal.pageSize.height - 15
+          10,
+          doc.internal.pageSize.height - 10,
+          doc.internal.pageSize.width - 10,
+          doc.internal.pageSize.height - 10
         );
 
-        doc.setFontSize(9);
-        doc.setFont(CONFIG.fonts.primary, "normal");
-        doc.setTextColor(150, 150, 150);
-        doc.text(`© ${compunknownName}`, 15, doc.internal.pageSize.height - 10);
+        doc.setFontSize(8);
+
+        doc.setTextColor(120, 120, 120);
+
+        doc.text(
+          `© ${companyName}`,
+          10,
+          doc.internal.pageSize.height - 5
+        );
 
         const pageText = `Page ${i} of ${pageCount}`;
-        const pageWidth = doc.getTextWidth(pageText);
+
         doc.text(
           pageText,
-          doc.internal.pageSize.width - 15 - pageWidth,
-          doc.internal.pageSize.height - 10
+          doc.internal.pageSize.width -
+            10 -
+            doc.getTextWidth(pageText),
+          doc.internal.pageSize.height - 5
         );
       }
 
       doc.save(filename);
+
       toast.success("PDF downloaded successfully");
     } catch (error) {
-      console.error("PDF Export Error:", error);
+      console.error(error);
+
       toast.error(
-        error instanceof Error ? error.message : "Failed to export PDF"
+        error instanceof Error
+          ? error.message
+          : "PDF export failed"
       );
     }
   };
 
+  // ===========================
+  // EXCEL EXPORT
+  // ===========================
+
   const exportToExcel = async (
-    data: unknown[],
+    data: any[],
     columns: ExportColumn[],
     config: ExportConfig = {}
   ) => {
     try {
-      if (!data?.length){
-        toast.error("No data available for Excel export");
-         throw new Error("No data available for Excel export");
-}
+      if (!data?.length) {
+        toast.error("No data available");
+
+        return;
+      }
+
       const workbook = new ExcelJS.Workbook();
-      const worksheet = workbook.addWorksheet("Data Report");
-      const compunknownName = config.compunknownName || CONFIG.compunknown.name;
+
+      const worksheet =
+        workbook.addWorksheet("Data Report");
+
+      const companyName =
+        config.companyName || CONFIG.company.name;
+
       const title = config.title || "Data Report";
+
       const filename =
         config.filename ||
         `${title.replace(/\s+/g, "_")}_${
           new Date().toISOString().split("T")[0]
         }.xlsx`;
 
-      // Compunknown title
-      const titleRow = worksheet.addRow([compunknownName]);
-      titleRow.font = { bold: true, size: 16, color: { argb: "000000" } };
+      const lastColumn =
+        getExcelColumnName(columns.length);
+
+      // ===========================
+      // TITLE
+      // ===========================
+
+      worksheet.mergeCells(`A1:${lastColumn}1`);
+
+      const titleRow = worksheet.getCell("A1");
+
+      titleRow.value = companyName;
+
+      titleRow.font = {
+        bold: true,
+        size: 16,
+      };
+
+      titleRow.alignment = {
+        horizontal: "center",
+      };
+
       titleRow.fill = {
         type: "pattern",
         pattern: "solid",
-        fgColor: { argb: "F0B100" },
+        fgColor: {
+          argb: "F0B100",
+        },
       };
-      titleRow.alignment = { horizontal: "center" };
-      worksheet.mergeCells(`A1:${String.fromCharCode(64 + columns.length)}1`);
 
-      // Report title
-      const subtitleRow = worksheet.addRow([title]);
-      subtitleRow.font = { bold: true, size: 14, color: { argb: "000000" } };
+      worksheet.mergeCells(`A2:${lastColumn}2`);
+
+      const subtitleRow = worksheet.getCell("A2");
+
+      subtitleRow.value = title;
+
+      subtitleRow.font = {
+        bold: true,
+        size: 14,
+      };
+
+      subtitleRow.alignment = {
+        horizontal: "center",
+      };
+
       subtitleRow.fill = {
         type: "pattern",
         pattern: "solid",
-        fgColor: { argb: "FFE58A" },
+        fgColor: {
+          argb: "FFE58A",
+        },
       };
-      subtitleRow.alignment = { horizontal: "center" };
-      worksheet.mergeCells(`A2:${String.fromCharCode(64 + columns.length)}2`);
 
-      // Metadata
+      let currentRow = 4;
+
+      // ===========================
+      // METADATA
+      // ===========================
+
       if (config.metadata) {
-        Object.entries(config.metadata).forEach(([key, value]) => {
-          worksheet.addRow([`${key}: ${value}`]);
-        });
-      }
-      worksheet.addRow([`Generated: ${formatDate(new Date())}`]);
-      worksheet.addRow([]); // Spacer
+        Object.entries(config.metadata).forEach(
+          ([key, value]) => {
+            worksheet.getCell(`A${currentRow}`).value =
+              `${key}: ${value}`;
 
-      // Headers
-      const headerRow = worksheet.addRow(columns.map((col) => col.header));
+            currentRow++;
+          }
+        );
+      }
+
+      worksheet.getCell(`A${currentRow}`).value =
+        `Generated: ${formatDate(new Date())}`;
+
+      currentRow += 2;
+
+      // ===========================
+      // HEADERS
+      // ===========================
+
+      const headerRow = worksheet.addRow(
+        columns.map((col) => col.header)
+      );
+
       headerRow.eachCell((cell) => {
-        cell.font = { bold: true, size: 12, color: { argb: "000000" } };
+        cell.font = {
+          bold: true,
+          size: 11,
+        };
+
+        cell.alignment = {
+          horizontal: "center",
+          vertical: "middle",
+          wrapText: true,
+        };
+
         cell.fill = {
           type: "pattern",
           pattern: "solid",
-          fgColor: { argb: "F0B100" },
+          fgColor: {
+            argb: "F0B100",
+          },
         };
-        cell.alignment = { vertical: "middle", horizontal: "center" };
+
         cell.border = {
           top: { style: "thin" },
           bottom: { style: "thin" },
@@ -347,20 +472,39 @@ export const useExport = () => {
         };
       });
 
-      // Data rows
-      data.forEach((item: any) => {
+      // ===========================
+      // DATA
+      // ===========================
+
+      data.forEach((item) => {
         const rowData = columns.map((col) => {
           const value = col.key.includes(".")
-            ? col.key.split(".").reduce((obj: any, key: string) => obj?.[key], item)
+            ? col.key
+                .split(".")
+                .reduce(
+                  (obj: any, key) => obj?.[key],
+                  item
+                )
             : item[col.key];
+
           return col.formatter
             ? col.formatter(value, item)
             : value?.toString() || "--";
         });
 
-        const dataRow = worksheet.addRow(rowData);
-        dataRow.eachCell((cell) => {
-          cell.font = { size: 11 };
+        const row = worksheet.addRow(rowData);
+
+        row.eachCell((cell) => {
+          cell.font = {
+            size: 10,
+          };
+
+          cell.alignment = {
+            vertical: "middle",
+            horizontal: "center",
+            wrapText: true,
+          };
+
           cell.border = {
             top: { style: "thin" },
             bottom: { style: "thin" },
@@ -368,108 +512,69 @@ export const useExport = () => {
             right: { style: "thin" },
           };
         });
-
-        // Handle nested table if configured
-        if (config.nestedTable) {
-          const { dataKey, columns: nestedColumns, title: nestedTitle } = config.nestedTable;
-          const nestedData = item[dataKey];
-          
-          if (nestedData?.length) {
-            // Add spacer and nested title
-            worksheet.addRow([]);
-            const parentIdentifier = item.vehicleName || item.name || 'Details';
-            const nestedTitleRow = worksheet.addRow([
-              nestedTitle ? `${nestedTitle} - ${parentIdentifier}` : `Day-Wise Details for ${parentIdentifier}`
-            ]);
-            nestedTitleRow.font = { bold: true, size: 10, italic: true };
-            nestedTitleRow.fill = {
-              type: "pattern",
-              pattern: "solid",
-              fgColor: { argb: "E8E8E8" },
-            };
-            worksheet.mergeCells(
-              `A${nestedTitleRow.number}:${String.fromCharCode(64 + nestedColumns.length)}${nestedTitleRow.number}`
-            );
-
-            // Add nested headers
-            const nestedHeaderRow = worksheet.addRow(nestedColumns.map((col) => col.header));
-            nestedHeaderRow.eachCell((cell) => {
-              cell.font = { bold: true, size: 10, color: { argb: "000000" } };
-              cell.fill = {
-                type: "pattern",
-                pattern: "solid",
-                fgColor: { argb: "FFE58A" },
-              };
-              cell.alignment = { vertical: "middle", horizontal: "center" };
-              cell.border = {
-                top: { style: "thin" },
-                bottom: { style: "thin" },
-                left: { style: "thin" },
-                right: { style: "thin" },
-              };
-            });
-
-            // Add nested data rows
-            nestedData.forEach((nestedItem: any) => {
-              const nestedRowData = nestedColumns.map((col) => {
-                const value = col.key.includes(".")
-                  ? col.key.split(".").reduce((obj: any, key: string) => obj?.[key], nestedItem)
-                  : nestedItem[col.key];
-                return col.formatter
-                  ? col.formatter(value, nestedItem)
-                  : value?.toString() || "--";
-              });
-
-              const nestedDataRow = worksheet.addRow(nestedRowData);
-              nestedDataRow.eachCell((cell) => {
-                cell.font = { size: 10 };
-                cell.fill = {
-                  type: "pattern",
-                  pattern: "solid",
-                  fgColor: { argb: "FAFAFA" },
-                };
-                cell.border = {
-                  top: { style: "thin" },
-                  bottom: { style: "thin" },
-                  left: { style: "thin" },
-                  right: { style: "thin" },
-                };
-              });
-            });
-
-            worksheet.addRow([]); // Spacer after nested table
-          }
-        }
       });
 
-      // Column widths
-      worksheet.columns = columns.map((col) => ({ width: col.width || 20 }));
+      // ===========================
+      // COLUMN WIDTHS
+      // ===========================
 
-      // Footer
-      worksheet.addRow([]);
-      const footerRow = worksheet.addRow([
-        `© ${new Date().getFullYear()} ${compunknownName}`,
-      ]);
-      footerRow.font = { italic: true };
+      worksheet.columns = columns.map((col) => ({
+        width: col.width || 20,
+      }));
+
+      // ===========================
+      // FOOTER
+      // ===========================
+
+      const footerRow = worksheet.addRow([]);
+
       worksheet.mergeCells(
-        `A${footerRow.number}:${String.fromCharCode(64 + columns.length)}${
-          footerRow.number
-        }`
+        `A${footerRow.number}:${lastColumn}${footerRow.number}`
       );
 
-      const buffer = await workbook.xlsx.writeBuffer();
+      const footerCell = worksheet.getCell(
+        `A${footerRow.number}`
+      );
+
+      footerCell.value = `© ${new Date().getFullYear()} ${companyName}`;
+
+      footerCell.font = {
+        italic: true,
+      };
+
+      footerCell.alignment = {
+        horizontal: "center",
+      };
+
+      // ===========================
+      // DOWNLOAD
+      // ===========================
+
+      const buffer =
+        await workbook.xlsx.writeBuffer();
+
       const blob = new Blob([buffer], {
         type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       });
+
       saveAs(blob, filename);
-      toast.success("Excel file downloaded successfully");
+
+      toast.success(
+        "Excel file downloaded successfully"
+      );
     } catch (error) {
-      console.error("Excel Export Error:", error);
+      console.error(error);
+
       toast.error(
-        error instanceof Error ? error.message : "Failed to export Excel file"
+        error instanceof Error
+          ? error.message
+          : "Excel export failed"
       );
     }
   };
 
-  return { exportToPDF, exportToExcel };
+  return {
+    exportToPDF,
+    exportToExcel,
+  };
 };
