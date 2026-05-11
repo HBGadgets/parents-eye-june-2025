@@ -148,18 +148,18 @@ const GeofenceManager: React.FC<GeofenceManagerProps> = ({
 
   // Set form dropdown states based on role
   useEffect(() => {
-    if (role === "school" && tokenSchoolId) {
+    if (tokenSchoolId) {
       setSchoolId(tokenSchoolId);
     }
 
-    if (role === "branch" && tokenBranchId) {
+    if (tokenBranchId) {
       setBranchId(tokenBranchId);
     }
 
-    if (role === "branchGroup" && tokenBranchGroupId) {
+    if (tokenBranchGroupId) {
       setBranchId(tokenBranchGroupId);
     }
-  }, [role, tokenSchoolId, tokenBranchId, tokenBranchGroupId]);
+  }, [tokenSchoolId, tokenBranchId, tokenBranchGroupId]);
 
   // Dropdown data hooks
   const { data: schools = [] } = useSchoolDropdown(role === "superAdmin");
@@ -674,8 +674,8 @@ const saveGeofences = async () => {
      latitude: lat,
      longitude: lng,
      radius: tempGeofence.radius || currentRadius,
-     schoolId: selectedSchool?._id,
-     branchId: selectedBranch?._id,
+     schoolId: selectedSchool?._id || schoolId,
+     branchId: selectedBranch?._id || (role === "branch" ? branchId : undefined),
      routeObjId: selectedRoute?._id,
      pickupTime: pickupTime ? formatTime(pickupTime) : "",
      dropTime: dropTime ? formatTime(dropTime) : undefined,
@@ -782,6 +782,7 @@ const saveGeofences = async () => {
         role={role}
         schools={schools}
         branches={branches}
+        branchId={branchId}
         locationSearchQuery={locationSearchQuery}
         setLocationSearchQuery={setLocationSearchQuery}
         searchResults={searchResults}

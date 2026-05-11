@@ -53,6 +53,8 @@ interface Props {
   role: string;
   schools: School[];
   branches: Branch[];
+  schoolId?: string;
+  branchId?: string;
 }
 
 function parseTimeStringToDate(timeString: string): Date | null {
@@ -112,6 +114,8 @@ const GeofenceConfigurationPanel: React.FC<Props> = ({
   role,
   schools,
   branches,
+  schoolId,
+  branchId,
 }) => {
   const editRowData = useGeofenceStore((state) => state.rowData);
 
@@ -119,8 +123,8 @@ const GeofenceConfigurationPanel: React.FC<Props> = ({
   const routeInitialized = useRef<boolean>(false);
 
   const { data: routesData = [] } = useRouteDropdown(
-    selectedBranch?._id,
-    !!selectedBranch?._id
+    selectedBranch?._id || (role === "branch" ? branchId : undefined),
+    !!(selectedBranch?._id || (role === "branch" ? branchId : undefined))
   );
 
   const schoolItems = useMemo(
@@ -342,7 +346,7 @@ const GeofenceConfigurationPanel: React.FC<Props> = ({
                 searchPlaceholder="Search school..."
                 emptyMessage="No route found"
                 width="w-[140px]"
-                disabled={!selectedBranch}
+                disabled={!(selectedBranch || (role === "branch" ? branchId : undefined))}
               />
             </div>
           )}
