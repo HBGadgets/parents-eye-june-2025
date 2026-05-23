@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
-    "build": "next build",
+    "build": "npm run save-server & next build",
     "start": "next start -p 4000",
     "lint": "next lint",
     "save-server": "node scripts/save-server.js"
