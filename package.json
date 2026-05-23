@@ -6,7 +6,8 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start -p 4000",
-    "lint": "next lint"
+    "lint": "next lint",
+    "save-server": "node scripts/save-server.js"
   },
   "dependencies": {
     "@chenglou/pretext": "^0.0.5",

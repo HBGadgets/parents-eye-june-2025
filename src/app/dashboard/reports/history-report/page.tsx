@@ -8,7 +8,8 @@ import FullScreenSpinner from "@/components/RouteLoader";
 import { formatDateToYYYYMMDD } from "@/util/formatDate";
 import { api } from "@/services/apiService";
 import TripsSidebar from "@/components/history/sliding-side-bar";
-import { Menu, Gauge, Clock, MapPinOff } from "lucide-react";
+import { Menu, Gauge, Clock, MapPinOff, Save, Check } from "lucide-react";
+import { toast } from "sonner";
 import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useDeviceDropdownWithUniqueIdForHistory } from "@/hooks/useDropdown";
@@ -52,12 +53,89 @@ const VehicleMap = dynamic(() => import("@/components/history/vehicle-map"), {
   ),
 });
 
+const PALETTE_OPTIONS = [
+  { name: "Sky Blue", value: "hsl(217, 91%, 60%)" },
+  { name: "Red", value: "hsl(0, 84%, 60%)" },
+  { name: "Emerald Green", value: "hsl(142, 71%, 45%)" },
+  { name: "Amber Gold", value: "hsl(38, 92%, 50%)" },
+  { name: "Violet Purple", value: "hsl(271, 91%, 65%)" },
+  { name: "Rose Pink", value: "hsl(322, 81%, 55%)" },
+  { name: "Cyan Teal", value: "hsl(187, 92%, 45%)" },
+  { name: "Safety Orange", value: "hsl(24, 95%, 53%)" },
+  { name: "Lime Green", value: "hsl(88, 74%, 48%)" },
+  { name: "Sea Teal", value: "hsl(174, 86%, 40%)" },
+  { name: "Magenta Fuchsia", value: "hsl(300, 76%, 50%)" },
+  { name: "Indigo Blue", value: "hsl(245, 78%, 62%)" },
+];
+
 function HistoryReportContent() {
   const queryClient = useQueryClient();
+  const [isSaving, setIsSaving] = useState(false);
   const [shouldFetch, setShouldFetch] = useState(false);
   const [hasGenerated, setHasGenerated] = useState(false);
   const [showStopsOnMap, setShowStopsOnMap] = useState(false);
   const [activeStopId, setActiveStopId] = useState<number | null>(null);
+  
+  // Custom route color configuration states
+  const [selectedColor, setSelectedColor] = useState<string>("hsl(217, 91%, 60%)");
+  const [savedColors, setSavedColors] = useState<Record<string, string>>({});
+  const [isColorModalOpen, setIsColorModalOpen] = useState(false);
+
+  const fetchSavedColors = async () => {
+    try {
+      const res = await fetch("http://localhost:5001/saved-colors");
+      const data = await res.json();
+      if (data.success && data.colors) {
+        setSavedColors(data.colors);
+      }
+    } catch (e) {
+      console.error("Error loading saved colors map:", e);
+    }
+  };
+
+  useEffect(() => {
+    fetchSavedColors();
+  }, [hasGenerated]);
+
+  const handleSavePlayback = async () => {
+    const finalUniqueId = uniqueIdFromUrl || selectedVehicle;
+    if (!finalUniqueId) {
+      toast.error("Please select a vehicle first");
+      return;
+    }
+    if (!historyReport) {
+      toast.error("No playback route data available to save");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const response = await fetch("http://localhost:5001/save-playback", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          uniqueId: finalUniqueId,
+          data: historyReport,
+          routeColor: selectedColor, // Custom selected color key!
+        }),
+      });
+
+      const resData = await response.json();
+      if (response.ok && resData.success) {
+        toast.success(`Successfully saved playback JSON data for bus: ${finalUniqueId}`);
+        fetchSavedColors(); // Refresh assigned states
+      } else {
+        toast.error(`Failed to save: ${resData.message}`);
+      }
+    } catch (err: any) {
+      console.error("Error saving playback data:", err);
+      toast.error(`Error saving playback data: ${err.message}`);
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   // Trip-wise source data
   const [trips, setTrips] = useState<any[][]>([]);
@@ -687,6 +765,16 @@ function HistoryReportContent() {
               <Button className="cursor-pointer" onClick={handleShow}>
                 Show
               </Button>
+              {hasGenerated && historyReport && (
+                <Button
+                  className="cursor-pointer bg-emerald-600 hover:bg-emerald-700 text-white ml-2 flex items-center gap-1.5"
+                  onClick={() => setIsColorModalOpen(true)}
+                  disabled={isSaving}
+                >
+                  <Save className="h-4 w-4" />
+                  {isSaving ? "Saving..." : "Save Route Data"}
+                </Button>
+              )}
             </div>
           </div>
         </header>
@@ -1039,6 +1127,125 @@ function HistoryReportContent() {
           />
         </div>
       </section>
+
+      {/* Visual Color Picker Modal Overlay */}
+      {isColorModalOpen && (
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-2xl p-6 max-w-sm w-full mx-4 animate-scale-up">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                🎨 Select Route Color Key
+              </h3>
+            </div>
+            
+            <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">
+              Choose a visually distinct color for this bus route. Occupied colors are marked with a warning dot.
+            </p>
+
+            {/* Visually stunning color swatches grid */}
+            <div className="grid grid-cols-4 gap-3 justify-items-center mb-6">
+              {PALETTE_OPTIONS.map((opt) => {
+                const finalUniqueId = uniqueIdFromUrl || selectedVehicle;
+                const takenBy = Object.entries(savedColors).find(
+                  ([busId, col]) => col === opt.value && busId !== String(finalUniqueId)
+                );
+                const isTaken = !!takenBy;
+                const isCurrentSelection = selectedColor === opt.value;
+                
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setSelectedColor(opt.value)}
+                    className={`w-10 h-10 rounded-full border border-white dark:border-slate-800 cursor-pointer transition-all duration-200 flex items-center justify-center relative hover:scale-110 shadow-md ${
+                      isCurrentSelection 
+                        ? "scale-110 ring-4 ring-emerald-500 dark:ring-emerald-400 ring-offset-2 dark:ring-offset-slate-900" 
+                        : "opacity-85 hover:opacity-100"
+                    }`}
+                    style={{ backgroundColor: opt.value }}
+                    title={`${opt.name}${isTaken ? ` (Occupied by Bus ${takenBy[0]})` : " (Available)"}`}
+                  >
+                    {isCurrentSelection && (
+                      <Check className="h-5 w-5 text-white font-bold drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)]" />
+                    )}
+                    {isTaken && !isCurrentSelection && (
+                      <span 
+                        className="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-amber-500 rounded-full border border-white dark:border-slate-900 shadow-sm flex items-center justify-center text-[10px]"
+                        title={`Occupied by Bus ${takenBy[0]}`}
+                      >
+                        ⚠️
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+              
+              {/* Custom Color Input for full color wheel freedom */}
+              <label 
+                className="w-10 h-10 rounded-full border border-white dark:border-slate-800 cursor-pointer transition-all duration-200 flex items-center justify-center shadow-md relative hover:scale-110 overflow-hidden"
+                style={{
+                  background: "conic-gradient(from 0deg, red, yellow, green, cyan, blue, magenta, red)",
+                }}
+                title="Custom Color Wheel Picker"
+              >
+                <input 
+                  type="color"
+                  value={selectedColor.startsWith("hsl") ? "#3b82f6" : selectedColor}
+                  onChange={(e) => setSelectedColor(e.target.value)}
+                  className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                />
+                <span className="text-[9px] text-white font-black drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">CUSTOM</span>
+              </label>
+            </div>
+
+            {/* Visual Live Route Line Preview */}
+            <div className="mb-6 p-3 bg-slate-50 dark:bg-slate-950 rounded-lg border border-slate-100 dark:border-slate-900">
+              <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-2">
+                Live Route Line Preview:
+              </span>
+              <div className="flex items-center gap-3">
+                <div 
+                  className="h-1.5 flex-grow rounded-full transition-colors duration-200" 
+                  style={{ 
+                    backgroundColor: selectedColor,
+                    boxShadow: `0 0 10px ${selectedColor}`
+                  }}
+                />
+                <span 
+                  className="w-3.5 h-3.5 rounded-full border border-white dark:border-slate-800 shadow-md flex-shrink-0" 
+                  style={{ 
+                    backgroundColor: selectedColor,
+                    boxShadow: `0 0 8px ${selectedColor}` 
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Modal Actions */}
+            <div className="flex gap-3 justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                className="cursor-pointer border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800"
+                onClick={() => setIsColorModalOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                className="cursor-pointer bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1.5 px-4"
+                onClick={() => {
+                  setIsColorModalOpen(false);
+                  handleSavePlayback();
+                }}
+                disabled={isSaving}
+              >
+                <Save className="h-4 w-4" />
+                {isSaving ? "Saving..." : "Save & Apply"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

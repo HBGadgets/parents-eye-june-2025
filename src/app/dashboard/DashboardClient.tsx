@@ -65,6 +65,47 @@ export default function DashboardClient() {
   );
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [selectedDevice, setSelectedDevice] = useState<DeviceData | null>(null);
+  const [selectedRouteData, setSelectedRouteData] = useState<any | null>(null);
+  const [isLoadingRoute, setIsLoadingRoute] = useState<boolean>(false);
+
+  // Fetch route playback data for the selected vehicle
+  useEffect(() => {
+    if (!selectedDevice) {
+      setSelectedRouteData(null);
+      return;
+    }
+
+    const uniqueId = selectedDevice.uniqueId || selectedDevice.imei || String(selectedDevice.deviceId);
+    if (!uniqueId) {
+      setSelectedRouteData(null);
+      return;
+    }
+
+    setIsLoadingRoute(true);
+    fetch(`/history-playback-data/${uniqueId}.json`)
+      .then((res) => {
+        const contentType = res.headers.get("content-type");
+        if (!res.ok || !contentType || !contentType.includes("application/json")) {
+          throw new Error("Route history not found");
+        }
+        return res.json();
+      })
+      .then((data) => {
+        if (data && data.success) {
+          setSelectedRouteData(data);
+        } else {
+          setSelectedRouteData(null);
+        }
+      })
+      .catch((err) => {
+        console.warn(`No history route data loaded for device ${uniqueId}:`, err.message);
+        setSelectedRouteData(null);
+      })
+      .finally(() => {
+        setIsLoadingRoute(false);
+      });
+  }, [selectedDevice]);
+
   const [selectedImei, setSelectedImei] = useState<{
     uniqueId: number;
     name: string;
@@ -345,8 +386,30 @@ export default function DashboardClient() {
     }
   }, [selectedDevice, queueForGeocoding]);
 
+  const [customColors, setCustomColors] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    fetch("/history-playback-data/metadata.json")
+      .then((res) => {
+        if (!res.ok) throw new Error("No metadata");
+        const contentType = res.headers.get("content-type");
+        if (!contentType || !contentType.includes("application/json")) {
+          throw new Error("Invalid content-type");
+        }
+        return res.json();
+      })
+      .then((data) => {
+        if (data) {
+          setCustomColors(data);
+        }
+      })
+      .catch(() => {
+        // Silent catch
+      });
+  }, []);
+
   // Keep your existing columns array here
-  const columns = getLiveVehicleColumns();
+  const columns = getLiveVehicleColumns("", customColors);
 
   useEffect(() => {
     if (isDrawerOpen) {
@@ -748,7 +811,9 @@ export default function DashboardClient() {
                     zoom={6}
                     selectedVehicleId={selectedVehicleId}
                     onVehicleSelect={setSelectedVehicleId}
+                    onVehicleClick={(vehicle) => handleDeviceSelection(vehicle as any)}
                     activeFilter={activeStatus}
+                    selectedRouteData={selectedRouteData}
                   />
                 )}
                 {viewState === "tableExpanded" && (

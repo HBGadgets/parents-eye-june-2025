@@ -494,7 +494,22 @@ export const getDeviceColumns = (
   ];
 // DEVICE COLUMNS END
 
-export const getLiveVehicleColumns = (userRole: string): ColumnDef<LiveTrack>[] => [
+// Fallback FNV-1a golden angle color generator
+const getUniqueRouteColor = (id: string | number) => {
+  const str = String(id);
+  // FNV-1a 32-bit hash algorithm for superior avalanche dispersion
+  let hash = 2166136261;
+  for (let i = 0; i < str.length; i++) {
+    hash ^= str.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  // Golden ratio hue angle
+  const hue = (Math.abs(hash) * 137.508) % 360;
+  const lightness = Math.abs(hash) % 2 === 0 ? 50 : 60;
+  return `hsl(${hue}, 85%, ${lightness}%)`;
+};
+
+export const getLiveVehicleColumns = (userRole: string = "", customColors: Record<string, string> = {}): ColumnDef<LiveTrack>[] => [
   {
     id: "status",
     header: "Status",
@@ -559,6 +574,38 @@ export const getLiveVehicleColumns = (userRole: string): ColumnDef<LiveTrack>[] 
     id: "name",
     header: "vehicle",
     accessorFn: (row: any) => row.name ?? "N/A",
+    cell: ({ row, table }: any) => {
+      const name = row.original.name ?? "N/A";
+      const id = row.original.imei || row.original.uniqueId || row.original.deviceId || "";
+
+      // Extract all uniqueIds from the stable unfiltered row model
+      const allRows = table?.getPreFilteredRowModel?.()?.rows || [];
+      const sortedIds = allRows
+        .map((r: any) => r.original.imei || r.original.uniqueId || r.original.deviceId || "")
+        .filter((val: string) => val !== "")
+        .filter((value: string, idx: number, self: string[]) => self.indexOf(value) === idx)
+        .sort();
+
+      const index = sortedIds.indexOf(id);
+      
+      const routeColor = (customColors && customColors[id]) || null;
+
+      return (
+        <div className="flex items-center gap-2.5 font-semibold text-slate-800 dark:text-slate-100">
+          {routeColor && (
+            <span
+              className="w-3.5 h-3.5 rounded-full border border-white dark:border-slate-800 shadow-md flex-shrink-0 relative transition-transform hover:scale-110 cursor-help"
+              style={{
+                backgroundColor: routeColor,
+                boxShadow: `0 0 8px ${routeColor}`,
+              }}
+              title={`Map route color key: ${routeColor}`}
+            />
+          )}
+          <span className="truncate">{name}</span>
+        </div>
+      );
+    },
     meta: {
       wrapConfig: {
         wrap: "break-word",

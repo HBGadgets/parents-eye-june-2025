@@ -6,7 +6,7 @@ import React, {
   useState,
   useLayoutEffect,
 } from "react";
-import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Popup, useMap, Polyline } from "react-leaflet";
 import MarkerClusterGroup from "react-leaflet-cluster";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -55,6 +55,18 @@ interface VehicleMapProps {
   clusterMarkers?: boolean;
   autoFitBounds?: boolean;
   activeFilter?: string;
+  selectedRouteData?: {
+    success: boolean;
+    message?: string;
+    deviceDataByTrips: Array<Array<{
+      latitude: number;
+      longitude: number;
+      speed: number;
+      course: number;
+      createdAt: string;
+      attributes?: any;
+    }>>;
+  } | null;
 }
 
 // Optimized marker component with proper memoization
@@ -523,6 +535,68 @@ const createClusterCustomIcon = (cluster: any) => {
   });
 };
 
+// Fallback FNV-1a golden angle color generator
+const getUniqueRouteColor = (id: string | number) => {
+  const str = String(id);
+  // FNV-1a 32-bit hash algorithm for superior avalanche dispersion
+  let hash = 2166136261;
+  for (let i = 0; i < str.length; i++) {
+    hash ^= str.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  // Golden ratio hue angle
+  const hue = (Math.abs(hash) * 137.508) % 360;
+  const lightness = Math.abs(hash) % 2 === 0 ? 50 : 60;
+  return `hsl(${hue}, 85%, ${lightness}%)`;
+};
+
+// Create custom premium route start and end markers
+const createRouteFlagIcon = (color: "green" | "red", size: number = 34) => {
+  const flagColor = color === "green" ? "#10b981" : "#ef4444";
+  return L.divIcon({
+    className: `${color}-flag-route`,
+    html: `
+      <div style="width: ${size}px; height: ${size}px; display: flex; align-items: center; justify-content: center; filter: drop-shadow(1px 2px 4px rgba(0,0,0,0.35));">
+        <svg viewBox="0 0 24 24" style="width: ${size}px; height: ${size}px; fill: ${flagColor}; stroke: white; stroke-width: 1.2;">
+          <path d="M14.4 6L14 4H5v17h2v-7h5.6l.4 2h7V6z"/>
+        </svg>
+      </div>
+    `,
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size - 2],
+  });
+};
+
+// Map route bounds updater
+const RouteBoundsUpdater = ({
+  routeData,
+}: {
+  routeData: any;
+}) => {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!routeData?.deviceDataByTrips) return;
+    
+    // Flatten trips to compute global bounds
+    const points = routeData.deviceDataByTrips.flat();
+    if (points.length === 0) return;
+
+    const bounds = L.latLngBounds(
+      points.map((p: any) => [p.latitude, p.longitude] as [number, number])
+    );
+
+    if (bounds.isValid()) {
+      map.fitBounds(bounds, {
+        padding: [60, 60],
+        maxZoom: 15,
+      });
+    }
+  }, [routeData, map]);
+
+  return null;
+};
+
 const VehicleMap: React.FC<VehicleMapProps> = ({
   vehicles,
   center = [21.99099777777778, 78.92973111111111],
@@ -534,10 +608,84 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
   clusterMarkers = true,
   autoFitBounds = false,
   activeFilter,
+  selectedRouteData,
 }) => {
   const mapRef = useRef<L.Map | null>(null);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [shouldFitBounds, setShouldFitBounds] = useState(false);
+  const [customColors, setCustomColors] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    fetch("/history-playback-data/metadata.json")
+      .then((res) => {
+        if (!res.ok) throw new Error("No metadata");
+        const contentType = res.headers.get("content-type");
+        if (!contentType || !contentType.includes("application/json")) {
+          throw new Error("Invalid content-type");
+        }
+        return res.json();
+      })
+      .then((data) => {
+        if (data) {
+          setCustomColors(data);
+        }
+      })
+      .catch(() => {
+        // Silent catch
+      });
+  }, []);
+
+  // Pre-sort all vehicle IDs alphabetically to generate stable golden-angle color indexes
+  const sortedVehicleIds = useMemo(() => {
+    return vehicles
+      .map((v) => String(v.imei || v.uniqueId || v.deviceId || ""))
+      .filter((id) => id !== "")
+      .filter((value, idx, self) => self.indexOf(value) === idx)
+      .sort();
+  }, [vehicles]);
+
+  const getRouteColorById = useCallback((id: string | number) => {
+    const targetId = String(id);
+    if (customColors && customColors[targetId]) {
+      return customColors[targetId];
+    }
+    const index = sortedVehicleIds.indexOf(targetId);
+    if (index >= 0) {
+      // Golden angle multiplication (~137.508 degrees) creates absolute maximum visual distance
+      const hue = (index * 137.508) % 360;
+      // Alternate lightness between 50% and 60% for even higher visual contrast
+      const lightness = index % 2 === 0 ? 50 : 60;
+      return `hsl(${hue}, 85%, ${lightness}%)`;
+    }
+    return getUniqueRouteColor(id);
+  }, [sortedVehicleIds, customColors]);
+
+  // Find selected vehicle to generate its deterministic route color
+  const selectedVehicle = useMemo(() => {
+    return vehicles.find((v) => v.deviceId === selectedVehicleId);
+  }, [vehicles, selectedVehicleId]);
+
+  const routeColor = useMemo(() => {
+    if (!selectedVehicle) return "#3b82f6"; // Fallback color
+    const id = selectedVehicle.imei || selectedVehicle.uniqueId || selectedVehicle.deviceId;
+    return getRouteColorById(id);
+  }, [selectedVehicle, getRouteColorById]);
+
+  // Extract start and end coordinates of the selected route
+  const routeMarkers = useMemo(() => {
+    if (!selectedRouteData?.deviceDataByTrips) return null;
+    const nonElTrips = selectedRouteData.deviceDataByTrips.filter((t: any) => t.length > 0);
+    if (nonElTrips.length === 0) return null;
+
+    const startPoint = nonElTrips[0][0];
+    const lastTrip = nonElTrips[nonElTrips.length - 1];
+    const endPoint = lastTrip[lastTrip.length - 1];
+
+    return {
+      start: startPoint ? { lat: startPoint.latitude, lng: startPoint.longitude } : null,
+      end: endPoint ? { lat: endPoint.latitude, lng: endPoint.longitude } : null,
+    };
+  }, [selectedRouteData]);
 
   // Filter valid vehicles with memoization
   const validVehicles = useMemo(() => {
@@ -551,6 +699,38 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
         Math.abs(vehicle.longitude) <= 180
     );
   }, [vehicles]);
+
+  const [routesMap, setRoutesMap] = useState<Record<string, any>>({});
+  const requestedImeisRef = useRef<Set<string>>(new Set());
+
+  // Automatically fetch route history for all visible valid vehicles
+  useEffect(() => {
+    if (validVehicles.length === 0) return;
+
+    validVehicles.forEach((vehicle) => {
+      const imei = String(vehicle.uniqueId || vehicle.imei);
+      if (!imei || requestedImeisRef.current.has(imei)) return;
+
+      requestedImeisRef.current.add(imei);
+
+      fetch(`/history-playback-data/${imei}.json`)
+        .then((res) => {
+          const contentType = res.headers.get("content-type");
+          if (!res.ok || !contentType || !contentType.includes("application/json")) {
+            throw new Error("No route");
+          }
+          return res.json();
+        })
+        .then((data) => {
+          if (data && data.success) {
+            setRoutesMap((prev) => ({ ...prev, [imei]: data }));
+          }
+        })
+        .catch(() => {
+          // Silent catch - we already marked it as requested
+        });
+    });
+  }, [validVehicles]);
 
   // Calculate map center efficiently
   const mapCenter = useMemo(() => {
@@ -669,6 +849,70 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
 
         {/* Render optimized markers */}
         {renderMarkers}
+
+        {/* Render travelled routes for all loaded vehicles automatically */}
+        {Object.entries(routesMap).map(([imei, routeData]: [string, any]) => {
+          if (!routeData?.deviceDataByTrips) return null;
+
+          const isSelected = selectedVehicle && String(selectedVehicle.uniqueId || selectedVehicle.imei) === imei;
+          const color = getRouteColorById(imei);
+
+          return (
+            <React.Fragment key={`route-group-${imei}`}>
+              {routeData.deviceDataByTrips.map((trip: any, tripIndex: number) => {
+                const positions = trip.map((pt: any) => [pt.latitude, pt.longitude] as [number, number]);
+                return (
+                  <Polyline
+                    key={`route-trip-${imei}-${tripIndex}`}
+                    positions={positions}
+                    pathOptions={{
+                      color: color,
+                      weight: isSelected ? 6 : 4, // highlight selected route slightly thicker
+                      opacity: isSelected ? 0.95 : 0.7, // dim non-selected routes slightly for visual balance
+                      lineJoin: "round",
+                      lineCap: "round",
+                    }}
+                  />
+                );
+              })}
+            </React.Fragment>
+          );
+        })}
+
+        {/* Start/End flag markers */}
+        {routeMarkers?.start && (
+          <Marker
+            position={[routeMarkers.start.lat, routeMarkers.start.lng]}
+            icon={createRouteFlagIcon("green", 34)}
+          >
+            <Popup maxWidth={200}>
+              <div style={{ textAlign: "center", fontFamily: "sans-serif" }}>
+                <strong style={{ color: "#10b981" }}>Start Point</strong>
+                <div style={{ fontSize: "11px", color: "#666", marginTop: "4px" }}>
+                  📍 {routeMarkers.start.lat.toFixed(6)}, {routeMarkers.start.lng.toFixed(6)}
+                </div>
+              </div>
+            </Popup>
+          </Marker>
+        )}
+        {routeMarkers?.end && (
+          <Marker
+            position={[routeMarkers.end.lat, routeMarkers.end.lng]}
+            icon={createRouteFlagIcon("red", 34)}
+          >
+            <Popup maxWidth={200}>
+              <div style={{ textAlign: "center", fontFamily: "sans-serif" }}>
+                <strong style={{ color: "#ef4444" }}>End Point</strong>
+                <div style={{ fontSize: "11px", color: "#666", marginTop: "4px" }}>
+                  📍 {routeMarkers.end.lat.toFixed(6)}, {routeMarkers.end.lng.toFixed(6)}
+                </div>
+              </div>
+            </Popup>
+          </Marker>
+        )}
+
+        {/* Route auto-bounding */}
+        <RouteBoundsUpdater routeData={selectedRouteData} />
       </MapContainer>
 
       {/* Map Controls */}

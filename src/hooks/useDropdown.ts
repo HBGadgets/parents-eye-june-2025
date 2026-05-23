@@ -7,6 +7,8 @@ export interface DropdownItem {
   schoolName?: string;
   branchName?: string;
   routeNumber?: string;
+  routeName?: string;
+  geofenceName?: string;
   categoryName?: string;
   modelName?: string;
   driverName?: string;
