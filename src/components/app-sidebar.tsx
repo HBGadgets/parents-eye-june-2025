@@ -90,6 +90,7 @@ const iconMap: Record<string, React.ElementType> = {
   Model: GiGps,
   Category: FileText,
   "Ticket Types": Ticket,
+  "Send Notification": Bell,
 };
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
@@ -195,6 +196,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           return [
             { title: "Pickup And Drop", url: "/dashboard/school/pickup-drop" },
             { title: "Leave Request", url: "/dashboard/school/leave-request" },
+            {title: "Send Notification", url: "/dashboard/school/send-notification"}
           ];
         case "Users":
           return [
