@@ -236,20 +236,29 @@ export default function ParentsMaster() {
       branchId?: string;
     }) => {
       try {
+        const payload = { ...data };
+
+        // If creating a new parent and role is branch, extract schoolId from the token
+        if (!selectedParent && role === "branch") {
+          if (decodedToken.schoolId) {
+            payload.schoolId = decodedToken.schoolId;
+          }
+        }
+
         if (selectedParent) {
           updateParent({
             id: selectedParent._id,
-            payload: data,
+            payload,
           });
         } else {
-          createParentAsync(data);
+          createParentAsync(payload);
         }
         closeModal();
       } catch (error) {
         console.error("Form submission error:", error);
       }
     },
-    [selectedParent, updateParent, createParentAsync, closeModal]
+    [selectedParent, updateParent, createParentAsync, closeModal, role, decodedToken.schoolId]
   );
 
   const columns = useMemo(
