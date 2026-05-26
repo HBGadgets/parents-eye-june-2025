@@ -83,7 +83,7 @@ function HistoryReportContent() {
 
   const fetchSavedColors = async () => {
     try {
-      const res = await fetch("http://localhost:5001/saved-colors");
+      const res = await fetch(`${process.env.NEXT_PUBLIC_LOCAL_URL}/saved-colors`);
       const data = await res.json();
       if (data.success && data.colors) {
         setSavedColors(data.colors);
@@ -108,9 +108,19 @@ function HistoryReportContent() {
       return;
     }
 
+    // Check if the selected color is already assigned to a different vehicle
+    const takenBy = Object.entries(savedColors).find(
+      ([busId, col]) => col.toLowerCase() === selectedColor.toLowerCase() && busId !== String(finalUniqueId)
+    );
+
+    if (takenBy) {
+      toast.error(`The color ${selectedColor} is already assigned to Bus ${takenBy[0]}. Please select a unique color.`);
+      return;
+    }
+
     setIsSaving(true);
     try {
-      const response = await fetch("http://localhost:5001/save-playback", {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_LOCAL_URL}/save-playback`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

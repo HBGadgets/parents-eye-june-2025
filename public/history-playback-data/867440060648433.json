@@ -1,0 +1,1218 @@
+{
+  "success": true,
+  "message": "Device trips fetched successfully",
+  "deviceDataByTrips": [
+    [
+      {
+        "attributes": {
+          "distance": 58.97,
+          "totalDistance": 11629268.17
+        },
+        "latitude": 28.592210555555557,
+        "longitude": 77.37966555555556,
+        "speed": 9,
+        "course": 235,
+        "createdAt": "2026-05-26T07:09:29.515Z"
+      },
+      {
+        "attributes": {
+          "distance": 73.69,
+          "totalDistance": 11629341.86
+        },
+        "latitude": 28.591818888888888,
+        "longitude": 77.37905777777777,
+        "speed": 6,
+        "course": 257,
+        "createdAt": "2026-05-26T07:10:10.540Z"
+      },
+      {
+        "attributes": {
+          "distance": 4.4,
+          "totalDistance": 11629346.26
+        },
+        "latitude": 28.59182,
+        "longitude": 77.37901277777777,
+        "speed": 8,
+        "course": 246,
+        "createdAt": "2026-05-26T07:10:14.569Z"
+      },
+      {
+        "attributes": {
+          "distance": 21.23,
+          "totalDistance": 11629367.49
+        },
+        "latitude": 28.59174111111111,
+        "longitude": 77.378815,
+        "speed": 6,
+        "course": 265,
+        "createdAt": "2026-05-26T07:10:22.651Z"
+      },
+      {
+        "attributes": {
+          "distance": 10.98,
+          "totalDistance": 11629378.47
+        },
+        "latitude": 28.591835000000003,
+        "longitude": 77.37884944444444,
+        "speed": 7,
+        "course": 3,
+        "createdAt": "2026-05-26T07:10:30.971Z"
+      },
+      {
+        "attributes": {
+          "distance": 12.37,
+          "totalDistance": 11629393.51
+        },
+        "latitude": 28.591964444444447,
+        "longitude": 77.37881222222222,
+        "speed": 13,
+        "course": 333,
+        "createdAt": "2026-05-26T07:10:35.071Z"
+      },
+      {
+        "attributes": {
+          "distance": 3.52,
+          "totalDistance": 11629397.03
+        },
+        "latitude": 28.591992222222224,
+        "longitude": 77.378795,
+        "speed": 11,
+        "course": 331,
+        "createdAt": "2026-05-26T07:10:39.229Z"
+      },
+      {
+        "attributes": {
+          "distance": 52.55,
+          "totalDistance": 11629449.58
+        },
+        "latitude": 28.59241777777778,
+        "longitude": 77.37856222222223,
+        "speed": 17,
+        "course": 337,
+        "createdAt": "2026-05-26T07:10:47.822Z"
+      },
+      {
+        "attributes": {
+          "distance": 4.31,
+          "totalDistance": 11629470.99
+        },
+        "latitude": 28.59260111111111,
+        "longitude": 77.37851055555556,
+        "speed": 13,
+        "course": 13,
+        "createdAt": "2026-05-26T07:10:51.916Z"
+      },
+      {
+        "attributes": {
+          "distance": 19.37,
+          "totalDistance": 11629490.36
+        },
+        "latitude": 28.59272888888889,
+        "longitude": 77.378645,
+        "speed": 13,
+        "course": 34,
+        "createdAt": "2026-05-26T07:10:56.038Z"
+      },
+      {
+        "attributes": {
+          "distance": 4.61,
+          "totalDistance": 11629494.97
+        },
+        "latitude": 28.59275611111111,
+        "longitude": 77.37868055555555,
+        "speed": 16,
+        "course": 35,
+        "createdAt": "2026-05-26T07:11:00.127Z"
+      },
+      {
+        "attributes": {
+          "distance": 1.55,
+          "totalDistance": 11629527.09
+        },
+        "latitude": 28.592916666666667,
+        "longitude": 77.37894666666666,
+        "speed": 15,
+        "course": 334,
+        "createdAt": "2026-05-26T07:11:08.414Z"
+      },
+      {
+        "attributes": {
+          "distance": 0.48,
+          "totalDistance": 11629527.57
+        },
+        "latitude": 28.59292055555556,
+        "longitude": 77.37894444444444,
+        "speed": 15,
+        "course": 328,
+        "createdAt": "2026-05-26T07:11:12.477Z"
+      }
+    ],
+    [
+      {
+        "attributes": {
+          "distance": 2.28,
+          "totalDistance": 11629578.44
+        },
+        "latitude": 28.59309888888889,
+        "longitude": 77.37891611111111,
+        "speed": 7,
+        "course": 16,
+        "createdAt": "2026-05-26T07:11:45.046Z"
+      },
+      {
+        "attributes": {
+          "distance": 5.98,
+          "totalDistance": 11629586.3
+        },
+        "latitude": 28.593152777777778,
+        "longitude": 77.37896722222222,
+        "speed": 17,
+        "course": 327,
+        "createdAt": "2026-05-26T07:11:49.130Z"
+      },
+      {
+        "attributes": {
+          "distance": 4.16,
+          "totalDistance": 11629590.46
+        },
+        "latitude": 28.593183333333332,
+        "longitude": 77.37894277777778,
+        "speed": 20,
+        "course": 323,
+        "createdAt": "2026-05-26T07:11:53.158Z"
+      },
+      {
+        "attributes": {
+          "distance": 7.2,
+          "totalDistance": 11629624.82
+        },
+        "latitude": 28.593229444444443,
+        "longitude": 77.37912,
+        "speed": 11,
+        "course": 116,
+        "createdAt": "2026-05-26T07:12:05.623Z"
+      },
+      {
+        "attributes": {
+          "distance": 5.91,
+          "totalDistance": 11629636.85
+        },
+        "latitude": 28.593151111111112,
+        "longitude": 77.37920444444444,
+        "speed": 8,
+        "course": 156,
+        "createdAt": "2026-05-26T07:12:09.878Z"
+      },
+      {
+        "attributes": {
+          "distance": 98.29,
+          "totalDistance": 11629735.14
+        },
+        "latitude": 28.592468888888888,
+        "longitude": 77.37984277777777,
+        "speed": 28,
+        "course": 152,
+        "createdAt": "2026-05-26T07:12:38.591Z"
+      },
+      {
+        "attributes": {
+          "distance": 10.55,
+          "totalDistance": 11629834.9
+        },
+        "latitude": 28.591941666666667,
+        "longitude": 77.38051666666667,
+        "speed": 28,
+        "course": 69,
+        "createdAt": "2026-05-26T07:12:50.725Z"
+      },
+      {
+        "attributes": {
+          "distance": 128.56,
+          "totalDistance": 11629963.46
+        },
+        "latitude": 28.592511666666667,
+        "longitude": 77.38166055555557,
+        "speed": 50,
+        "course": 61,
+        "createdAt": "2026-05-26T07:13:07.004Z"
+      },
+      {
+        "attributes": {
+          "distance": 155.54,
+          "totalDistance": 11630119
+        },
+        "latitude": 28.593025,
+        "longitude": 77.38314055555556,
+        "speed": 54,
+        "course": 64,
+        "createdAt": "2026-05-26T07:13:11.120Z"
+      },
+      {
+        "attributes": {
+          "distance": 158.95,
+          "totalDistance": 11630277.95
+        },
+        "latitude": 28.593629444444442,
+        "longitude": 77.38461388888888,
+        "speed": 52,
+        "course": 69,
+        "createdAt": "2026-05-26T07:13:23.457Z"
+      },
+      {
+        "attributes": {
+          "distance": 15.76,
+          "totalDistance": 11630357.36
+        },
+        "latitude": 28.593742222222225,
+        "longitude": 77.38541444444444,
+        "speed": 51,
+        "course": 87,
+        "createdAt": "2026-05-26T07:13:27.517Z"
+      },
+      {
+        "attributes": {
+          "distance": 15.82,
+          "totalDistance": 11630513.21
+        },
+        "latitude": 28.593929444444445,
+        "longitude": 77.38697666666665,
+        "speed": 51,
+        "course": 55,
+        "createdAt": "2026-05-26T07:13:35.619Z"
+      },
+      {
+        "attributes": {
+          "distance": 13.1,
+          "totalDistance": 11630659.21
+        },
+        "latitude": 28.594594999999998,
+        "longitude": 77.38825944444444,
+        "speed": 41,
+        "course": 74,
+        "createdAt": "2026-05-26T07:13:55.930Z"
+      },
+      {
+        "attributes": {
+          "distance": 126.47,
+          "totalDistance": 11630785.68
+        },
+        "latitude": 28.59490611111111,
+        "longitude": 77.3895038888889,
+        "speed": 47,
+        "course": 72,
+        "createdAt": "2026-05-26T07:14:00.093Z"
+      },
+      {
+        "attributes": {
+          "distance": 155.25,
+          "totalDistance": 11630940.93
+        },
+        "latitude": 28.59529277777778,
+        "longitude": 77.39103,
+        "speed": 52,
+        "course": 78,
+        "createdAt": "2026-05-26T07:14:08.403Z"
+      },
+      {
+        "attributes": {
+          "distance": 0,
+          "totalDistance": 11631102.83
+        },
+        "latitude": 28.59567111111111,
+        "longitude": 77.39262944444444,
+        "speed": 53,
+        "course": 71,
+        "createdAt": "2026-05-26T07:14:20.640Z"
+      },
+      {
+        "attributes": {
+          "distance": 157.46,
+          "totalDistance": 11631260.29
+        },
+        "latitude": 28.59608,
+        "longitude": 77.39417166666667,
+        "speed": 52,
+        "course": 74,
+        "createdAt": "2026-05-26T07:14:32.911Z"
+      },
+      {
+        "attributes": {
+          "distance": 158.29,
+          "totalDistance": 11631418.58
+        },
+        "latitude": 28.59646,
+        "longitude": 77.39573222222222,
+        "speed": 51,
+        "course": 74,
+        "createdAt": "2026-05-26T07:14:37.208Z"
+      },
+      {
+        "attributes": {
+          "distance": 157.45,
+          "totalDistance": 11631576.03
+        },
+        "latitude": 28.59682944444444,
+        "longitude": 77.39728722222222,
+        "speed": 52,
+        "course": 75,
+        "createdAt": "2026-05-26T07:14:49.435Z"
+      },
+      {
+        "attributes": {
+          "distance": 151.09,
+          "totalDistance": 11631727.12
+        },
+        "latitude": 28.597185555555555,
+        "longitude": 77.39877888888888,
+        "speed": 46,
+        "course": 74,
+        "createdAt": "2026-05-26T07:14:57.664Z"
+      },
+      {
+        "attributes": {
+          "distance": 131.65,
+          "totalDistance": 11631858.77
+        },
+        "latitude": 28.597532222222224,
+        "longitude": 77.40006666666666,
+        "speed": 41,
+        "course": 72,
+        "createdAt": "2026-05-26T07:15:09.824Z"
+      },
+      {
+        "attributes": {
+          "distance": 10.69,
+          "totalDistance": 11631938.75
+        },
+        "latitude": 28.5978,
+        "longitude": 77.40081944444445,
+        "speed": 35,
+        "course": 46,
+        "createdAt": "2026-05-26T07:15:13.952Z"
+      },
+      {
+        "attributes": {
+          "distance": 10.39,
+          "totalDistance": 11631979.7
+        },
+        "latitude": 28.597975,
+        "longitude": 77.40118388888888,
+        "speed": 34,
+        "course": 74,
+        "createdAt": "2026-05-26T07:15:18.340Z"
+      },
+      {
+        "attributes": {
+          "distance": 22.79,
+          "totalDistance": 11632097.34
+        },
+        "latitude": 28.598260555555555,
+        "longitude": 77.40234222222222,
+        "speed": 24,
+        "course": 91,
+        "createdAt": "2026-05-26T07:15:30.839Z"
+      },
+      {
+        "attributes": {
+          "distance": 2.41,
+          "totalDistance": 11632109.16
+        },
+        "latitude": 28.59828611111111,
+        "longitude": 77.40245777777778,
+        "speed": 6,
+        "course": 74,
+        "createdAt": "2026-05-26T07:15:34.877Z"
+      },
+      {
+        "attributes": {
+          "distance": 37.37,
+          "totalDistance": 11632146.53
+        },
+        "latitude": 28.598377777777777,
+        "longitude": 77.40282555555555,
+        "speed": 24,
+        "course": 75,
+        "createdAt": "2026-05-26T07:16:24.085Z"
+      },
+      {
+        "attributes": {
+          "distance": 77.49,
+          "totalDistance": 11632386.53
+        },
+        "latitude": 28.59957222222222,
+        "longitude": 77.404035,
+        "speed": 32,
+        "course": 344,
+        "createdAt": "2026-05-26T07:16:40.696Z"
+      }
+    ],
+    [
+      {
+        "attributes": {
+          "distance": 2.15,
+          "totalDistance": 11632436.86
+        },
+        "latitude": 28.59997222222222,
+        "longitude": 77.40381277777777,
+        "speed": 7,
+        "course": 353,
+        "createdAt": "2026-05-26T07:20:25.884Z"
+      },
+      {
+        "attributes": {
+          "distance": 36.67,
+          "totalDistance": 11632473.53
+        },
+        "latitude": 28.60029777777778,
+        "longitude": 77.40375555555555,
+        "speed": 10,
+        "course": 349,
+        "createdAt": "2026-05-26T07:20:38.095Z"
+      },
+      {
+        "attributes": {
+          "distance": 3.63,
+          "totalDistance": 11632530.73
+        },
+        "latitude": 28.60077611111111,
+        "longitude": 77.40356277777778,
+        "speed": 11,
+        "course": 302,
+        "createdAt": "2026-05-26T07:20:46.304Z"
+      },
+      {
+        "attributes": {
+          "distance": 3.99,
+          "totalDistance": 11632541.78
+        },
+        "latitude": 28.60080388888889,
+        "longitude": 77.403455,
+        "speed": 14,
+        "course": 274,
+        "createdAt": "2026-05-26T07:20:50.373Z"
+      },
+      {
+        "attributes": {
+          "distance": 5.6,
+          "totalDistance": 11632556.4
+        },
+        "latitude": 28.600773888888888,
+        "longitude": 77.40330999999999,
+        "speed": 19,
+        "course": 250,
+        "createdAt": "2026-05-26T07:20:54.581Z"
+      },
+      {
+        "attributes": {
+          "distance": 88.68,
+          "totalDistance": 11632645.08
+        },
+        "latitude": 28.600568333333335,
+        "longitude": 77.40243333333333,
+        "speed": 31,
+        "course": 254,
+        "createdAt": "2026-05-26T07:21:02.841Z"
+      },
+      {
+        "attributes": {
+          "distance": 90.17,
+          "totalDistance": 11632735.25
+        },
+        "latitude": 28.600326666666668,
+        "longitude": 77.40155277777778,
+        "speed": 28,
+        "course": 251,
+        "createdAt": "2026-05-26T07:21:15.105Z"
+      }
+    ],
+    [
+      {
+        "attributes": {
+          "distance": 4.03,
+          "totalDistance": 11632771.32
+        },
+        "latitude": 28.600236666666667,
+        "longitude": 77.40119944444444,
+        "speed": 7,
+        "course": 274,
+        "createdAt": "2026-05-26T07:22:20.560Z"
+      },
+      {
+        "attributes": {
+          "distance": 2.94,
+          "totalDistance": 11632774.26
+        },
+        "latitude": 28.600234444444443,
+        "longitude": 77.40116944444445,
+        "speed": 10,
+        "course": 260,
+        "createdAt": "2026-05-26T07:22:24.626Z"
+      },
+      {
+        "attributes": {
+          "distance": 38.47,
+          "totalDistance": 11632812.73
+        },
+        "latitude": 28.60015388888889,
+        "longitude": 77.40078666666668,
+        "speed": 14,
+        "course": 256,
+        "createdAt": "2026-05-26T07:22:32.978Z"
+      },
+      {
+        "attributes": {
+          "distance": 29.83,
+          "totalDistance": 11632919.69
+        },
+        "latitude": 28.59979611111111,
+        "longitude": 77.39978888888888,
+        "speed": 35,
+        "course": 220,
+        "createdAt": "2026-05-26T07:22:45.397Z"
+      },
+      {
+        "attributes": {
+          "distance": 11.05,
+          "totalDistance": 11632930.74
+        },
+        "latitude": 28.599716666666666,
+        "longitude": 77.3997211111111,
+        "speed": 36,
+        "course": 213,
+        "createdAt": "2026-05-26T07:22:49.493Z"
+      },
+      {
+        "attributes": {
+          "distance": 118.86,
+          "totalDistance": 11633049.6
+        },
+        "latitude": 28.598823333333332,
+        "longitude": 77.39905499999999,
+        "speed": 39,
+        "course": 198,
+        "createdAt": "2026-05-26T07:22:57.868Z"
+      },
+      {
+        "attributes": {
+          "distance": 10.87,
+          "totalDistance": 11633082.97
+        },
+        "latitude": 28.59852611111111,
+        "longitude": 77.39903222222223,
+        "speed": 35,
+        "course": 173,
+        "createdAt": "2026-05-26T07:23:01.895Z"
+      },
+      {
+        "attributes": {
+          "distance": 7.98,
+          "totalDistance": 11633198.7
+        },
+        "latitude": 28.597531666666665,
+        "longitude": 77.39931277777778,
+        "speed": 12,
+        "course": 229,
+        "createdAt": "2026-05-26T07:23:10.257Z"
+      },
+      {
+        "attributes": {
+          "distance": 2.81,
+          "totalDistance": 11633201.51
+        },
+        "latitude": 28.597518333333333,
+        "longitude": 77.39928833333333,
+        "speed": 6,
+        "course": 255,
+        "createdAt": "2026-05-26T07:23:14.449Z"
+      },
+      {
+        "attributes": {
+          "distance": 4.09,
+          "totalDistance": 11633205.6
+        },
+        "latitude": 28.597492222222225,
+        "longitude": 77.39925888888888,
+        "speed": 6,
+        "course": 250,
+        "createdAt": "2026-05-26T07:23:30.813Z"
+      },
+      {
+        "attributes": {
+          "distance": 32.19,
+          "totalDistance": 11633237.79
+        },
+        "latitude": 28.59741611111111,
+        "longitude": 77.39894111111111,
+        "speed": 21,
+        "course": 254,
+        "createdAt": "2026-05-26T07:23:38.946Z"
+      },
+      {
+        "attributes": {
+          "distance": 85.05,
+          "totalDistance": 11633322.84
+        },
+        "latitude": 28.597216666666668,
+        "longitude": 77.3981011111111,
+        "speed": 30,
+        "course": 254,
+        "createdAt": "2026-05-26T07:23:51.103Z"
+      },
+      {
+        "attributes": {
+          "distance": 105.62,
+          "totalDistance": 11633428.46
+        },
+        "latitude": 28.59695222222222,
+        "longitude": 77.39706333333334,
+        "speed": 35,
+        "course": 252,
+        "createdAt": "2026-05-26T07:24:03.339Z"
+      },
+      {
+        "attributes": {
+          "distance": 92.68,
+          "totalDistance": 11633521.14
+        },
+        "latitude": 28.596723333333333,
+        "longitude": 77.39615166666665,
+        "speed": 22,
+        "course": 251,
+        "createdAt": "2026-05-26T07:24:11.526Z"
+      },
+      {
+        "attributes": {
+          "distance": 64.21,
+          "totalDistance": 11633585.35
+        },
+        "latitude": 28.596568333333334,
+        "longitude": 77.3955188888889,
+        "speed": 25,
+        "course": 255,
+        "createdAt": "2026-05-26T07:24:19.639Z"
+      },
+      {
+        "attributes": {
+          "distance": 103.04,
+          "totalDistance": 11633688.39
+        },
+        "latitude": 28.596298333333333,
+        "longitude": 77.39451055555556,
+        "speed": 39,
+        "course": 255,
+        "createdAt": "2026-05-26T07:24:31.764Z"
+      },
+      {
+        "attributes": {
+          "distance": 97.12,
+          "totalDistance": 11633785.51
+        },
+        "latitude": 28.59605388888889,
+        "longitude": 77.39355666666667,
+        "speed": 17,
+        "course": 254,
+        "createdAt": "2026-05-26T07:24:39.856Z"
+      },
+      {
+        "attributes": {
+          "distance": 96.9,
+          "totalDistance": 11633882.41
+        },
+        "latitude": 28.5958,
+        "longitude": 77.39260833333333,
+        "speed": 28,
+        "course": 253,
+        "createdAt": "2026-05-26T07:25:00.363Z"
+      },
+      {
+        "attributes": {
+          "distance": 107.76,
+          "totalDistance": 11633990.17
+        },
+        "latitude": 28.595558888888892,
+        "longitude": 77.39154055555557,
+        "speed": 43,
+        "course": 253,
+        "createdAt": "2026-05-26T07:25:08.577Z"
+      },
+      {
+        "attributes": {
+          "distance": 131.69,
+          "totalDistance": 11634121.86
+        },
+        "latitude": 28.595244444444447,
+        "longitude": 77.39024166666667,
+        "speed": 43,
+        "course": 255,
+        "createdAt": "2026-05-26T07:25:20.783Z"
+      },
+      {
+        "attributes": {
+          "distance": 106.43,
+          "totalDistance": 11634228.29
+        },
+        "latitude": 28.59499111111111,
+        "longitude": 77.38919166666666,
+        "speed": 23,
+        "course": 258,
+        "createdAt": "2026-05-26T07:25:28.859Z"
+      },
+      {
+        "attributes": {
+          "distance": 2.64,
+          "totalDistance": 11634248.58
+        },
+        "latitude": 28.594933888888892,
+        "longitude": 77.38899500000001,
+        "speed": 9,
+        "course": 239,
+        "createdAt": "2026-05-26T07:25:45.592Z"
+      },
+      {
+        "attributes": {
+          "distance": 3.06,
+          "totalDistance": 11634282.77
+        },
+        "latitude": 28.594845,
+        "longitude": 77.38867222222221,
+        "speed": 9,
+        "course": 276,
+        "createdAt": "2026-05-26T07:25:58.102Z"
+      },
+      {
+        "attributes": {
+          "distance": 6.44,
+          "totalDistance": 11634309.73
+        },
+        "latitude": 28.59480277777778,
+        "longitude": 77.38840111111111,
+        "speed": 22,
+        "course": 255,
+        "createdAt": "2026-05-26T07:26:02.176Z"
+      },
+      {
+        "attributes": {
+          "distance": 88.55,
+          "totalDistance": 11634398.28
+        },
+        "latitude": 28.594512222222225,
+        "longitude": 77.38755777777779,
+        "speed": 34,
+        "course": 239,
+        "createdAt": "2026-05-26T07:26:14.426Z"
+      },
+      {
+        "attributes": {
+          "distance": 108.17,
+          "totalDistance": 11634506.45
+        },
+        "latitude": 28.59399388888889,
+        "longitude": 77.38662166666667,
+        "speed": 35,
+        "course": 248,
+        "createdAt": "2026-05-26T07:26:22.605Z"
+      },
+      {
+        "attributes": {
+          "distance": 10.6,
+          "totalDistance": 11634558.04
+        },
+        "latitude": 28.59393,
+        "longitude": 77.3861011111111,
+        "speed": 34,
+        "course": 272,
+        "createdAt": "2026-05-26T07:26:26.770Z"
+      },
+      {
+        "attributes": {
+          "distance": 103.69,
+          "totalDistance": 11634661.73
+        },
+        "latitude": 28.59395277777778,
+        "longitude": 77.38504055555556,
+        "speed": 37,
+        "course": 269,
+        "createdAt": "2026-05-26T07:26:39.036Z"
+      },
+      {
+        "attributes": {
+          "distance": 12.11,
+          "totalDistance": 11634708.75
+        },
+        "latitude": 28.59385111111111,
+        "longitude": 77.38457555555556,
+        "speed": 40,
+        "course": 246,
+        "createdAt": "2026-05-26T07:26:43.076Z"
+      },
+      {
+        "attributes": {
+          "distance": 128.7,
+          "totalDistance": 11634837.45
+        },
+        "latitude": 28.59336777777778,
+        "longitude": 77.38337944444444,
+        "speed": 32,
+        "course": 243,
+        "createdAt": "2026-05-26T07:26:55.395Z"
+      },
+      {
+        "attributes": {
+          "distance": 75.92,
+          "totalDistance": 11634913.37
+        },
+        "latitude": 28.593072222222222,
+        "longitude": 77.38267944444445,
+        "speed": 33,
+        "course": 245,
+        "createdAt": "2026-05-26T07:27:03.516Z"
+      },
+      {
+        "attributes": {
+          "distance": 124.5,
+          "totalDistance": 11635037.87
+        },
+        "latitude": 28.592588333333335,
+        "longitude": 77.3815311111111,
+        "speed": 48,
+        "course": 242,
+        "createdAt": "2026-05-26T07:27:19.965Z"
+      },
+      {
+        "attributes": {
+          "distance": 9.26,
+          "totalDistance": 11635201.36
+        },
+        "latitude": 28.59199388888889,
+        "longitude": 77.3800238888889,
+        "speed": 15,
+        "course": 288,
+        "createdAt": "2026-05-26T07:27:28.013Z"
+      },
+      {
+        "attributes": {
+          "distance": 4.85,
+          "totalDistance": 11635210.82
+        },
+        "latitude": 28.59204722222222,
+        "longitude": 77.37995,
+        "speed": 17,
+        "course": 324,
+        "createdAt": "2026-05-26T07:27:32.032Z"
+      },
+      {
+        "attributes": {
+          "distance": 30.16,
+          "totalDistance": 11635240.98
+        },
+        "latitude": 28.592265555555556,
+        "longitude": 77.37976722222221,
+        "speed": 8,
+        "course": 298,
+        "createdAt": "2026-05-26T07:27:36.082Z"
+      },
+      {
+        "attributes": {
+          "distance": 2.54,
+          "totalDistance": 11635252.04
+        },
+        "latitude": 28.592215,
+        "longitude": 77.37967,
+        "speed": 7,
+        "course": 241,
+        "createdAt": "2026-05-26T07:27:48.328Z"
+      },
+      {
+        "attributes": {
+          "distance": 4.58,
+          "totalDistance": 11635267
+        },
+        "latitude": 28.592124444444444,
+        "longitude": 77.37955833333334,
+        "speed": 15,
+        "course": 215,
+        "createdAt": "2026-05-26T07:27:52.408Z"
+      },
+      {
+        "attributes": {
+          "distance": 6.01,
+          "totalDistance": 11635309.83
+        },
+        "latitude": 28.59184611111111,
+        "longitude": 77.37925833333334,
+        "speed": 19,
+        "course": 233,
+        "createdAt": "2026-05-26T07:28:00.497Z"
+      },
+      {
+        "attributes": {
+          "distance": 29.34,
+          "totalDistance": 11635339.17
+        },
+        "latitude": 28.59172333333333,
+        "longitude": 77.37899277777777,
+        "speed": 10,
+        "course": 267,
+        "createdAt": "2026-05-26T07:28:04.569Z"
+      },
+      {
+        "attributes": {
+          "distance": 2.99,
+          "totalDistance": 11635342.16
+        },
+        "latitude": 28.59172444444444,
+        "longitude": 77.37896222222223,
+        "speed": 7,
+        "course": 278,
+        "createdAt": "2026-05-26T07:28:08.585Z"
+      },
+      {
+        "attributes": {
+          "distance": 11.31,
+          "totalDistance": 11635353.47
+        },
+        "latitude": 28.591784444444443,
+        "longitude": 77.3788688888889,
+        "speed": 9,
+        "course": 327,
+        "createdAt": "2026-05-26T07:28:12.633Z"
+      },
+      {
+        "attributes": {
+          "distance": 41.16,
+          "totalDistance": 11635394.63
+        },
+        "latitude": 28.592076111111112,
+        "longitude": 77.37861,
+        "speed": 6,
+        "course": 328,
+        "createdAt": "2026-05-26T07:28:33.154Z"
+      },
+      {
+        "attributes": {
+          "distance": 2.29,
+          "totalDistance": 11635418.66
+        },
+        "latitude": 28.592285,
+        "longitude": 77.37855277777778,
+        "speed": 6,
+        "course": 2,
+        "createdAt": "2026-05-26T07:28:45.491Z"
+      }
+    ],
+    [
+      {
+        "attributes": {
+          "distance": 13.65,
+          "totalDistance": 11635439.54
+        },
+        "latitude": 28.592456666666664,
+        "longitude": 77.37861166666667,
+        "speed": 6,
+        "course": 87,
+        "createdAt": "2026-05-26T07:29:34.351Z"
+      },
+      {
+        "attributes": {
+          "distance": 2.14,
+          "totalDistance": 11635441.68
+        },
+        "latitude": 28.592459444444444,
+        "longitude": 77.37863333333334,
+        "speed": 6,
+        "course": 81,
+        "createdAt": "2026-05-26T07:29:38.420Z"
+      }
+    ],
+    [
+      {
+        "attributes": {
+          "distance": 4.73,
+          "totalDistance": 11635465.94
+        },
+        "latitude": 28.592487222222225,
+        "longitude": 77.37887888888889,
+        "speed": 6,
+        "course": 85,
+        "createdAt": "2026-05-26T07:30:19.516Z"
+      },
+      {
+        "attributes": {
+          "distance": 18.99,
+          "totalDistance": 11635484.93
+        },
+        "latitude": 28.59247666666667,
+        "longitude": 77.37907277777776,
+        "speed": 6,
+        "course": 99,
+        "createdAt": "2026-05-26T07:30:27.728Z"
+      },
+      {
+        "attributes": {
+          "distance": 2.35,
+          "totalDistance": 11635519.72
+        },
+        "latitude": 28.592462222222224,
+        "longitude": 77.37942722222223,
+        "speed": 7,
+        "course": 75,
+        "createdAt": "2026-05-26T07:30:35.873Z"
+      },
+      {
+        "attributes": {
+          "distance": 2.34,
+          "totalDistance": 11635528.63
+        },
+        "latitude": 28.592506666666665,
+        "longitude": 77.3795,
+        "speed": 8,
+        "course": 23,
+        "createdAt": "2026-05-26T07:30:40.088Z"
+      },
+      {
+        "attributes": {
+          "distance": 11.05,
+          "totalDistance": 11635550.62
+        },
+        "latitude": 28.592689999999997,
+        "longitude": 77.37945333333333,
+        "speed": 22,
+        "course": 324,
+        "createdAt": "2026-05-26T07:30:44.166Z"
+      },
+      {
+        "attributes": {
+          "distance": 6.61,
+          "totalDistance": 11635557.23
+        },
+        "latitude": 28.59273888888889,
+        "longitude": 77.37941500000001,
+        "speed": 21,
+        "course": 324,
+        "createdAt": "2026-05-26T07:30:48.226Z"
+      },
+      {
+        "attributes": {
+          "distance": 2.91,
+          "totalDistance": 11635600.84
+        },
+        "latitude": 28.593062777777778,
+        "longitude": 77.37917444444444,
+        "speed": 8,
+        "course": 6,
+        "createdAt": "2026-05-26T07:30:52.391Z"
+      },
+      {
+        "attributes": {
+          "distance": 2.14,
+          "totalDistance": 11635608.55
+        },
+        "latitude": 28.593116666666667,
+        "longitude": 77.3792188888889,
+        "speed": 6,
+        "course": 74,
+        "createdAt": "2026-05-26T07:30:56.451Z"
+      },
+      {
+        "attributes": {
+          "distance": 5.01,
+          "totalDistance": 11635625.23
+        },
+        "latitude": 28.593061666666667,
+        "longitude": 77.37936444444443,
+        "speed": 17,
+        "course": 141,
+        "createdAt": "2026-05-26T07:31:00.509Z"
+      },
+      {
+        "attributes": {
+          "distance": 5.81,
+          "totalDistance": 11635636.28
+        },
+        "latitude": 28.592970555555556,
+        "longitude": 77.37940833333333,
+        "speed": 20,
+        "course": 161,
+        "createdAt": "2026-05-26T07:31:04.567Z"
+      },
+      {
+        "attributes": {
+          "distance": 91.29,
+          "totalDistance": 11635727.57
+        },
+        "latitude": 28.592262777777776,
+        "longitude": 77.37988,
+        "speed": 39,
+        "course": 149,
+        "createdAt": "2026-05-26T07:31:12.691Z"
+      },
+      {
+        "attributes": {
+          "distance": 51.87,
+          "totalDistance": 11635779.44
+        },
+        "latitude": 28.591866666666668,
+        "longitude": 77.38015944444444,
+        "speed": 13,
+        "course": 188,
+        "createdAt": "2026-05-26T07:31:20.731Z"
+      },
+      {
+        "attributes": {
+          "distance": 3.88,
+          "totalDistance": 11635795.71
+        },
+        "latitude": 28.591853333333333,
+        "longitude": 77.38002722222222,
+        "speed": 13,
+        "course": 320,
+        "createdAt": "2026-05-26T07:31:24.805Z"
+      },
+      {
+        "attributes": {
+          "distance": 4.5,
+          "totalDistance": 11635808.78
+        },
+        "latitude": 28.591963333333336,
+        "longitude": 77.37998222222222,
+        "speed": 16,
+        "course": 344,
+        "createdAt": "2026-05-26T07:31:28.863Z"
+      },
+      {
+        "attributes": {
+          "distance": 2.49,
+          "totalDistance": 11635855.62
+        },
+        "latitude": 28.592264999999998,
+        "longitude": 77.379705,
+        "speed": 8,
+        "course": 246,
+        "createdAt": "2026-05-26T07:31:37.150Z"
+      },
+      {
+        "attributes": {
+          "distance": 4.67,
+          "totalDistance": 11635881.1
+        },
+        "latitude": 28.592122222222223,
+        "longitude": 77.37950277777779,
+        "speed": 15,
+        "course": 217,
+        "createdAt": "2026-05-26T07:31:45.415Z"
+      },
+      {
+        "attributes": {
+          "distance": 3.61,
+          "totalDistance": 11635915.44
+        },
+        "latitude": 28.591898333333333,
+        "longitude": 77.37926333333333,
+        "speed": 12,
+        "course": 237,
+        "createdAt": "2026-05-26T07:31:53.751Z"
+      }
+    ]
+  ],
+  "routeColor": "hsl(322, 81%, 55%)"
+}
