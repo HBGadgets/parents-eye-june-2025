@@ -52,6 +52,36 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // GET /history-playback-data/:filename: serves the saved JSON route file directly
+  if (req.method === 'GET' && req.url.startsWith('/history-playback-data/')) {
+    try {
+      const fileName = req.url.substring('/history-playback-data/'.length);
+      // Secure check against directory traversal
+      if (fileName.includes('..') || fileName.includes('/') || fileName.includes('\\')) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, message: 'Invalid filename' }));
+        return;
+      }
+
+      const dirPath = path.join(process.cwd(), 'public', 'history-playback-data');
+      const filePath = path.join(dirPath, fileName);
+
+      if (fs.existsSync(filePath)) {
+        const content = fs.readFileSync(filePath, 'utf8');
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(content);
+      } else {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, message: 'Route data not found' }));
+      }
+    } catch (err) {
+      console.error('Error reading route file:', err);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, message: err.message }));
+    }
+    return;
+  }
+
   if (req.method === 'POST' && req.url === '/save-playback') {
     let body = '';
     req.on('data', chunk => {

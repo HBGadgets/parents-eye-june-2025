@@ -703,6 +703,12 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
   const [routesMap, setRoutesMap] = useState<Record<string, any>>({});
   const requestedImeisRef = useRef<Set<string>>(new Set());
 
+  
+  const localUrl = process.env.NODE_ENV === "development"
+    ? "http://localhost:5001"
+    : (process.env.NEXT_PUBLIC_LOCAL_URL || (typeof window !== "undefined" ? `${window.location.origin}/local` : ""));
+
+
   // Automatically fetch route history for all visible valid vehicles
   useEffect(() => {
     if (validVehicles.length === 0) return;
@@ -713,7 +719,7 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
 
       requestedImeisRef.current.add(imei);
 
-      fetch(`/history-playback-data/${imei}.json`)
+      fetch(`${localUrl}/history-playback-data/${imei}.json`)
         .then((res) => {
           const contentType = res.headers.get("content-type");
           if (!res.ok || !contentType || !contentType.includes("application/json")) {
