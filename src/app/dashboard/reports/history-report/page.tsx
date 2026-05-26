@@ -82,7 +82,7 @@ function HistoryReportContent() {
   const [isColorModalOpen, setIsColorModalOpen] = useState(false);
 
   const localUrl = typeof window !== "undefined"
-    && `${window.location.protocol}//${window.location.hostname}:5001`
+    && `${window.location.protocol}//${window.location.hostname}/local`
     // : (process.env.NEXT_PUBLIC_LOCAL_URL || "http://localhost:5001");
 
   const fetchSavedColors = async () => {
