@@ -719,7 +719,7 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
 
       requestedImeisRef.current.add(imei);
 
-      fetch(`${localUrl}/history-playback-data/${imei}.json`)
+      fetch(`/history-playback-data/${imei}.json`)
         .then((res) => {
           const contentType = res.headers.get("content-type");
           if (!res.ok || !contentType || !contentType.includes("application/json")) {
