@@ -81,9 +81,13 @@ function HistoryReportContent() {
   const [savedColors, setSavedColors] = useState<Record<string, string>>({});
   const [isColorModalOpen, setIsColorModalOpen] = useState(false);
 
+  const localUrl = typeof window !== "undefined"
+    && `${window.location.protocol}//${window.location.hostname}:5001`
+    // : (process.env.NEXT_PUBLIC_LOCAL_URL || "http://localhost:5001");
+
   const fetchSavedColors = async () => {
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_LOCAL_URL}/saved-colors`);
+      const res = await fetch(`${localUrl}/saved-colors`);
       const data = await res.json();
       if (data.success && data.colors) {
         setSavedColors(data.colors);
@@ -120,7 +124,7 @@ function HistoryReportContent() {
 
     setIsSaving(true);
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_LOCAL_URL}/save-playback`, {
+      const response = await fetch(`${localUrl}/save-playback`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
