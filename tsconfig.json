@@ -60,6 +60,6 @@
     ".next/types/**/*.ts",
     "src/components/ui/MyPageTable.jsx",
     "src/components/ui/MyPageTable.jsx"
-  ],
+, "scripts/save-server.js"  ],
   "exclude": ["node_modules"]
 }
