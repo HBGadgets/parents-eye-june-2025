@@ -47,7 +47,7 @@ export default function Page() {
 
   // ---------------- UI & Dialog States ----------------
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [pendingPayload, setPendingPayload] = useState<{ branchId: string; title: string; message: string } | null>(null);
+  const [pendingPayload, setPendingPayload] = useState<{ branchId: string; schoolId?: string; title: string; message: string } | null>(null);
 
   // ---------------- Pagination & Filters State ----------------
   const [selectedSchoolId, setSelectedSchoolId] = useState<string | undefined>();
@@ -75,6 +75,7 @@ export default function Page() {
     decodedToken?.role === "branch" ? decodedToken?.id : decodedToken?.branchId;
 
   const activeBranchId = decodedTokenRole === "branch" ? tokenBranchId : selectedBranchId;
+  const activeSchoolId = decodedTokenRole === "superAdmin" ? selectedSchoolId : tokenSchoolId;
 
   // Memoize historyParams to prevent infinite react-query refetch loops and UI freezing
   const historyParams = useMemo(() => ({
@@ -130,6 +131,7 @@ export default function Page() {
 
     setPendingPayload({
       branchId: activeBranchId!,
+      schoolId: activeSchoolId,
       title: title.trim(),
       message: message.trim(),
     });
@@ -205,6 +207,7 @@ export default function Page() {
             onClick={() => {
               setPendingPayload({
                 branchId: item.branchId,
+                schoolId: typeof item.schoolId === "string" ? item.schoolId : item.schoolId?._id,
                 title: item.title || "Notice",
                 message: item.message,
               });

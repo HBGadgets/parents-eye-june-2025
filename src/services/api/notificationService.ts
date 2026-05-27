@@ -2,6 +2,7 @@ import api from "@/lib/axios";
 
 export interface SendNotificationPayload {
   branchId: string;
+  schoolId?: string;
   title: string;
   message: string;
 }
