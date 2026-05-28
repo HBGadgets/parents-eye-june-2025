@@ -814,6 +814,13 @@ export default function DashboardClient() {
                     onVehicleClick={(vehicle) => handleDeviceSelection(vehicle as any)}
                     activeFilter={activeStatus}
                     selectedRouteData={selectedRouteData}
+                    isAllInTableActive={pagination.pageSize > 100}
+                    onToggleAllInTable={(showAll) => {
+                      handlePaginationChange({
+                        pageIndex: 0,
+                        pageSize: showAll ? 500 : 10
+                      });
+                    }}
                   />
                 )}
                 {viewState === "tableExpanded" && (

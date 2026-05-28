@@ -12,7 +12,7 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import "./VehicleMap.css";
 import { calculateTimeSince } from "@/util/calculateTimeSince";
-import { Satellite } from "lucide-react";
+import { Satellite, List, Palette, X } from "lucide-react";
 import { LiaTrafficLightSolid } from "react-icons/lia";
 import { MdDirections } from "react-icons/md";
 
@@ -70,6 +70,8 @@ interface VehicleMapProps {
       attributes?: any;
     }>>;
   } | null;
+  onToggleAllInTable?: (showAll: boolean) => void;
+  isAllInTableActive?: boolean;
 }
 
 // Optimized marker component with proper memoization
@@ -788,6 +790,8 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
   autoFitBounds = false,
   activeFilter,
   selectedRouteData,
+  onToggleAllInTable,
+  isAllInTableActive,
 }) => {
   const mapRef = useRef<L.Map | null>(null);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
@@ -796,6 +800,64 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
   const [showHistory, setShowHistory] = useState(true);
   const [mapType, setMapType] = useState<"roadmap" | "satellite">("roadmap");
   const [showTraffic, setShowTraffic] = useState(false);
+
+  // Draggable Route Color Legend state & hooks
+  const [showLegend, setShowLegend] = useState(false);
+  const legendPositionRef = useRef({ x: 20, y: 70 });
+  const dragRef = useRef<HTMLDivElement>(null);
+  const relRef = useRef<{ x: number; y: number } | null>(null);
+
+  const onMouseDown = useCallback((e: React.MouseEvent) => {
+    if (e.button !== 0) return; // Only allow left-click drags
+    const target = e.target as HTMLElement;
+    if (target.closest(".close-legend-btn")) return; // Don't drag if clicking close button
+
+    const rect = dragRef.current?.getBoundingClientRect();
+    const parentRect = dragRef.current?.parentElement?.getBoundingClientRect();
+    if (rect && parentRect) {
+      relRef.current = {
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top,
+      };
+      e.preventDefault();
+    }
+  }, []);
+
+  useEffect(() => {
+    const onMouseMove = (e: MouseEvent) => {
+      if (!relRef.current || !dragRef.current) return;
+      const parentRect = dragRef.current.parentElement?.getBoundingClientRect();
+      if (!parentRect) return;
+
+      // Restrict within the parent map container bounds for professional confinement
+      let newX = e.clientX - parentRect.left - relRef.current.x;
+      let newY = e.clientY - parentRect.top - relRef.current.y;
+      
+      // Calculate boundaries
+      const maxBoundX = parentRect.width - dragRef.current.offsetWidth - 10;
+      const maxBoundY = parentRect.height - dragRef.current.offsetHeight - 10;
+      
+      newX = Math.max(10, Math.min(newX, maxBoundX));
+      newY = Math.max(10, Math.min(newY, maxBoundY));
+
+      // Update ref and DOM directly for butter-smooth 60fps drag without map re-renders
+      legendPositionRef.current = { x: newX, y: newY };
+      dragRef.current.style.left = `${newX}px`;
+      dragRef.current.style.top = `${newY}px`;
+    };
+
+    const onMouseUp = () => {
+      relRef.current = null;
+    };
+
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+
+    return () => {
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+    };
+  }, []);
 
   useEffect(() => {
     fetch("/history-playback-data/metadata.json")
@@ -1017,6 +1079,33 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
           gap: "8px"
         }}
       >
+        {/* Toggle Show All in Table */}
+        {onToggleAllInTable && (
+          <button
+            className={`map-control-button ${isAllInTableActive ? "fit-bounds-btn" : ""}`}
+            onClick={() => onToggleAllInTable(!isAllInTableActive)}
+            title={isAllInTableActive ? "Show Paginated Routes" : "Show All Routes in Table"}
+            data-tooltip={isAllInTableActive ? "Show Paginated Routes" : "Show All Routes in Table"}
+            style={{
+              width: "36px",
+              height: "36px",
+              padding: 0,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              borderRadius: "6px",
+              boxShadow: "0 2px 8px rgba(0, 0, 0, 0.15)",
+              cursor: "pointer",
+              border: "none",
+              backgroundColor: isAllInTableActive ? "#007bff" : "#ffffff",
+              color: isAllInTableActive ? "#ffffff" : "#374151",
+              transition: "all 0.2s ease"
+            }}
+          >
+            <List size={20} className={isAllInTableActive ? "text-white" : "text-gray-700"} />
+          </button>
+        )}
+
         {/* Toggle History Route */}
         <button
           className={`map-control-button ${showHistory ? "fit-bounds-btn" : ""}`}
@@ -1090,6 +1179,31 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
           }}
         >
           <LiaTrafficLightSolid className={`w-6 h-6 ${showTraffic ? "text-white" : "text-gray-700"}`} />
+        </button>
+
+        {/* Toggle Draggable Route Color Legend */}
+        <button
+          className={`map-control-button ${showLegend ? "fit-bounds-btn" : ""}`}
+          onClick={() => setShowLegend((prev) => !prev)}
+          title={showLegend ? "Hide Route Legend" : "Show Route Color Legend"}
+          data-tooltip={showLegend ? "Hide Route Legend" : "Show Route Color Legend"}
+          style={{
+            width: "36px",
+            height: "36px",
+            padding: 0,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            borderRadius: "6px",
+            boxShadow: "0 2px 8px rgba(0, 0, 0, 0.15)",
+            cursor: "pointer",
+            border: "none",
+            backgroundColor: showLegend ? "#007bff" : "#ffffff",
+            color: showLegend ? "#ffffff" : "#374151",
+            transition: "all 0.2s ease"
+          }}
+        >
+          <Palette size={20} className={showLegend ? "text-white" : "text-gray-700"} />
         </button>
       </div>
 
@@ -1242,6 +1356,137 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
         {/* Route auto-bounding */}
         {showHistory && <RouteBoundsUpdater routeData={selectedRouteData} />}
       </MapContainer>
+
+      {/* Draggable Route Color Legend Panel */}
+      {showLegend && (
+        <div
+          ref={dragRef}
+          style={{
+            position: "absolute",
+            left: `${legendPositionRef.current.x}px`,
+            top: `${legendPositionRef.current.y}px`,
+            zIndex: 1000,
+            width: "280px",
+            maxHeight: "350px",
+            backgroundColor: "rgba(255, 255, 255, 0.85)",
+            backdropFilter: "blur(12px)",
+            WebkitBackdropFilter: "blur(12px)",
+            borderRadius: "12px",
+            border: "1px solid rgba(255, 255, 255, 0.4)",
+            boxShadow: "0 8px 32px 0 rgba(31, 38, 135, 0.15)",
+            display: "flex",
+            flexDirection: "column",
+            overflow: "hidden",
+            fontFamily: "'Inter', sans-serif"
+          }}
+          className="vehicle-legend-panel animate-in fade-in zoom-in-95 duration-200"
+        >
+          {/* Drag Header */}
+          <div
+            onMouseDown={onMouseDown}
+            style={{
+              padding: "10px 14px",
+              background: "rgba(243, 244, 246, 0.8)",
+              borderBottom: "1px solid rgba(229, 231, 235, 0.6)",
+              cursor: "move",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              userSelect: "none"
+            }}
+            className="legend-header"
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "6px", fontWeight: 600, fontSize: "13px", color: "#1f2937" }}>
+              <Palette size={16} style={{ color: "#3b82f6" }} />
+              <span>Vehicle Route Colors</span>
+            </div>
+            <button
+              onClick={() => setShowLegend(false)}
+              className="close-legend-btn"
+              style={{
+                border: "none",
+                background: "none",
+                cursor: "pointer",
+                padding: "2px",
+                color: "#9ca3af",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                borderRadius: "4px",
+                transition: "background-color 0.2s"
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "rgba(0,0,0,0.05)")}
+              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
+            >
+              <X size={16} />
+            </button>
+          </div>
+
+          {/* Vehicle List */}
+          <div
+            style={{
+              padding: "10px 14px",
+              overflowY: "auto",
+              flex: 1,
+              display: "flex",
+              flexDirection: "column",
+              gap: "8px"
+            }}
+            className="legend-body"
+          >
+            {Object.keys(routesMap).length === 0 ? (
+              <div style={{ fontSize: "12px", color: "#6b7280", textAlign: "center", padding: "10px 0" }}>
+                No active routes rendered.
+              </div>
+            ) : (
+              Object.entries(routesMap).map(([imei, routeData]: [string, any]) => {
+                // Find matching vehicle
+                const vehicle = validVehicles.find(
+                  (v) => String(v.uniqueId || v.imei) === imei
+                );
+                if (!vehicle) return null;
+                
+                const color = getRouteColorById(imei);
+
+                return (
+                  <div
+                    key={`legend-item-${imei}`}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      padding: "6px 8px",
+                      borderRadius: "6px",
+                      backgroundColor: "rgba(255, 255, 255, 0.5)",
+                      border: "1px solid rgba(229, 231, 235, 0.4)",
+                      fontSize: "12px"
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px", minWidth: 0, flex: 1 }}>
+                      <span
+                        style={{
+                          width: "12px",
+                          height: "12px",
+                          borderRadius: "50%",
+                          backgroundColor: color,
+                          flexShrink: 0,
+                          boxShadow: "0 0 4px rgba(0, 0, 0, 0.15)"
+                        }}
+                      />
+                      <span style={{ fontWeight: 500, color: "#374151", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {vehicle.name || `Vehicle ${vehicle.deviceId}`}
+                      </span>
+                    </div>
+                    <span style={{ fontSize: "10px", color: "#9ca3af", marginLeft: "8px" }}>
+                      {imei.slice(-6)}
+                    </span>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Map Controls */}
       {/* <MapControls

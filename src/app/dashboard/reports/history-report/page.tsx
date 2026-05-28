@@ -138,7 +138,12 @@ function HistoryReportContent() {
 
       const resData = await response.json();
       if (response.ok && resData.success) {
-        toast.success(`Successfully saved playback JSON data for bus: ${finalUniqueId}`);
+        const isOverwrite = !!savedColors[String(finalUniqueId)];
+        if (isOverwrite) {
+          toast.success(`Existing playback data for bus ${finalUniqueId} has been successfully rewritten and updated with the new data.`);
+        } else {
+          toast.success(`Successfully saved playback JSON data for bus: ${finalUniqueId}`);
+        }
         fetchSavedColors(); // Refresh assigned states
       } else {
         toast.error(`Failed to save: ${resData.message}`);
