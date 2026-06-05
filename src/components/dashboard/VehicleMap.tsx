@@ -797,9 +797,9 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [shouldFitBounds, setShouldFitBounds] = useState(false);
   const [customColors, setCustomColors] = useState<Record<string, string>>({});
-  const [showHistory, setShowHistory] = useState(true);
-  const [showArrows, setShowArrows] = useState(true);
-  const [showStoppages, setShowStoppages] = useState(true);
+  const [showHistory, setShowHistory] = useState(false);
+  const [showArrows, setShowArrows] = useState(false);
+  const [showStoppages, setShowStoppages] = useState(false);
   const [mapType, setMapType] = useState<"roadmap" | "satellite">("roadmap");
   const [showTraffic, setShowTraffic] = useState(false);
 
@@ -865,10 +865,6 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
     fetch("/history-playback-data/metadata.json")
       .then((res) => {
         if (!res.ok) throw new Error("No metadata");
-        const contentType = res.headers.get("content-type");
-        if (!contentType || !contentType.includes("application/json")) {
-          throw new Error("Invalid content-type");
-        }
         return res.json();
       })
       .then((data) => {
@@ -876,8 +872,8 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
           setCustomColors(data);
         }
       })
-      .catch(() => {
-        // Silent catch
+      .catch((err) => {
+        console.warn("Error loading metadata.json in VehicleMap:", err);
       });
   }, []);
 
@@ -967,8 +963,7 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
 
       fetch(`/history-playback-data/${imei}.json`)
         .then((res) => {
-          const contentType = res.headers.get("content-type");
-          if (!res.ok || !contentType || !contentType.includes("application/json")) {
+          if (!res.ok) {
             throw new Error("No route");
           }
           return res.json();

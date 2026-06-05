@@ -84,8 +84,7 @@ export default function DashboardClient() {
     setIsLoadingRoute(true);
     fetch(`/history-playback-data/${uniqueId}.json`)
       .then((res) => {
-        const contentType = res.headers.get("content-type");
-        if (!res.ok || !contentType || !contentType.includes("application/json")) {
+        if (!res.ok) {
           throw new Error("Route history not found");
         }
         return res.json();
@@ -392,10 +391,6 @@ export default function DashboardClient() {
     fetch("/history-playback-data/metadata.json")
       .then((res) => {
         if (!res.ok) throw new Error("No metadata");
-        const contentType = res.headers.get("content-type");
-        if (!contentType || !contentType.includes("application/json")) {
-          throw new Error("Invalid content-type");
-        }
         return res.json();
       })
       .then((data) => {
@@ -403,8 +398,8 @@ export default function DashboardClient() {
           setCustomColors(data);
         }
       })
-      .catch(() => {
-        // Silent catch
+      .catch((err) => {
+        console.warn("Error loading metadata.json:", err);
       });
   }, []);
 
