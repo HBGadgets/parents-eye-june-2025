@@ -12,7 +12,7 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import "./VehicleMap.css";
 import { calculateTimeSince } from "@/util/calculateTimeSince";
-import { Satellite, List, Palette, X } from "lucide-react";
+import { Satellite, List, Palette, X, Navigation, MapPin } from "lucide-react";
 import { LiaTrafficLightSolid } from "react-icons/lia";
 import { MdDirections } from "react-icons/md";
 
@@ -798,6 +798,8 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
   const [shouldFitBounds, setShouldFitBounds] = useState(false);
   const [customColors, setCustomColors] = useState<Record<string, string>>({});
   const [showHistory, setShowHistory] = useState(true);
+  const [showArrows, setShowArrows] = useState(true);
+  const [showStoppages, setShowStoppages] = useState(true);
   const [mapType, setMapType] = useState<"roadmap" | "satellite">("roadmap");
   const [showTraffic, setShowTraffic] = useState(false);
 
@@ -1131,6 +1133,56 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
           <MdDirections size={22} className={showHistory ? "text-white" : "text-gray-700"} />
         </button>
 
+        {/* Toggle Route Arrows */}
+        <button
+          className={`map-control-button ${showArrows ? "fit-bounds-btn" : ""}`}
+          onClick={() => setShowArrows((prev) => !prev)}
+          title={showArrows ? "Hide Route Arrows" : "Show Route Arrows"}
+          data-tooltip={showArrows ? "Hide Route Arrows" : "Show Route Arrows"}
+          style={{
+            width: "36px",
+            height: "36px",
+            padding: 0,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            borderRadius: "6px",
+            boxShadow: "0 2px 8px rgba(0, 0, 0, 0.15)",
+            cursor: "pointer",
+            border: "none",
+            backgroundColor: showArrows ? "#007bff" : "#ffffff",
+            color: showArrows ? "#ffffff" : "#374151",
+            transition: "all 0.2s ease"
+          }}
+        >
+          <Navigation size={18} className={`transform rotate-45 ${showArrows ? "text-white" : "text-gray-700"}`} />
+        </button>
+
+        {/* Toggle Stoppages */}
+        <button
+          className={`map-control-button ${showStoppages ? "fit-bounds-btn" : ""}`}
+          onClick={() => setShowStoppages((prev) => !prev)}
+          title={showStoppages ? "Hide Stoppages" : "Show Stoppages"}
+          data-tooltip={showStoppages ? "Hide Stoppages" : "Show Stoppages"}
+          style={{
+            width: "36px",
+            height: "36px",
+            padding: 0,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            borderRadius: "6px",
+            boxShadow: "0 2px 8px rgba(0, 0, 0, 0.15)",
+            cursor: "pointer",
+            border: "none",
+            backgroundColor: showStoppages ? "#007bff" : "#ffffff",
+            color: showStoppages ? "#ffffff" : "#374151",
+            transition: "all 0.2s ease"
+          }}
+        >
+          <MapPin size={18} className={showStoppages ? "text-white" : "text-gray-700"} />
+        </button>
+
         {/* Toggle Satellite View */}
         <button
           className={`map-control-button ${mapType === "satellite" ? "fit-bounds-btn" : ""}`}
@@ -1280,7 +1332,7 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
                       }}
                     />
                     {/* Directional Arrows at 1 km spacing */}
-                    {arrows.map((arrow, arrowIdx) => (
+                    {showArrows && arrows.map((arrow, arrowIdx) => (
                       <Marker
                         key={`arrow-${imei}-${tripIndex}-${arrowIdx}`}
                         position={[arrow.lat, arrow.lng]}
@@ -1297,7 +1349,7 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
                       </Marker>
                     ))}
                     {/* Easy to spot Stop Dots at every stop */}
-                    {stops.map((stop, stopIdx) => (
+                    {showStoppages && stops.map((stop, stopIdx) => (
                       <Marker
                         key={`stop-${imei}-${tripIndex}-${stopIdx}`}
                         position={[stop.lat, stop.lng]}
