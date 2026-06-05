@@ -12,7 +12,7 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import "./VehicleMap.css";
 import { calculateTimeSince } from "@/util/calculateTimeSince";
-import { Satellite, List, Palette, X, Navigation, MapPin } from "lucide-react";
+import { Satellite, List, Palette, X, Navigation, MapPin, Eye, EyeOff, Locate, Bus } from "lucide-react";
 import { LiaTrafficLightSolid } from "react-icons/lia";
 import { MdDirections } from "react-icons/md";
 
@@ -802,9 +802,11 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
   const [showStoppages, setShowStoppages] = useState(false);
   const [mapType, setMapType] = useState<"roadmap" | "satellite">("roadmap");
   const [showTraffic, setShowTraffic] = useState(false);
+  const [showMarkers, setShowMarkers] = useState(true);
 
   // Draggable Route Color Legend state & hooks
   const [showLegend, setShowLegend] = useState(false);
+  const [hiddenRouteImeis, setHiddenRouteImeis] = useState<Record<string, boolean>>({});
   const legendPositionRef = useRef({ x: 20, y: 70 });
   const dragRef = useRef<HTMLDivElement>(null);
   const relRef = useRef<{ x: number; y: number } | null>(null);
@@ -906,6 +908,12 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
   const selectedVehicle = useMemo(() => {
     return vehicles.find((v) => v.deviceId === selectedVehicleId);
   }, [vehicles, selectedVehicleId]);
+
+  const isSelectedRouteVisible = useMemo(() => {
+    if (!selectedVehicle) return false;
+    const imei = String(selectedVehicle.uniqueId || selectedVehicle.imei);
+    return !hiddenRouteImeis[imei];
+  }, [selectedVehicle, hiddenRouteImeis]);
 
   const routeColor = useMemo(() => {
     if (!selectedVehicle) return "#3b82f6"; // Fallback color
@@ -1103,6 +1111,31 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
           </button>
         )}
 
+        {/* Toggle Vehicle Markers */}
+        <button
+          className={`map-control-button ${showMarkers ? "fit-bounds-btn" : ""}`}
+          onClick={() => setShowMarkers((prev) => !prev)}
+          title={showMarkers ? "Hide Vehicle Markers" : "Show Vehicle Markers"}
+          data-tooltip={showMarkers ? "Hide Vehicle Markers" : "Show Vehicle Markers"}
+          style={{
+            width: "36px",
+            height: "36px",
+            padding: 0,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            borderRadius: "6px",
+            boxShadow: "0 2px 8px rgba(0, 0, 0, 0.15)",
+            cursor: "pointer",
+            border: "none",
+            backgroundColor: showMarkers ? "#007bff" : "#ffffff",
+            color: showMarkers ? "#ffffff" : "#374151",
+            transition: "all 0.2s ease"
+          }}
+        >
+          <Bus size={20} className={showMarkers ? "text-white" : "text-gray-700"} />
+        </button>
+
         {/* Toggle History Route */}
         <button
           className={`map-control-button ${showHistory ? "fit-bounds-btn" : ""}`}
@@ -1298,11 +1331,12 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
         />
 
         {/* Render optimized markers */}
-        {renderMarkers}
+        {showMarkers && renderMarkers}
 
         {/* Render travelled routes for all loaded vehicles automatically */}
         {showHistory && Object.entries(routesMap).map(([imei, routeData]: [string, any]) => {
           if (!routeData?.deviceDataByTrips) return null;
+          if (hiddenRouteImeis[imei]) return null;
 
           const isSelected = selectedVehicle && String(selectedVehicle.uniqueId || selectedVehicle.imei) === imei;
           const color = getRouteColorById(imei);
@@ -1369,7 +1403,7 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
         })}
 
         {/* Start/End flag markers */}
-        {showHistory && routeMarkers?.start && (
+        {showHistory && isSelectedRouteVisible && routeMarkers?.start && (
           <Marker
             position={[routeMarkers.start.lat, routeMarkers.start.lng]}
             icon={createRouteFlagIcon("green", 34)}
@@ -1384,7 +1418,7 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
             </Popup>
           </Marker>
         )}
-        {showHistory && routeMarkers?.end && (
+        {showHistory && isSelectedRouteVisible && routeMarkers?.end && (
           <Marker
             position={[routeMarkers.end.lat, routeMarkers.end.lng]}
             icon={createRouteFlagIcon("red", 34)}
@@ -1401,7 +1435,7 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
         )}
 
         {/* Route auto-bounding */}
-        {showHistory && <RouteBoundsUpdater routeData={selectedRouteData} />}
+        {showHistory && isSelectedRouteVisible && <RouteBoundsUpdater routeData={selectedRouteData} />}
       </MapContainer>
 
       {/* Draggable Route Color Legend Panel */}
@@ -1486,7 +1520,54 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
                 No active routes rendered.
               </div>
             ) : (
-              Object.entries(routesMap).map(([imei, routeData]: [string, any]) => {
+              <>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px", paddingBottom: "6px", borderBottom: "1px dashed rgba(229, 231, 235, 0.6)" }}>
+                  <button
+                    onClick={() => {
+                      const allHidden: Record<string, boolean> = {};
+                      Object.keys(routesMap).forEach((imei) => {
+                        allHidden[imei] = true;
+                      });
+                      setHiddenRouteImeis(allHidden);
+                    }}
+                    style={{
+                      fontSize: "11px",
+                      color: "#ef4444",
+                      background: "none",
+                      border: "none",
+                      cursor: "pointer",
+                      fontWeight: 600,
+                      padding: "2px 6px",
+                      borderRadius: "4px",
+                      transition: "background-color 0.2s"
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "rgba(239, 68, 68, 0.08)")}
+                    onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
+                  >
+                    Hide All
+                  </button>
+                  <button
+                    onClick={() => {
+                      setHiddenRouteImeis({});
+                    }}
+                    style={{
+                      fontSize: "11px",
+                      color: "#3b82f6",
+                      background: "none",
+                      border: "none",
+                      cursor: "pointer",
+                      fontWeight: 600,
+                      padding: "2px 6px",
+                      borderRadius: "4px",
+                      transition: "background-color 0.2s"
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "rgba(59, 130, 246, 0.08)")}
+                    onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
+                  >
+                    Show All
+                  </button>
+                </div>
+                {Object.entries(routesMap).map(([imei, routeData]: [string, any]) => {
                 // Find matching vehicle
                 const vehicle = validVehicles.find(
                   (v) => String(v.uniqueId || v.imei) === imei
@@ -1524,12 +1605,37 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
                         {vehicle.name || `Vehicle ${vehicle.deviceId}`}
                       </span>
                     </div>
-                    <span style={{ fontSize: "10px", color: "#9ca3af", marginLeft: "8px" }}>
-                      {imei.slice(-6)}
-                    </span>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <span style={{ fontSize: "10px", color: "#9ca3af" }}>
+                        {imei.slice(-6)}
+                      </span>
+                      <button
+                        onClick={() => {
+                          setHiddenRouteImeis((prev) => ({
+                            ...prev,
+                            [imei]: !prev[imei],
+                          }));
+                        }}
+                        style={{
+                          border: "none",
+                          background: "none",
+                          cursor: "pointer",
+                          padding: "2px",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          color: hiddenRouteImeis[imei] ? "#9ca3af" : "#3b82f6",
+                          transition: "color 0.2s"
+                        }}
+                        title={hiddenRouteImeis[imei] ? "Show route" : "Hide route"}
+                      >
+                        {hiddenRouteImeis[imei] ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </button>
+                    </div>
                   </div>
                 );
-              })
+              })}
+            </>
             )}
           </div>
         </div>
