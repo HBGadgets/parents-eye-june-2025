@@ -13,7 +13,7 @@ import { SearchBar } from "@/components/search-bar/SearchBarPagination";
 import { Button } from "@/components/ui/button";
 import { FilterX } from "lucide-react";
 import { Combobox } from "@/components/ui/combobox";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 // import AddSupervisorForm from "@/components/supervisor/add-supervisor";
 import { toast } from "sonner";
 import AddSupervisorForm from "@/components/add-supervisor/AddSupervisorForm";
@@ -475,6 +475,7 @@ export default function Supervisor() {
       {showForm && (
         <Dialog open={showForm} onOpenChange={setShowForm}>
           <DialogContent className="p-0 max-w-[700px] w-full">
+            <DialogTitle className="sr-only">Supervisor Form</DialogTitle>
             <AddSupervisorForm
               onSubmit={handleFormSubmit}
               onClose={handleFormClose}

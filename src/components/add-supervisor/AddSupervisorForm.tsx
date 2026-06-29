@@ -11,6 +11,7 @@ import {
   useSchoolDropdown,
   useBranchDropdown,
   useDeviceDropdown,
+  useRouteDropdown,
 } from "@/hooks/useDropdown";
 
 interface Props {
@@ -21,6 +22,7 @@ interface Props {
     username: string;
     password?: string;
     deviceObjId?: string;
+    routeObjId?: string;
     schoolId: string;
     branchId: string;
   }) => void;
@@ -51,6 +53,7 @@ export default function AddSupervisorForm({
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [deviceObjId, setDeviceObjId] = useState<string>("");
+  const [routeObjId, setRouteObjId] = useState<string>("");
 
   // ---------------- Selection State ----------------
   const [selectedSchoolId, setSelectedSchoolId] = useState<
@@ -67,6 +70,7 @@ export default function AddSupervisorForm({
   const [schoolOpen, setSchoolOpen] = useState(false);
   const [branchOpen, setBranchOpen] = useState(false);
   const [deviceOpen, setDeviceOpen] = useState(false);
+  const [routeOpen, setRouteOpen] = useState(false);
 
   // ---------------- Error States ----------------
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -98,6 +102,12 @@ export default function AddSupervisorForm({
     true
   );
 
+  // Routes dropdown (all roles need this)
+  const { data: routes = [], isLoading: isLoadingRoutes } = useRouteDropdown(
+    selectedBranchId,
+    true
+  );
+
   // ---------------- Initialize Form Based on Role ----------------
   useEffect(() => {
     if (!initialData) {
@@ -122,6 +132,7 @@ export default function AddSupervisorForm({
       setEmail(initialData.email || "");
       setUsername(initialData.username || "");
       setDeviceObjId(initialData.deviceObjId?._id || "");
+      setRouteObjId(initialData.routeObjId?._id || "");
 
       // Set selected school and branch for edit mode
       setSelectedSchoolId(initialData.schoolId?._id);
@@ -134,21 +145,24 @@ export default function AddSupervisorForm({
       setUsername("");
       setPassword("");
       setDeviceObjId("");
+      setRouteObjId("");
     }
   }, [initialData]);
 
-  // ---------------- Reset Branch & Device When School Changes ----------------
+  // ---------------- Reset Branch, Device & Route When School Changes ----------------
   useEffect(() => {
     if (!initialData && decodedTokenRole === "superAdmin") {
       setSelectedBranchId(undefined);
       setDeviceObjId("");
+      setRouteObjId("");
     }
   }, [selectedSchoolId, initialData, decodedTokenRole]);
 
-  // ---------------- Reset Device When Branch Changes ----------------
+  // ---------------- Reset Device & Route When Branch Changes ----------------
   useEffect(() => {
     if (!initialData) {
       setDeviceObjId("");
+      setRouteObjId("");
     }
   }, [selectedBranchId, initialData]);
 
@@ -246,6 +260,7 @@ export default function AddSupervisorForm({
       mobileNo: phone.trim(),
       username: username.trim(),
       ...(deviceObjId ? { deviceObjId } : {}),
+      ...(routeObjId ? { routeObjId } : {}),
       ...(email ? { email: email.trim() } : {}),
       ...(password ? { password: password.trim() } : {}),
       ...(selectedSchoolId ? { schoolId: selectedSchoolId } : {}),
@@ -459,6 +474,44 @@ export default function AddSupervisorForm({
               )}
             </div>
           )}
+
+          <div
+            className={
+              decodedTokenRole !== "branch" && decodedTokenRole === "superAdmin"
+                ? ""
+                : "col-span-2"
+            }
+          >
+            <label className="text-sm font-medium">Route (Optional)</label>
+            <Combobox
+              items={routes.map((r: any) => ({
+                label: r.routeNumber,
+                value: r._id,
+              }))}
+              value={routeObjId}
+              onValueChange={(value) => {
+                setRouteObjId(value || "");
+                if (errors.route) setErrors({ ...errors, route: "" });
+              }}
+              placeholder={
+                selectedBranchId || decodedTokenRole === "branch"
+                  ? "Select Route"
+                  : "Select branch first"
+              }
+              searchPlaceholder="Search routes..."
+              emptyMessage={
+                isLoadingRoutes ? "Loading routes..." : "No route found."
+              }
+              width="w-full"
+              disabled={decodedTokenRole !== "branch" && !selectedBranchId}
+              open={routeOpen}
+              onOpenChange={setRouteOpen}
+              className={errors.route ? "border-red-500" : ""}
+            />
+            {errors.route && (
+              <p className="text-xs text-red-500 mt-1">{errors.route}</p>
+            )}
+          </div>
 
           <div
             className={
