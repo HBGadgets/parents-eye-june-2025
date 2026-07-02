@@ -36,9 +36,10 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
-import { ListFilter, X } from "lucide-react";
+import { ListFilter, X, Download, FileSpreadsheet, FileText } from "lucide-react";
 import { useAuthStore } from "@/store/authStore";
 import { Combobox } from "@/components/ui/combobox";
+import { useExport } from "@/hooks/useExport";
 
 type ViewState = "split" | "tableExpanded" | "mapExpanded";
 type StatusFilter = "all" | "running" | "idle" | "stopped" | "inactive" | "new";
@@ -553,6 +554,94 @@ export default function DashboardClient() {
     handleOpenRouteTimeline,
   ]);
 
+  const { exportToPDF, exportToExcel } = useExport();
+
+  const columnsForExport = useMemo(() => [
+    { key: "name", header: "Vehicle Name" },
+    { key: "uniqueId", header: "IMEI Number" },
+    { key: "sim", header: "SIM Number" },
+    { key: "routeName", header: "Route Number" },
+    { key: "noOfStudent", header: "No. of Students" },
+    { key: "noOfStops", header: "No. of Stops" },
+    {
+      key: "todayKm",
+      header: "Today's Km",
+      formatter: (val: any) => typeof val === "number" ? val.toFixed(2) : (val ?? "0.00")
+    },
+    { key: "stateDuration", header: "Since" },
+    {
+      key: "speed",
+      header: "Speed",
+      formatter: (val: any) => `${val ?? 0} km/h`
+    },
+    {
+      key: "status",
+      header: "Status",
+      formatter: (val: any, row: any) => {
+        const cat = String(row?.category || "").toLowerCase();
+        if (cat === "new") return "NEW";
+        if (cat === "inactive") return "INACTIVE";
+        return val ? String(val).toUpperCase() : "N/A";
+      }
+    },
+    {
+      key: "lastUpdate",
+      header: "Last Update",
+      formatter: (val: any) => {
+        if (!val) return "-";
+        const date = new Date(val);
+        return date.toLocaleString("en-GB", {
+          day: "2-digit",
+          month: "2-digit",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+          hour12: true,
+          timeZone: "UTC",
+        });
+      }
+    },
+  ], []);
+
+  const handleExportExcel = useCallback(() => {
+    const activeFiltersText = activeStatus === "all" ? "All Statuses" : activeStatus.toUpperCase();
+    const searchVal = searchInput ? `Search: ${searchInput}` : "No search term";
+    const schoolVal = filters.schoolId ? `School ID: ${filters.schoolId}` : "All Schools";
+    const branchVal = filters.branchId ? `Branch ID: ${filters.branchId}` : "All Branches";
+
+    exportToExcel(devices || [], columnsForExport, {
+      title: "Live Vehicles Status Report",
+      companyName: "Parents Eye",
+      metadata: {
+        Status: activeFiltersText,
+        Search: searchVal,
+        School: schoolVal,
+        Branch: branchVal,
+        Total: `${devices?.length || 0} vehicles`,
+      },
+    });
+  }, [devices, activeStatus, searchInput, filters.schoolId, filters.branchId, exportToExcel, columnsForExport]);
+
+  const handleExportPdf = useCallback(() => {
+    const activeFiltersText = activeStatus === "all" ? "All Statuses" : activeStatus.toUpperCase();
+    const searchVal = searchInput ? `Search: ${searchInput}` : "No search term";
+    const schoolVal = filters.schoolId ? `School ID: ${filters.schoolId}` : "All Schools";
+    const branchVal = filters.branchId ? `Branch ID: ${filters.branchId}` : "All Branches";
+
+    exportToPDF(devices || [], columnsForExport, {
+      title: "Live Vehicles Status Report",
+      companyName: "Parents Eye",
+      metadata: {
+        Status: activeFiltersText,
+        Search: searchVal,
+        School: schoolVal,
+        Branch: branchVal,
+        Total: `${devices?.length || 0} vehicles`,
+      },
+    });
+  }, [devices, activeStatus, searchInput, filters.schoolId, filters.branchId, exportToPDF, columnsForExport]);
+
   const handleCloseSubscriptionPopup = () => {
     setShowSubscriptionPopup(false);
     // Mark that popup has been shown - this will persist across page navigation
@@ -678,6 +767,36 @@ export default function DashboardClient() {
                   </PopoverContent>
                 </Popover>
               )}
+
+              {/* Export Popover */}
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="h-10 gap-2 ml-2 cursor-pointer">
+                    <Download className="h-4 w-4" />
+                    Export
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-48" align="end">
+                  <div className="flex flex-col gap-2">
+                    <Button
+                      variant="ghost"
+                      className="justify-start gap-2 cursor-pointer w-full hover:bg-slate-100"
+                      onClick={handleExportExcel}
+                    >
+                      <FileSpreadsheet className="h-4 w-4 text-green-600" />
+                      Export Excel
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      className="justify-start gap-2 cursor-pointer w-full hover:bg-slate-100"
+                      onClick={handleExportPdf}
+                    >
+                      <FileText className="h-4 w-4 text-red-600" />
+                      Export PDF
+                    </Button>
+                  </div>
+                </PopoverContent>
+              </Popover>
 
               {/* Added margin for spacing */}
               <div className="ml-4"></div>
