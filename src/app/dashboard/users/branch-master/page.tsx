@@ -816,8 +816,11 @@ export default function BranchMaster() {
     const changedFields: Partial<Record<keyof branch, unknown>> = {};
     const flatEditTarget = {
       ...editTarget,
-      schoolId: editTarget.schoolId._id,
+      schoolId: typeof editTarget.schoolId === "object" && editTarget.schoolId !== null
+        ? (editTarget.schoolId as any)._id
+        : editTarget.schoolId,
     };
+
 
     for (const key in updatedData) {
       const newValue = updatedData[key as keyof branch];
@@ -1356,7 +1359,9 @@ export default function BranchMaster() {
           <BranchEditDialog
             data={{
               ...editTarget,
-              schoolId: editTarget?.schoolId?._id,
+              schoolId: typeof editTarget?.schoolId === "object" && editTarget?.schoolId !== null
+                ? (editTarget?.schoolId as any)?._id
+                : editTarget?.schoolId,
             }}
             isOpen={editDialogOpen}
             onClose={() => {
