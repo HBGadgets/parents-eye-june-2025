@@ -52,40 +52,11 @@ export const useVehicleStatus = ({
     const parsedSpeedLimit = parseFloat(speedLimit) || 60;
     if (speed > parsedSpeedLimit) return "overspeeding";
 
-    const runningConditions = [
-      speed > 5,
-      attributes.motion === true,
-      attributes.ignition === true,
-    ];
-
-    const idleConditions = [
-      speed < 5,
-      attributes.motion === false,
-      attributes.ignition === true,
-    ];
-
-    const stoppedConditions = [
-      speed < 5,
-      attributes.motion === false,
-      attributes.ignition === false,
-    ];
-
-    // Order matters for ties — running > idle > stopped
-    const scores: Record<VehicleStatus, number> = {
-      running: runningConditions.filter(Boolean).length,
-      idle: idleConditions.filter(Boolean).length,
-      stopped: stoppedConditions.filter(Boolean).length,
-      inactive: 0,
-      overspeeding: 0,
-      noData: 0,
-    };
-
-    const winner = (
-      Object.entries(scores) as [VehicleStatus, number][]
-    ).reduce((a, b) => (b[1] > a[1] ? b : a));
-
-    if (winner[1] >= 2) return winner[0];
+    const validStatuses = ["running", "idle", "stopped", "inactive", "overspeeding", "noData"];
+    if (validStatuses.includes(category)) {
+      return category as VehicleStatus;
+    }
 
     return "noData";
-  }, [speed, speedLimit, lastUpdate, latitude, longitude, attributes]);
+  }, [speed, speedLimit, lastUpdate, latitude, longitude, category]);
 };

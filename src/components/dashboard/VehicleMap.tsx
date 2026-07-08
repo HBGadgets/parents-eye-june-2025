@@ -579,9 +579,9 @@ const getLatLngDistance = (lat1: number, lng1: number, lat2: number, lng2: numbe
   const a =
     Math.sin(dLat / 2) * Math.sin(dLat / 2) +
     Math.cos((lat1 * Math.PI) / 180) *
-      Math.cos((lat2 * Math.PI) / 180) *
-      Math.sin(dLng / 2) *
-      Math.sin(dLng / 2);
+    Math.cos((lat2 * Math.PI) / 180) *
+    Math.sin(dLng / 2) *
+    Math.sin(dLng / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c;
 };
@@ -758,7 +758,7 @@ const RouteBoundsUpdater = ({
 
   useEffect(() => {
     if (!routeData?.deviceDataByTrips) return;
-    
+
     // Flatten trips to compute global bounds
     const points = routeData.deviceDataByTrips.flat();
     if (points.length === 0) return;
@@ -836,11 +836,11 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
       // Restrict within the parent map container bounds for professional confinement
       let newX = e.clientX - parentRect.left - relRef.current.x;
       let newY = e.clientY - parentRect.top - relRef.current.y;
-      
+
       // Calculate boundaries
       const maxBoundX = parentRect.width - dragRef.current.offsetWidth - 10;
       const maxBoundY = parentRect.height - dragRef.current.offsetHeight - 10;
-      
+
       newX = Math.max(10, Math.min(newX, maxBoundX));
       newY = Math.max(10, Math.min(newY, maxBoundY));
 
@@ -953,7 +953,7 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
   const [routesMap, setRoutesMap] = useState<Record<string, any>>({});
   const requestedImeisRef = useRef<Set<string>>(new Set());
 
-  
+
   const localUrl = process.env.NODE_ENV === "development"
     ? "http://localhost:5001"
     : (process.env.NEXT_PUBLIC_LOCAL_URL || (typeof window !== "undefined" ? `${window.location.origin}/local` : ""));
@@ -1072,12 +1072,12 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
   return (
     <div className="vehicle-map-container" style={{ height, width: "100%" }}>
       {/* Floating Map Controls - Right Side */}
-      <div 
-        className="map-controls-right" 
-        style={{ 
-          position: "absolute", 
-          top: "10px", 
-          right: "10px", 
+      <div
+        className="map-controls-right"
+        style={{
+          position: "absolute",
+          top: "10px",
+          right: "10px",
           zIndex: 1000,
           display: "flex",
           flexDirection: "column",
@@ -1568,74 +1568,74 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
                   </button>
                 </div>
                 {Object.entries(routesMap).map(([imei, routeData]: [string, any]) => {
-                // Find matching vehicle
-                const vehicle = validVehicles.find(
-                  (v) => String(v.uniqueId || v.imei) === imei
-                );
-                if (!vehicle) return null;
-                
-                const color = getRouteColorById(imei);
+                  // Find matching vehicle
+                  const vehicle = validVehicles.find(
+                    (v) => String(v.uniqueId || v.imei) === imei
+                  );
+                  if (!vehicle) return null;
 
-                return (
-                  <div
-                    key={`legend-item-${imei}`}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      padding: "6px 8px",
-                      borderRadius: "6px",
-                      backgroundColor: "rgba(255, 255, 255, 0.5)",
-                      border: "1px solid rgba(229, 231, 235, 0.4)",
-                      fontSize: "12px"
-                    }}
-                  >
-                    <div style={{ display: "flex", alignItems: "center", gap: "8px", minWidth: 0, flex: 1 }}>
-                      <span
-                        style={{
-                          width: "12px",
-                          height: "12px",
-                          borderRadius: "50%",
-                          backgroundColor: color,
-                          flexShrink: 0,
-                          boxShadow: "0 0 4px rgba(0, 0, 0, 0.15)"
-                        }}
-                      />
-                      <span style={{ fontWeight: 500, color: "#374151", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        {vehicle.name || `Vehicle ${vehicle.deviceId}`}
-                      </span>
+                  const color = getRouteColorById(imei);
+
+                  return (
+                    <div
+                      key={`legend-item-${imei}`}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        padding: "6px 8px",
+                        borderRadius: "6px",
+                        backgroundColor: "rgba(255, 255, 255, 0.5)",
+                        border: "1px solid rgba(229, 231, 235, 0.4)",
+                        fontSize: "12px"
+                      }}
+                    >
+                      <div style={{ display: "flex", alignItems: "center", gap: "8px", minWidth: 0, flex: 1 }}>
+                        <span
+                          style={{
+                            width: "12px",
+                            height: "12px",
+                            borderRadius: "50%",
+                            backgroundColor: color,
+                            flexShrink: 0,
+                            boxShadow: "0 0 4px rgba(0, 0, 0, 0.15)"
+                          }}
+                        />
+                        <span style={{ fontWeight: 500, color: "#374151", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {vehicle.name || `Vehicle ${vehicle.deviceId}`}
+                        </span>
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                        <span style={{ fontSize: "10px", color: "#9ca3af" }}>
+                          {imei.slice(-6)}
+                        </span>
+                        <button
+                          onClick={() => {
+                            setHiddenRouteImeis((prev) => ({
+                              ...prev,
+                              [imei]: !prev[imei],
+                            }));
+                          }}
+                          style={{
+                            border: "none",
+                            background: "none",
+                            cursor: "pointer",
+                            padding: "2px",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            color: hiddenRouteImeis[imei] ? "#9ca3af" : "#3b82f6",
+                            transition: "color 0.2s"
+                          }}
+                          title={hiddenRouteImeis[imei] ? "Show route" : "Hide route"}
+                        >
+                          {hiddenRouteImeis[imei] ? <EyeOff size={16} /> : <Eye size={16} />}
+                        </button>
+                      </div>
                     </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                      <span style={{ fontSize: "10px", color: "#9ca3af" }}>
-                        {imei.slice(-6)}
-                      </span>
-                      <button
-                        onClick={() => {
-                          setHiddenRouteImeis((prev) => ({
-                            ...prev,
-                            [imei]: !prev[imei],
-                          }));
-                        }}
-                        style={{
-                          border: "none",
-                          background: "none",
-                          cursor: "pointer",
-                          padding: "2px",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          color: hiddenRouteImeis[imei] ? "#9ca3af" : "#3b82f6",
-                          transition: "color 0.2s"
-                        }}
-                        title={hiddenRouteImeis[imei] ? "Show route" : "Hide route"}
-                      >
-                        {hiddenRouteImeis[imei] ? <EyeOff size={16} /> : <Eye size={16} />}
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </>
+                  );
+                })}
+              </>
             )}
           </div>
         </div>
