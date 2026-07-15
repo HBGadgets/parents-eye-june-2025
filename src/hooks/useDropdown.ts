@@ -108,7 +108,7 @@ export const useRouteDropdown = (
 export const useParentDropdown = (
   branchId?: string,
   search: string = "",
-  shouldFetch: boolean = true
+  shouldFetch: boolean = false
 ) => {
   return useInfiniteQuery({
     queryKey: ["parent-dropdown", branchId, search],

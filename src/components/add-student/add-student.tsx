@@ -10,6 +10,7 @@ import { Combobox } from "@/components/ui/combobox";
 import { useParent } from "@/hooks/useParents";
 import AddParentForm from "@/components/parent/AddParentForm";
 import { StudentCard } from "./StudentCard";
+import { useDebounce } from "@/hooks/useDebounce";
 
 // ---------- TYPES ----------
 
@@ -158,19 +159,26 @@ export default function AddStudentForm({
     anyRouteOpen
   );
 
+  const debouncedParentSearch = useDebounce(parentSearch, 400);
+
   const {
     data: parentPages,
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
     isLoading: parentsLoading,
-  } = useParentDropdown(selectedBranchId, parentSearch, parentOpen);
+  } = useParentDropdown(selectedBranchId, debouncedParentSearch, parentOpen);
 
-  const parentHook = useParent({ pageIndex: 0, pageSize: 10 }, [], {
-    search: "",
-    schoolId: selectedSchoolId,
-    branchId: selectedBranchId,
-  });
+  const parentHook = useParent(
+    { pageIndex: 0, pageSize: 10 },
+    [],
+    {
+      search: "",
+      schoolId: selectedSchoolId,
+      branchId: selectedBranchId,
+    },
+    { enabled: false }
+  );
 
   const parents = React.useMemo(
     () => parentPages?.pages.flatMap((p: any) => p.data || []) ?? [],
@@ -433,7 +441,7 @@ export default function AddStudentForm({
 
   const handleParentOpenChange = React.useCallback((open: boolean) => {
     setParentOpen(open);
-    if (open) {
+    if (!open) {
       setParentSearch("");
     }
   }, []);

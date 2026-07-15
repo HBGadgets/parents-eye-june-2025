@@ -99,7 +99,6 @@ export function Combobox({
   >([]);
   const [internalSearchValue, setInternalSearchValue] = React.useState("");
   const scrollRef = React.useRef<HTMLDivElement>(null);
-  const sentinelRef = React.useRef<HTMLDivElement>(null);
 
   // Determine if component is controlled for value
   const isValueControlled = onValueChange !== undefined;
@@ -297,29 +296,6 @@ export function Combobox({
     [onReachEnd, isLoadingMore]
   );
 
-  // IntersectionObserver for scroll detection
-  React.useEffect(() => {
-    if (!sentinelRef.current || !onReachEnd || !open) return;
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const [entry] = entries;
-        if (entry.isIntersecting && !isLoadingMore) {
-          console.log("👁️ Intersection triggered");
-          onReachEnd();
-        }
-      },
-      {
-        root: scrollRef.current,
-        threshold: 1.0,
-        rootMargin: "50px",
-      }
-    );
-
-    observer.observe(sentinelRef.current);
-    return () => observer.disconnect();
-  }, [onReachEnd, isLoadingMore, open, items.length]);
-
   const handleSearchValueChange = (search: string) => {
     setSearchValue(search);
   };
@@ -507,8 +483,6 @@ export function Combobox({
                   )}
                 </CommandItem>
               ))}
-
-              {items.length > 0 && <div ref={sentinelRef} className="h-1" />}
 
               {isLoadingMore && (
                 <CommandItem

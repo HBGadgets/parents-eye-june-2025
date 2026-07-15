@@ -14,7 +14,8 @@ import { GetParentsResponse } from "@/interface/modal";
 export const useParent = (
   pagination: PaginationState,
   sorting: SortingState,
-  filters: Record<string, any>
+  filters: Record<string, any>,
+  options?: { enabled?: boolean }
 ) => {
   const queryClient = useQueryClient();
 
@@ -46,6 +47,7 @@ export const useParent = (
         isActive: filters.isActive,
       }),
     placeholderData: keepPreviousData,
+    enabled: options?.enabled ?? true,
   });
 
   /* -------------------- CREATE -------------------- */
