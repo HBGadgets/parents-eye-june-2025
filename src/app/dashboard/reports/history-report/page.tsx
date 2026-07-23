@@ -260,6 +260,20 @@ function HistoryReportContent() {
     }));
   }, [vehicleData]);
 
+  const selectedVehicleObj = useMemo(() => {
+    if (!vehicleData || !Array.isArray(vehicleData)) return null;
+    const targetId = uniqueIdFromUrl || selectedVehicle;
+    return (
+      vehicleData.find((v: any) => String(v.uniqueId) === String(targetId)) ||
+      null
+    );
+  }, [vehicleData, uniqueIdFromUrl, selectedVehicle]);
+
+  const selectedVehicleName = selectedVehicleObj?.name || selectedVehicle || "";
+  const selectedVehicleImei = selectedVehicleObj?.uniqueId
+    ? String(selectedVehicleObj.uniqueId)
+    : selectedVehicle || "";
+
   const formatDateTime = (dateString: string) => {
     if (!dateString || dateString === "---") {
       return { date: "-- : --", time: "-- : --" };
@@ -1124,7 +1138,8 @@ function HistoryReportContent() {
             isOpen={isSidebarOpen}
             fromDate={fromDate}
             toDate={toDate}
-            selectedVehicle={selectedVehicle}
+            selectedVehicle={selectedVehicleName}
+            selectedVehicleImei={selectedVehicleImei}
             onClose={() => setIsSidebarOpen(false)}
             onTripSelect={(index) => {
               setSelectedTripIndex(index);
