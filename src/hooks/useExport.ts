@@ -216,65 +216,158 @@ export const useExport = () => {
       );
 
       // ===========================
-      // MAIN TABLE
+      // MAIN TABLE & NESTED TABLES
       // ===========================
 
-      autoTable(doc, {
-        startY,
+      if (config.nestedTable) {
+        const { dataKey, columns: nestedCols, title: nestedTitle } = config.nestedTable;
 
-        head: [tableHeaders],
+        data.forEach((parentItem, index) => {
+          // Parent row table
+          const parentRowData = [
+            columns.map((col) => {
+              const value = col.key.includes(".")
+                ? col.key.split(".").reduce((obj: any, key) => obj?.[key], parentItem)
+                : parentItem[col.key];
 
-        body: tableRows,
+              return col.formatter
+                ? col.formatter(value, parentItem)
+                : value?.toString() || "--";
+            }),
+          ];
 
-        theme: "grid",
+          autoTable(doc, {
+            startY: index === 0 ? startY : (doc as any).lastAutoTable.finalY + 6,
+            head: index === 0 ? [tableHeaders] : undefined,
+            body: parentRowData,
+            theme: "grid",
+            tableWidth: "wrap",
+            horizontalPageBreak: true,
+            horizontalPageBreakRepeat: 0,
+            styles: {
+              fontSize: 5,
+              cellPadding: 1,
+              overflow: "linebreak",
+              halign: "center",
+              valign: "middle",
+              lineColor: CONFIG.colors.border,
+              lineWidth: 0.1,
+            },
+            headStyles: {
+              fillColor: CONFIG.colors.primary,
+              textColor: 255,
+              fontStyle: "bold",
+              fontSize: 6,
+            },
+            alternateRowStyles: {
+              fillColor: CONFIG.colors.background,
+            },
+            margin: { left: 5, right: 5 },
+            didDrawPage: () => {
+              if (doc.getCurrentPageInfo().pageNumber > 1) {
+                doc.setFontSize(12);
+                doc.setFont(CONFIG.fonts.primary, "bold");
+                doc.text(title, 10, 10);
+              }
+            },
+          });
 
-        tableWidth: "wrap",
-
-        horizontalPageBreak: true,
-
-        horizontalPageBreakRepeat: 0,
-
-        styles: {
-          fontSize: 5,
-          cellPadding: 1,
-          overflow: "linebreak",
-          halign: "center",
-          valign: "middle",
-          lineColor: CONFIG.colors.border,
-          lineWidth: 0.1,
-        },
-
-        headStyles: {
-          fillColor: CONFIG.colors.primary,
-          textColor: 255,
-          fontStyle: "bold",
-          fontSize: 6,
-        },
-
-        alternateRowStyles: {
-          fillColor: CONFIG.colors.background,
-        },
-
-        margin: {
-          left: 5,
-          right: 5,
-        },
-
-        didDrawPage: () => {
-          if (
-            doc.getCurrentPageInfo().pageNumber > 1
-          ) {
-            doc.setFontSize(12);
-
-            doc.setFont(
-              CONFIG.fonts.primary,
-              "bold"
+          // Nested child table if exists
+          const childItems = parentItem[dataKey];
+          if (Array.isArray(childItems) && childItems.length > 0) {
+            const nestedHeaders = nestedCols.map((c) => c.header);
+            const nestedRows = childItems.map((child) =>
+              nestedCols.map((c) => {
+                const value = c.key.includes(".")
+                  ? c.key.split(".").reduce((obj: any, key) => obj?.[key], child)
+                  : child[c.key];
+                return c.formatter ? c.formatter(value, child) : value?.toString() || "--";
+              })
             );
 
-            doc.text(title, 10, 10);
+            autoTable(doc, {
+              startY: (doc as any).lastAutoTable.finalY + 2,
+              head: [nestedHeaders],
+              body: nestedRows,
+              theme: "plain",
+              tableWidth: "wrap",
+              styles: {
+                fontSize: 4.5,
+                cellPadding: 0.8,
+                overflow: "linebreak",
+                halign: "center",
+                valign: "middle",
+                lineColor: CONFIG.colors.border,
+                lineWidth: 0.1,
+              },
+              headStyles: {
+                fillColor: CONFIG.colors.secondary,
+                textColor: 0,
+                fontStyle: "bold",
+                fontSize: 5,
+              },
+              margin: { left: 15, right: 5 },
+            });
           }
-        },
-      });
+        });
+      } else {
+        autoTable(doc, {
+          startY,
+
+          head: [tableHeaders],
+
+          body: tableRows,
+
+          theme: "grid",
+
+          tableWidth: "wrap",
+
+          horizontalPageBreak: true,
+
+          horizontalPageBreakRepeat: 0,
+
+          styles: {
+            fontSize: 5,
+            cellPadding: 1,
+            overflow: "linebreak",
+            halign: "center",
+            valign: "middle",
+            lineColor: CONFIG.colors.border,
+            lineWidth: 0.1,
+          },
+
+          headStyles: {
+            fillColor: CONFIG.colors.primary,
+            textColor: 255,
+            fontStyle: "bold",
+            fontSize: 6,
+          },
+
+          alternateRowStyles: {
+            fillColor: CONFIG.colors.background,
+          },
+
+          margin: {
+            left: 5,
+            right: 5,
+          },
+
+          didDrawPage: () => {
+            if (
+              doc.getCurrentPageInfo().pageNumber > 1
+            ) {
+              doc.setFontSize(12);
+
+              doc.setFont(
+                CONFIG.fonts.primary,
+                "bold"
+              );
+
+              doc.text(title, 10, 10);
+            }
+          },
+        });
+      }
 
       // ===========================
       // FOOTER
@@ -361,8 +454,13 @@ export const useExport = () => {
           new Date().toISOString().split("T")[0]
         }.xlsx`;
 
+      const maxColsCount = Math.max(
+        columns.length,
+        config.nestedTable ? config.nestedTable.columns.length + 1 : 0
+      );
+
       const lastColumn =
-        getExcelColumnName(columns.length);
+        getExcelColumnName(maxColsCount);
 
       // ===========================
       // TITLE
@@ -436,73 +534,103 @@ export const useExport = () => {
 
       currentRow += 2;
 
-      // ===========================
-      // HEADERS
-      // ===========================
+      if (config.nestedTable) {
+        const { dataKey, columns: nestedCols, title: nestedTitle } = config.nestedTable;
 
-      const headerRow = worksheet.addRow(
-        columns.map((col) => col.header)
-      );
+        data.forEach((parentItem) => {
+          // Parent header row
+          const pHeaderRow = worksheet.addRow(columns.map((col) => col.header));
+          pHeaderRow.eachCell((cell) => {
+            cell.font = { bold: true, size: 11 };
+            cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+            cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "F0B100" } };
+            cell.border = { top: { style: "thin" }, bottom: { style: "thin" }, left: { style: "thin" }, right: { style: "thin" } };
+          });
 
-      headerRow.eachCell((cell) => {
-        cell.font = {
-          bold: true,
-          size: 11,
-        };
+          // Parent data row
+          const parentRowData = columns.map((col) => {
+            const value = col.key.includes(".")
+              ? col.key.split(".").reduce((obj: any, key) => obj?.[key], parentItem)
+              : parentItem[col.key];
 
-        cell.alignment = {
-          horizontal: "center",
-          vertical: "middle",
-          wrapText: true,
-        };
+            return col.formatter ? col.formatter(value, parentItem) : value?.toString() || "--";
+          });
 
-        cell.fill = {
-          type: "pattern",
-          pattern: "solid",
-          fgColor: {
-            argb: "F0B100",
-          },
-        };
+          const pRow = worksheet.addRow(parentRowData);
+          pRow.eachCell((cell) => {
+            cell.font = { size: 10, bold: true };
+            cell.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
+            cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF9E6" } };
+            cell.border = { top: { style: "thin" }, bottom: { style: "thin" }, left: { style: "thin" }, right: { style: "thin" } };
+          });
 
-        cell.border = {
-          top: { style: "thin" },
-          bottom: { style: "thin" },
-          left: { style: "thin" },
-          right: { style: "thin" },
-        };
-      });
+          // Child items
+          const childItems = parentItem[dataKey];
+          if (Array.isArray(childItems) && childItems.length > 0) {
+            if (nestedTitle) {
+              const subTitleRow = worksheet.addRow([`  ↪ ${nestedTitle}`]);
+              subTitleRow.getCell(1).font = { italic: true, bold: true, size: 10, color: { argb: "555555" } };
+            }
 
-      // ===========================
-      // DATA
-      // ===========================
+            // Nested header row (indented by 1 column)
+            const nHeaderRow = worksheet.addRow(["", ...nestedCols.map((col) => col.header)]);
+            nHeaderRow.eachCell((cell, colNumber) => {
+              if (colNumber === 1) return;
+              cell.font = { bold: true, size: 10 };
+              cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+              cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE58A" } };
+              cell.border = { top: { style: "thin" }, bottom: { style: "thin" }, left: { style: "thin" }, right: { style: "thin" } };
+            });
 
-      data.forEach((item) => {
-        const rowData = columns.map((col) => {
-          const value = col.key.includes(".")
-            ? col.key
-                .split(".")
-                .reduce(
-                  (obj: any, key) => obj?.[key],
-                  item
-                )
-            : item[col.key];
+            childItems.forEach((child) => {
+              const childRowData = nestedCols.map((col) => {
+                const value = col.key.includes(".")
+                  ? col.key.split(".").reduce((obj: any, key) => obj?.[key], child)
+                  : child[col.key];
+                return col.formatter ? col.formatter(value, child) : value?.toString() || "--";
+              });
 
-          return col.formatter
-            ? col.formatter(value, item)
-            : value?.toString() || "--";
+              const cRow = worksheet.addRow(["", ...childRowData]);
+              cRow.eachCell((cell, colNumber) => {
+                if (colNumber === 1) return;
+                cell.font = { size: 9 };
+                cell.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
+                cell.border = { top: { style: "thin" }, bottom: { style: "thin" }, left: { style: "thin" }, right: { style: "thin" } };
+              });
+            });
+
+            worksheet.addRow([]); // Empty spacing row between parent records
+          } else {
+            worksheet.addRow([]);
+          }
         });
+      } else {
+        // ===========================
+        // HEADERS
+        // ===========================
 
-        const row = worksheet.addRow(rowData);
+        const headerRow = worksheet.addRow(
+          columns.map((col) => col.header)
+        );
 
-        row.eachCell((cell) => {
+        headerRow.eachCell((cell) => {
           cell.font = {
-            size: 10,
+            bold: true,
+            size: 11,
           };
 
           cell.alignment = {
-            vertical: "middle",
             horizontal: "center",
+            vertical: "middle",
             wrapText: true,
+          };
+
+          cell.fill = {
+            type: "pattern",
+            pattern: "solid",
+            fgColor: {
+              argb: "F0B100",
+            },
           };
 
           cell.border = {
@@ -512,7 +640,49 @@ export const useExport = () => {
             right: { style: "thin" },
           };
         });
-      });
+
+        // ===========================
+        // DATA
+        // ===========================
+
+        data.forEach((item) => {
+          const rowData = columns.map((col) => {
+            const value = col.key.includes(".")
+              ? col.key
+                  .split(".")
+                  .reduce(
+                    (obj: any, key) => obj?.[key],
+                    item
+                  )
+              : item[col.key];
+
+            return col.formatter
+              ? col.formatter(value, item)
+              : value?.toString() || "--";
+          });
+
+          const row = worksheet.addRow(rowData);
+
+          row.eachCell((cell) => {
+            cell.font = {
+              size: 10,
+            };
+
+            cell.alignment = {
+              vertical: "middle",
+              horizontal: "center",
+              wrapText: true,
+            };
+
+            cell.border = {
+              top: { style: "thin" },
+              bottom: { style: "thin" },
+              left: { style: "thin" },
+              right: { style: "thin" },
+            };
+          });
+        });
+      }
 
       // ===========================
       // COLUMN WIDTHS
