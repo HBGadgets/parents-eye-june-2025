@@ -66,10 +66,18 @@ export const reportService = {
     return res.data;
   },
 
-  getGeofenceAlertsReport: async (
-    params: Record<string, any>
-  ): Promise<any> => {
-    const res = await api.get("/report/geofence-alerts-report", { params });
+  getGeofenceAlertsReport: async ({
+    uniqueIds,
+    ...params
+  }: {
+    uniqueIds?: any;
+    [key: string]: any;
+  }): Promise<any> => {
+    const res = await api.post(
+      "/report/geofenceevent",
+      { uniqueIds },
+      { params }
+    );
     return res.data;
   },
 

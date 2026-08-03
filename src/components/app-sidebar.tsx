@@ -233,10 +233,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             { title: "Trip Report", url: "/dashboard/reports/trip-report" },
             { title: "Idle Report", url: "/dashboard/reports/idle-report" },
             { title: "Alerts/Events", url: "/dashboard/reports/events" },
-            // {
-            //   title: "Geofence Report",
-            //   url: "/dashboard/reports/geofence-report",
-            // },
+            {
+              title: "Geofence Report",
+              url: "/dashboard/reports/geofence-report",
+            },
             {
               title: "Route Report",
               url: "/dashboard/reports/route-report",

@@ -48,7 +48,7 @@ export const useReport = (
         to: filters?.to,
       }),
     enabled:
-      hasGenerated &&
+      !!hasGenerated &&
       reportType === "status" &&
       !!filters?.uniqueId &&
       !!filters?.from &&
@@ -90,7 +90,7 @@ export const useReport = (
             }),
       }),
     enabled:
-      hasGenerated &&
+      !!hasGenerated &&
       reportType === "stop" &&
       !!filters?.uniqueId &&
       !!filters?.from &&
@@ -126,7 +126,7 @@ export const useReport = (
         to: filters?.to,
       }),
     enabled:
-      hasGenerated &&
+      !!hasGenerated &&
       reportType === "idle" &&
       !!filters?.uniqueId &&
       !!filters?.from &&
@@ -160,7 +160,7 @@ export const useReport = (
     queryFn: () => reportService.getDistanceReport(distanceReportPayload),
 
     enabled:
-      hasGenerated &&
+      !!hasGenerated &&
       reportType === "distance" &&
       parseUniqueIds(filters?.uniqueId).length > 0 &&
       !!filters?.from &&
@@ -198,7 +198,7 @@ export const useReport = (
 
     queryFn: () => reportService.getAlertsEventsReport(alertsEvenetsPayload),
     enabled:
-      hasGenerated &&
+      !!hasGenerated &&
       reportType === "alerts-events" &&
       parseUniqueIds(filters?.uniqueId).length > 0 &&
       !!filters?.from &&
@@ -225,13 +225,13 @@ export const useReport = (
       reportService.getGeofenceAlertsReport({
         page: pagination.pageIndex + 1,
         limit: pagination.pageSize,
-        uniqueId: filters?.uniqueId,
+        uniqueIds: parseUniqueIds(filters?.uniqueId),
         period: filters?.period || "Custom",
         from: filters?.from,
         to: filters?.to,
       }),
     enabled:
-      hasGenerated &&
+      !!hasGenerated &&
       reportType === "geofence-alerts" &&
       !!filters?.uniqueId &&
       !!filters?.from &&
@@ -266,7 +266,7 @@ export const useReport = (
         to: filters?.to,
       }),
     enabled:
-      hasGenerated &&
+      !!hasGenerated &&
       reportType === "trip" &&
       !!filters?.uniqueId &&
       !!filters?.from &&
@@ -304,7 +304,7 @@ export const useReport = (
      queryFn: () => reportService.getTravelSummaryReport(travelSummaryPayload),
 
      enabled:
-       hasGenerated &&
+       !!hasGenerated &&
        reportType === "travel-summary" &&
        parseUniqueIds(filters?.uniqueId).length > 0 &&
        !!filters?.from &&
@@ -341,7 +341,7 @@ export const useReport = (
 
     queryFn: () => reportService.getRouteReport(routeReportPayload),
     enabled:
-      hasGenerated &&
+      !!hasGenerated &&
       reportType === "route" &&
       parseUniqueIds(filters?.uniqueId).length > 0 &&
       !!filters?.from &&
@@ -370,7 +370,7 @@ export const useReport = (
         period: filters?.period || "Custom",
       }),
     enabled:
-      hasGenerated &&
+      !!hasGenerated &&
       reportType === "history" &&
       !!filters?.uniqueId &&
       !!filters?.from &&
@@ -386,7 +386,38 @@ export const useReport = (
     idleReport: getIdleReportQuery.data?.data || [],
     distanceReport: getDistanceReportQuery.data?.data || [],
     alertsAndEventsReport: getAertsAndEventsReportQuery.data?.data || [],
-    geofenceAlertsReport: getGeofenceAlertsReportQuery.data?.data || [],
+    geofenceAlertsReport: (() => {
+      const raw = getGeofenceAlertsReportQuery.data?.data || getGeofenceAlertsReportQuery.data?.reportData || getGeofenceAlertsReportQuery.data;
+      if (!raw || typeof raw !== "object") return [];
+      if (Array.isArray(raw)) return raw;
+
+      const flat: any[] = [];
+      for (const uid of Object.keys(raw)) {
+        const dateMap = raw[uid];
+        if (!dateMap || typeof dateMap !== "object") continue;
+        for (const date of Object.keys(dateMap)) {
+          const events = dateMap[date];
+          if (!Array.isArray(events)) continue;
+          for (const event of events) {
+            flat.push({
+              uniqueId: event.uniqueId || uid,
+              date,
+              geofenceName: event.geofenceName,
+              address: event.address,
+              eventType: event.eventType,
+              geoType: event.geoType,
+              timestamp: event.timestamp,
+              createdAt: event.createdAt,
+              center: event.area?.center
+                ? `${event.area.center[0]}, ${event.area.center[1]}`
+                : "-",
+              radius: event.area?.radius ?? 0,
+            });
+          }
+        }
+      }
+      return flat;
+    })(),
     tripReport: getTripReportQuery.data?.data || [],
     travelSummaryReport: getTravelSummaryReportQuery.data?.reportData || [],
     routeReport: getRouteReportQuery.data?.data || [],

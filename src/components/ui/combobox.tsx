@@ -353,10 +353,12 @@ export function Combobox({
                     className="mr-1 cursor-pointer hover:bg-secondary/80"
                   >
                     {item.label}
-                    <button
-                      className="ml-1 ring-offset-background rounded-full outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      className="ml-1 ring-offset-background rounded-full outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 cursor-pointer"
                       onKeyDown={(e) => {
-                        if (e.key === "Enter") {
+                        if (e.key === "Enter" || e.key === " ") {
                           handleRemoveBadge(item.value, e as any);
                         }
                       }}
@@ -367,7 +369,7 @@ export function Combobox({
                       onClick={(e) => handleRemoveBadge(item.value, e)}
                     >
                       <X className="h-3 w-3 text-muted-foreground hover:text-foreground" />
-                    </button>
+                    </span>
                   </Badge>
                 ))}
                 {remainingCount > 0 && (
