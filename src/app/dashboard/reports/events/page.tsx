@@ -169,7 +169,7 @@ const AlertsAndEventsReportPage: React.FC = () => {
     );
   };
 
-  // Effect to enrich data with addresses when alertsAndEventsReport changes
+  // Effect to progressively enrich data with addresses as they fetch one by one
   useEffect(() => {
     if (!alertsAndEventsReport?.length) {
       if (tableData.length !== 0) setTableData([]);
@@ -179,12 +179,68 @@ const AlertsAndEventsReportPage: React.FC = () => {
     if (lastProcessedRef.current === currentHash) return;
     lastProcessedRef.current = currentHash;
 
-    const enrich = async () => {
-      const enriched = await enrichEventsReportWithAddress(alertsAndEventsReport);
-      setTableData(enriched);
-    };
+    // 1. Immediately set tableData with raw events data so UI displays instantly
+    setTableData(alertsAndEventsReport);
 
-    enrich();
+    // 2. Geocode missing addresses progressively in background and update state as each finishes
+    alertsAndEventsReport.forEach((row, rowIndex) => {
+      if (!row.eventArray?.length) return;
+
+      row.eventArray.forEach((event, eventIndex) => {
+        if (!event.geofenceAddress && event.latitude && event.longitude) {
+          reverseGeocodeMapTiler(Number(event.latitude), Number(event.longitude))
+            .then((address) => {
+              const resAddress = address || "-";
+              setTableData((prevData) => {
+                if (!prevData[rowIndex]) return prevData;
+                const newRows = [...prevData];
+                const targetRow = { ...newRows[rowIndex] };
+                if (!targetRow.eventArray) return prevData;
+
+                const newEvents = [...targetRow.eventArray];
+                if (newEvents[eventIndex]) {
+                  newEvents[eventIndex] = {
+                    ...newEvents[eventIndex],
+                    geofenceAddress: resAddress,
+                  };
+                  targetRow.eventArray = newEvents;
+                  newRows[rowIndex] = targetRow;
+                }
+                return newRows;
+              });
+
+              // Also update detailedData if an expanded detail table is currently open
+              setDetailedData((prevDetails) => {
+                const updated = { ...prevDetails };
+                let modified = false;
+                Object.keys(updated).forEach((key) => {
+                  const list = updated[key];
+                  if (!list) return;
+                  const itemIdx = list.findIndex(
+                    (d) =>
+                      d.uniqueId === row.uniqueId &&
+                      Number(d.latitude) === Number(event.latitude) &&
+                      Number(d.longitude) === Number(event.longitude)
+                  );
+                  if (itemIdx !== -1) {
+                    const newList = [...list];
+                    newList[itemIdx] = {
+                      ...newList[itemIdx],
+                      geofenceAddress: resAddress,
+                    };
+                    updated[key] = newList;
+                    modified = true;
+                  }
+                });
+                return modified ? updated : prevDetails;
+              });
+            })
+            .catch((err) => {
+              console.error("Geocoding failed for event:", err);
+            });
+        }
+      });
+    });
   }, [alertsAndEventsReport]);
 
   const transformEventsData = useCallback(
