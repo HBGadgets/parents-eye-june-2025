@@ -120,8 +120,8 @@ type DecodedToken = {
 const defaultConfig: ReportFilterConfig = {
   showSchool: true,
   showBranch: true,
-  requireSchool: true,
-  requireBranch: true,
+  requireSchool: false,
+  requireBranch: false,
   showDevice: true,
   showDateRange: true,
   showSubmitButton: true,
