@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { LogOut, Bell, CreditCard, User } from "lucide-react";
+import { LogOut, Bell, CreditCard, User, KeyRound } from "lucide-react";
 import { LogoutButton } from "./logout-button";
 import Link from "next/link";
 import Cookies from "js-cookie";
@@ -125,6 +125,15 @@ export function ProfileDropdown() {
             </DropdownMenuSubContent>
           </DropdownMenuPortal>
         </DropdownMenuSub>
+        <DropdownMenuItem asChild>
+          <Link
+            href="/dashboard/profile/change-password"
+            className="cursor-pointer flex items-center"
+          >
+            <KeyRound className="mr-2 h-4 w-4" />
+            <span>Change Password</span>
+          </Link>
+        </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem>
           {/* <LogOut /> */}

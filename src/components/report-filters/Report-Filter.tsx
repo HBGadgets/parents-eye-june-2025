@@ -46,6 +46,8 @@ export interface DateRange {
 export interface ReportFilterConfig {
   showSchool?: boolean;
   showBranch?: boolean;
+  requireSchool?: boolean;
+  requireBranch?: boolean;
   showDevice?: boolean;
   showDateRange?: boolean;
   showSubmitButton?: boolean;
@@ -118,6 +120,8 @@ type DecodedToken = {
 const defaultConfig: ReportFilterConfig = {
   showSchool: true,
   showBranch: true,
+  requireSchool: true,
+  requireBranch: true,
   showDevice: true,
   showDateRange: true,
   showSubmitButton: true,
@@ -266,7 +270,7 @@ export const ReportFilter: React.FC<ReportFilterProps> = ({
   // ---------------- Lazy Loading States ----------------
   const [shouldFetchSchools, setShouldFetchSchools] = useState(false);
   const [shouldFetchBranches, setShouldFetchBranches] = useState(false);
-  const [shouldFetchDevices, setShouldFetchDevices] = useState(false);
+  const [shouldFetchDevices, setShouldFetchDevices] = useState(true);
 
   // ---------------- Decode Token ----------------
   useEffect(() => {
@@ -374,7 +378,6 @@ export const ReportFilter: React.FC<ReportFilterProps> = ({
       } else {
         if (controlledDevice === undefined) setInternalDevice(undefined);
       }
-      setShouldFetchDevices(false);
     }
 
     prevBranchRef.current = selectedBranch;
@@ -639,7 +642,7 @@ export const ReportFilter: React.FC<ReportFilterProps> = ({
 
   // ---------------- Validation ----------------
   const isValid = useMemo(() => {
-    if (mergedConfig.showSchool && role === "superAdmin") {
+    if (mergedConfig.showSchool && mergedConfig.requireSchool && role === "superAdmin") {
       if (mergedConfig.multiSelectSchool) {
         if (selectedSchools.length === 0) return false;
       } else {
@@ -649,6 +652,7 @@ export const ReportFilter: React.FC<ReportFilterProps> = ({
 
     if (
       mergedConfig.showBranch &&
+      mergedConfig.requireBranch &&
       (role === "superAdmin" || role === "school" || role === "branchGroup")
     ) {
       if (mergedConfig.multiSelectBranch) {
@@ -726,7 +730,7 @@ export const ReportFilter: React.FC<ReportFilterProps> = ({
     };
 
     // Validation alerts
-    if (mergedConfig.showSchool && role === "superAdmin") {
+    if (mergedConfig.showSchool && mergedConfig.requireSchool && role === "superAdmin") {
       if (mergedConfig.multiSelectSchool) {
         if (selectedSchools.length === 0) {
           alert("Please select at least one school");
@@ -740,7 +744,7 @@ export const ReportFilter: React.FC<ReportFilterProps> = ({
       }
     }
 
-    if (mergedConfig.showBranch) {
+    if (mergedConfig.showBranch && mergedConfig.requireBranch) {
       if (mergedConfig.multiSelectBranch) {
         if (selectedBranches.length === 0) {
           alert("Please select at least one branch");
@@ -971,13 +975,9 @@ export const ReportFilter: React.FC<ReportFilterProps> = ({
                 selectedValues={selectedDevices}
                 onSelectedValuesChange={handleDevicesChange}
                 placeholder={
-                  selectedBranch ||
-                  selectedBranches.length > 0 ||
-                  role === "branch"
-                    ? mergedConfig.multiSelectDevice
-                      ? "Select Vehicles"
-                      : "Select Vehicle"
-                    : "Select branch first"
+                  mergedConfig.multiSelectDevice
+                    ? "Select Vehicles"
+                    : "Select Vehicle"
                 }
                 searchPlaceholder="Search vehicles..."
                 className="cursor-pointer w-full"
@@ -986,20 +986,10 @@ export const ReportFilter: React.FC<ReportFilterProps> = ({
                 emptyMessage={
                   devicesLoading ? "Loading vehicles..." : "No vehicles found"
                 }
-                disabled={
-                  role !== "branch" &&
-                  !selectedBranch &&
-                  selectedBranches.length === 0
-                }
                 open={deviceOpen}
                 onOpenChange={(open) => {
                   setDeviceOpen(open);
-                  if (
-                    open &&
-                    (selectedBranch ||
-                      selectedBranches.length > 0 ||
-                      role === "branch")
-                  ) {
+                  if (open) {
                     setShouldFetchDevices(true);
                   }
                 }}

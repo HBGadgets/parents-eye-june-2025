@@ -11,6 +11,21 @@ export const reportService = {
     return res.data;
   },
 
+  getStoppageSummaryReport: async ({
+    uniqueIds,
+    ...params
+  }: {
+    uniqueIds?: number[];
+    [key: string]: any;
+  }): Promise<any> => {
+    const res = await api.post(
+      "/report/stoppage-summary",
+      { uniqueIds },
+      { params }
+    );
+    return res.data;
+  },
+
   getIdleReport: async (params: Record<string, any>): Promise<any> => {
     const res = await api.get("/report/idle-report", { params });
     return res.data;

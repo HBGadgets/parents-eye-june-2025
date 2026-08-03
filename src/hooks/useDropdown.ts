@@ -71,7 +71,7 @@ export const useDeviceDropdownWithUniqueId = (
   return useQuery<DropdownResponse<DropdownItem>>({
     queryKey: ["device-dropdown-uniqueId", branchId],
     queryFn: () => dropdownService.getDevicesWithUniqueId(branchId),
-    enabled: !!branchId,
+    enabled: shouldFetch,
     select: (res) => res.data.data,
     refetchOnWindowFocus: false,
     retry: false,

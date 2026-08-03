@@ -80,6 +80,7 @@ const iconMap: Record<string, React.ElementType> = {
   "Distance Report": Route,
   "History Report": Clock,
   "Stop Report": AlertCircle,
+  "Stoppage Summary": AlertCircle,
   "Travel Summary": TrendingUp,
   "Trip Report": Route,
   "Idle Report": Clock,
@@ -221,6 +222,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               url: "/dashboard/reports/history-report",
             },
             { title: "Stop Report", url: "/dashboard/reports/stop-report" },
+            {
+              title: "Stoppage Summary",
+              url: "/dashboard/reports/stoppage-summary",
+            },
             {
               title: "Travel Summary",
               url: "/dashboard/reports/travel-summary",
