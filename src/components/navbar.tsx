@@ -31,7 +31,7 @@ export function Navbar() {
 
   const navigationMap: Record<string, string> = {
     Dashboard: "/dashboard",
-    Maintenance: "https://maintenance.credencetracker.com/#/login",
+    Maintenance: `http://76.13.244.194:90`,
     Geofence: "/dashboard/school/geofence",
     Notifications: "/dashboard/users/notification",
   };
