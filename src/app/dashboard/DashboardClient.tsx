@@ -198,6 +198,15 @@ export default function DashboardClient() {
   const { decodedToken } = useAuthStore();
   const rawRole = (decodedToken?.role || "").toLowerCase();
 
+  const userId =
+    decodedToken?.id ||
+    (decodedToken as any)?._id ||
+    (decodedToken as any)?.userId;
+  const superSupportUrl = process.env.NEXT_PUBLIC_SUPERSUPPORT_URL;
+  const isSuperSupport = Boolean(
+    superSupportUrl && userId === superSupportUrl
+  );
+
   const userRole = useMemo(() => {
     if (["superadmin", "super_admin", "admin", "root"].includes(rawRole)) return "superadmin";
     if (["school", "schooladmin"].includes(rawRole)) return "school";
@@ -446,7 +455,9 @@ export default function DashboardClient() {
     (device: DeviceData) => {
       setSelectedVehicleId(device.deviceId);
       setSelectedDevice(device);
-      setIsDrawerOpen(true);
+      if (!isSuperSupport) {
+        setIsDrawerOpen(true);
+      }
 
       if (device.latitude && device.longitude) {
         queueForGeocoding(
@@ -457,7 +468,7 @@ export default function DashboardClient() {
         );
       }
     },
-    [queueForGeocoding]
+    [queueForGeocoding, isSuperSupport]
   );
 
   const handleOpenLiveTrack = (uniqueId: number, name: string, routeName?: string, routeObjId?: string, schoolId?: string, branchId?: string) => {
@@ -861,8 +872,8 @@ export default function DashboardClient() {
           {/* Main Layout */}
           <div className="dashboard">
             <div className="flex flex-col lg:flex-row gap-2 lg:gap-0 h-auto lg:h-[80vh] xl:h-[85vh]">
-              <section className={`overflow-auto min-h-[300px] lg:min-h-0 ${getTableClass}`}>
-                {viewState === "mapExpanded" && (
+              <section className={`overflow-auto min-h-[300px] lg:min-h-0 ${isSuperSupport ? "w-full flex-1" : getTableClass}`}>
+                {(!isSuperSupport && viewState === "mapExpanded") && (
                   <div className="absolute top-1/2 left-0 z-50 hidden lg:block">
                     <button
                       onClick={handleExpandTable}
@@ -877,93 +888,101 @@ export default function DashboardClient() {
                   </div>
                 )}
 
-                {viewState !== "mapExpanded" && <div className="min-h-[300px] lg:min-h-0">{tableElement}</div>}
+                {(isSuperSupport || viewState !== "mapExpanded") && <div className="min-h-[300px] lg:min-h-0">{tableElement}</div>}
               </section>
 
-              {/* Arrow Controls - hidden on mobile */}
-              {!["tableExpanded", "mapExpanded"].includes(viewState) && (
-                <div className="hidden lg:flex flex-col justify-center items-center space-y-2 z-50 absolute top-1/2 right-[48.5%]">
-                  <button
-                    onClick={handleExpandMap}
-                    className={`p-2 rounded-full border border-gray-300 hover:bg-primary transition-all duration-200 cursor-pointer shadow-lg hover:shadow-xl hover:-translate-y-0.5 [animation-duration:_300ms] [animation:_fadeIn_300ms_ease-in_forwards] ${viewState === "mapExpanded"
-                      ? "bg-blue-100 "
-                      : "bg-white text-gray-600"
-                      }`}
-                    title={
-                      viewState === "mapExpanded" ? "Show both" : "Expand map"
-                    }
-                  >
-                    <ChevronsLeft className="w-4 h-4" />
-                  </button>
+              {!isSuperSupport && (
+                <>
+                  {/* Arrow Controls - hidden on mobile */}
+                  {!["tableExpanded", "mapExpanded"].includes(viewState) && (
+                    <div className="hidden lg:flex flex-col justify-center items-center space-y-2 z-50 absolute top-1/2 right-[48.5%]">
+                      <button
+                        onClick={handleExpandMap}
+                        className={`p-2 rounded-full border border-gray-300 hover:bg-primary transition-all duration-200 cursor-pointer shadow-lg hover:shadow-xl hover:-translate-y-0.5 [animation-duration:_300ms] [animation:_fadeIn_300ms_ease-in_forwards] ${viewState === "mapExpanded"
+                          ? "bg-blue-100 "
+                          : "bg-white text-gray-600"
+                          }`}
+                        title={
+                          viewState === "mapExpanded" ? "Show both" : "Expand map"
+                        }
+                      >
+                        <ChevronsLeft className="w-4 h-4" />
+                      </button>
 
-                  <button
-                    onClick={handleExpandTable}
-                    className={`p-2 rounded-full border border-gray-300 hover:bg-primary transition-all duration-200 cursor-pointer shadow-lg hover:shadow-xl hover:-translate-y-0.5  [animation-duration:_500ms] [animation:_fadeIn_300ms_ease-in_forwards] ${viewState === "tableExpanded"
-                      ? "bg-blue-100"
-                      : "bg-white text-gray-600"
-                      }`}
-                    title={
-                      viewState === "tableExpanded"
-                        ? "Show both"
-                        : "Expand table"
-                    }
-                  >
-                    <ChevronsRight className="w-4 h-4" />
-                  </button>
-                </div>
+                      <button
+                        onClick={handleExpandTable}
+                        className={`p-2 rounded-full border border-gray-300 hover:bg-primary transition-all duration-200 cursor-pointer shadow-lg hover:shadow-xl hover:-translate-y-0.5  [animation-duration:_500ms] [animation:_fadeIn_300ms_ease-in_forwards] ${viewState === "tableExpanded"
+                          ? "bg-blue-100"
+                          : "bg-white text-gray-600"
+                          }`}
+                        title={
+                          viewState === "tableExpanded"
+                            ? "Show both"
+                            : "Expand table"
+                        }
+                      >
+                        <ChevronsRight className="w-4 h-4" />
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Right Side - Map */}
+                  <section className={`${getMapClass} rounded-lg overflow-hidden min-h-[300px] lg:min-h-0`}>
+                    {viewState !== "tableExpanded" && (
+                      <VehicleMap
+                        vehicles={devices}
+                        height="100%"
+                        autoFitBounds={false}
+                        showTrails={false}
+                        clusterMarkers={devices.length > 100}
+                        zoom={6}
+                        selectedVehicleId={selectedVehicleId}
+                        onVehicleSelect={setSelectedVehicleId}
+                        onVehicleClick={(vehicle) => handleDeviceSelection(vehicle as any)}
+                        activeFilter={activeStatus}
+                        selectedRouteData={selectedRouteData}
+                        isAllInTableActive={pagination.pageSize > 100}
+                        onToggleAllInTable={(showAll) => {
+                          handlePaginationChange({
+                            pageIndex: 0,
+                            pageSize: showAll ? 500 : 10
+                          });
+                        }}
+                      />
+                    )}
+                    {viewState === "tableExpanded" && (
+                      <div className="absolute top-1/2 right-2 z-50 hidden lg:block">
+                        <button
+                          onClick={handleExpandMap}
+                          className={`p-2 rounded-full border border-gray-300 hover:bg-primary transition-all duration-200 cursor-pointer shadow-lg hover:shadow-xl hover:-translate-y-0.5  ${viewState === "mapExpanded"
+                            ? "bg-blue-100 "
+                            : "bg-white text-gray-600"
+                            }`}
+                          title={
+                            viewState === "mapExpanded" ? "Show both" : "Expand map"
+                          }
+                        >
+                          <ChevronsLeft className="w-4 h-4" />
+                        </button>
+                      </div>
+                    )}
+                  </section>
+                </>
               )}
-
-              {/* Right Side - Map */}
-              <section className={`${getMapClass} rounded-lg overflow-hidden min-h-[300px] lg:min-h-0`}>
-                {viewState !== "tableExpanded" && (
-                  <VehicleMap
-                    vehicles={devices}
-                    height="100%"
-                    autoFitBounds={false}
-                    showTrails={false}
-                    clusterMarkers={devices.length > 100}
-                    zoom={6}
-                    selectedVehicleId={selectedVehicleId}
-                    onVehicleSelect={setSelectedVehicleId}
-                    onVehicleClick={(vehicle) => handleDeviceSelection(vehicle as any)}
-                    activeFilter={activeStatus}
-                    selectedRouteData={selectedRouteData}
-                    isAllInTableActive={pagination.pageSize > 100}
-                    onToggleAllInTable={(showAll) => {
-                      handlePaginationChange({
-                        pageIndex: 0,
-                        pageSize: showAll ? 500 : 10
-                      });
-                    }}
-                  />
-                )}
-                {viewState === "tableExpanded" && (
-                  <div className="absolute top-1/2 right-2 z-50 hidden lg:block">
-                    <button
-                      onClick={handleExpandMap}
-                      className={`p-2 rounded-full border border-gray-300 hover:bg-primary transition-all duration-200 cursor-pointer shadow-lg hover:shadow-xl hover:-translate-y-0.5  ${viewState === "mapExpanded"
-                        ? "bg-blue-100 "
-                        : "bg-white text-gray-600"
-                        }`}
-                      title={
-                        viewState === "mapExpanded" ? "Show both" : "Expand map"
-                      }
-                    >
-                      <ChevronsLeft className="w-4 h-4" />
-                    </button>
-                  </div>
-                )}
-              </section>
             </div>
           </div>
         </div>
 
         {/* Drawer */}
-        <div>
-          <BottomDrawer {...bottomDrawerProps} />
-        </div>
+        {!isSuperSupport && (
+          <div>
+            <BottomDrawer {...bottomDrawerProps} />
+          </div>
+        )}
 
-        <LiveTrack open={open} setOpen={setOpen} selectedImei={selectedImei} />
+        {!isSuperSupport && (
+          <LiveTrack open={open} setOpen={setOpen} selectedImei={selectedImei} />
+        )}
 
         <RouteTimeline
           isOpen={isRouteTimelineOpen}
