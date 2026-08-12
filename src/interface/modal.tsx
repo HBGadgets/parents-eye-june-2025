@@ -273,7 +273,8 @@ export interface LiveTrack {
   latitude?: DoubleRange;
   course?: number;
   deviceId?: number;
-  uniqueId?: number;
+  uniqueId?: number | string;
+  sim?: string;
   attribute?: {
     charge?: boolean;
     ignition?: boolean;

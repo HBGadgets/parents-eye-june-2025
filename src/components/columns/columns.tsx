@@ -18,7 +18,7 @@ import {
   TripReport,
 } from "@/interface/modal";
 import { CellContent } from "@/components/ui/CustomTable";
-import { Eye, EyeOff, Locate, Music, WifiOff } from "lucide-react";
+import { Eye, EyeOff, Locate, Music, WifiOff, Copy, Check } from "lucide-react";
 import { FaPlus, FaMinus } from "react-icons/fa";
 import {
   GeofenceGroup,
@@ -26,8 +26,50 @@ import {
   GeofenceEventFlat,
 } from "@/interface/modal";
 import { calculateTimeSince } from "@/util/calculateTimeSince";
-import React, { useMemo } from "react";
+import React, { useMemo, useState, useCallback } from "react";
 import { Button } from "../ui/button";
+
+const CopyableCell = ({
+  value,
+  allowWrap = false,
+}: {
+  value: string | number | null | undefined;
+  allowWrap?: boolean;
+}) => {
+  const [copied, setCopied] = useState(false);
+  const textValue = value !== undefined && value !== null ? String(value) : "";
+
+  const handleCopy = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      if (!textValue) return;
+      navigator.clipboard.writeText(textValue);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    },
+    [textValue]
+  );
+
+  if (!textValue) return <span>-</span>;
+
+  return (
+    <div className={`flex items-center gap-1.5 group ${allowWrap ? "break-words" : "whitespace-nowrap"}`}>
+      <span className={allowWrap ? "break-words" : "whitespace-nowrap"}>{textValue}</span>
+      <button
+        type="button"
+        onClick={handleCopy}
+        className="opacity-70 group-hover:opacity-100 hover:text-blue-600 transition-opacity cursor-pointer p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 flex-shrink-0"
+        title={copied ? "Copied!" : "Copy"}
+      >
+        {copied ? (
+          <Check className="w-3.5 h-3.5 text-green-600" />
+        ) : (
+          <Copy className="w-3.5 h-3.5" />
+        )}
+      </button>
+    </div>
+  );
+};
 import Image from "next/image";
 import { getValidDeviceCategory, statusIconMap } from "@/components/statusIconMap";
 import {
@@ -608,7 +650,7 @@ export const getLiveVehicleColumns = (userRole: string = "", customColors: Recor
               title={`Map route color key: ${routeColor}`}
             />
           )}
-          <span className="truncate">{name}</span>
+          <CopyableCell value={name} allowWrap={true} />
         </div>
       );
     },
@@ -616,6 +658,38 @@ export const getLiveVehicleColumns = (userRole: string = "", customColors: Recor
       wrapConfig: {
         wrap: "break-word",
         maxWidth: "200px",
+      },
+    },
+    enableHiding: true,
+    enableSorting: true,
+  },
+  {
+    id: "uniqueId",
+    header: "IMEI Number",
+    accessorFn: (row: any) => row.uniqueId || row.imei || "",
+    cell: ({ row }: any) => {
+      const val = row.original.uniqueId || row.original.imei || "";
+      return <CopyableCell value={val} />;
+    },
+    meta: {
+      wrapConfig: {
+        wrap: "nowrap",
+      },
+    },
+    enableHiding: true,
+    enableSorting: true,
+  },
+  {
+    id: "sim",
+    header: "SIM Number",
+    accessorFn: (row: any) => row.sim || "",
+    cell: ({ row }: any) => {
+      const val = row.original.sim || "";
+      return <CopyableCell value={val} />;
+    },
+    meta: {
+      wrapConfig: {
+        wrap: "nowrap",
       },
     },
     enableHiding: true,

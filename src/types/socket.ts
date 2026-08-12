@@ -6,6 +6,8 @@ export interface DeviceData {
   course: number;
   deviceId: number;
   imei: string;
+  uniqueId?: string | number;
+  sim?: string;
   attributes: {
     charge: boolean;
     ignition: boolean;
