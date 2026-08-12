@@ -477,10 +477,6 @@ export default function DashboardClient() {
   };
 
   useEffect(() => {
-    queueVisibleDevicesForGeocoding();
-  }, [queueVisibleDevicesForGeocoding]);
-
-  useEffect(() => {
     queueSelectedDeviceForGeocoding();
   }, [queueSelectedDeviceForGeocoding]);
 
