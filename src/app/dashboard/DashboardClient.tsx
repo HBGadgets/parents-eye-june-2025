@@ -414,7 +414,7 @@ export default function DashboardClient() {
   }, []);
 
   // Keep your existing columns array here
-  const columns = getLiveVehicleColumns("", customColors);
+  const columns = getLiveVehicleColumns(userRole, customColors);
 
   useEffect(() => {
     if (isDrawerOpen) {

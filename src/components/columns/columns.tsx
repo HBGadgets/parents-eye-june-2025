@@ -663,38 +663,42 @@ export const getLiveVehicleColumns = (userRole: string = "", customColors: Recor
     enableHiding: true,
     enableSorting: true,
   },
-  {
-    id: "uniqueId",
-    header: "IMEI Number",
-    accessorFn: (row: any) => row.uniqueId || row.imei || "",
-    cell: ({ row }: any) => {
-      const val = row.original.uniqueId || row.original.imei || "";
-      return <CopyableCell value={val} />;
-    },
-    meta: {
-      wrapConfig: {
-        wrap: "nowrap",
-      },
-    },
-    enableHiding: true,
-    enableSorting: true,
-  },
-  {
-    id: "sim",
-    header: "SIM Number",
-    accessorFn: (row: any) => row.sim || "",
-    cell: ({ row }: any) => {
-      const val = row.original.sim || "";
-      return <CopyableCell value={val} />;
-    },
-    meta: {
-      wrapConfig: {
-        wrap: "nowrap",
-      },
-    },
-    enableHiding: true,
-    enableSorting: true,
-  },
+  ...(userRole === "superadmin"
+    ? [
+        {
+          id: "uniqueId",
+          header: "IMEI Number",
+          accessorFn: (row: any) => row.uniqueId || row.imei || "",
+          cell: ({ row }: any) => {
+            const val = row.original.uniqueId || row.original.imei || "";
+            return <CopyableCell value={val} />;
+          },
+          meta: {
+            wrapConfig: {
+              wrap: "nowrap",
+            },
+          },
+          enableHiding: true,
+          enableSorting: true,
+        },
+        {
+          id: "sim",
+          header: "SIM Number",
+          accessorFn: (row: any) => row.sim || "",
+          cell: ({ row }: any) => {
+            const val = row.original.sim || "";
+            return <CopyableCell value={val} />;
+          },
+          meta: {
+            wrapConfig: {
+              wrap: "nowrap",
+            },
+          },
+          enableHiding: true,
+          enableSorting: true,
+        },
+      ]
+    : []),
   {
     header: "No. of Students",
     accessorKey: "noOfStudent",
