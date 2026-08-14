@@ -27,11 +27,12 @@ const nextConfig: NextConfig = {
     // !! WARN !!
     ignoreBuildErrors: true,
   },
-  async rewrites() {
+  async redirects() {
     return [
       {
         source: "/:path*.txt",
         destination: "/:path*",
+        permanent: true,
       },
     ];
   },
