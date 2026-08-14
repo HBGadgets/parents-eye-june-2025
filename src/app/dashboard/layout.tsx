@@ -52,6 +52,13 @@ export default function DashboardLayout({
   }, [isDashboard, store.isConnected]);
 
   useEffect(() => {
+    if (typeof window !== "undefined" && window.location.pathname.endsWith(".txt")) {
+      const cleanPath = window.location.pathname.replace(/\.txt$/, "");
+      router.replace(cleanPath + window.location.search + window.location.hash);
+    }
+  }, [router]);
+
+  useEffect(() => {
     const token = Cookies.get("token");
     if (!token) {
       redirect("/login");

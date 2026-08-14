@@ -27,6 +27,14 @@ const nextConfig: NextConfig = {
     // !! WARN !!
     ignoreBuildErrors: true,
   },
+  async rewrites() {
+    return [
+      {
+        source: "/:path*.txt",
+        destination: "/:path*",
+      },
+    ];
+  },
 };
 
 export default nextConfig;
