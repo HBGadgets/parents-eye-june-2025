@@ -58,4 +58,12 @@ export const deviceApiService = {
     );
     return res.data;
   },
+
+  updateExpirationDate: async (
+    uniqueIds: string[],
+    payload: { expirationdate: string; password?: string }
+  ) => {
+    const res = await api.put(`/devices/expiration`, { ...payload, uniqueIds });
+    return res.data;
+  },
 };

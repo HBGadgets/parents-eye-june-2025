@@ -140,6 +140,23 @@ export const useAddDeviceNew = (
     },
   });
 
+  const updateExpirationDateMutation = useMutation({
+    mutationFn: ({
+      uniqueIds,
+      payload,
+    }: {
+      uniqueIds: string[];
+      payload: { expirationdate: string; password?: string };
+    }) => deviceApiService.updateExpirationDate(uniqueIds, payload),
+    onSuccess: () => {
+      toast.success("Subscription updated successfully.");
+      queryClient.invalidateQueries({ queryKey: ["devices"] });
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.message || "Subscription update failed");
+    },
+  });
+
   return {
     devices: getDevicesQuery.data?.devices || [],
     total: getDevicesQuery.data?.total || 0,
@@ -147,14 +164,16 @@ export const useAddDeviceNew = (
     isFetching: getDevicesQuery.isFetching,
     isPlaceholderData: getDevicesQuery.isPlaceholderData,
 
-    createDevice: createDeviceMutation.mutate,
-    updateDevice: updateDeviceMutation.mutate,
+    createDevice: createDeviceMutation.mutateAsync,
+    updateDevice: updateDeviceMutation.mutateAsync,
+    updateExpirationDate: updateExpirationDateMutation.mutateAsync,
     deleteDevice: deleteDeviceMutation.mutate,
     exportExcel: exportExcelMutation.mutate,
     exportPdf: exportPdfMutation.mutate,
 
     isCreateDeviceLoading: createDeviceMutation.isPending,
     isUpdateDeviceLoading: updateDeviceMutation.isPending,
+    isUpdateExpirationLoading: updateExpirationDateMutation.isPending,
     isDeleteDeviceLoading: deleteDeviceMutation.isPending,
     isExcelExporting: exportExcelMutation.isPending,
     isPdfExporting: exportPdfMutation.isPending,

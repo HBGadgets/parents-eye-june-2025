@@ -3,6 +3,7 @@
 import React, { useEffect, useState, useMemo } from "react";
 import { useForm, Controller, SubmitHandler } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { Combobox, ComboboxItem } from "@/components/ui/combobox";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,7 +25,7 @@ import {
   DropdownItem,
   useDriverDropdown,
 } from "@/hooks/useDropdown";
-import { CalendarIcon, Loader2 } from "lucide-react";
+import { CalendarIcon, Eye, EyeOff, Loader2 } from "lucide-react";
 import { useAddDeviceNew } from "@/hooks/device/useAddDevice(new)";
 import { useAddDeviceOld } from "@/hooks/device/useAddDevice(old)";
 import { useDebounce } from "@/hooks/useDebounce";
@@ -54,6 +55,27 @@ export function AddDeviceForm({
   const isEditMode = !!editData;
   const [driverSearch, setDriverSearch] = useState("");
   const debouncedDriverSearch = useDebounce(driverSearch, 300);
+  const [showPassword, setShowPassword] = useState(false);
+
+  // Dynamic schema validation
+  const schema = useMemo(() => {
+    if (isEditMode && editData) {
+      return deviceSchema.superRefine((data, ctx) => {
+        const originalDate = editData.subscriptionEndDate || editData.expirationdate
+          ? new Date(editData.subscriptionEndDate || editData.expirationdate).toDateString()
+          : "";
+        const currentDate = data.subscriptionEndDate ? new Date(data.subscriptionEndDate).toDateString() : "";
+        if (originalDate !== currentDate && (!data.password || data.password.trim() === "")) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "Password is required for updating subscription date",
+            path: ["password"],
+          });
+        }
+      });
+    }
+    return deviceSchema;
+  }, [isEditMode, editData]);
 
   // Form setup
   const {
@@ -64,7 +86,7 @@ export function AddDeviceForm({
     setValue,
     formState: { errors, isSubmitting },
   } = useForm<DeviceFormData>({
-    resolver: zodResolver(deviceSchema),
+    resolver: zodResolver(schema),
     defaultValues: {
       name: "",
       uniqueId: "",
@@ -79,6 +101,7 @@ export function AddDeviceForm({
       average: 0,
       keyFeature: false,
       subscriptionEndDate: "",
+      password: "",
     },
   });
 
@@ -96,6 +119,18 @@ export function AddDeviceForm({
   // Watch form fields for dependent dropdowns
   const selectedSchoolId = watch("schoolId");
   const selectedBranchId = watch("branchId");
+  const watchSubscriptionEndDate = watch("subscriptionEndDate");
+
+  const isExpirationDateChanged = useMemo(() => {
+    if (!isEditMode || !editData) return false;
+    const original = editData.subscriptionEndDate || editData.expirationdate
+      ? new Date(editData.subscriptionEndDate || editData.expirationdate).toDateString()
+      : "";
+    const current = watchSubscriptionEndDate
+      ? new Date(watchSubscriptionEndDate).toDateString()
+      : "";
+    return original !== current;
+  }, [isEditMode, editData, watchSubscriptionEndDate]);
 
   // Dropdown hooks
   const { data: schools, isLoading: isLoadingSchools } =
@@ -132,8 +167,10 @@ export function AddDeviceForm({
   const {
     createDevice,
     updateDevice,
+    updateExpirationDate,
     isCreateDeviceLoading,
     isUpdateDeviceLoading,
+    isUpdateExpirationLoading,
   } = useAddDeviceNew(pagination, sorting, filters);
   const { mutateAsync: createOldDevice } = useAddDeviceOld();
 
@@ -172,7 +209,8 @@ export function AddDeviceForm({
         speed: editData.speed || 0,
         average: editData.average || 0,
         keyFeature: editData.keyFeature ?? false,
-        subscriptionEndDate: editData.subscriptionEndDate || "",
+        subscriptionEndDate: editData.subscriptionEndDate || editData.expirationdate || "",
+        password: "",
       });
     } else if (open && !editData) {
       reset({
@@ -189,6 +227,7 @@ export function AddDeviceForm({
         average: 0,
         keyFeature: false,
         subscriptionEndDate: "",
+        password: "",
       });
     }
   }, [open, editData, reset]);
@@ -348,10 +387,21 @@ export function AddDeviceForm({
           subscriptionEndDate: data.subscriptionEndDate,
         };
 
-        // UPDATE NEW API
-        updateDevice({ id: editData._id, payload });
+        // 1️⃣ UPDATE EXPIRATION VIA NEW API FIRST (Validates password) (Only if expiration date changed)
+        if (isExpirationDateChanged) {
+          await updateExpirationDate({
+            uniqueIds: [data.uniqueId],
+            payload: {
+              expirationdate: data.subscriptionEndDate,
+              password: data.password,
+            },
+          });
+        }
 
-        // UPDATE OLD API IF deviceId EXISTS
+        // 2️⃣ UPDATE NEW API
+        await updateDevice({ id: editData._id, payload });
+
+        // 3️⃣ UPDATE OLD API IF deviceId EXISTS
         if (editData.deviceId) {
           const { updateDeviceOld } = await import(
             "@/hooks/device/useAddDevice(old)"
@@ -397,18 +447,18 @@ export function AddDeviceForm({
           subscriptionEndDate: data.subscriptionEndDate,
         };
 
-        createDevice(newApiPayload);
+        await createDevice(newApiPayload);
       }
 
       onOpenChange(false);
       reset();
     } catch (error: any) {
       console.error("❌ Form submission error:", error);
-      toast.error(error?.message || "Failed to process device request");
+      toast.error(error?.response?.data?.message || error?.message || "Failed to process device request");
     }
   };
 
-  const isLoading = isCreateDeviceLoading || isUpdateDeviceLoading;
+  const isLoading = isCreateDeviceLoading || isUpdateDeviceLoading || isUpdateExpirationLoading;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -806,6 +856,45 @@ export function AddDeviceForm({
                 }}
               />
             </div>
+
+            {isEditMode && isExpirationDateChanged && (
+              <div className="space-y-2">
+                <Label htmlFor="password">
+                  Subscription Password <span className="text-red-500">*</span>
+                </Label>
+                <div className="relative">
+                  <Controller
+                    name="password"
+                    control={control}
+                    render={({ field }) => (
+                      <Input
+                        {...field}
+                        id="password"
+                        type={showPassword ? "text" : "password"}
+                        placeholder="Enter password for subscription update"
+                        className="pr-10"
+                        disabled={isLoading}
+                      />
+                    )}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 focus:outline-none cursor-pointer"
+                    disabled={isLoading}
+                  >
+                    {showPassword ? (
+                      <EyeOff className="h-4 w-4" />
+                    ) : (
+                      <Eye className="h-4 w-4" />
+                    )}
+                  </button>
+                </div>
+                {errors.password && (
+                  <p className="text-sm text-red-500">{errors.password.message}</p>
+                )}
+              </div>
+            )}
 
             <div className="flex items-center gap-2 mt-4">
               <Controller
