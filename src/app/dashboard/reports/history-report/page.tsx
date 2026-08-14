@@ -8,12 +8,13 @@ import FullScreenSpinner from "@/components/RouteLoader";
 import { formatDateToYYYYMMDD } from "@/util/formatDate";
 import { api } from "@/services/apiService";
 import TripsSidebar from "@/components/history/sliding-side-bar";
-import { Menu, Gauge, Clock, MapPinOff, Save, Check } from "lucide-react";
+import { Menu, Gauge, Clock, MapPinOff, Save, Check, RotateCcw, ZoomIn } from "lucide-react";
 import { toast } from "sonner";
 import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useDeviceDropdownWithUniqueIdForHistory } from "@/hooks/useDropdown";
-import { SpeedTimelineGraph } from "@/components/history/SpeedGraph";
+import { SpeedTimelineGraph, type SpeedTimelineGraphHandle } from "@/components/history/SpeedGraph";
+import type { VehicleMapHandle } from "@/components/history/vehicle-map";
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -41,6 +42,7 @@ ChartJS.register(
 type StopAddressMap = Record<number, string>;
 
 // Dynamically import VehicleMap with SSR disabled
+// Cast to preserve ref forwarding (next/dynamic strips ref by default)
 const VehicleMap = dynamic(() => import("@/components/history/vehicle-map"), {
   ssr: false,
   loading: () => (
@@ -51,7 +53,7 @@ const VehicleMap = dynamic(() => import("@/components/history/vehicle-map"), {
       </div>
     </div>
   ),
-});
+}) as any;
 
 const PALETTE_OPTIONS = [
   { name: "Sky Blue", value: "hsl(217, 91%, 60%)" },
@@ -158,8 +160,12 @@ function HistoryReportContent() {
 
   // Trip-wise source data
   const [trips, setTrips] = useState<any[][]>([]);
+  // Base playback before graph range selection filter
+  const [basePlayback, setBasePlayback] = useState<any[]>([]);
   // What map is currently playing
   const [activePlayback, setActivePlayback] = useState<any[]>([]);
+  // Is custom range selection active on graph
+  const [isRangeFiltered, setIsRangeFiltered] = useState(false);
   // null = overall playback
   // number = trip index
   const [selectedTripIndex, setSelectedTripIndex] = useState<number | null>(
@@ -200,6 +206,10 @@ function HistoryReportContent() {
   const speedRef = useRef<HTMLSpanElement>(null);
   const timestampRef = useRef<HTMLSpanElement>(null);
   const distanceCoveredRef = useRef<HTMLSpanElement>(null);
+  // ✅ Ref for imperative red-dot seek on the speed graph
+  const graphRef = useRef<SpeedTimelineGraphHandle>(null);
+  // ✅ Ref for imperative map marker seek (graph click -> map)
+  const vehicleMapRef = useRef<VehicleMapHandle>(null);
 
   const [defaultDateRange, setDefaultDateRange] = useState<{
     startDate: Date;
@@ -497,6 +507,11 @@ function HistoryReportContent() {
         if (elements.length > 0) {
           const index = elements[0].index;
           const newProgress = (index / (activePlayback.length - 1)) * 100;
+          // Move the map marker
+          vehicleMapRef.current?.seekToProgress(newProgress);
+          // Update DOM metrics (speed, timestamp, distance) + red dot imperatively
+          handlePlaybackProgress(newProgress);
+          // Also sync React progress state so displayIndex and throttledProgress align
           setPlaybackProgress(newProgress);
         }
       },
@@ -701,11 +716,45 @@ function HistoryReportContent() {
     if (!historyReport?.deviceDataByTrips) return;
     const history = historyReport.deviceDataByTrips;
     setTrips(history);
-    setActivePlayback(history.flat());
+    const flat = history.flat();
+    setBasePlayback(flat);
+    setActivePlayback(flat);
+    setIsRangeFiltered(false);
     setSelectedTripIndex(null);
     setPlaybackProgress(0);
     setThrottledProgress(0);
   }, [historyReport]);
+
+  const handleRangeSelect = useCallback(
+    (startIndex: number, endIndex: number) => {
+      const source = activePlayback.length > 0 ? activePlayback : basePlayback;
+      if (!source || source.length === 0) return;
+
+      const sliced = source.slice(startIndex, endIndex + 1);
+      if (sliced.length > 1) {
+        setActivePlayback(sliced);
+        setIsRangeFiltered(true);
+        setPlaybackProgress(0);
+        setThrottledProgress(0);
+        toast.info(`Filtered timeline to ${sliced.length} data points`);
+      }
+    },
+    [activePlayback, basePlayback]
+  );
+
+  const handleResetRange = useCallback(() => {
+    const defaultSource =
+      selectedTripIndex !== null && trips[selectedTripIndex]
+        ? trips[selectedTripIndex]
+        : trips.flat();
+
+    setBasePlayback(defaultSource);
+    setActivePlayback(defaultSource);
+    setIsRangeFiltered(false);
+    setPlaybackProgress(0);
+    setThrottledProgress(0);
+    toast.info("Reset to full trip timeline");
+  }, [trips, selectedTripIndex]);
 
   useEffect(() => {
     if (!isFetching && shouldFetch) {
@@ -775,6 +824,9 @@ function HistoryReportContent() {
         );
         distanceCoveredRef.current.textContent = `${(incDist / 1000).toFixed(2)} km`;
       }
+
+      // ✅ Imperatively move the red dot on the speed graph
+      graphRef.current?.seekToIndex(idx);
     },
     [activePlayback]
   );
@@ -920,6 +972,7 @@ function HistoryReportContent() {
                   </div>
                 ) : (
                   <VehicleMap
+                    ref={vehicleMapRef}
                     data={activePlayback}
                     stops={showStopsOnMap ? derivedStops : []}
                     activeStopId={activeStopId}
@@ -1110,12 +1163,22 @@ function HistoryReportContent() {
                     </div>
 
                     {/* Total Distance (Calculated)
-                    <div className="flex items-center gap-2 text-muted-foreground text-sm">
-                      <span>Distance (Calculated)</span>
-                      <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded-sm font-medium">
-                        {(summedDistance / 1000).toFixed(2)} km
-                      </span>
-                    </div> */}
+                    {/* Filtered Range Indicator Badge */}
+                    {isRangeFiltered && (
+                      <div className="flex items-center gap-2 bg-blue-100 dark:bg-blue-900/60 text-blue-800 dark:text-blue-200 px-2.5 py-1 rounded-md text-xs font-medium border border-blue-300 dark:border-blue-700 border-dashed">
+                        <ZoomIn className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                        <span>Timeline Range Filtered ({activePlayback.length} points)</span>
+                        <button
+                          type="button"
+                          onClick={handleResetRange}
+                          className="ml-1 px-2 py-0.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-[11px] font-semibold flex items-center gap-1 cursor-pointer transition-colors shadow-sm"
+                          title="Reset to full trip timeline (or double-click graph)"
+                        >
+                          <RotateCcw className="w-3 h-3" />
+                          Reset Timeline
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -1129,10 +1192,13 @@ function HistoryReportContent() {
                   activePlayback.length > 1 && (
                     <div style={{ height: "180px" }}>
                       <SpeedTimelineGraph
+                        ref={graphRef}
                         data={chartData}
                         options={chartOptions}
                         onHoverSeek={() => { }}
                         isExpanded={isMapExpanded}
+                        onRangeSelect={handleRangeSelect}
+                        onResetRange={handleResetRange}
                       />
                     </div>
                   )}
@@ -1152,12 +1218,17 @@ function HistoryReportContent() {
             onClose={() => setIsSidebarOpen(false)}
             onTripSelect={(index) => {
               setSelectedTripIndex(index);
+              setBasePlayback(trips[index]);
               setActivePlayback(trips[index]);
+              setIsRangeFiltered(false);
               setPlaybackProgress(0);
             }}
             onOverallSelect={() => {
               setSelectedTripIndex(null);
-              setActivePlayback(trips.flat());
+              const flat = trips.flat();
+              setBasePlayback(flat);
+              setActivePlayback(flat);
+              setIsRangeFiltered(false);
               setPlaybackProgress(0);
             }}
             derivedStops={derivedStops}

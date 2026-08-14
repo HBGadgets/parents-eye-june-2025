@@ -1,22 +1,56 @@
-import React, { memo, useCallback, useRef, useState, useEffect } from "react";
+import React, { memo, useCallback, useRef, useState, useEffect, useImperativeHandle, forwardRef } from "react";
 import throttle from "lodash.throttle";
 import { Line } from "react-chartjs-2";
 
 interface SpeedTimelineGraphProps {
-  data: unknown;
-  options: unknown;
+  data: any;
+  options: any;
   onHoverSeek: (index: number) => void;
-  isExpanded?: boolean; // Add this prop
+  isExpanded?: boolean;
+  onRangeSelect?: (startIndex: number, endIndex: number) => void;
+  onResetRange?: () => void;
 }
 
-export const SpeedTimelineGraph = memo<SpeedTimelineGraphProps>(
-  ({ data, options, onHoverSeek, isExpanded }) => {
-    const chartRef = useRef<unknown>(null);
+export interface SpeedTimelineGraphHandle {
+  /** Imperatively move the red dot to a given data index without a React re-render */
+  seekToIndex: (index: number) => void;
+}
+
+const SpeedTimelineGraphInner = forwardRef<SpeedTimelineGraphHandle, SpeedTimelineGraphProps>(
+  ({ data, options, onHoverSeek, isExpanded, onRangeSelect, onResetRange }, ref) => {
+    const chartRef = useRef<any>(null);
+
+    // Expose seekToIndex so the parent can imperatively update the dot position
+    useImperativeHandle(ref, () => ({
+      seekToIndex(index: number) {
+        const chart = chartRef.current;
+        if (!chart) return;
+        const speeds: number[] = chart.data.datasets[0]?.data ?? [];
+        const dotDataset = chart.data.datasets[1];
+        if (!dotDataset) return;
+
+        // Update the Current Position dataset in-place
+        dotDataset.data = speeds.map((speed: number, i: number) =>
+          i === index ? speed : null
+        );
+        dotDataset.pointRadius = speeds.map((_: number, i: number) =>
+          i === index ? 8 : 0
+        );
+
+        // 'none' skips animation for zero-cost update
+        chart.update("none");
+      },
+    }));
     const containerRef = useRef<HTMLDivElement>(null);
     const [mousePosition, setMousePosition] = useState<number | null>(null);
     const [isHovering, setIsHovering] = useState(false);
     const [hoverBlocked, setHoverBlocked] = useState(false); // New state for blocking hover
     const [hasLeftGraph, setHasLeftGraph] = useState(false); // Track if mouse has left after blocking
+
+    // Drag range selection states
+    const [isSelecting, setIsSelecting] = useState(false);
+    const [dragStartPos, setDragStartPos] = useState<number | null>(null);
+    const [dragCurrentPos, setDragCurrentPos] = useState<number | null>(null);
 
     // Block hover when isExpanded changes from true to false
     useEffect(() => {
@@ -30,20 +64,25 @@ export const SpeedTimelineGraph = memo<SpeedTimelineGraphProps>(
 
     // Enhanced hover handler that respects blocking state
     const throttledHover = useCallback(
-      throttle((event: unknown) => {
-        // Don't process hover if blocked
-        if (hoverBlocked || !chartRef.current || !containerRef.current) return;
+      throttle((event: any) => {
+        if (!containerRef.current) return;
+        const containerPosition = containerRef.current.getBoundingClientRect();
+
+        // Update mouse position for selection drag if dragging
+        const relativeMouseX = event.nativeEvent.clientX - containerPosition.left;
+
+        if (isSelecting) {
+          setDragCurrentPos(relativeMouseX);
+        }
+
+        // Don't process hover seek if blocked
+        if (hoverBlocked || !chartRef.current) return;
 
         const chart = chartRef.current;
-
-        // Get the canvas position and mouse coordinates
         const canvasPosition = chart.canvas.getBoundingClientRect();
-        const containerPosition = containerRef.current.getBoundingClientRect();
         const mouseX = event.nativeEvent.clientX - canvasPosition.left;
 
         // Update mouse position for vertical line (relative to container)
-        const relativeMouseX =
-          event.nativeEvent.clientX - containerPosition.left;
         setMousePosition(relativeMouseX);
 
         // Get chart area dimensions
@@ -64,8 +103,79 @@ export const SpeedTimelineGraph = memo<SpeedTimelineGraphProps>(
           onHoverSeek(targetIndex);
         }
       }, 50),
-      [onHoverSeek, data, hoverBlocked]
+      [onHoverSeek, data, hoverBlocked, isSelecting]
     );
+
+    // Mouse Down - Start range selection drag
+    const handleMouseDown = useCallback(
+      (event: React.MouseEvent) => {
+        if (!containerRef.current || !onRangeSelect) return;
+        const containerPosition = containerRef.current.getBoundingClientRect();
+        const relativeX = event.clientX - containerPosition.left;
+        setIsSelecting(true);
+        setDragStartPos(relativeX);
+        setDragCurrentPos(relativeX);
+      },
+      [onRangeSelect]
+    );
+
+    // Mouse Up - End range selection drag and select slice
+    const handleMouseUp = useCallback(() => {
+      if (
+        isSelecting &&
+        dragStartPos !== null &&
+        dragCurrentPos !== null &&
+        chartRef.current &&
+        containerRef.current &&
+        onRangeSelect
+      ) {
+        const chart = chartRef.current;
+        const chartArea = chart.chartArea;
+        if (chartArea) {
+          const containerPosition = containerRef.current.getBoundingClientRect();
+          const canvasPosition = chart.canvas.getBoundingClientRect();
+
+          const offsetLeft = canvasPosition.left - containerPosition.left;
+          const startCanvasX = dragStartPos - offsetLeft;
+          const endCanvasX = dragCurrentPos - offsetLeft;
+
+          const minCanvasX = Math.min(startCanvasX, endCanvasX);
+          const maxCanvasX = Math.max(startCanvasX, endCanvasX);
+
+          const relativeMinX =
+            (minCanvasX - chartArea.left) / (chartArea.right - chartArea.left);
+          const relativeMaxX =
+            (maxCanvasX - chartArea.left) / (chartArea.right - chartArea.left);
+
+          const clampedMinX = Math.max(0, Math.min(1, relativeMinX));
+          const clampedMaxX = Math.max(0, Math.min(1, relativeMaxX));
+
+          const dataLength = data.labels?.length || 0;
+          if (dataLength > 1) {
+            const startIndex = Math.round(clampedMinX * (dataLength - 1));
+            const endIndex = Math.round(clampedMaxX * (dataLength - 1));
+
+            if (
+              Math.abs(dragCurrentPos - dragStartPos) >= 10 &&
+              endIndex > startIndex
+            ) {
+              onRangeSelect(startIndex, endIndex);
+            }
+          }
+        }
+      }
+
+      setIsSelecting(false);
+      setDragStartPos(null);
+      setDragCurrentPos(null);
+    }, [isSelecting, dragStartPos, dragCurrentPos, onRangeSelect, data]);
+
+    // Handle double-click to reset zoom / filter
+    const handleDoubleClick = useCallback(() => {
+      if (onResetRange) {
+        onResetRange();
+      }
+    }, [onResetRange]);
 
     // Handle mouse enter - only works if not blocked
     const handleMouseEnter = useCallback(() => {
@@ -85,6 +195,9 @@ export const SpeedTimelineGraph = memo<SpeedTimelineGraphProps>(
 
     // Handle mouse leave
     const handleMouseLeave = useCallback(() => {
+      if (isSelecting) {
+        handleMouseUp();
+      }
       setIsHovering(false);
       setMousePosition(null);
 
@@ -92,7 +205,7 @@ export const SpeedTimelineGraph = memo<SpeedTimelineGraphProps>(
       if (hoverBlocked) {
         setHasLeftGraph(true);
       }
-    }, [hoverBlocked]);
+    }, [hoverBlocked, isSelecting, handleMouseUp]);
 
     return (
       <div
@@ -101,17 +214,39 @@ export const SpeedTimelineGraph = memo<SpeedTimelineGraphProps>(
           width: "100%",
           height: "100%",
           position: "relative",
-          cursor: hoverBlocked && !hasLeftGraph ? "default" : "pointer",
+          cursor: hoverBlocked && !hasLeftGraph ? "default" : "crosshair",
+          userSelect: "none",
         }}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
         onMouseMove={throttledHover}
+        onMouseDown={handleMouseDown}
+        onMouseUp={handleMouseUp}
+        onDoubleClick={handleDoubleClick}
       >
         {/* Chart */}
         <Line ref={chartRef} data={data} options={options} />
 
-        {/* Vertical hover line - only show if not blocked */}
-        {isHovering && mousePosition !== null && !hoverBlocked && (
+        {/* Drag Selection Box Overlay */}
+        {isSelecting && dragStartPos !== null && dragCurrentPos !== null && (
+          <div
+            style={{
+              position: "absolute",
+              top: 0,
+              bottom: 0,
+              left: Math.min(dragStartPos, dragCurrentPos),
+              width: Math.abs(dragCurrentPos - dragStartPos),
+              backgroundColor: "rgba(59, 130, 246, 0.25)",
+              borderLeft: "2px solid #2563eb",
+              borderRight: "2px solid #2563eb",
+              pointerEvents: "none",
+              zIndex: 20,
+            }}
+          />
+        )}
+
+        {/* Vertical hover line - only show if not blocked and not selecting */}
+        {isHovering && mousePosition !== null && !hoverBlocked && !isSelecting && (
           <div
             style={{
               position: "absolute",
@@ -129,11 +264,12 @@ export const SpeedTimelineGraph = memo<SpeedTimelineGraphProps>(
           />
         )}
 
-        {/* Enhanced crosshair dot - only show if not blocked */}
+        {/* Enhanced crosshair dot - only show if not blocked and not selecting */}
         {isHovering &&
           mousePosition !== null &&
           chartRef.current &&
           !hoverBlocked &&
+          !isSelecting &&
           (() => {
             const chart = chartRef.current;
             const chartArea = chart.chartArea;
@@ -183,4 +319,6 @@ export const SpeedTimelineGraph = memo<SpeedTimelineGraphProps>(
   }
 );
 
-SpeedTimelineGraph.displayName = "SpeedTimelineGraph";
+SpeedTimelineGraphInner.displayName = "SpeedTimelineGraph";
+
+export const SpeedTimelineGraph = memo(SpeedTimelineGraphInner);

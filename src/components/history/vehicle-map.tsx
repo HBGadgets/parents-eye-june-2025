@@ -4,6 +4,8 @@ import React, {
   useState,
   useMemo,
   useCallback,
+  useImperativeHandle,
+  forwardRef,
 } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -44,16 +46,24 @@ type RoutePoint = {
   course: number;
 };
 
-const VehicleMap: React.FC<VehicleMapProps> = ({
-  data,
-  isExpanded,
-  onProgressChange,
-  activeStopId,
-  stops,
-  onStopClick,
-  stopAddressMap,
-  deviceCategory = "CAR",
-}) => {
+export interface VehicleMapHandle {
+  /** Imperatively seek the map marker to a progress value (0-100) */
+  seekToProgress: (progress: number) => void;
+}
+
+const VehicleMapInner = forwardRef<VehicleMapHandle, VehicleMapProps>((
+  {
+    data,
+    isExpanded,
+    onProgressChange,
+    activeStopId,
+    stops,
+    onStopClick,
+    stopAddressMap,
+    deviceCategory = "CAR",
+  },
+  ref
+) => {
   // Minimum segment duration in ms (one animation frame)
   const MIN_SEGMENT_MS = 16;
 
@@ -949,9 +959,11 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
     if (isPlaying) {
       markerPlayerRef.current.pause();
       setIsPlaying(false);
-      // Sync chart on pause
-      const progress = markerPlayerRef.current.getProgress();
-      onProgressChange?.(progress);
+      // Sync chart on pause — use the same index-based formula as onUpdate
+      // (getProgress() is time-based and doesn't match the linear index mapping)
+      const currentIdx = (markerPlayerRef.current as any).currentIndex as number;
+      const percent = (currentIdx / (data.length - 1)) * 100;
+      onProgressChange?.(percent);
     } else {
       markerPlayerRef.current.start();
       setIsPlaying(true);
@@ -1005,6 +1017,14 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
     },
     [data]
   );
+
+  // Expose seekToProgress for external callers (e.g. graph click)
+  useImperativeHandle(ref, () => ({
+    seekToProgress(progress: number) {
+      handleProgressChange(progress);
+      onProgressChange?.(progress);
+    },
+  }));
 
   // if (!data || data.length === 0) {
   //   return (
@@ -1160,6 +1180,8 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
       `}</style>
     </div>
   );
-};
+});
 
-export default React.memo(VehicleMap);
+VehicleMapInner.displayName = "VehicleMap";
+
+export default React.memo(VehicleMapInner);
