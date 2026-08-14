@@ -27,15 +27,8 @@ const nextConfig: NextConfig = {
     // !! WARN !!
     ignoreBuildErrors: true,
   },
-  async redirects() {
-    return [
-      {
-        source: "/:path*.txt",
-        destination: "/:path*",
-        permanent: true,
-      },
-    ];
-  },
+  // NOTE: redirects/rewrites are NOT supported with output: "export" (static builds).
+  // .txt URL stripping is handled client-side in src/app/dashboard/layout.tsx
 };
 
 export default nextConfig;

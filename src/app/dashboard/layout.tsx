@@ -51,12 +51,12 @@ export default function DashboardLayout({
     }
   }, [isDashboard, store.isConnected]);
 
-  useEffect(() => {
-    if (typeof window !== "undefined" && window.location.pathname.endsWith(".txt")) {
-      const cleanPath = window.location.pathname.replace(/\.txt$/, "");
-      router.replace(cleanPath + window.location.search + window.location.hash);
-    }
-  }, [router]);
+  // Strip .txt suffix from URL if present (static export generates .txt RSC files,
+  // which browsers display as raw text when accessed directly)
+  if (typeof window !== "undefined" && window.location.pathname.endsWith(".txt")) {
+    const cleanPath = window.location.pathname.replace(/\.txt$/, "");
+    window.location.replace(cleanPath + window.location.search + window.location.hash);
+  }
 
   useEffect(() => {
     const token = Cookies.get("token");
