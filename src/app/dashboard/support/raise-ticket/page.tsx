@@ -121,12 +121,31 @@ export default function RaiseTicketMaster() {
     }
   }, []);
 
-
   const isSuperAdmin = useMemo(() => {
     if (!userInfo?.role) return false;
-    const rawRole = userInfo.role;
-    return ["superAdmin"].includes(rawRole);
+    const rawRole = String(userInfo.role).toLowerCase();
+    return ["superadmin", "super_admin", "admin", "root"].includes(rawRole);
   }, [userInfo]);
+
+  const isSchoolRole = useMemo(() => {
+    if (!userInfo?.role) return false;
+    return String(userInfo.role).toLowerCase() === "school";
+  }, [userInfo]);
+
+  const effectiveSchoolId = useMemo(() => {
+    if (isSuperAdmin) return selectedSchool;
+    if (isSchoolRole) return userInfo?.id || userInfo?._id || userInfo?.schoolId || "";
+    return userInfo?.schoolId || userInfo?.school?._id || userInfo?.school || "";
+  }, [isSuperAdmin, isSchoolRole, selectedSchool, userInfo]);
+
+  const effectiveBranchId = useMemo(() => {
+    if (isSuperAdmin || isSchoolRole) return selectedBranch;
+    const role = (userInfo?.role || "").toLowerCase();
+    if (role === "branch") {
+      return userInfo?.id || userInfo?._id || userInfo?.branchId || "";
+    }
+    return userInfo?.branchId || userInfo?.branch?._id || userInfo?.branch || "";
+  }, [isSuperAdmin, isSchoolRole, selectedBranch, userInfo]);
 
   const { exportToPDF, exportToExcel } = useExport();
 
@@ -135,9 +154,9 @@ export default function RaiseTicketMaster() {
 
   const [isBranchDropdownOpen, setIsBranchDropdownOpen] = useState(false);
   const { data: branchDropdownData } = useBranchDropdown(
-    selectedSchool,
+    effectiveSchoolId,
     isBranchDropdownOpen,
-    !selectedSchool
+    !effectiveSchoolId
   );
 
   const schoolItems = useMemo(() => {
@@ -241,7 +260,7 @@ export default function RaiseTicketMaster() {
     },
     onError: (err: any) => {
       console.error("Error:", err);
-      alert("Failed to raise ticket. Please try again.");
+      alert(err?.response?.data?.message || err?.message || "Failed to raise ticket. Please try again.");
     },
   });
 
@@ -257,11 +276,18 @@ export default function RaiseTicketMaster() {
       if (!selectedBranch) return alert("Please select a User (Branch)");
     }
 
-    const data = {
+    const schoolId = isSuperAdmin ? selectedSchool : effectiveSchoolId;
+    const branchId = isSuperAdmin ? selectedBranch : effectiveBranchId;
+
+    if (!schoolId) {
+      return alert("School is required. Please select a school.");
+    }
+
+    const data: any = {
       type: selectedType,
       description: description.trim(),
-      schoolId: isSuperAdmin ? selectedSchool : userInfo?.schoolId || "",
-      branchId: isSuperAdmin ? selectedBranch : userInfo?.branchId || "",
+      schoolId: schoolId,
+      branchId: branchId || undefined,
       email: userInfo?.email || userInfo?.username || "user@example.com",
       status: "Open",
     };
@@ -556,6 +582,21 @@ export default function RaiseTicketMaster() {
                         />
                       </div>
                     </>
+                  )}
+                  {isSchoolRole && (
+                    <div className="grid gap-2">
+                      <Label>User (Branch)</Label>
+                      <Combobox
+                        items={branchItems}
+                        value={selectedBranch}
+                        onValueChange={(val) => setSelectedBranch(val || "")}
+                        open={isBranchDropdownOpen}
+                        onOpenChange={setIsBranchDropdownOpen}
+                        placeholder="Select Branch (Optional)"
+                        searchPlaceholder="Search branch..."
+                        width="w-full"
+                      />
+                    </div>
                   )}
                   <div className="grid gap-2">
                     <Label htmlFor="ticketType">Type *</Label>
