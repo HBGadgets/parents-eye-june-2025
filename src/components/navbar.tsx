@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useNavigationStore } from "@/store/navigationStore";
 import { useSidebar } from "@/components/ui/sidebar";
 import {
@@ -21,11 +22,21 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
+const SHOW_SIDEBAR_SECTIONS = [
+  "Master",
+  "School",
+  "Users",
+  "Reports",
+  "Support",
+];
+
 export function Navbar() {
+  const activeSection = useNavigationStore((state) => state.activeSection);
   const setActiveSection = useNavigationStore(
     (state) => state.setActiveSection
   );
-  const { setOpen, setOpenMobile, isMobile } = useSidebar();
+  const { setOpen, setOpenMobile, isMobile, state } = useSidebar();
+  const isCollapsed = state === "collapsed";
   const { notifications } = useNotificationStore();
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
 
@@ -70,46 +81,75 @@ export function Navbar() {
   );
 
   return (
-    <div className="w-full h-14 md:h-16 flex items-center relative px-2 sm:px-4 bg-primary border-b border-yellow-600/20">
-      {/* Mobile Menu Button - visible only on small screens */}
-      <div className="md:hidden flex items-center z-[9999]">
-        <DropdownMenu open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
-          <DropdownMenuTrigger asChild>
-            <button
-              className="p-2 rounded-md hover:bg-yellow-500/20 transition-colors cursor-pointer"
-              aria-label="Toggle menu"
-            >
-              {mobileMenuOpen ? (
-                <X className="h-5 w-5 text-yellow-900" />
-              ) : (
-                <Menu className="h-5 w-5 text-yellow-900" />
-              )}
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent
-            align="start"
-            className="w-48 bg-primary border-yellow-600/20"
-          >
-            {navSections.map((section) => (
-              <DropdownMenuItem
-                key={section}
-                className="cursor-pointer font-semibold text-yellow-900 hover:bg-yellow-500/20 focus:bg-yellow-500/20"
-                asChild
+    <div className="w-full h-14 md:h-16 flex items-center justify-between relative px-2 sm:px-4 bg-primary border-b border-yellow-600/20">
+      {/* Left: Mobile Menu Button & Collapsed Logo */}
+      <div className="flex items-center gap-2 z-[9999]">
+        {/* Mobile Menu Button - visible only on small screens */}
+        <div className="md:hidden flex items-center">
+          <DropdownMenu open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+            <DropdownMenuTrigger asChild>
+              <button
+                className="p-2 rounded-md hover:bg-yellow-500/20 transition-colors cursor-pointer"
+                aria-label="Toggle menu"
               >
-                <Link
-                  href={navigationMap[section] || "#"}
-                  onClick={() => handleNavClick(section)}
+                {mobileMenuOpen ? (
+                  <X className="h-5 w-5 text-yellow-900" />
+                ) : (
+                  <Menu className="h-5 w-5 text-yellow-900" />
+                )}
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="start"
+              className="w-48 bg-primary border-yellow-600/20"
+            >
+              {navSections.map((section) => (
+                <DropdownMenuItem
+                  key={section}
+                  className="cursor-pointer font-semibold text-yellow-900 hover:bg-yellow-500/20 focus:bg-yellow-500/20"
+                  asChild
                 >
-                  {section}
-                </Link>
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
+                  <Link
+                    href={navigationMap[section] || "#"}
+                    onClick={() => handleNavClick(section)}
+                  >
+                    {section}
+                  </Link>
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+
+        {/* Logo - visible when sidebar is collapsed */}
+        {isCollapsed && (
+          <div
+            className={`flex items-center animate-in fade-in duration-200 ${
+              SHOW_SIDEBAR_SECTIONS.includes(activeSection)
+                ? "ml-10 sm:ml-12 md:ml-14"
+                : "ml-0 sm:ml-1"
+            }`}
+          >
+            <Link
+              href="/dashboard"
+              onClick={() => handleNavClick("Dashboard")}
+              className="flex items-center"
+            >
+              <Image
+                width={180}
+                height={70}
+                src="/logo.svg"
+                alt="Logo"
+                priority
+                className="h-12 sm:h-13 md:h-14 w-auto object-contain cursor-pointer -translate-y-1 md:-translate-y-1.5"
+              />
+            </Link>
+          </div>
+        )}
       </div>
 
-      {/* Desktop nav links - hidden on mobile */}
-      <div className="hidden md:flex flex-1 justify-center items-center relative z-[9999]">
+      {/* Desktop nav links - absolutely centered horizontally and vertically */}
+      <div className="hidden md:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 items-center z-[9999]">
         <NavigationMenu>
           <NavigationMenuList className="flex-wrap justify-center gap-1 lg:gap-2">
             {navSections.map((section) => (
@@ -131,14 +171,12 @@ export function Navbar() {
         </NavigationMenu>
       </div>
 
-      {/* Mobile spacer for centering */}
-      <div className="flex-1 md:hidden" />
-
       {/* Right: Profile dropdown positioned at the right edge */}
-      <div className="flex items-center gap-2 sm:gap-4 z-[9999]">
+      <div className="flex items-center gap-2 sm:gap-4 ml-auto z-[9999]">
         <NotificationSheet />
         <ProfileDropdown />
       </div>
     </div>
   );
 }
+
