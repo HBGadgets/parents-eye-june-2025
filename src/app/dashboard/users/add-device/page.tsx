@@ -30,6 +30,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useExport } from "@/hooks/useExport";
+import { deviceApiService } from "@/services/api/deviceApiService";
 
 type DecodedToken = {
   role: string;
@@ -214,16 +216,11 @@ const DevicesPage = () => {
   }, [filters.search, filters.schoolId, filters.branchId, filters.routeObjId]);
 
   // ---------------- API Call ----------------
-  const {
-    devices,
-    total,
-    isLoading,
-    deleteDevice,
-    exportExcel,
-    exportPdf,
-    isPdfExporting,
-    isExcelExporting,
-  } = useAddDeviceNew(pagination, sorting, filters);
+  const { devices, total, isLoading, deleteDevice } = useAddDeviceNew(
+    pagination,
+    sorting,
+    filters
+  );
 
   // ---------------- Handlers ----------------
   const handleEdit = useCallback((row: any) => {
@@ -283,28 +280,118 @@ const DevicesPage = () => {
     []
   );
 
-  // -------------- Excel Export Handler ----------------
-  const handleExcelExport = () => {
-    exportExcel({
-      search: filters.search,
-      branchId: filters.branchId,
-      schoolId: filters.schoolId,
-      routeObjId: filters.routeObjId,
-      sortBy: sorting[0]?.id,
-      sortOrder: sorting[0]?.desc ? "desc" : "asc",
-    });
-  };
+  // ---------------- Export State & Columns ----------------
+  const [isExporting, setIsExporting] = useState(false);
+  const { exportToPDF, exportToExcel } = useExport();
 
-  // ---------------- PDF Export Handler ----------------
-  const handlePDFExport = () => {
-    exportPdf({
-      search: filters.search,
-      branchId: filters.branchId,
-      schoolId: filters.schoolId,
-      sortBy: sorting[0]?.id,
-      sortOrder: sorting[0]?.desc ? "desc" : "asc",
-    });
-  };
+  const exportColumns = useMemo(
+    () => [
+      { key: "name", header: "Device Name" },
+      { key: "uniqueId", header: "IMEI Number" },
+      { key: "sim", header: "SIM Number" },
+      { key: "speed", header: "OverSpeed Limit (km/h)" },
+      { key: "average", header: "Average (km/l)" },
+      {
+        key: "model",
+        header: "Model",
+        formatter: (val: any) =>
+          typeof val === "object" ? val?.modelName || "--" : val || "--",
+      },
+      {
+        key: "category",
+        header: "Category",
+        formatter: (val: any) =>
+          typeof val === "object" ? val?.categoryName || "--" : val || "--",
+      },
+      {
+        key: "keyFeature",
+        header: "Key Feature",
+        formatter: (val: any) =>
+          val ? "Key switch available" : "Key switch not available",
+      },
+      {
+        key: "schoolId.schoolName",
+        header: "School",
+        formatter: (val: any, row: any) =>
+          val || row?.schoolId?.schoolName || "--",
+      },
+      {
+        key: "branchId.branchName",
+        header: "Branch",
+        formatter: (val: any, row: any) =>
+          val || row?.branchId?.branchName || "--",
+      },
+      {
+        key: "routeObjId.routeNumber",
+        header: "Route",
+        formatter: (val: any, row: any) =>
+          val || row?.routeObjId?.routeNumber || "--",
+      },
+      {
+        key: "driverObjId.driverName",
+        header: "Driver",
+        formatter: (val: any, row: any) =>
+          val || row?.driverObjId?.driverName || "--",
+      },
+      {
+        key: "subscriptionEndDate",
+        header: "Subscription End Date",
+        formatter: (val: any) => {
+          if (!val) return "--";
+          const date = new Date(val);
+          if (isNaN(date.getTime())) return "--";
+          return date.toLocaleDateString("en-GB", {
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric",
+            timeZone: "UTC",
+          });
+        },
+      },
+    ],
+    []
+  );
+
+  // ---------------- Export Handler (Fetch all device data & export) ----------------
+  const handleExport = useCallback(
+    async (type: "excel" | "pdf") => {
+      try {
+        setIsExporting(true);
+        const res = await deviceApiService.getDevices({
+          search: filters.search,
+          branchId: filters.branchId,
+          schoolId: filters.schoolId,
+          routeObjId: filters.routeObjId,
+          sortBy: sorting[0]?.id,
+          sortOrder: sorting[0]?.desc ? "desc" : "asc",
+          page: 1,
+          limit: total || 10000,
+        });
+
+        const exportData = res?.devices || [];
+
+        const dateStr = new Date().toISOString().split("T")[0];
+
+        if (type === "pdf") {
+          await exportToPDF(exportData, exportColumns, {
+            title: "Devices Report",
+            filename: `Devices_${dateStr}.pdf`,
+          });
+        } else {
+          await exportToExcel(exportData, exportColumns, {
+            title: "Devices Report",
+            filename: `Devices_${dateStr}.xlsx`,
+          });
+        }
+      } catch (error) {
+        console.error("Export error:", error);
+        toast.error("Failed to export devices");
+      } finally {
+        setIsExporting(false);
+      }
+    },
+    [filters, sorting, total, exportColumns, exportToExcel, exportToPDF]
+  );
 
   const handleAddDevice = useCallback(() => {
     setEditDevice(null);
@@ -413,23 +500,20 @@ const DevicesPage = () => {
         <div className="mr-3">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button
-                className="cursor-pointer"
-                disabled={isExcelExporting || isPdfExporting}
-              >
-                {isExcelExporting || isPdfExporting ? "Exporting..." : "Export"}
+              <Button className="cursor-pointer" disabled={isExporting}>
+                {isExporting ? "Exporting..." : "Export"}
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent>
               <DropdownMenuItem
                 className="cursor-pointer"
-                onClick={handleExcelExport}
+                onClick={() => handleExport("excel")}
               >
                 Export to Excel
               </DropdownMenuItem>
               <DropdownMenuItem
                 className="cursor-pointer"
-                onClick={handlePDFExport}
+                onClick={() => handleExport("pdf")}
               >
                 Export to PDF
               </DropdownMenuItem>

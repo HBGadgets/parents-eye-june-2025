@@ -88,7 +88,7 @@ export const useAddDeviceNew = (
         link.href = url;
         link.download = `Devices_${
           new Date().toISOString().split("T")[0]
-        }.xlsx`;
+        }.pdf`;
 
         document.body.appendChild(link);
         link.click();

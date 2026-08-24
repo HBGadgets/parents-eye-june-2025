@@ -83,7 +83,7 @@ export const useStudent = (
         link.href = url;
         link.download = `Students_${
           new Date().toISOString().split("T")[0]
-        }.xlsx`;
+        }.pdf`;
 
         document.body.appendChild(link);
         link.click();

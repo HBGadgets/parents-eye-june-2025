@@ -13,7 +13,7 @@ export const deviceSchema = z.object({
   speed: z.coerce.number().optional(),
   average: z.coerce.number().optional(),
   keyFeature: z.boolean(),
-  subscriptionEndDate: z.string().min(1, "Subscription Expiry is required"),
+  subscriptionEndDate: z.string().min(1, "Subscription End Date is required"),
   password: z.string().optional(),
 });
 

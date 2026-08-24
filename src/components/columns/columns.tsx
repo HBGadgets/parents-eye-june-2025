@@ -494,7 +494,7 @@ export const getDeviceColumns = (
     },
     {
       id: "subscriptionEndDate",
-      header: "Subscription End",
+      header: "Subscription End Date",
       cell: ({ row }: any) => {
         const value = row.original.subscriptionEndDate;
         if (!value) return "-";

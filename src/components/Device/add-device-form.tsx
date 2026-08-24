@@ -794,7 +794,7 @@ export function AddDeviceForm({
 
             <div className="space-y-1">
               <label className="text-sm font-medium">
-                Subscription Expiry <span className="text-red-500">*</span>
+                Subscription End Date <span className="text-red-500">*</span>
               </label>
 
               <Controller
@@ -819,7 +819,7 @@ export function AddDeviceForm({
                             {field.value ? (
                               formatDateForUI(field.value)
                             ) : (
-                              <span>Select expiry date</span>
+                              <span>Select subscription end date</span>
                             )}
                           </Button>
                         </PopoverTrigger>
