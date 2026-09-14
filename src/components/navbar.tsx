@@ -15,7 +15,9 @@ import {
 import { ProfileDropdown } from "@/components/ProfileDropdown";
 import { useNotificationStore } from "@/store/notificationStore";
 import { NotificationSheet } from "./NotificationDropdown";
-import { Menu, X } from "lucide-react";
+import { Menu, X, Sparkles } from "lucide-react";
+import { useAiChatBotStore } from "@/store/aiChatBotStore";
+import { FrameSequencePlayer } from "@/components/ui/FrameSequencePlayer";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -42,6 +44,8 @@ export function Navbar() {
   const isCollapsed = state === "collapsed";
   const { notifications } = useNotificationStore();
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
+  const { isOpen: isAiChatBotOpen, toggleOpen: toggleAiChatBot } =
+    useAiChatBotStore();
 
   const navigationMap: Record<string, string> = {
     Dashboard: "/dashboard",
@@ -218,8 +222,29 @@ export function Navbar() {
         </NavigationMenu>
       </div>
 
-      {/* Right: Profile dropdown positioned at the right edge */}
-      <div className="flex items-center gap-2 sm:gap-4 ml-auto z-[9999]">
+      {/* Right: AI Chatbot, NotificationSheet, Profile dropdown */}
+      <div className="flex items-center gap-2 sm:gap-3.5 ml-auto z-[9999]">
+        {/* AI Chatbot Button */}
+        <button
+          type="button"
+          onClick={toggleAiChatBot}
+          className={cn(
+            "relative w-9 h-9 sm:w-10 sm:h-10 rounded-full p-0 transition-all duration-300 cursor-pointer flex items-center justify-center bg-transparent shrink-0 hover:scale-110",
+            isAiChatBotOpen && "scale-105 filter drop-shadow-[0_0_8px_rgba(217,119,6,0.7)]"
+          )}
+          title="parentseye.ai Assistant"
+          aria-label="Toggle parentseye.ai Assistant"
+        >
+          <FrameSequencePlayer
+            frameCount={60}
+            framePrefix="/background-remover/"
+            fps={35}
+            mode="pingpong"
+            paddingRatio={0.98}
+            className="w-full h-full object-contain pointer-events-none"
+          />
+        </button>
+
         <NotificationSheet />
         <ProfileDropdown />
       </div>

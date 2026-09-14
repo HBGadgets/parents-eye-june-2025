@@ -787,7 +787,7 @@ const AnalyticsReportPage: React.FC = () => {
   const currentTotalCount =
     reportType === "distance"
       ? (distanceReportResponse?.total ?? distanceMatrixData.length)
-      : (totalTravelSummaryReport || processedDailyRecords.length);
+      : (processedDailyRecords.length || totalTravelSummaryReport || 0);
 
   const isTableLoading =
     isFetchingTravelSummaryReport ||
@@ -807,12 +807,15 @@ const AnalyticsReportPage: React.FC = () => {
     emptyMessage: isTableLoading
       ? "Calculating analytics across all fleet vehicles..."
       : "No records found for the selected date range",
-    pageSizeOptions: [5, 10, 20, 30, 50, 100, "All"],
+    pageSizeOptions: [5, 10, 20, 30, 50, 100, 200, 500, "All"],
     showPagination: true,
     getRowId: (row: any) => row.id,
     enableSorting: true,
     showSerialNumber: true,
-    enableVirtualization: false,
+    enableVirtualization: true,
+    estimatedRowHeight: 50,
+    overscan: 10,
+    maxHeight: "calc(100vh - 200px)",
   });
 
   const fetchDistanceReportForExport = async (): Promise<any> => {
@@ -1670,7 +1673,7 @@ const AnalyticsReportPage: React.FC = () => {
                     : `${currentTotalCount} entries`}
                 </div>
               </div>
-              <div className="w-full overflow-x-auto rounded-xl border bg-card shadow-sm">
+              <div className="w-full overflow-x-auto">
                 {tableElement}
               </div>
             </section>

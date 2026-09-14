@@ -11,6 +11,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useExport } from "@/hooks/useExport";
+import { useAiChatBotStore } from "@/store/aiChatBotStore";
+import { FrameSequencePlayer } from "@/components/ui/FrameSequencePlayer";
 import DateRangeFilter from "@/components/ui/DateRangeFilter";
 import { formatDateToYYYYMMDD } from "@/util/formatDate";
 import { reverseGeocodeMapTiler } from "@/hooks/useReverseGeocoding";
@@ -87,7 +89,7 @@ const getQuestionIcon = (funcName: string) => {
 
 export const AiChatBot: React.FC = () => {
   const { exportToPDF, exportToExcel } = useExport();
-  const [isOpen, setIsOpen] = useState(false);
+  const { isOpen, setIsOpen } = useAiChatBotStore();
   const [isExpanded, setIsExpanded] = useState(false);
   const [showCards, setShowCards] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -721,23 +723,6 @@ export const AiChatBot: React.FC = () => {
 
   return (
     <>
-      {/* Floating Launcher Button */}
-      {!isOpen && (
-        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2">
-          <div className="hidden md:flex items-center bg-white dark:bg-zinc-900 text-xs px-3.5 py-1.5 rounded-full shadow-lg border border-amber-500/30 dark:border-amber-500/40 font-semibold text-zinc-900 dark:text-zinc-100 backdrop-blur-md">
-            <Sparkles className="w-3.5 h-3.5 mr-1.5 text-amber-500 fill-amber-500/20" />
-            parentseye<span className="text-amber-500 font-bold">.ai</span>
-          </div>
-          <Button
-            onClick={() => setIsOpen(true)}
-            className="w-14 h-14 rounded-full bg-gradient-to-br from-amber-400 via-amber-500 to-yellow-500 hover:from-amber-500 hover:to-yellow-600 text-zinc-950 shadow-xl hover:shadow-2xl hover:shadow-amber-500/30 transition-all duration-300 transform hover:scale-105 flex items-center justify-center p-0 border border-amber-300/40 cursor-pointer"
-            title="Open parentseye.ai"
-          >
-            <Sparkles className="w-6 h-6 fill-zinc-950 text-zinc-950" />
-          </Button>
-        </div>
-      )}
-
       {/* Floating Chatbot Window */}
       {isOpen && (
         <div
@@ -749,8 +734,15 @@ export const AiChatBot: React.FC = () => {
           {/* Header */}
           <div className="bg-gradient-to-r from-zinc-950 via-zinc-900 to-amber-950 text-white px-4 py-3 flex items-center justify-between shadow-md border-b border-amber-500/25">
             <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-400 via-amber-500 to-yellow-500 flex items-center justify-center shadow-md shadow-amber-500/20 border border-amber-300/30 text-zinc-950 shrink-0">
-                <Sparkles className="w-5 h-5 fill-zinc-950 text-zinc-950" />
+              <div className="w-9 h-9 rounded-full overflow-hidden bg-transparent shrink-0">
+                <FrameSequencePlayer
+                  frameCount={60}
+                  framePrefix="/background-remover/"
+                  fps={35}
+                  mode="pingpong"
+                  paddingRatio={0.98}
+                  className="w-full h-full object-contain pointer-events-none"
+                />
               </div>
               <div>
                 <div className="flex items-center gap-2">

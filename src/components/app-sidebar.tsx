@@ -216,6 +216,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           ];
         case "Reports":
           return [
+            {
+              title: "Analytics Report",
+              url: "/dashboard/reports/analytics-report",
+            },
             { title: "Status Report", url: "/dashboard/reports/status-report" },
             {
               title: "Distance Report",
@@ -244,10 +248,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             {
               title: "Route Report",
               url: "/dashboard/reports/route-report",
-            },
-            {
-              title: "Analytics Report",
-              url: "/dashboard/reports/analytics-report",
             },
           ];
         case "Support":
