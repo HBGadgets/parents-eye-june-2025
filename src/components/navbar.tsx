@@ -149,11 +149,10 @@ export function Navbar() {
         {/* Logo - visible when sidebar is collapsed */}
         {isCollapsed && (
           <div
-            className={`flex items-center animate-in fade-in duration-200 ${
-              SHOW_SIDEBAR_SECTIONS.includes(activeSection)
+            className={`flex items-center animate-in fade-in duration-200 ${SHOW_SIDEBAR_SECTIONS.includes(activeSection)
                 ? "ml-10 sm:ml-12 md:ml-14"
                 : "ml-0 sm:ml-1"
-            }`}
+              }`}
           >
             <Link
               href="/dashboard"

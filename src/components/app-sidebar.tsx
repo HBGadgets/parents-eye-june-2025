@@ -201,7 +201,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           return [
             { title: "Pickup And Drop", url: "/dashboard/school/pickup-drop" },
             { title: "Leave Request", url: "/dashboard/school/leave-request" },
-            {title: "Send Broadcast", url: "/dashboard/school/send-broadcast"}
+            { title: "Send Broadcast", url: "/dashboard/school/send-broadcast" }
           ];
         case "Users":
           return [
@@ -313,9 +313,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           {isLoading ? (
             <div className={isCollapsed ? "w-auto" : "w-full px-3"}>
               <Skeleton
-                className={`rounded-md bg-yellow-300/60 transition-all duration-300 ${
-                  isCollapsed ? "h-10 w-10" : "h-9 w-full"
-                }`}
+                className={`rounded-md bg-yellow-300/60 transition-all duration-300 ${isCollapsed ? "h-10 w-10" : "h-9 w-full"
+                  }`}
               />
             </div>
           ) : (
@@ -386,10 +385,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                             tooltip={item.title}
                             className={`
                               group/button relative transition-all duration-200
-                              ${
-                                isActive
-                                  ? "bg-yellow-600 text-white font-semibold shadow-sm hover:bg-yellow-700"
-                                  : "text-yellow-900 hover:bg-yellow-500/30 hover:text-yellow-950 font-medium"
+                              ${isActive
+                                ? "bg-yellow-600 text-white font-semibold shadow-sm hover:bg-yellow-700"
+                                : "text-yellow-900 hover:bg-yellow-500/30 hover:text-yellow-950 font-medium"
                               }
                               rounded-lg h-11
                               group-data-[collapsible=icon]:h-11 group-data-[collapsible=icon]:w-11

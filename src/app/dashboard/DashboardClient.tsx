@@ -688,11 +688,11 @@ export default function DashboardClient() {
                 value={searchInput}
                 onChange={(e) => handleSearchChange(e.target.value)}
               />
-              <ColumnVisibilitySelector
+              {/* <ColumnVisibilitySelector
                 columns={table.getAllColumns()}
                 buttonVariant="outline"
                 buttonSize="default"
-              />
+              /> */}
 
               {userRole !== "branch" && (
                 <Popover>
