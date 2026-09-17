@@ -158,8 +158,13 @@ export const getCategoryColumns = (
 
 export const getRouteColumns = (
   onEdit: (row: Route) => void,
-  onDelete: (row: Route) => void
-): ColumnDef<Route>[] => [
+  onDelete: (row: Route) => void,
+  role?: string
+): ColumnDef<Route>[] => {
+  const isSuperAdmin =
+    role === "superAdmin" || role?.toLowerCase() === "superadmin";
+
+  const columns: ColumnDef<Route>[] = [
     {
       header: "Route No",
       accessorKey: "routeNumber",
@@ -207,7 +212,10 @@ export const getRouteColumns = (
       accessorFn: (row: Route) =>
         `${row.routeCompletionTime ? `${row.routeCompletionTime} Min` : "—"}`,
     },
-    {
+  ];
+
+  if (isSuperAdmin) {
+    columns.push({
       header: "Action",
       cell: ({ row }) => {
         const data = row.original;
@@ -237,8 +245,11 @@ export const getRouteColumns = (
         );
       },
       enableSorting: false,
-    },
-  ];
+    });
+  }
+
+  return columns;
+};
 
 export const getStudentColumns = (
   onEdit: (row: Student) => void,

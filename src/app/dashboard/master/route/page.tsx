@@ -289,8 +289,8 @@ export default function RoutePage() {
   };
 
   const columns = useMemo(
-    () => getRouteColumns(handleEdit, handleDelete),
-    [handleEdit, handleDelete]
+    () => getRouteColumns(handleEdit, handleDelete, role),
+    [handleEdit, handleDelete, role]
   );
 
   const { table, tableElement } = CustomTableServerSidePagination({
