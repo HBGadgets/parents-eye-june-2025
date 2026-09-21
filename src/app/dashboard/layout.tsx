@@ -18,8 +18,10 @@ import { usePathname } from "next/navigation";
 import { redirect } from "next/navigation";
 import { useRouter } from "next/navigation";
 import { AiChatBot } from "@/components/dashboard/AiChatBot";
+import { ActiveStatusChecker } from "@/components/ActiveStatusChecker";
 
 export default function DashboardLayout({
+
   children,
 }: {
   children: React.ReactNode;
@@ -98,9 +100,11 @@ export default function DashboardLayout({
 
           <main className="pt-2 md:pt-4 px-2 md:px-4 overflow-auto h-full">
             <FCMHandler />
+            <ActiveStatusChecker />
             {children}
             <AiChatBot />
           </main>
+
         </SidebarInset>
       </SidebarProvider>
     </TooltipProvider>

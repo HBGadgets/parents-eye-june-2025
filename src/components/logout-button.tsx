@@ -1,63 +1,14 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useAuthStore } from "@/store/authStore";
-import { useNotificationStore } from "@/store/notificationStore";
-import { getMessaging, deleteToken } from "firebase/messaging";
-import { app } from "@/util/firebase"; // or wherever your Firebase app is initialized
-import Cookies from "js-cookie";
 import { LogOut } from "lucide-react";
+import { performLogout } from "@/util/logout";
 
 export function LogoutButton() {
-  const logout = useAuthStore((state) => state.logout);
   const router = useRouter();
 
   const handleLogout = async () => {
-    try {
-      /**delete fcm token */
-
-      // Get the messaging instance
-      const messaging = getMessaging(app);
-
-      // Delete the FCM token
-      const isDeleted = await deleteToken(messaging);
-      console.log(
-        isDeleted ? "🗑️ FCM token deleted" : "⚠️ FCM token not deleted"
-      );
-
-      // Unregister Firebase service workers
-      if ("serviceWorker" in navigator) {
-        const regs = await navigator.serviceWorker.getRegistrations();
-        for (const reg of regs) {
-          await reg.unregister();
-        }
-      }
-
-      //  Clear Firebase IndexedDB
-      indexedDB.deleteDatabase("firebase-messaging-database");
-      indexedDB.deleteDatabase("firebase-messaging-database-v2");
-      indexedDB.deleteDatabase("firebase-installations-database");
-
-      localStorage.removeItem("fcm_token");
-
-      // Clear persistent stores
-      useNotificationStore.getState().clearNotifications();
-      localStorage.removeItem("ct-notifications");
-      localStorage.removeItem("device-store");
-      localStorage.removeItem("userId");
-
-      /** delete fmc token */
-
-      logout(); // clear state + token
-      console.log("TOKEN: ", Cookies.get("token"))
-      router.push("/login"); // redirect to login page
-      window.location.reload();
-    } catch (error) {
-      console.error("❌ Error deleting FCM token:", error);
-      // Still logout even if token deletion fails
-      logout();
-      router.push("/login");
-    }
+    await performLogout(router);
   };
 
   return (
@@ -66,3 +17,4 @@ export function LogoutButton() {
     </span>
   );
 }
+
