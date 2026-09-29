@@ -212,10 +212,7 @@ export const getRouteColumns = (
       accessorFn: (row: Route) =>
         `${row.routeCompletionTime ? `${row.routeCompletionTime} Min` : "—"}`,
     },
-  ];
-
-  if (isSuperAdmin) {
-    columns.push({
+    {
       header: "Action",
       cell: ({ row }) => {
         const data = row.original;
@@ -223,7 +220,7 @@ export const getRouteColumns = (
         return (
           <div className="flex justify-center gap-2">
             <button
-              className="bg-yellow-500 text-white px-3 py-1 rounded text-xs cursor-pointer"
+              className="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1 rounded text-xs cursor-pointer"
               onClick={(e) => {
                 e.stopPropagation();
                 onEdit(data);
@@ -232,24 +229,27 @@ export const getRouteColumns = (
               Edit
             </button>
 
-            <button
-              className="bg-red-500 text-white px-3 py-1 rounded text-xs cursor-pointer"
-              onClick={(e) => {
-                e.stopPropagation();
-                onDelete(data);
-              }}
-            >
-              Delete
-            </button>
+            {isSuperAdmin && (
+              <button
+                className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-xs cursor-pointer"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete(data);
+                }}
+              >
+                Delete
+              </button>
+            )}
           </div>
         );
       },
       enableSorting: false,
-    });
-  }
+    },
+  ];
 
   return columns;
 };
+
 
 export const getStudentColumns = (
   onEdit: (row: Student) => void,

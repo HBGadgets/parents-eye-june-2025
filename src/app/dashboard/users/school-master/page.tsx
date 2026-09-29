@@ -51,6 +51,7 @@ export default function SchoolMaster() {
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const [filteredData, setFilteredData] = useState<School[]>([]);
   const [filterResults, setFilterResults] = useState<School[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<School | null>(null);
   const [editTarget, setEditTarget] = useState<School | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -74,13 +75,17 @@ export default function SchoolMaster() {
 
   useEffect(() => {
     if (schools && schools.length > 0) {
-      setFilteredData(schools);
       setFilterResults(schools); // For search base
+      // Only reset filteredData if user is not actively searching
+      if (!searchQuery.trim()) {
+        setFilteredData(schools);
+      }
     } else {
       setFilteredData([]);
       setFilterResults([]);
     }
-  }, [schools]);
+  }, [schools, searchQuery]);
+
 
   // Define the columns for the table
   const columns: ColumnDef<School, CellContent>[] = [
@@ -267,8 +272,15 @@ export default function SchoolMaster() {
         );
       });
 
-      // Update filteredData manually
+      // Update filteredData manually so active search results reflect the change immediately
       setFilteredData((prev) =>
+        prev.map((school) =>
+          school._id === schoolId ? { ...school, ...data } : school
+        )
+      );
+
+      // Also update filterResults manually so search base stays fresh
+      setFilterResults((prev) =>
         prev.map((school) =>
           school._id === schoolId ? { ...school, ...data } : school
         )
@@ -276,12 +288,15 @@ export default function SchoolMaster() {
 
       setEditDialogOpen(false);
       setEditTarget(null);
-      alert("School updated successfully.");
+      toast.success("School updated successfully.");
     },
-    onError: (err) => {
-      alert("Failed to update school.\nerror: " + err);
+    onError: (err: any) => {
+      toast.error(
+        `Failed to update school: ${err?.response?.data?.message || err?.message || err}`
+      );
     },
   });
+
 
   // Mutation to delete a school
   const deleteSchoolMutation = useMutation({
@@ -292,12 +307,21 @@ export default function SchoolMaster() {
       queryClient.setQueryData<School[]>(["schools"], (oldData) =>
         oldData?.filter((school) => school._id !== deletedId)
       );
-      alert("School deleted successfully.");
+      setFilteredData((prev) =>
+        prev.filter((school) => school._id !== deletedId)
+      );
+      setFilterResults((prev) =>
+        prev.filter((school) => school._id !== deletedId)
+      );
+      toast.success("School deleted successfully.");
     },
-    onError: (err) => {
-      alert("Failed to delete school.\nerror: " + err);
+    onError: (err: any) => {
+      toast.error(
+        `Failed to delete school: ${err?.response?.data?.message || err?.message || err}`
+      );
     },
   });
+
 
   const deactivateMutation = useMutation({
     mutationFn: async (school: any) => {
@@ -441,8 +465,10 @@ export default function SchoolMaster() {
             data={filterResults}
             displayKey={["schoolName", "username", "email", "mobileNo"]}
             onResults={handleSearchResults}
+            onQueryChange={setSearchQuery}
             className="w-[300px] mb-4"
           />
+
           <div>
             <DateRangeFilter
               onDateRangeChange={handleDateFilter}

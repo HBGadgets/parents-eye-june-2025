@@ -9,6 +9,7 @@ interface SearchComponentProps<T = unknown> {
   displayKey?: string | string[];
   debounceDelay?: number;
   onResults?: (results: T[]) => void;
+  onQueryChange?: (query: string) => void;
   className?: string;
 }
 
@@ -24,15 +25,22 @@ const SearchComponent = <T extends Record<string, unknown>>({
   debounceDelay = 300,
   className = "",
   onResults,
+  onQueryChange,
 }: SearchComponentProps<T>) => {
   const [query, setQuery] = useState("");
   const onResultsRef = useRef(onResults);
+  const onQueryChangeRef = useRef(onQueryChange);
   const lastResultsRef = useRef<T[]>([]);
 
-  // Keep the ref updated with the latest callback
+  // Keep the refs updated with the latest callbacks
   useEffect(() => {
     onResultsRef.current = onResults;
   }, [onResults]);
+
+  useEffect(() => {
+    onQueryChangeRef.current = onQueryChange;
+  }, [onQueryChange]);
+
 
   // Memoize the filtering logic to prevent unnecessary recalculations
   // const filteredResults = useMemo(() => {
@@ -99,22 +107,22 @@ const SearchComponent = <T extends Record<string, unknown>>({
       }
 
       // Check if results have actually changed to prevent infinite loops
+      const getItemKey = (item: any, index: number) =>
+        item?._id ?? item?.id ?? item?.uuid ?? index;
+
       const resultsChanged =
         currentResults.length !== lastResultsRef.current.length ||
-        currentResults.some(
-          (item, index) => item.id !== lastResultsRef.current[index]?.id
-        );
+        currentResults.some((item, index) => {
+          const prev = lastResultsRef.current[index];
+          if (!prev) return true;
+          if (getItemKey(item, index) !== getItemKey(prev, index)) return true;
+          return item !== prev;
+        });
 
       if (
         onResultsRef.current &&
         (resultsChanged || lastResultsRef.current.length === 0)
       ) {
-        console.log(
-          "Search: Calling onResults with:",
-          currentResults.length,
-          "items for query:",
-          query
-        );
         onResultsRef.current(currentResults);
         lastResultsRef.current = currentResults;
       }
@@ -130,7 +138,11 @@ const SearchComponent = <T extends Record<string, unknown>>({
           type="text"
           placeholder={placeholder}
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={(e) => {
+            const val = e.target.value;
+            setQuery(val);
+            onQueryChangeRef.current?.(val);
+          }}
           className="w-full border rounded px-3 py-2 bg-[#FFE58A]"
           icon={<SearchIcon />}
         />
@@ -138,5 +150,6 @@ const SearchComponent = <T extends Record<string, unknown>>({
     </div>
   );
 };
+
 
 export default SearchComponent;
