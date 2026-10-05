@@ -1035,7 +1035,7 @@ const VehicleMapInner = forwardRef<VehicleMapHandle, VehicleMapProps>((
   // }
 
   return (
-    <div className="relative w-full h-full rounded-t-lg overflow-hidden border border-border bg-card shadow-[var(--shadow-panel)]">
+    <div className="relative z-0 isolate w-full h-full rounded-t-lg overflow-hidden border border-border bg-card shadow-[var(--shadow-panel)]">
       <div ref={mapContainerRef} className="w-full h-full" />
       <PlaybackControls
         handlePlayPause={handlePlayPause}

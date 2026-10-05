@@ -726,7 +726,7 @@ export const AiChatBot: React.FC = () => {
       {/* Floating Chatbot Window */}
       {isOpen && (
         <div
-          className={`fixed z-50 flex flex-col bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-2xl rounded-2xl overflow-hidden transition-all duration-300 ${isExpanded
+          className={`fixed z-[9999] flex flex-col bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-2xl rounded-2xl overflow-hidden transition-all duration-300 ${isExpanded
             ? "bottom-4 right-4 w-[92vw] md:w-[750px] h-[88vh]"
             : "bottom-6 right-6 w-[94vw] sm:w-[460px] h-[640px] max-h-[85vh]"
             }`}

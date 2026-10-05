@@ -876,7 +876,7 @@ function HistoryReportContent() {
         {/* Sliding Menu Trigger */}
         <div>
           <Button
-            className="fixed top-[225px] right-0 z-[9999] rounded-l-full rounded-r-none w-[68px] bg-[#0c235c] cursor-pointer shadow-[var(--shadow-panel)]"
+            className="fixed top-[225px] right-0 z-[9999] rounded-l-full rounded-r-none w-[68px] bg-primary text-primary-foreground hover:bg-primary/90 cursor-pointer shadow-[var(--shadow-panel)]"
             onClick={() => setIsSidebarOpen(true)}
           >
             <Menu />
@@ -889,11 +889,10 @@ function HistoryReportContent() {
           <div className="w-full">
             {isFetching ? (
               <div
-                className={`w-full mt-3 transition-all duration-300 ease-in-out ${isMapExpanded
+                className={`relative z-0 isolate w-full mt-3 transition-all duration-300 ease-in-out ${isMapExpanded
                   ? "h-[100vh] md:h-[80vh] lg:h-[90vh]"
                   : "h-[50vh] md:h-[25vh] lg:h-[40vh]"
                   }`}
-                style={{ zIndex: 0 }}
               >
                 <FullScreenSpinner />
                 <VehicleMap
@@ -955,11 +954,10 @@ function HistoryReportContent() {
               </div>
             ) : (
               <div
-                className={`w-full mt-3 transition-all duration-300 ease-in-out ${isMapExpanded
+                className={`relative z-0 isolate w-full mt-3 transition-all duration-300 ease-in-out ${isMapExpanded
                   ? "h-[80vh] md:h-[60vh] lg:h-[70vh]"
                   : "h-[60vh] md:h-[45vh] lg:h-[55vh]"
                   }`}
-                style={{ zIndex: 0 }}
               >
                 {hasGenerated && (!activePlayback || activePlayback.length === 0) ? (
                   <div className="flex flex-col items-center justify-center w-full h-full bg-white/50 backdrop-blur-sm rounded-lg border-2 border-dashed border-gray-300">

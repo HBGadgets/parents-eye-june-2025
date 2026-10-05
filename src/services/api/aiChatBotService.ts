@@ -561,7 +561,7 @@ export const executeChatbotFunction = async (
           title: `Distance Report: All Vehicles (${start} to ${end})`,
           type: "table",
           count: cleanedData.length,
-          summary: `Distance report from ${start} to ${end}. Found ${cleanedData.length} vehicles. Total fleet distance: ${totalFleetKm.toFixed(2)} km across ${movingCount} active vehicles.`,
+          // summary: `Distance report from ${start} to ${end}. Found ${cleanedData.length} vehicles. Total fleet distance: ${totalFleetKm.toFixed(2)} km across ${movingCount} active vehicles.`,
           columns,
           data: cleanedData.slice(0, 50),
           allData: cleanedData,
