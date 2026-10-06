@@ -6,15 +6,28 @@ import React, {
   useState,
   useLayoutEffect,
 } from "react";
-import { MapContainer, TileLayer, Marker, Popup, useMap, Polyline } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Popup, useMap, Polyline, Tooltip } from "react-leaflet";
 import MarkerClusterGroup from "react-leaflet-cluster";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import "./VehicleMap.css";
 import { calculateTimeSince } from "@/util/calculateTimeSince";
-import { Satellite, List, Palette, X, Navigation, MapPin, Eye, EyeOff, Locate, Bus } from "lucide-react";
+import { Satellite, List, Palette, X, Navigation, MapPin, Eye, EyeOff, Locate, Bus, Search } from "lucide-react";
 import { LiaTrafficLightSolid } from "react-icons/lia";
 import { MdDirections } from "react-icons/md";
+
+const ROUTE_STATUS_CONFIG: Record<
+  string,
+  { bg: string; text: string; dot: string; label: string }
+> = {
+  running: { bg: "#ecfdf5", text: "#059669", dot: "#10b981", label: "Running" },
+  idle: { bg: "#fffbeb", text: "#d97706", dot: "#f59e0b", label: "Idle" },
+  stopped: { bg: "#fef2f2", text: "#dc2626", dot: "#ef4444", label: "Stopped" },
+  inactive: { bg: "#f3f4f6", text: "#4b5563", dot: "#9ca3af", label: "Inactive" },
+  overspeed: { bg: "#fff7ed", text: "#c2410c", dot: "#f97316", label: "Overspeed" },
+  overspeeding: { bg: "#fff7ed", text: "#c2410c", dot: "#f97316", label: "Overspeed" },
+  new: { bg: "#eff6ff", text: "#2563eb", dot: "#3b82f6", label: "New" },
+};
 
 // Types based on your socket response
 interface VehicleData {
@@ -44,6 +57,9 @@ interface VehicleData {
   speedLimit: string;
   fuelConsumption: string;
   matchesSearch: boolean;
+  routeName?: string;
+  noOfStudent?: number | string;
+  noOfStops?: number | string;
 }
 
 interface VehicleMapProps {
@@ -215,6 +231,24 @@ const VehicleBusMarker = React.memo(
             </div>
 
             <div className="vehicle-details scrollable-details">
+              {vehicle.routeName && (
+                <div className="detail-row">
+                  <span className="label">Route No:</span>
+                  <span className="value">{vehicle.routeName}</span>
+                </div>
+              )}
+              {vehicle.noOfStudent !== undefined && vehicle.noOfStudent !== null && (
+                <div className="detail-row">
+                  <span className="label">No. of Students:</span>
+                  <span className="value">{vehicle.noOfStudent}</span>
+                </div>
+              )}
+              {vehicle.noOfStops !== undefined && vehicle.noOfStops !== null && (
+                <div className="detail-row">
+                  <span className="label">No. of Stops:</span>
+                  <span className="value">{vehicle.noOfStops}</span>
+                </div>
+              )}
               <div className="detail-row">
                 <span className="label">Speed:</span>
                 <span className="value">{vehicle.speed.toFixed(2)} km/h</span>
@@ -432,19 +466,22 @@ const MapBoundsUpdater = ({
   const map = useMap();
 
   useEffect(() => {
-    if (!shouldFitBounds || vehicles.length === 0) return;
+    if (!shouldFitBounds) return;
 
-    const bounds = L.latLngBounds(
-      vehicles.map((v) => [v.latitude, v.longitude] as [number, number])
-    );
+    if (vehicles.length > 0) {
+      const bounds = L.latLngBounds(
+        vehicles.map((v) => [v.latitude, v.longitude] as [number, number])
+      );
 
-    if (bounds.isValid()) {
-      map.fitBounds(bounds, {
-        padding: [20, 20],
-        maxZoom: 15,
-      });
-      onBoundsFitted();
+      if (bounds.isValid()) {
+        map.fitBounds(bounds, {
+          padding: [20, 20],
+          maxZoom: 15,
+        });
+      }
     }
+
+    onBoundsFitted();
   }, [vehicles, shouldFitBounds, map, onBoundsFitted]);
 
   return null;
@@ -571,6 +608,7 @@ const createRouteFlagIcon = (color: "green" | "red", size: number = 34) => {
     iconAnchor: [size / 2, size - 2],
   });
 };
+
 
 const getLatLngDistance = (lat1: number, lng1: number, lat2: number, lng2: number): number => {
   const R = 6371000; // meters
@@ -785,6 +823,7 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
   height = "h-[80vh]",
   onVehicleClick,
   selectedVehicleId,
+  onVehicleSelect,
   showTrails = false,
   clusterMarkers = true,
   autoFitBounds = false,
@@ -807,6 +846,8 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
   // Draggable Route Color Legend state & hooks
   const [showLegend, setShowLegend] = useState(false);
   const [hiddenRouteImeis, setHiddenRouteImeis] = useState<Record<string, boolean>>({});
+  const [legendSearch, setLegendSearch] = useState("");
+  const [legendVisibilityFilter, setLegendVisibilityFilter] = useState<"all" | "visible" | "hidden">("all");
   const legendPositionRef = useRef({ x: 20, y: 70 });
   const dragRef = useRef<HTMLDivElement>(null);
   const relRef = useRef<{ x: number; y: number } | null>(null);
@@ -987,6 +1028,89 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
     });
   }, [validVehicles]);
 
+  // Extract and memoize route items with their vehicle details for filtering
+  const routeEntries = useMemo(() => {
+    return Object.entries(routesMap)
+      .map(([imei, routeData]: [string, any]) => {
+        const vehicle = validVehicles.find(
+          (v) => String(v.uniqueId || v.imei) === imei
+        );
+        const isHidden = !!hiddenRouteImeis[imei];
+        const rawStatus = (vehicle?.category || vehicle?.status || "").toLowerCase();
+        let statusKey = "other";
+        if (rawStatus.includes("run")) statusKey = "running";
+        else if (rawStatus.includes("stop")) statusKey = "stopped";
+        else if (rawStatus.includes("idle")) statusKey = "idle";
+        else if (rawStatus.includes("overspeed")) statusKey = "overspeed";
+        else if (rawStatus.includes("inact")) statusKey = "inactive";
+        else if (rawStatus.includes("new")) statusKey = "new";
+
+        return {
+          imei,
+          routeData,
+          vehicle,
+          isHidden,
+          statusKey,
+        };
+      })
+      .filter((item) => item.vehicle !== undefined);
+  }, [routesMap, validVehicles, hiddenRouteImeis]);
+
+  // Filtered route items based on search query and visibility filter
+  const filteredRouteEntries = useMemo(() => {
+    return routeEntries.filter((item) => {
+      // Visibility filter
+      if (legendVisibilityFilter === "visible" && item.isHidden) return false;
+      if (legendVisibilityFilter === "hidden" && !item.isHidden) return false;
+
+      // Text search filter (matches vehicle name, imei, deviceId, or routeName)
+      if (legendSearch.trim()) {
+        const query = legendSearch.trim().toLowerCase();
+        const name = (item.vehicle?.name || "").toLowerCase();
+        const imeiStr = String(item.imei || "").toLowerCase();
+        const deviceIdStr = String(item.vehicle?.deviceId || "").toLowerCase();
+        const routeNameStr = String(item.vehicle?.routeName || "").toLowerCase();
+        if (!name.includes(query) && !imeiStr.includes(query) && !deviceIdStr.includes(query) && !routeNameStr.includes(query)) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  }, [routeEntries, legendVisibilityFilter, legendSearch]);
+
+  const totalRoutesCount = routeEntries.length;
+  const visibleRoutesCount = useMemo(() => routeEntries.filter((r) => !r.isHidden).length, [routeEntries]);
+  const hiddenRoutesCount = totalRoutesCount - visibleRoutesCount;
+  const isFilterActive = legendSearch.trim() !== "" || legendVisibilityFilter !== "all";
+
+  const handleHideAll = useCallback(() => {
+    const targetEntries = isFilterActive ? filteredRouteEntries : routeEntries;
+    setHiddenRouteImeis((prev) => {
+      const updated = { ...prev };
+      targetEntries.forEach((item) => {
+        updated[item.imei] = true;
+      });
+      return updated;
+    });
+  }, [isFilterActive, filteredRouteEntries, routeEntries]);
+
+  const handleShowAll = useCallback(() => {
+    const targetEntries = isFilterActive ? filteredRouteEntries : routeEntries;
+    setHiddenRouteImeis((prev) => {
+      const updated = { ...prev };
+      targetEntries.forEach((item) => {
+        delete updated[item.imei];
+      });
+      return updated;
+    });
+  }, [isFilterActive, filteredRouteEntries, routeEntries]);
+
+  const handleResetFilters = useCallback(() => {
+    setLegendSearch("");
+    setLegendVisibilityFilter("all");
+  }, []);
+
   // Calculate map center efficiently
   const mapCenter = useMemo(() => {
     if (validVehicles.length === 0) return center;
@@ -1011,10 +1135,10 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
 
   // Handle initial load bounds fitting
   useEffect(() => {
-    if (isInitialLoad && validVehicles.length > 0 && autoFitBounds) {
+    if (isInitialLoad && validVehicles.length > 0 && autoFitBounds && !selectedVehicleId) {
       setShouldFitBounds(true);
     }
-  }, [isInitialLoad, validVehicles.length, autoFitBounds]);
+  }, [isInitialLoad, validVehicles.length, autoFitBounds, selectedVehicleId]);
 
   // Handle manual fit bounds
   const handleFitBounds = useCallback(() => {
@@ -1023,12 +1147,24 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
     }
   }, [validVehicles.length]);
 
-  // Trigger fit bounds when active filter changes
+  const prevFilterRef = useRef<string | undefined>(activeFilter);
+  const filterChangePendingRef = useRef<boolean>(false);
+
+  // Detect when active filter explicitly changes (not on initial mount, not on periodic socket updates)
   useEffect(() => {
-    if (validVehicles.length > 0) {
+    if (prevFilterRef.current !== activeFilter) {
+      prevFilterRef.current = activeFilter;
+      filterChangePendingRef.current = true;
+    }
+  }, [activeFilter]);
+
+  // Trigger fit bounds ONLY ONCE when a filter change was requested and valid vehicles exist
+  useEffect(() => {
+    if (filterChangePendingRef.current && validVehicles.length > 0 && !selectedVehicleId) {
+      filterChangePendingRef.current = false;
       setShouldFitBounds(true);
     }
-  }, [activeFilter, validVehicles.length]);
+  }, [validVehicles.length, selectedVehicleId]);
 
   // Reset bounds fitting flag
   const handleBoundsFitted = useCallback(() => {
@@ -1340,6 +1476,9 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
 
           const isSelected = selectedVehicle && String(selectedVehicle.uniqueId || selectedVehicle.imei) === imei;
           const color = getRouteColorById(imei);
+          const vehicle = validVehicles.find(
+            (v) => String(v.uniqueId || v.imei) === imei
+          );
 
           return (
             <React.Fragment key={`route-group-${imei}`}>
@@ -1355,11 +1494,39 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
                       pathOptions={{
                         color: color,
                         weight: isSelected ? 6 : 4, // highlight selected route slightly thicker
-                        opacity: isSelected ? 0.95 : 0.7, // dim non-selected routes slightly for visual balance
+                        opacity: isSelected ? 0.95 : 0.75, // dim non-selected routes slightly for visual balance
                         lineJoin: "round",
                         lineCap: "round",
                       }}
-                    />
+                    >
+                      <Tooltip sticky direction="top" opacity={0.95}>
+                        <div style={{ fontFamily: "'Inter', sans-serif", padding: "4px 8px", fontSize: "12px", lineHeight: "1.4" }}>
+                          <div style={{ fontWeight: 600, color: "#111827", display: "flex", alignItems: "center", gap: "6px" }}>
+                            <span style={{ width: "8px", height: "8px", borderRadius: "50%", backgroundColor: color, display: "inline-block" }} />
+                            <span>{vehicle?.name || `Vehicle ${imei.slice(-6)}`}</span>
+                          </div>
+                          <div style={{ marginTop: "4px", fontSize: "11px", color: "#374151", display: "flex", flexDirection: "column", gap: "2px" }}>
+                            {vehicle?.routeName && <div><strong>Route No:</strong> {vehicle.routeName}</div>}
+                            {vehicle?.noOfStudent !== undefined && <div><strong>No. of Students:</strong> {vehicle.noOfStudent}</div>}
+                            {vehicle?.noOfStops !== undefined && <div><strong>No. of Stops:</strong> {vehicle.noOfStops}</div>}
+                          </div>
+                        </div>
+                      </Tooltip>
+                      <Popup maxWidth={220}>
+                        <div style={{ fontFamily: "'Inter', sans-serif", padding: "6px" }}>
+                          <div style={{ fontWeight: 600, color: "#111827", fontSize: "13px", display: "flex", alignItems: "center", gap: "6px", marginBottom: "6px" }}>
+                            <span style={{ width: "10px", height: "10px", borderRadius: "50%", backgroundColor: color, display: "inline-block" }} />
+                            <span>{vehicle?.name || `Vehicle ${imei.slice(-6)}`}</span>
+                          </div>
+                          <div style={{ fontSize: "11px", color: "#374151", display: "flex", flexDirection: "column", gap: "3px" }}>
+                            {vehicle?.routeName && <div><strong>Route No:</strong> {vehicle.routeName}</div>}
+                            {vehicle?.noOfStudent !== undefined && <div><strong>No. of Students:</strong> {vehicle.noOfStudent}</div>}
+                            {vehicle?.noOfStops !== undefined && <div><strong>No. of Stops:</strong> {vehicle.noOfStops}</div>}
+                          </div>
+                        </div>
+                      </Popup>
+                    </Polyline>
+
                     {/* Directional Arrows at 1 km spacing */}
                     {showArrows && arrows.map((arrow, arrowIdx) => (
                       <Marker
@@ -1411,6 +1578,16 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
             <Popup maxWidth={200}>
               <div style={{ textAlign: "center", fontFamily: "sans-serif" }}>
                 <strong style={{ color: "#10b981" }}>Start Point</strong>
+                {selectedVehicle?.routeName && (
+                  <div style={{ fontSize: "11px", color: "#374151", marginTop: "2px" }}>
+                    <strong>Route No:</strong> {selectedVehicle.routeName}
+                  </div>
+                )}
+                {selectedVehicle?.noOfStudent !== undefined && (
+                  <div style={{ fontSize: "11px", color: "#374151", marginTop: "2px" }}>
+                    <strong>No. of Students:</strong> {selectedVehicle.noOfStudent}
+                  </div>
+                )}
                 <div style={{ fontSize: "11px", color: "#666", marginTop: "4px" }}>
                   📍 {routeMarkers.start.lat.toFixed(6)}, {routeMarkers.start.lng.toFixed(6)}
                 </div>
@@ -1447,14 +1624,14 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
             left: `${legendPositionRef.current.x}px`,
             top: `${legendPositionRef.current.y}px`,
             zIndex: 1000,
-            width: "280px",
-            maxHeight: "350px",
-            backgroundColor: "rgba(255, 255, 255, 0.85)",
-            backdropFilter: "blur(12px)",
-            WebkitBackdropFilter: "blur(12px)",
+            width: "300px",
+            maxHeight: "440px",
+            backgroundColor: "rgba(255, 255, 255, 0.9)",
+            backdropFilter: "blur(14px)",
+            WebkitBackdropFilter: "blur(14px)",
             borderRadius: "12px",
-            border: "1px solid rgba(255, 255, 255, 0.4)",
-            boxShadow: "0 8px 32px 0 rgba(31, 38, 135, 0.15)",
+            border: "1px solid rgba(255, 255, 255, 0.6)",
+            boxShadow: "0 10px 32px 0 rgba(31, 38, 135, 0.18)",
             display: "flex",
             flexDirection: "column",
             overflow: "hidden",
@@ -1467,7 +1644,7 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
             onMouseDown={onMouseDown}
             style={{
               padding: "10px 14px",
-              background: "rgba(243, 244, 246, 0.8)",
+              background: "rgba(243, 244, 246, 0.85)",
               borderBottom: "1px solid rgba(229, 231, 235, 0.6)",
               cursor: "move",
               display: "flex",
@@ -1480,6 +1657,20 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
             <div style={{ display: "flex", alignItems: "center", gap: "6px", fontWeight: 600, fontSize: "13px", color: "#1f2937" }}>
               <Palette size={16} style={{ color: "#3b82f6" }} />
               <span>Vehicle Route Colors</span>
+              {totalRoutesCount > 0 && (
+                <span
+                  style={{
+                    fontSize: "10px",
+                    fontWeight: 600,
+                    color: "#4b5563",
+                    backgroundColor: "rgba(0, 0, 0, 0.06)",
+                    padding: "1px 6px",
+                    borderRadius: "10px"
+                  }}
+                >
+                  {isFilterActive ? `${filteredRouteEntries.length}/${totalRoutesCount}` : totalRoutesCount}
+                </span>
+              )}
             </div>
             <button
               onClick={() => setShowLegend(false)}
@@ -1503,139 +1694,368 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
             </button>
           </div>
 
+          {/* Filters & Search Header */}
+          {totalRoutesCount > 0 && (
+            <div
+              style={{
+                padding: "8px 12px 6px 12px",
+                borderBottom: "1px solid rgba(229, 231, 235, 0.6)",
+                display: "flex",
+                flexDirection: "column",
+                gap: "6px",
+                backgroundColor: "rgba(255, 255, 255, 0.4)"
+              }}
+            >
+              {/* Search Input */}
+              <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+                <Search size={13} style={{ position: "absolute", left: "9px", color: "#9ca3af", pointerEvents: "none" }} />
+                <input
+                  type="text"
+                  placeholder="Filter by vehicle or IMEI..."
+                  value={legendSearch}
+                  onChange={(e) => setLegendSearch(e.target.value)}
+                  style={{
+                    width: "100%",
+                    padding: "5px 24px 5px 28px",
+                    fontSize: "12px",
+                    borderRadius: "6px",
+                    border: "1px solid rgba(209, 213, 219, 0.8)",
+                    backgroundColor: "rgba(255, 255, 255, 0.9)",
+                    outline: "none",
+                    color: "#1f2937",
+                    boxSizing: "border-box"
+                  }}
+                  onFocus={(e) => {
+                    e.target.style.borderColor = "#3b82f6";
+                    e.target.style.boxShadow = "0 0 0 2px rgba(59, 130, 246, 0.15)";
+                  }}
+                  onBlur={(e) => {
+                    e.target.style.borderColor = "rgba(209, 213, 219, 0.8)";
+                    e.target.style.boxShadow = "none";
+                  }}
+                />
+                {legendSearch && (
+                  <button
+                    onClick={() => setLegendSearch("")}
+                    style={{
+                      position: "absolute",
+                      right: "6px",
+                      border: "none",
+                      background: "none",
+                      cursor: "pointer",
+                      padding: "2px",
+                      color: "#9ca3af",
+                      display: "flex",
+                      alignItems: "center"
+                    }}
+                    title="Clear search"
+                  >
+                    <X size={12} />
+                  </button>
+                )}
+              </div>
+
+              {/* Filter Tabs */}
+              <div style={{ display: "flex", alignItems: "center", width: "100%" }}>
+                {/* Visibility Segmented Tabs */}
+                <div
+                  style={{
+                    display: "inline-flex",
+                    backgroundColor: "rgba(229, 231, 235, 0.6)",
+                    borderRadius: "6px",
+                    padding: "2px",
+                    gap: "2px",
+                    width: "100%"
+                  }}
+                >
+                  {(["all", "visible", "hidden"] as const).map((tab) => {
+                    const isActive = legendVisibilityFilter === tab;
+                    const count =
+                      tab === "all"
+                        ? totalRoutesCount
+                        : tab === "visible"
+                        ? visibleRoutesCount
+                        : hiddenRoutesCount;
+                    const label = tab === "all" ? "All" : tab === "visible" ? "Shown" : "Hidden";
+                    return (
+                      <button
+                        key={tab}
+                        onClick={() => setLegendVisibilityFilter(tab)}
+                        style={{
+                          border: "none",
+                          padding: "3px 8px",
+                          fontSize: "11px",
+                          fontWeight: isActive ? 600 : 500,
+                          borderRadius: "4px",
+                          cursor: "pointer",
+                          backgroundColor: isActive ? "#ffffff" : "transparent",
+                          color: isActive ? "#1d4ed8" : "#4b5563",
+                          boxShadow: isActive ? "0 1px 2px rgba(0,0,0,0.06)" : "none",
+                          transition: "all 0.15s ease",
+                          flex: 1,
+                          textAlign: "center"
+                        }}
+                      >
+                        {label} ({count})
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Action Row (Hide All / Show All / Reset) */}
+          {totalRoutesCount > 0 && (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: "6px 14px 4px 14px",
+                borderBottom: "1px dashed rgba(229, 231, 235, 0.6)"
+              }}
+            >
+              <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+                <button
+                  onClick={handleHideAll}
+                  style={{
+                    fontSize: "11px",
+                    color: "#ef4444",
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    fontWeight: 600,
+                    padding: "2px 4px",
+                    borderRadius: "4px",
+                    transition: "background-color 0.2s"
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "rgba(239, 68, 68, 0.08)")}
+                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
+                >
+                  {isFilterActive ? `Hide Filtered (${filteredRouteEntries.length})` : "Hide All"}
+                </button>
+                <button
+                  onClick={handleShowAll}
+                  style={{
+                    fontSize: "11px",
+                    color: "#3b82f6",
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    fontWeight: 600,
+                    padding: "2px 4px",
+                    borderRadius: "4px",
+                    transition: "background-color 0.2s"
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "rgba(59, 130, 246, 0.08)")}
+                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
+                >
+                  {isFilterActive ? `Show Filtered (${filteredRouteEntries.length})` : "Show All"}
+                </button>
+              </div>
+
+              {isFilterActive && (
+                <button
+                  onClick={handleResetFilters}
+                  style={{
+                    fontSize: "10px",
+                    color: "#6b7280",
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    textDecoration: "underline"
+                  }}
+                >
+                  Reset
+                </button>
+              )}
+            </div>
+          )}
+
           {/* Vehicle List */}
           <div
             style={{
-              padding: "10px 14px",
+              padding: "8px 12px",
               overflowY: "auto",
               flex: 1,
               display: "flex",
               flexDirection: "column",
-              gap: "8px"
+              gap: "6px"
             }}
             className="legend-body"
           >
-            {Object.keys(routesMap).length === 0 ? (
-              <div style={{ fontSize: "12px", color: "#6b7280", textAlign: "center", padding: "10px 0" }}>
+            {totalRoutesCount === 0 ? (
+              <div style={{ fontSize: "12px", color: "#6b7280", textAlign: "center", padding: "12px 0" }}>
                 No active routes rendered.
               </div>
+            ) : filteredRouteEntries.length === 0 ? (
+              <div style={{ fontSize: "12px", color: "#6b7280", textAlign: "center", padding: "16px 8px" }}>
+                <p style={{ margin: "0 0 8px 0" }}>No routes match your filters</p>
+                <button
+                  onClick={handleResetFilters}
+                  style={{
+                    fontSize: "11px",
+                    color: "#3b82f6",
+                    background: "rgba(59, 130, 246, 0.08)",
+                    border: "1px solid rgba(59, 130, 246, 0.2)",
+                    borderRadius: "4px",
+                    padding: "3px 8px",
+                    cursor: "pointer"
+                  }}
+                >
+                  Clear filters
+                </button>
+              </div>
             ) : (
-              <>
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px", paddingBottom: "6px", borderBottom: "1px dashed rgba(229, 231, 235, 0.6)" }}>
-                  <button
-                    onClick={() => {
-                      const allHidden: Record<string, boolean> = {};
-                      Object.keys(routesMap).forEach((imei) => {
-                        allHidden[imei] = true;
-                      });
-                      setHiddenRouteImeis(allHidden);
-                    }}
-                    style={{
-                      fontSize: "11px",
-                      color: "#ef4444",
-                      background: "none",
-                      border: "none",
-                      cursor: "pointer",
-                      fontWeight: 600,
-                      padding: "2px 6px",
-                      borderRadius: "4px",
-                      transition: "background-color 0.2s"
-                    }}
-                    onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "rgba(239, 68, 68, 0.08)")}
-                    onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
-                  >
-                    Hide All
-                  </button>
-                  <button
-                    onClick={() => {
-                      setHiddenRouteImeis({});
-                    }}
-                    style={{
-                      fontSize: "11px",
-                      color: "#3b82f6",
-                      background: "none",
-                      border: "none",
-                      cursor: "pointer",
-                      fontWeight: 600,
-                      padding: "2px 6px",
-                      borderRadius: "4px",
-                      transition: "background-color 0.2s"
-                    }}
-                    onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "rgba(59, 130, 246, 0.08)")}
-                    onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
-                  >
-                    Show All
-                  </button>
-                </div>
-                {Object.entries(routesMap).map(([imei, routeData]: [string, any]) => {
-                  // Find matching vehicle
-                  const vehicle = validVehicles.find(
-                    (v) => String(v.uniqueId || v.imei) === imei
-                  );
-                  if (!vehicle) return null;
+              filteredRouteEntries.map(({ imei, vehicle, isHidden, statusKey }) => {
+                if (!vehicle) return null;
+                const color = getRouteColorById(imei);
+                const statusInfo = ROUTE_STATUS_CONFIG[statusKey] || {
+                  bg: "#f3f4f6",
+                  text: "#6b7280",
+                  dot: "#9ca3af",
+                  label: statusKey,
+                };
 
-                  const color = getRouteColorById(imei);
-
-                  return (
+                return (
+                  <div
+                    key={`legend-item-${imei}`}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      padding: "6px 8px",
+                      borderRadius: "6px",
+                      backgroundColor: isHidden ? "rgba(243, 244, 246, 0.4)" : "rgba(255, 255, 255, 0.65)",
+                      border: "1px solid rgba(229, 231, 235, 0.5)",
+                      fontSize: "12px",
+                      transition: "all 0.15s ease",
+                      opacity: isHidden ? 0.75 : 1
+                    }}
+                  >
                     <div
-                      key={`legend-item-${imei}`}
+                      onClick={() => {
+                        onVehicleSelect?.(vehicle.deviceId);
+                        if (mapRef.current && vehicle.latitude && vehicle.longitude) {
+                          mapRef.current.flyTo([vehicle.latitude, vehicle.longitude], 16, {
+                            animate: true,
+                            duration: 1,
+                            easeLinearity: 0.25,
+                          });
+                        }
+                      }}
                       style={{
                         display: "flex",
                         alignItems: "center",
-                        justifyContent: "space-between",
-                        padding: "6px 8px",
-                        borderRadius: "6px",
-                        backgroundColor: "rgba(255, 255, 255, 0.5)",
-                        border: "1px solid rgba(229, 231, 235, 0.4)",
-                        fontSize: "12px"
+                        gap: "8px",
+                        minWidth: 0,
+                        flex: 1,
+                        cursor: "pointer"
                       }}
+                      title={`Click to locate: ${vehicle.name || vehicle.deviceId}`}
                     >
-                      <div style={{ display: "flex", alignItems: "center", gap: "8px", minWidth: 0, flex: 1 }}>
+                      <span
+                        style={{
+                          width: "12px",
+                          height: "12px",
+                          borderRadius: "50%",
+                          backgroundColor: color,
+                          flexShrink: 0,
+                          boxShadow: "0 0 4px rgba(0, 0, 0, 0.15)",
+                          border: isHidden ? "1px dashed #9ca3af" : "none"
+                        }}
+                      />
+                      <div style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
                         <span
                           style={{
-                            width: "12px",
-                            height: "12px",
-                            borderRadius: "50%",
-                            backgroundColor: color,
-                            flexShrink: 0,
-                            boxShadow: "0 0 4px rgba(0, 0, 0, 0.15)"
+                            fontWeight: 500,
+                            color: isHidden ? "#6b7280" : "#1f2937",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap"
                           }}
-                        />
-                        <span style={{ fontWeight: 500, color: "#374151", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        >
                           {vehicle.name || `Vehicle ${vehicle.deviceId}`}
                         </span>
-                      </div>
-                      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                        <span style={{ fontSize: "10px", color: "#9ca3af" }}>
-                          {imei.slice(-6)}
-                        </span>
-                        <button
-                          onClick={() => {
-                            setHiddenRouteImeis((prev) => ({
-                              ...prev,
-                              [imei]: !prev[imei],
-                            }));
-                          }}
-                          style={{
-                            border: "none",
-                            background: "none",
-                            cursor: "pointer",
-                            padding: "2px",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            color: hiddenRouteImeis[imei] ? "#9ca3af" : "#3b82f6",
-                            transition: "color 0.2s"
-                          }}
-                          title={hiddenRouteImeis[imei] ? "Show route" : "Hide route"}
-                        >
-                          {hiddenRouteImeis[imei] ? <EyeOff size={16} /> : <Eye size={16} />}
-                        </button>
+                        {(vehicle.routeName || vehicle.noOfStudent !== undefined) && (
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "6px",
+                              fontSize: "10px",
+                              color: isHidden ? "#9ca3af" : "#4b5563",
+                              marginTop: "1px",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap"
+                            }}
+                          >
+                            {vehicle.routeName && (
+                              <span
+                                style={{
+                                  backgroundColor: "rgba(59, 130, 246, 0.08)",
+                                  color: "#2563eb",
+                                  padding: "0px 4px",
+                                  borderRadius: "3px",
+                                  fontWeight: 600
+                                }}
+                              >
+                                Rt: {vehicle.routeName}
+                              </span>
+                            )}
+                            {vehicle.noOfStudent !== undefined && (
+                              <span style={{ color: "#4b5563" }}>
+                                👥 {vehicle.noOfStudent} std
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
-                  );
-                })}
-              </>
+                    <div style={{ display: "flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>
+                      {statusKey && statusKey !== "other" && (
+                        <span
+                          title={`Status: ${statusInfo.label}`}
+                          style={{
+                            width: "7px",
+                            height: "7px",
+                            borderRadius: "50%",
+                            backgroundColor: statusInfo.dot,
+                            flexShrink: 0
+                          }}
+                        />
+                      )}
+                      <span style={{ fontSize: "10px", color: "#9ca3af", fontFamily: "monospace" }}>
+                        {imei.slice(-6)}
+                      </span>
+                      <button
+                        onClick={() => {
+                          setHiddenRouteImeis((prev) => ({
+                            ...prev,
+                            [imei]: !prev[imei],
+                          }));
+                        }}
+                        style={{
+                          border: "none",
+                          background: "none",
+                          cursor: "pointer",
+                          padding: "2px",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          color: isHidden ? "#9ca3af" : "#3b82f6",
+                          transition: "color 0.2s"
+                        }}
+                        title={isHidden ? "Show route" : "Hide route"}
+                      >
+                        {isHidden ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })
             )}
           </div>
         </div>
