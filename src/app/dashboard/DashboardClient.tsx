@@ -40,6 +40,8 @@ import { ListFilter, X, Download, FileSpreadsheet, FileText } from "lucide-react
 import { useAuthStore } from "@/store/authStore";
 import { Combobox } from "@/components/ui/combobox";
 import { useExport } from "@/hooks/useExport";
+import { reportService } from "@/services/api/reportService";
+import { getYesterdayDateRange } from "@/util/dateFormatters";
 
 type ViewState = "split" | "tableExpanded" | "mapExpanded";
 type StatusFilter = "all" | "running" | "idle" | "stopped" | "inactive" | "new";
@@ -69,7 +71,7 @@ export default function DashboardClient() {
   const [selectedRouteData, setSelectedRouteData] = useState<any | null>(null);
   const [isLoadingRoute, setIsLoadingRoute] = useState<boolean>(false);
 
-  // Fetch route playback data for the selected vehicle
+  // Fetch route playback data for the selected vehicle using yesterday's date range
   useEffect(() => {
     if (!selectedDevice) {
       setSelectedRouteData(null);
@@ -83,22 +85,23 @@ export default function DashboardClient() {
     }
 
     setIsLoadingRoute(true);
-    fetch(`/history-playback-data/${uniqueId}.json`)
-      .then((res) => {
-        if (!res.ok) {
-          throw new Error("Route history not found");
-        }
-        return res.json();
+    const { from, to } = getYesterdayDateRange();
+    reportService
+      .getHistoryReport({
+        uniqueId: String(uniqueId),
+        from,
+        to,
+        period: "Custom",
       })
       .then((data) => {
-        if (data && data.success) {
+        if (data && (data.deviceDataByTrips || data.success)) {
           setSelectedRouteData(data);
         } else {
           setSelectedRouteData(null);
         }
       })
       .catch((err) => {
-        console.warn(`No history route data loaded for device ${uniqueId}:`, err.message);
+        console.warn(`No history route data loaded for device ${uniqueId}:`, err?.message || err);
         setSelectedRouteData(null);
       })
       .finally(() => {
@@ -937,11 +940,16 @@ export default function DashboardClient() {
                         onVehicleClick={(vehicle) => handleDeviceSelection(vehicle as any)}
                         activeFilter={activeStatus}
                         selectedRouteData={selectedRouteData}
-                        isAllInTableActive={pagination.pageSize > 100}
+                        userRole={userRole}
+                        isAllInTableActive={
+                          pagination.pageSize > 100 || (totalCount > 0 && pagination.pageSize >= totalCount)
+                        }
                         onToggleAllInTable={(showAll) => {
+                          if (userRole === "superadmin" || userRole === "school") return;
+                          const allPageSize = totalCount || devices.length || 100;
                           handlePaginationChange({
                             pageIndex: 0,
-                            pageSize: showAll ? 500 : 10
+                            pageSize: showAll ? allPageSize : 10
                           });
                         }}
                       />

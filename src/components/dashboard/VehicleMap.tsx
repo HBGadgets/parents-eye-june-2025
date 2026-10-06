@@ -12,9 +12,12 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import "./VehicleMap.css";
 import { calculateTimeSince } from "@/util/calculateTimeSince";
-import { Satellite, List, Palette, X, Navigation, MapPin, Eye, EyeOff, Locate, Bus, Search } from "lucide-react";
+import { Satellite, List, Palette, X, Navigation, MapPin, Eye, EyeOff, Locate, Bus, Search, Calendar } from "lucide-react";
 import { LiaTrafficLightSolid } from "react-icons/lia";
 import { MdDirections } from "react-icons/md";
+import { reportService } from "@/services/api/reportService";
+import { getYesterdayDateRange, getYesterdayDateString, getTodayDateString, getDateRangeForDay } from "@/util/dateFormatters";
+import { useAuthStore } from "@/store/authStore";
 
 const ROUTE_STATUS_CONFIG: Record<
   string,
@@ -88,6 +91,7 @@ interface VehicleMapProps {
   } | null;
   onToggleAllInTable?: (showAll: boolean) => void;
   isAllInTableActive?: boolean;
+  userRole?: string;
 }
 
 // Optimized marker component with proper memoization
@@ -831,12 +835,21 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
   selectedRouteData,
   onToggleAllInTable,
   isAllInTableActive,
+  userRole: userRoleProp,
 }) => {
   const mapRef = useRef<L.Map | null>(null);
+  const { decodedToken } = useAuthStore();
+  const rawRole = (userRoleProp || decodedToken?.role || "").toLowerCase();
+  const isRouteDisabled = [
+    "superadmin",
+    "school",
+  ].includes(rawRole);
+
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [shouldFitBounds, setShouldFitBounds] = useState(false);
   const [customColors, setCustomColors] = useState<Record<string, string>>({});
   const [showHistory, setShowHistory] = useState(false);
+  const [isFetchingRoutes, setIsFetchingRoutes] = useState(false);
   const [showArrows, setShowArrows] = useState(false);
   const [showStoppages, setShowStoppages] = useState(false);
   const [mapType, setMapType] = useState<"roadmap" | "satellite">("roadmap");
@@ -845,6 +858,14 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
 
   // Draggable Route Color Legend state & hooks
   const [showLegend, setShowLegend] = useState(false);
+
+  useEffect(() => {
+    if (isRouteDisabled) {
+      if (showHistory) setShowHistory(false);
+      if (showArrows) setShowArrows(false);
+      if (showLegend) setShowLegend(false);
+    }
+  }, [isRouteDisabled, showHistory, showArrows, showLegend]);
   const [hiddenRouteImeis, setHiddenRouteImeis] = useState<Record<string, boolean>>({});
   const [legendSearch, setLegendSearch] = useState("");
   const [legendVisibilityFilter, setLegendVisibilityFilter] = useState<"all" | "visible" | "hidden">("all");
@@ -956,6 +977,22 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
     return !hiddenRouteImeis[imei];
   }, [selectedVehicle, hiddenRouteImeis]);
 
+  const [routesMap, setRoutesMap] = useState<Record<string, any>>({});
+  const requestedImeisRef = useRef<Set<string>>(new Set());
+  const yesterdayStr = useMemo(() => getYesterdayDateString(), []);
+  const todayStr = useMemo(() => getTodayDateString(), []);
+  const [routeDate, setRouteDate] = useState<string>(getYesterdayDateString);
+  const activeFetchDateRef = useRef<string>(getYesterdayDateString());
+
+  const handleDateChange = useCallback((newDate: string) => {
+    if (!newDate) return;
+    setRouteDate(newDate);
+    activeFetchDateRef.current = newDate;
+    requestedImeisRef.current.clear();
+    setRoutesMap({});
+    setShowHistory(true);
+  }, []);
+
   const routeColor = useMemo(() => {
     if (!selectedVehicle) return "#3b82f6"; // Fallback color
     const id = selectedVehicle.imei || selectedVehicle.uniqueId || selectedVehicle.deviceId;
@@ -963,9 +1000,15 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
   }, [selectedVehicle, getRouteColorById]);
 
   // Extract start and end coordinates of the selected route
+  const currentSelectedRouteData = useMemo(() => {
+    if (!selectedVehicle) return selectedRouteData;
+    const imei = String(selectedVehicle.uniqueId || selectedVehicle.imei);
+    return routesMap[imei] || selectedRouteData || null;
+  }, [selectedVehicle, routesMap, selectedRouteData]);
+
   const routeMarkers = useMemo(() => {
-    if (!selectedRouteData?.deviceDataByTrips) return null;
-    const nonElTrips = selectedRouteData.deviceDataByTrips.filter((t: any) => t.length > 0);
+    if (!currentSelectedRouteData?.deviceDataByTrips) return null;
+    const nonElTrips = currentSelectedRouteData.deviceDataByTrips.filter((t: any) => t.length > 0);
     if (nonElTrips.length === 0) return null;
 
     const startPoint = nonElTrips[0][0];
@@ -976,7 +1019,7 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
       start: startPoint ? { lat: startPoint.latitude, lng: startPoint.longitude } : null,
       end: endPoint ? { lat: endPoint.latitude, lng: endPoint.longitude } : null,
     };
-  }, [selectedRouteData]);
+  }, [currentSelectedRouteData]);
 
   // Filter valid vehicles with memoization
   const validVehicles = useMemo(() => {
@@ -991,42 +1034,62 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
     );
   }, [vehicles]);
 
-  const [routesMap, setRoutesMap] = useState<Record<string, any>>({});
-  const requestedImeisRef = useRef<Set<string>>(new Set());
-
-
-  const localUrl = process.env.NODE_ENV === "development"
-    ? "http://localhost:5001"
-    : (process.env.NEXT_PUBLIC_LOCAL_URL || (typeof window !== "undefined" ? `${window.location.origin}/local` : ""));
-
-
-  // Automatically fetch route history for all visible valid vehicles
+  // Fetch route history for all visible valid vehicles ONLY when showHistory is active and role is allowed
   useEffect(() => {
-    if (validVehicles.length === 0) return;
+    if (isRouteDisabled || !showHistory || validVehicles.length === 0) return;
 
-    validVehicles.forEach((vehicle) => {
+    const dateToFetch = routeDate;
+    activeFetchDateRef.current = dateToFetch;
+    const { from, to } = getDateRangeForDay(dateToFetch);
+
+    const unrequested = validVehicles.filter((vehicle) => {
       const imei = String(vehicle.uniqueId || vehicle.imei);
-      if (!imei || requestedImeisRef.current.has(imei)) return;
-
-      requestedImeisRef.current.add(imei);
-
-      fetch(`/history-playback-data/${imei}.json`)
-        .then((res) => {
-          if (!res.ok) {
-            throw new Error("No route");
-          }
-          return res.json();
-        })
-        .then((data) => {
-          if (data && data.success) {
-            setRoutesMap((prev) => ({ ...prev, [imei]: data }));
-          }
-        })
-        .catch(() => {
-          // Silent catch - we already marked it as requested
-        });
+      return imei && !requestedImeisRef.current.has(imei);
     });
-  }, [validVehicles]);
+
+    if (unrequested.length === 0) return;
+
+    unrequested.forEach((v) => {
+      const imei = String(v.uniqueId || v.imei);
+      requestedImeisRef.current.add(imei);
+    });
+
+    setIsFetchingRoutes(true);
+    const BATCH_SIZE = 5;
+    const fetchRoutes = async () => {
+      try {
+        for (let i = 0; i < unrequested.length; i += BATCH_SIZE) {
+          if (activeFetchDateRef.current !== dateToFetch) break;
+          const batch = unrequested.slice(i, i + BATCH_SIZE);
+          await Promise.allSettled(
+            batch.map(async (vehicle) => {
+              const imei = String(vehicle.uniqueId || vehicle.imei);
+              try {
+                const data = await reportService.getHistoryReport({
+                  uniqueId: imei,
+                  from,
+                  to,
+                  period: "Custom",
+                });
+                if (activeFetchDateRef.current !== dateToFetch) return;
+                if (data && (data.deviceDataByTrips?.length > 0 || data.success)) {
+                  setRoutesMap((prev) => ({ ...prev, [imei]: data }));
+                }
+              } catch {
+                // Ignore errors for individual vehicles without trips
+              }
+            })
+          );
+        }
+      } finally {
+        if (activeFetchDateRef.current === dateToFetch) {
+          setIsFetchingRoutes(false);
+        }
+      }
+    };
+
+    fetchRoutes();
+  }, [isRouteDisabled, showHistory, validVehicles, routeDate]);
 
   // Extract and memoize route items with their vehicle details for filtering
   const routeEntries = useMemo(() => {
@@ -1224,9 +1287,25 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
         {onToggleAllInTable && (
           <button
             className={`map-control-button ${isAllInTableActive ? "fit-bounds-btn" : ""}`}
-            onClick={() => onToggleAllInTable(!isAllInTableActive)}
-            title={isAllInTableActive ? "Show Paginated Routes" : "Show All Routes in Table"}
-            data-tooltip={isAllInTableActive ? "Show Paginated Routes" : "Show All Routes in Table"}
+            onClick={() => {
+              if (isRouteDisabled) return;
+              onToggleAllInTable(!isAllInTableActive);
+            }}
+            disabled={isRouteDisabled}
+            title={
+              isRouteDisabled
+                ? "Show All Routes in Table is disabled for your role"
+                : isAllInTableActive
+                ? "Show Paginated Routes"
+                : "Show All Routes in Table"
+            }
+            data-tooltip={
+              isRouteDisabled
+                ? "Show All Routes in Table is disabled for your role"
+                : isAllInTableActive
+                ? "Show Paginated Routes"
+                : "Show All Routes in Table"
+            }
             style={{
               width: "36px",
               height: "36px",
@@ -1236,14 +1315,23 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
               justifyContent: "center",
               borderRadius: "6px",
               boxShadow: "0 2px 8px rgba(0, 0, 0, 0.15)",
-              cursor: "pointer",
+              cursor: isRouteDisabled ? "not-allowed" : "pointer",
               border: "none",
-              backgroundColor: isAllInTableActive ? "#007bff" : "#ffffff",
-              color: isAllInTableActive ? "#ffffff" : "#374151",
+              backgroundColor: isRouteDisabled
+                ? "#f3f4f6"
+                : isAllInTableActive
+                ? "#007bff"
+                : "#ffffff",
+              color: isRouteDisabled
+                ? "#9ca3af"
+                : isAllInTableActive
+                ? "#ffffff"
+                : "#374151",
+              opacity: isRouteDisabled ? 0.5 : 1,
               transition: "all 0.2s ease"
             }}
           >
-            <List size={20} className={isAllInTableActive ? "text-white" : "text-gray-700"} />
+            <List size={20} className={isRouteDisabled ? "text-gray-400" : (isAllInTableActive ? "text-white" : "text-gray-700")} />
           </button>
         )}
 
@@ -1275,9 +1363,25 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
         {/* Toggle History Route */}
         <button
           className={`map-control-button ${showHistory ? "fit-bounds-btn" : ""}`}
-          onClick={() => setShowHistory((prev) => !prev)}
-          title={showHistory ? "Hide Route History" : "Show Route History"}
-          data-tooltip={showHistory ? "Hide Route History" : "Show Route History"}
+          onClick={() => {
+            if (isRouteDisabled) return;
+            setShowHistory((prev) => !prev);
+          }}
+          disabled={isRouteDisabled}
+          title={
+            isRouteDisabled
+              ? "Show Route is disabled for your role"
+              : showHistory
+              ? (isFetchingRoutes ? `Loading Routes (${routeDate})...` : `Hide Route History (${routeDate})`)
+              : `Show Route History (${routeDate})`
+          }
+          data-tooltip={
+            isRouteDisabled
+              ? "Show Route is disabled for your role"
+              : showHistory
+              ? (isFetchingRoutes ? `Loading Routes (${routeDate})...` : `Hide Route History (${routeDate})`)
+              : `Show Route History (${routeDate})`
+          }
           style={{
             width: "36px",
             height: "36px",
@@ -1287,22 +1391,51 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
             justifyContent: "center",
             borderRadius: "6px",
             boxShadow: "0 2px 8px rgba(0, 0, 0, 0.15)",
-            cursor: "pointer",
+            cursor: isRouteDisabled ? "not-allowed" : "pointer",
             border: "none",
-            backgroundColor: showHistory ? "#007bff" : "#ffffff",
-            color: showHistory ? "#ffffff" : "#374151",
+            backgroundColor: isRouteDisabled
+              ? "#f3f4f6"
+              : showHistory
+              ? "#007bff"
+              : "#ffffff",
+            color: isRouteDisabled
+              ? "#9ca3af"
+              : showHistory
+              ? "#ffffff"
+              : "#374151",
+            opacity: isRouteDisabled ? 0.5 : 1,
             transition: "all 0.2s ease"
           }}
         >
-          <MdDirections size={22} className={showHistory ? "text-white" : "text-gray-700"} />
+          {isFetchingRoutes ? (
+            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+          ) : (
+            <MdDirections size={22} className={isRouteDisabled ? "text-gray-400" : (showHistory ? "text-white" : "text-gray-700")} />
+          )}
         </button>
 
         {/* Toggle Route Arrows */}
         <button
           className={`map-control-button ${showArrows ? "fit-bounds-btn" : ""}`}
-          onClick={() => setShowArrows((prev) => !prev)}
-          title={showArrows ? "Hide Route Arrows" : "Show Route Arrows"}
-          data-tooltip={showArrows ? "Hide Route Arrows" : "Show Route Arrows"}
+          onClick={() => {
+            if (isRouteDisabled) return;
+            setShowArrows((prev) => !prev);
+          }}
+          disabled={isRouteDisabled}
+          title={
+            isRouteDisabled
+              ? "Route Arrows disabled for your role"
+              : showArrows
+              ? "Hide Route Arrows"
+              : "Show Route Arrows"
+          }
+          data-tooltip={
+            isRouteDisabled
+              ? "Route Arrows disabled for your role"
+              : showArrows
+              ? "Hide Route Arrows"
+              : "Show Route Arrows"
+          }
           style={{
             width: "36px",
             height: "36px",
@@ -1312,14 +1445,23 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
             justifyContent: "center",
             borderRadius: "6px",
             boxShadow: "0 2px 8px rgba(0, 0, 0, 0.15)",
-            cursor: "pointer",
+            cursor: isRouteDisabled ? "not-allowed" : "pointer",
             border: "none",
-            backgroundColor: showArrows ? "#007bff" : "#ffffff",
-            color: showArrows ? "#ffffff" : "#374151",
+            backgroundColor: isRouteDisabled
+              ? "#f3f4f6"
+              : showArrows
+              ? "#007bff"
+              : "#ffffff",
+            color: isRouteDisabled
+              ? "#9ca3af"
+              : showArrows
+              ? "#ffffff"
+              : "#374151",
+            opacity: isRouteDisabled ? 0.5 : 1,
             transition: "all 0.2s ease"
           }}
         >
-          <Navigation size={18} className={`transform rotate-45 ${showArrows ? "text-white" : "text-gray-700"}`} />
+          <Navigation size={18} className={`transform rotate-45 ${isRouteDisabled ? "text-gray-400" : (showArrows ? "text-white" : "text-gray-700")}`} />
         </button>
 
         {/* Toggle Stoppages */}
@@ -1400,9 +1542,25 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
         {/* Toggle Draggable Route Color Legend */}
         <button
           className={`map-control-button ${showLegend ? "fit-bounds-btn" : ""}`}
-          onClick={() => setShowLegend((prev) => !prev)}
-          title={showLegend ? "Hide Route Legend" : "Show Route Color Legend"}
-          data-tooltip={showLegend ? "Hide Route Legend" : "Show Route Color Legend"}
+          onClick={() => {
+            if (isRouteDisabled) return;
+            setShowLegend((prev) => !prev);
+          }}
+          disabled={isRouteDisabled}
+          title={
+            isRouteDisabled
+              ? "Route Legend disabled for your role"
+              : showLegend
+              ? "Hide Route Legend"
+              : "Show Route Color Legend"
+          }
+          data-tooltip={
+            isRouteDisabled
+              ? "Route Legend disabled for your role"
+              : showLegend
+              ? "Hide Route Legend"
+              : "Show Route Color Legend"
+          }
           style={{
             width: "36px",
             height: "36px",
@@ -1412,14 +1570,23 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
             justifyContent: "center",
             borderRadius: "6px",
             boxShadow: "0 2px 8px rgba(0, 0, 0, 0.15)",
-            cursor: "pointer",
+            cursor: isRouteDisabled ? "not-allowed" : "pointer",
             border: "none",
-            backgroundColor: showLegend ? "#007bff" : "#ffffff",
-            color: showLegend ? "#ffffff" : "#374151",
+            backgroundColor: isRouteDisabled
+              ? "#f3f4f6"
+              : showLegend
+              ? "#007bff"
+              : "#ffffff",
+            color: isRouteDisabled
+              ? "#9ca3af"
+              : showLegend
+              ? "#ffffff"
+              : "#374151",
+            opacity: isRouteDisabled ? 0.5 : 1,
             transition: "all 0.2s ease"
           }}
         >
-          <Palette size={20} className={showLegend ? "text-white" : "text-gray-700"} />
+          <Palette size={20} className={isRouteDisabled ? "text-gray-400" : (showLegend ? "text-white" : "text-gray-700")} />
         </button>
       </div>
 
@@ -1612,7 +1779,7 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
         )}
 
         {/* Route auto-bounding */}
-        {showHistory && isSelectedRouteVisible && <RouteBoundsUpdater routeData={selectedRouteData} />}
+        {showHistory && isSelectedRouteVisible && <RouteBoundsUpdater routeData={currentSelectedRouteData} />}
       </MapContainer>
 
       {/* Draggable Route Color Legend Panel */}
@@ -1695,67 +1862,150 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
           </div>
 
           {/* Filters & Search Header */}
-          {totalRoutesCount > 0 && (
+          <div
+            style={{
+              padding: "8px 12px 6px 12px",
+              borderBottom: "1px solid rgba(229, 231, 235, 0.6)",
+              display: "flex",
+              flexDirection: "column",
+              gap: "6px",
+              backgroundColor: "rgba(255, 255, 255, 0.4)"
+            }}
+          >
+            {/* Date Selector Row */}
             <div
               style={{
-                padding: "8px 12px 6px 12px",
-                borderBottom: "1px solid rgba(229, 231, 235, 0.6)",
                 display: "flex",
                 flexDirection: "column",
-                gap: "6px",
-                backgroundColor: "rgba(255, 255, 255, 0.4)"
+                gap: "5px",
+                backgroundColor: "rgba(243, 244, 246, 0.85)",
+                padding: "6px 8px",
+                borderRadius: "8px",
+                border: "1px solid rgba(229, 231, 235, 0.9)",
               }}
             >
-              {/* Search Input */}
-              <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
-                <Search size={13} style={{ position: "absolute", left: "9px", color: "#9ca3af", pointerEvents: "none" }} />
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "11px", fontWeight: 600, color: "#374151" }}>
+                  <Calendar size={13} style={{ color: "#2563eb" }} />
+                  <span>Route Date:</span>
+                </div>
                 <input
-                  type="text"
-                  placeholder="Filter by vehicle or IMEI..."
-                  value={legendSearch}
-                  onChange={(e) => setLegendSearch(e.target.value)}
+                  type="date"
+                  value={routeDate}
+                  max={todayStr}
+                  onChange={(e) => handleDateChange(e.target.value)}
                   style={{
-                    width: "100%",
-                    padding: "5px 24px 5px 28px",
-                    fontSize: "12px",
-                    borderRadius: "6px",
-                    border: "1px solid rgba(209, 213, 219, 0.8)",
-                    backgroundColor: "rgba(255, 255, 255, 0.9)",
-                    outline: "none",
+                    fontSize: "11px",
+                    padding: "2px 6px",
+                    borderRadius: "4px",
+                    border: "1px solid #d1d5db",
+                    backgroundColor: "#ffffff",
                     color: "#1f2937",
-                    boxSizing: "border-box"
-                  }}
-                  onFocus={(e) => {
-                    e.target.style.borderColor = "#3b82f6";
-                    e.target.style.boxShadow = "0 0 0 2px rgba(59, 130, 246, 0.15)";
-                  }}
-                  onBlur={(e) => {
-                    e.target.style.borderColor = "rgba(209, 213, 219, 0.8)";
-                    e.target.style.boxShadow = "none";
+                    cursor: "pointer",
+                    outline: "none",
+                    fontWeight: 500,
+                    fontFamily: "'Inter', sans-serif"
                   }}
                 />
-                {legendSearch && (
-                  <button
-                    onClick={() => setLegendSearch("")}
-                    style={{
-                      position: "absolute",
-                      right: "6px",
-                      border: "none",
-                      background: "none",
-                      cursor: "pointer",
-                      padding: "2px",
-                      color: "#9ca3af",
-                      display: "flex",
-                      alignItems: "center"
-                    }}
-                    title="Clear search"
-                  >
-                    <X size={12} />
-                  </button>
-                )}
               </div>
 
-              {/* Filter Tabs */}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "4px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                  <button
+                    onClick={() => handleDateChange(yesterdayStr)}
+                    type="button"
+                    style={{
+                      fontSize: "10px",
+                      padding: "2px 7px",
+                      borderRadius: "4px",
+                      border: routeDate === yesterdayStr ? "1px solid #3b82f6" : "1px solid #e5e7eb",
+                      backgroundColor: routeDate === yesterdayStr ? "#eff6ff" : "#ffffff",
+                      color: routeDate === yesterdayStr ? "#1d4ed8" : "#4b5563",
+                      fontWeight: routeDate === yesterdayStr ? 600 : 500,
+                      cursor: "pointer",
+                      transition: "all 0.15s ease",
+                    }}
+                  >
+                    Yesterday
+                  </button>
+                  <button
+                    onClick={() => handleDateChange(todayStr)}
+                    type="button"
+                    style={{
+                      fontSize: "10px",
+                      padding: "2px 7px",
+                      borderRadius: "4px",
+                      border: routeDate === todayStr ? "1px solid #3b82f6" : "1px solid #e5e7eb",
+                      backgroundColor: routeDate === todayStr ? "#eff6ff" : "#ffffff",
+                      color: routeDate === todayStr ? "#1d4ed8" : "#4b5563",
+                      fontWeight: routeDate === todayStr ? 600 : 500,
+                      cursor: "pointer",
+                      transition: "all 0.15s ease",
+                    }}
+                  >
+                    Today
+                  </button>
+                </div>
+                {isFetchingRoutes && (
+                  <div style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "10px", color: "#2563eb", fontWeight: 500 }}>
+                    <div className="w-2.5 h-2.5 border border-blue-600 border-t-transparent rounded-full animate-spin" />
+                    <span>Loading...</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Search Input */}
+            <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+              <Search size={13} style={{ position: "absolute", left: "9px", color: "#9ca3af", pointerEvents: "none" }} />
+              <input
+                type="text"
+                placeholder="Filter by vehicle or IMEI..."
+                value={legendSearch}
+                onChange={(e) => setLegendSearch(e.target.value)}
+                style={{
+                  width: "100%",
+                  padding: "5px 24px 5px 28px",
+                  fontSize: "12px",
+                  borderRadius: "6px",
+                  border: "1px solid rgba(209, 213, 219, 0.8)",
+                  backgroundColor: "rgba(255, 255, 255, 0.9)",
+                  outline: "none",
+                  color: "#1f2937",
+                  boxSizing: "border-box"
+                }}
+                onFocus={(e) => {
+                  e.target.style.borderColor = "#3b82f6";
+                  e.target.style.boxShadow = "0 0 0 2px rgba(59, 130, 246, 0.15)";
+                }}
+                onBlur={(e) => {
+                  e.target.style.borderColor = "rgba(209, 213, 219, 0.8)";
+                  e.target.style.boxShadow = "none";
+                }}
+              />
+              {legendSearch && (
+                <button
+                  onClick={() => setLegendSearch("")}
+                  style={{
+                    position: "absolute",
+                    right: "6px",
+                    border: "none",
+                    background: "none",
+                    cursor: "pointer",
+                    padding: "2px",
+                    color: "#9ca3af",
+                    display: "flex",
+                    alignItems: "center"
+                  }}
+                  title="Clear search"
+                >
+                  <X size={12} />
+                </button>
+              )}
+            </div>
+
+            {/* Filter Tabs */}
+            {totalRoutesCount > 0 && (
               <div style={{ display: "flex", alignItems: "center", width: "100%" }}>
                 {/* Visibility Segmented Tabs */}
                 <div
@@ -1802,8 +2052,8 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
                   })}
                 </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
 
           {/* Action Row (Hide All / Show All / Reset) */}
           {totalRoutesCount > 0 && (
@@ -1886,8 +2136,20 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
             className="legend-body"
           >
             {totalRoutesCount === 0 ? (
-              <div style={{ fontSize: "12px", color: "#6b7280", textAlign: "center", padding: "12px 0" }}>
-                No active routes rendered.
+              <div style={{ fontSize: "12px", color: "#6b7280", textAlign: "center", padding: "16px 8px" }}>
+                {isFetchingRoutes ? (
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "8px" }}>
+                    <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                    <span style={{ fontSize: "11px", color: "#2563eb", fontWeight: 500 }}>
+                      Loading routes for {routeDate}...
+                    </span>
+                  </div>
+                ) : (
+                  <div>
+                    <p style={{ margin: "0 0 4px 0", fontWeight: 500, color: "#374151" }}>No route history found</p>
+                    <p style={{ margin: 0, fontSize: "11px", color: "#9ca3af" }}>No trip data recorded on {routeDate}</p>
+                  </div>
+                )}
               </div>
             ) : filteredRouteEntries.length === 0 ? (
               <div style={{ fontSize: "12px", color: "#6b7280", textAlign: "center", padding: "16px 8px" }}>
