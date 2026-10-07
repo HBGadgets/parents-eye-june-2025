@@ -12,8 +12,8 @@ export function useRouteTimelineSync(
   geofences: Geofence[] = [],
   timelineEvents: TimelineEvent[] = [],
   uniqueId: string,
-  startPoint?: Geofence,
-  endPoint?: Geofence
+  startPoint?: Geofence | null,
+  endPoint?: Geofence | null
 ) {
   const setStops = useRouteTimelineStore((s) => s.setStops);
   const currentStops = useRouteTimelineStore((s) => s.stops);
@@ -22,20 +22,37 @@ export function useRouteTimelineSync(
     // 🔹 Build ordered geofence list
     const orderedGeofences: Geofence[] = [];
 
-    if (startPoint) {
-      orderedGeofences.push({ ...startPoint, __type: "START" } as any);
+    const isValidPoint = (geo?: any) => {
+      if (!geo) return false;
+      const id = geo._id ?? geo.id;
+      return Boolean(id && id !== "null");
+    };
+
+    const startPointId = startPoint?._id ?? (startPoint as any)?.id;
+    const endPointId = endPoint?._id ?? (endPoint as any)?.id;
+
+    if (isValidPoint(startPoint)) {
+      orderedGeofences.push({
+        ...startPoint,
+        _id: startPointId,
+        __type: "START",
+      } as any);
     }
 
     for (const geo of geofences) {
       // avoid duplicate if startPoint is also in data
-      if (startPoint && geo._id === startPoint._id) continue;
-      if (endPoint && geo._id === endPoint._id) continue;
+      if (startPointId && geo._id === startPointId) continue;
+      if (endPointId && geo._id === endPointId) continue;
 
       orderedGeofences.push({ ...geo, __type: "NORMAL" } as any);
     }
 
-    if (endPoint) {
-      orderedGeofences.push({ ...endPoint, __type: "END" } as any);
+    if (isValidPoint(endPoint)) {
+      orderedGeofences.push({
+        ...endPoint,
+        _id: endPointId,
+        __type: "END",
+      } as any);
     }
 
     // 🔹 No geofences at all → clear
@@ -94,7 +111,7 @@ export function useRouteTimelineSync(
       return;
     }
 
-    setStops(stops);
+    setStops(stops as any);
   }, [
     geofences,
     timelineEvents,

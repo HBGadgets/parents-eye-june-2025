@@ -124,10 +124,26 @@ export const useGeofenceByUniqueId = (uniqueId: string) => {
     enabled: !!uniqueId,
   });
 
+  const rawStartPoint = geofenceByUniqueId.data?.startPointGeoId;
+  const rawEndPoint = geofenceByUniqueId.data?.endPointGeoId;
+
+  const isValidPoint = (geo?: any) => {
+    if (!geo) return false;
+    const id = geo._id ?? geo.id;
+    return Boolean(id && id !== "null");
+  };
+
+  const startPoint = isValidPoint(rawStartPoint)
+    ? { ...rawStartPoint, _id: rawStartPoint._id ?? rawStartPoint.id }
+    : null;
+  const endPoint = isValidPoint(rawEndPoint)
+    ? { ...rawEndPoint, _id: rawEndPoint._id ?? rawEndPoint.id }
+    : null;
+
   return {
     geofenceByUniqueId: geofenceByUniqueId.data?.data || [],
-    startPoint: geofenceByUniqueId.data?.startPointGeoId,
-    endPoint: geofenceByUniqueId.data?.endPointGeoId,
+    startPoint,
+    endPoint,
     isLoadingByUniqueId: geofenceByUniqueId.isLoading,
     isError: geofenceByUniqueId.isError,
     error: geofenceByUniqueId.error,

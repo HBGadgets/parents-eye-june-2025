@@ -32,6 +32,7 @@ import { Geofence } from "@/interface/modal";
 // import { useDistance } from "@/hooks/useDistance";
 import { reverseGeocodeMapTiler } from "@/hooks/useReverseGeocoding";
 import { useSmoothSocketSpeed } from "@/hooks/useSmoothRandomSpeed";
+import StopChildrenList from "../route/StopChildrenList";
 
 type UserRole = "superAdmin" | "school" | "branchGroup" | "branch" | null;
 
@@ -150,11 +151,24 @@ const GeofenceLayer = ({
                 dashArray: "5 5",
               }}
             >
-              <Popup>
-                <div className="text-sm">
+              <Popup maxWidth={300} autoPan={false}>
+                <div className="text-sm" style={{ minWidth: "200px" }}>
                   <strong>{geofence.geofenceName}</strong>
                   <br />
-                  Radius: {geofence.area.radius} m
+                  <span style={{ fontSize: "11px", color: "#6b7280" }}>
+                    Radius: {geofence.area.radius} m
+                  </span>
+                  {geofence.address && (
+                    <div style={{ fontSize: "10px", color: "#9ca3af", marginTop: "2px" }}>
+                      📍 {geofence.address}
+                    </div>
+                  )}
+                  <StopChildrenList
+                    geofenceId={geofence._id}
+                    geofenceName={geofence.geofenceName}
+                    compact
+                    maxHeight="160px"
+                  />
                 </div>
               </Popup>
             </Circle>

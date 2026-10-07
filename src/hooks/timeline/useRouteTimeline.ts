@@ -11,21 +11,25 @@ export function useRouteTimeline(uniqueId: string, enabled: boolean) {
     geofencesQuery.geofenceByUniqueId,
     timelineQuery.data?.timeline ?? [],
     uniqueId,
-    geofencesQuery.startPoint,
-    geofencesQuery.endPoint
+    geofencesQuery.startPoint as any,
+    geofencesQuery.endPoint as any
   );
 
   const stops = useRouteTimelineStore((s) => s.stops);
   const currentStopIndex = useRouteTimelineStore((s) => s.currentStopIndex);
 
    const resolvedStartPoint = useMemo(() => {
-     if (!geofencesQuery.startPoint) return null;
-     return stops.find((s) => s._id === geofencesQuery.startPoint?._id) ?? null;
+     const startId =
+       geofencesQuery.startPoint?._id ?? (geofencesQuery.startPoint as any)?.id;
+     if (!startId || startId === "null") return null;
+     return stops.find((s) => s._id === startId) ?? null;
    }, [stops, geofencesQuery.startPoint]);
 
    const resolvedEndPoint = useMemo(() => {
-     if (!geofencesQuery.endPoint) return null;
-     return stops.find((s) => s._id === geofencesQuery.endPoint?._id) ?? null;
+     const endId =
+       geofencesQuery.endPoint?._id ?? (geofencesQuery.endPoint as any)?.id;
+     if (!endId || endId === "null") return null;
+     return stops.find((s) => s._id === endId) ?? null;
    }, [stops, geofencesQuery.endPoint]);
 
 

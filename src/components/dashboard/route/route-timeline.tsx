@@ -51,6 +51,15 @@ export const RouteTimeline: React.FC<RouteTimelineProps> = ({
   useEffect(() => {
     resetTimeline();
   }, [resetTimeline, uniqueId]);
+  const isValidPoint = (point?: any) => {
+    if (!point) return false;
+    const id = point._id ?? point.id;
+    return Boolean(id && id !== "null");
+  };
+
+  const hasStartPoint = isValidPoint(startPoint);
+  const hasEndPoint = isValidPoint(endPoint);
+
   return (
     <Sheet open={isOpen} onOpenChange={onOpenChange}>
       <SheetContent
@@ -114,9 +123,9 @@ export const RouteTimeline: React.FC<RouteTimelineProps> = ({
             ) : stops.length > 0 ? (
               <>
                 {/* START & END POINTS */}
-                {(startPoint || endPoint) && (
+                {(hasStartPoint || hasEndPoint) && (
                   <div className="mb-4 space-y-2">
-                    {startPoint && (
+                    {hasStartPoint && startPoint && (
                       <div className="flex items-center gap-3 p-3 rounded-lg border bg-emerald-50">
                         <div className="h-2.5 w-2.5 rounded-full bg-emerald-600" />
                         <div>
@@ -124,16 +133,18 @@ export const RouteTimeline: React.FC<RouteTimelineProps> = ({
                             START POINT
                           </p>
                           <p className="text-sm text-foreground">
-                            {startPoint.geofenceName}
+                            {startPoint.geofenceName || (startPoint as any).address}
                           </p>
-                          <p className="text-xs text-muted-foreground">
-                            Pickup: {startPoint.pickupTime}
-                          </p>
+                          {startPoint.pickupTime && (
+                            <p className="text-xs text-muted-foreground">
+                              Pickup: {startPoint.pickupTime}
+                            </p>
+                          )}
                         </div>
                       </div>
                     )}
 
-                    {endPoint && (
+                    {hasEndPoint && endPoint && (
                       <div className="flex items-center gap-3 p-3 rounded-lg border bg-rose-50">
                         <div className="h-2.5 w-2.5 rounded-full bg-rose-600" />
                         <div>
@@ -141,11 +152,13 @@ export const RouteTimeline: React.FC<RouteTimelineProps> = ({
                             END POINT
                           </p>
                           <p className="text-sm text-foreground">
-                            {endPoint.geofenceName}
+                            {endPoint.geofenceName || (endPoint as any).address}
                           </p>
-                          <p className="text-xs text-muted-foreground">
-                            Drop: {endPoint.dropTime}
-                          </p>
+                          {endPoint.dropTime && (
+                            <p className="text-xs text-muted-foreground">
+                              Drop: {endPoint.dropTime}
+                            </p>
+                          )}
                         </div>
                       </div>
                     )}

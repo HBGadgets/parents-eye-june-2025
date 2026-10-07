@@ -6,18 +6,21 @@ import React, {
   useState,
   useLayoutEffect,
 } from "react";
-import { MapContainer, TileLayer, Marker, Popup, useMap, Polyline, Tooltip } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Popup, useMap, Polyline, Tooltip, Circle } from "react-leaflet";
 import MarkerClusterGroup from "react-leaflet-cluster";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import "./VehicleMap.css";
 import { calculateTimeSince } from "@/util/calculateTimeSince";
-import { Satellite, List, Palette, X, Navigation, MapPin, Eye, EyeOff, Locate, Bus, Search, Calendar } from "lucide-react";
+import { Satellite, List, Palette, X, Navigation, MapPin, Eye, EyeOff, Locate, Bus, Search, Calendar, Loader2 } from "lucide-react";
 import { LiaTrafficLightSolid } from "react-icons/lia";
 import { MdDirections } from "react-icons/md";
 import { reportService } from "@/services/api/reportService";
+import { geofenceService } from "@/services/api/geofenceSerevice";
+import { Geofence } from "@/interface/modal";
 import { getYesterdayDateRange, getYesterdayDateString, getTodayDateString, getDateRangeForDay } from "@/util/dateFormatters";
 import { useAuthStore } from "@/store/authStore";
+import StopChildrenList from "./route/StopChildrenList";
 
 const ROUTE_STATUS_CONFIG: Record<
   string,
@@ -100,11 +103,49 @@ const VehicleBusMarker = React.memo(
     vehicle,
     onClick,
     isSelected,
+    stoppageData,
+    onStoppageClick,
   }: {
     vehicle: VehicleData;
     onClick?: (vehicle: VehicleData) => void;
     isSelected?: boolean;
+    stoppageData?: {
+      stops: Geofence[];
+      startPoint: Geofence | null;
+      endPoint: Geofence | null;
+    };
+    onStoppageClick?: (stoppageKey: string, coords: [number, number]) => void;
   }) => {
+    const orderedStoppages = useMemo(() => {
+      if (!stoppageData) return [];
+      const list: Array<{
+        item: any;
+        type: "start" | "stop" | "end";
+        stopNumber?: number;
+      }> = [];
+
+      const startId = stoppageData.startPoint?._id ?? (stoppageData.startPoint as any)?.id;
+      const endId = stoppageData.endPoint?._id ?? (stoppageData.endPoint as any)?.id;
+
+      if (stoppageData.startPoint) {
+        list.push({ item: stoppageData.startPoint, type: "start" });
+      }
+
+      let num = 1;
+      (stoppageData.stops || []).forEach((st) => {
+        const stId = st._id ?? (st as any)?.id;
+        if (startId && stId === startId) return;
+        if (endId && stId === endId) return;
+        list.push({ item: st, type: "stop", stopNumber: num++ });
+      });
+
+      if (stoppageData.endPoint) {
+        list.push({ item: stoppageData.endPoint, type: "end" });
+      }
+
+      return list;
+    }, [stoppageData]);
+
     // Memoize vehicle status calculation
     const vehicleStatus = useMemo(() => {
       const lastUpdateTime = new Date(vehicle.lastUpdate).getTime();
@@ -222,7 +263,7 @@ const VehicleBusMarker = React.memo(
           click: handleClick,
         }}
       >
-        <Popup maxWidth={290} className="vehicle-popup" maxHeight={300}>
+        <Popup maxWidth={290} className="vehicle-popup" maxHeight={300} autoPan={false}>
           <div className="vehicle-popup-content">
             <div className="vehicle-header">
               <h3 className="vehicle-name">{vehicle.name}</h3>
@@ -251,6 +292,91 @@ const VehicleBusMarker = React.memo(
                 <div className="detail-row">
                   <span className="label">No. of Stops:</span>
                   <span className="value">{vehicle.noOfStops}</span>
+                </div>
+              )}
+              {orderedStoppages.length > 0 && (
+                <div style={{ marginTop: "6px", borderTop: "1px dashed #e5e7eb", paddingTop: "5px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "3px" }}>
+                    <span style={{ fontSize: "11px", fontWeight: 600, color: "#374151" }}>
+                      Stoppages ({orderedStoppages.length}):
+                    </span>
+                    <span style={{ fontSize: "9px", color: "#9ca3af" }}>Click stop to zoom</span>
+                  </div>
+                  <div style={{ maxHeight: "110px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "2px" }}>
+                    {orderedStoppages.map((st, sIdx) => {
+                      const coords = getGeofenceCoords(st.item);
+                      const stoppageKey = `${String(vehicle.uniqueId || vehicle.imei)}-${st.type}-${st.item._id || (st.item as any)?.id || sIdx}`;
+                      return (
+                        <div
+                          key={sIdx}
+                          onClick={(e) => {
+                            if (coords && onStoppageClick) {
+                              e.stopPropagation();
+                              onStoppageClick(stoppageKey, coords);
+                            }
+                          }}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "4px",
+                            fontSize: "10px",
+                            padding: "2px 4px",
+                            backgroundColor: "#f9fafb",
+                            borderRadius: "3px",
+                            cursor: coords ? "pointer" : "default",
+                            transition: "background-color 0.15s ease",
+                          }}
+                          onMouseEnter={(e) => {
+                            if (coords) e.currentTarget.style.backgroundColor = "#eff6ff";
+                          }}
+                          onMouseLeave={(e) => {
+                            if (coords) e.currentTarget.style.backgroundColor = "#f9fafb";
+                          }}
+                          title={coords ? `Click to zoom & open popup: ${st.item.geofenceName || "Stop"}` : undefined}
+                        >
+                          <span
+                            style={{
+                              fontSize: "8px",
+                              fontWeight: 700,
+                              padding: "1px 3px",
+                              borderRadius: "2px",
+                              backgroundColor:
+                                st.type === "start"
+                                  ? "#ecfdf5"
+                                  : st.type === "end"
+                                  ? "#fef2f2"
+                                  : "#eff6ff",
+                              color:
+                                st.type === "start"
+                                  ? "#059669"
+                                  : st.type === "end"
+                                  ? "#dc2626"
+                                  : "#2563eb",
+                            }}
+                          >
+                            {st.type === "start" ? "S" : st.type === "end" ? "E" : `#${st.stopNumber}`}
+                          </span>
+                          <span
+                            style={{
+                              fontWeight: 500,
+                              color: "#1f2937",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                              flex: 1,
+                            }}
+                          >
+                            {st.item.geofenceName || "Stop"}
+                          </span>
+                          {st.item.pickupTime && (
+                            <span style={{ color: "#059669", fontSize: "9px" }}>
+                              {st.item.pickupTime}
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
               <div className="detail-row">
@@ -642,22 +768,31 @@ const getBearing = (from: [number, number], to: [number, number]): number => {
   return (brng + 360) % 360;
 };
 
-const createArrowIcon = (course: number, color: string = "#3b82f6", size: number = 24) => {
-  return L.divIcon({
-    className: "course-arrow",
-    html: `
-      <div style="transform: rotate(${course + 180}deg); width: ${size}px; height: ${size}px; display: flex; align-items: center; justify-content: center;">
-        <div style="display: flex; flex-direction: column; align-items: center; margin-top: -3px;">
-          <svg width="${Math.round(size * 0.75)}" height="${Math.round(size * 0.75)}" viewBox="0 0 24 24" fill="none" style="filter: drop-shadow(0px 1px 2px rgba(0,0,0,0.6));">
-            <path d="M7 6L12 11L17 6" stroke="white" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
-            <path d="M7 14L12 19L17 14" stroke="white" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
+const arrowIconCache = new Map<string, L.DivIcon>();
+
+const createArrowIcon = (course: number, color: string = "#3b82f6", size: number = 20) => {
+  const roundedCourse = Math.round(course / 10) * 10;
+  const cacheKey = `${roundedCourse}_${color}_${size}`;
+  let icon = arrowIconCache.get(cacheKey);
+  if (!icon) {
+    icon = L.divIcon({
+      className: "course-arrow",
+      html: `
+        <div style="transform: rotate(${roundedCourse + 180}deg); width: ${size}px; height: ${size}px; display: flex; align-items: center; justify-content: center; pointer-events: none;">
+          <div style="display: flex; flex-direction: column; align-items: center; margin-top: -2px;">
+            <svg width="${Math.round(size * 0.75)}" height="${Math.round(size * 0.75)}" viewBox="0 0 24 24" fill="none" style="filter: drop-shadow(0px 1px 2px rgba(0,0,0,0.5));">
+              <path d="M7 6L12 11L17 6" stroke="white" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M7 14L12 19L17 14" stroke="white" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
         </div>
-      </div>
-    `,
-    iconSize: [size, size],
-    iconAnchor: [size / 2, size / 2],
-  });
+      `,
+      iconSize: [size, size],
+      iconAnchor: [size / 2, size / 2],
+    });
+    arrowIconCache.set(cacheKey, icon);
+  }
+  return icon;
 };
 
 const createStopDotIcon = () => {
@@ -703,6 +838,93 @@ const createStopDotIcon = () => {
     iconAnchor: [12, 12],
   });
 };
+
+const isValidGeofencePoint = (geo?: any) => {
+  if (!geo) return false;
+  const id = geo._id ?? geo.id;
+  if (!id || id === "null") return false;
+  return true;
+};
+
+const getGeofenceCoords = (geofence: any): [number, number] | null => {
+  if (!geofence) return null;
+  if (
+    geofence.area?.center &&
+    Array.isArray(geofence.area.center) &&
+    geofence.area.center.length >= 2
+  ) {
+    const lat = Number(geofence.area.center[0]);
+    const lng = Number(geofence.area.center[1]);
+    if (!isNaN(lat) && !isNaN(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180) {
+      return [lat, lng];
+    }
+  }
+  if (geofence.latitude !== undefined && geofence.longitude !== undefined) {
+    const lat = Number(geofence.latitude);
+    const lng = Number(geofence.longitude);
+    if (!isNaN(lat) && !isNaN(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180) {
+      return [lat, lng];
+    }
+  }
+  if (geofence.lat !== undefined && geofence.lng !== undefined) {
+    const lat = Number(geofence.lat);
+    const lng = Number(geofence.lng);
+    if (!isNaN(lat) && !isNaN(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180) {
+      return [lat, lng];
+    }
+  }
+  return null;
+};
+
+const createMapStoppageIcon = (
+  type: "start" | "stop" | "end",
+  stopNumber?: number,
+  color: string = "#2563eb"
+) => {
+  const isStart = type === "start";
+  const isEnd = type === "end";
+  const label = isStart ? "S" : isEnd ? "E" : String(stopNumber ?? "");
+  const bgColor = isStart ? "#059669" : isEnd ? "#dc2626" : color;
+
+  return L.divIcon({
+    className: "custom-stoppage-pin",
+    html: `
+      <div style="position: relative; width: 30px; height: 38px; display: flex; flex-direction: column; align-items: center; filter: drop-shadow(0 3px 6px rgba(0,0,0,0.35)); cursor: pointer;">
+        <div style="
+          width: 28px;
+          height: 28px;
+          background: ${bgColor};
+          border: 2px solid #ffffff;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: #ffffff;
+          font-weight: 800;
+          font-size: ${label.length > 2 ? "10px" : "12px"};
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+          box-shadow: inset 0 1px 2px rgba(255,255,255,0.35);
+          z-index: 2;
+        ">
+          ${label}
+        </div>
+        <div style="
+          width: 0;
+          height: 0;
+          border-left: 6px solid transparent;
+          border-right: 6px solid transparent;
+          border-top: 8px solid ${bgColor};
+          margin-top: -2px;
+          z-index: 1;
+        "></div>
+      </div>
+    `,
+    iconSize: [30, 38],
+    iconAnchor: [15, 36],
+    popupAnchor: [0, -36],
+  });
+};
+
 
 const computeRouteDecorations = (trip: any[], arrowSpacing: number = 1000) => {
   const arrows: Array<{
@@ -790,6 +1012,281 @@ const computeRouteDecorations = (trip: any[], arrowSpacing: number = 1000) => {
   return { arrows, stops };
 };
 
+// Fast distance & angle downsampling for map polylines
+// Retains points where distance >= toleranceMeters, plus first and last points
+const simplifyTripPoints = (
+  points: Array<{ latitude: number; longitude: number }>,
+  toleranceMeters: number = 8
+): [number, number][] => {
+  if (!points || points.length === 0) return [];
+  if (points.length <= 2) {
+    return points.map((p) => [p.latitude, p.longitude] as [number, number]);
+  }
+
+  const result: [number, number][] = [[points[0].latitude, points[0].longitude]];
+  let prevLat = points[0].latitude;
+  let prevLng = points[0].longitude;
+
+  // Approx conversion: 1 deg lat ~ 111,000m, 1 deg lng ~ 111,000m * cos(lat)
+  const latFactor = 111000;
+  const lngFactor = 111000 * Math.cos((prevLat * Math.PI) / 180);
+  const tolSq = toleranceMeters * toleranceMeters;
+
+  for (let i = 1; i < points.length - 1; i++) {
+    const p = points[i];
+    const dy = (p.latitude - prevLat) * latFactor;
+    const dx = (p.longitude - prevLng) * lngFactor;
+    const distSq = dx * dx + dy * dy;
+
+    if (distSq >= tolSq) {
+      result.push([p.latitude, p.longitude]);
+      prevLat = p.latitude;
+      prevLng = p.longitude;
+    }
+  }
+
+  // Always keep the final point
+  const last = points[points.length - 1];
+  result.push([last.latitude, last.longitude]);
+  return result;
+};
+
+interface ProcessedTrip {
+  positions: [number, number][];
+  rawTrip: any[];
+}
+
+const RouteArrows = React.memo(
+  ({
+    trip,
+    color,
+    arrowSpacing,
+    imei,
+    tripIndex,
+    isSelected,
+    totalRoutesCount,
+  }: {
+    trip: any[];
+    color: string;
+    arrowSpacing: number;
+    imei: string;
+    tripIndex: number;
+    isSelected: boolean;
+    totalRoutesCount: number;
+  }) => {
+    const map = useMap();
+    const [mapState, setMapState] = useState(() => ({
+      zoom: map.getZoom(),
+      bounds: map.getBounds(),
+    }));
+
+    useEffect(() => {
+      const update = () => {
+        setMapState({
+          zoom: map.getZoom(),
+          bounds: map.getBounds(),
+        });
+      };
+      // Only fire after user finishes panning/zooming - NEVER on every drag frame!
+      map.on("moveend", update);
+      map.on("zoomend", update);
+      return () => {
+        map.off("moveend", update);
+        map.off("zoomend", update);
+      };
+    }, [map]);
+
+    // For large fleets (> 5 routes), non-selected routes don't render arrows when zoomed out (< 13)
+    if (!isSelected && totalRoutesCount > 5 && mapState.zoom < 13) {
+      return null;
+    }
+
+    // Quick bounding box check: if trip is completely off-screen, skip
+    if (trip.length > 0) {
+      const first = trip[0];
+      const last = trip[trip.length - 1];
+      const minLat = Math.min(first.latitude, last.latitude);
+      const maxLat = Math.max(first.latitude, last.latitude);
+      const minLng = Math.min(first.longitude, last.longitude);
+      const maxLng = Math.max(first.longitude, last.longitude);
+      const approxBounds = L.latLngBounds([minLat, minLng], [maxLat, maxLng]);
+      if (
+        !mapState.bounds.intersects(approxBounds) &&
+        !mapState.bounds.contains([first.latitude, first.longitude]) &&
+        !mapState.bounds.contains([last.latitude, last.longitude])
+      ) {
+        return null;
+      }
+    }
+
+    const effectiveSpacing = isSelected ? arrowSpacing : Math.max(arrowSpacing, 3500);
+    const { arrows } = computeRouteDecorations(trip, effectiveSpacing);
+
+    // Only render arrows within current viewport bounds, max 4 per non-selected trip, 8 for selected
+    const visibleArrows = arrows
+      .filter((a) => mapState.bounds.contains([a.lat, a.lng]))
+      .slice(0, isSelected ? 8 : 4);
+
+    if (visibleArrows.length === 0) return null;
+
+    return (
+      <>
+        {visibleArrows.map((arrow, arrowIdx) => (
+          <Marker
+            key={`arrow-${imei}-${tripIndex}-${arrowIdx}`}
+            position={[arrow.lat, arrow.lng]}
+            icon={createArrowIcon(arrow.course, color, 18)}
+            zIndexOffset={isSelected ? 300 : 100}
+            interactive={false}
+          />
+        ))}
+      </>
+    );
+  }
+);
+
+const VehicleRouteItem = React.memo(
+  ({
+    imei,
+    trips,
+    color,
+    isSelected,
+    vehicleName,
+    routeName,
+    noOfStudent,
+    noOfStops,
+    showArrows,
+    totalRoutesCount,
+  }: {
+    imei: string;
+    trips: ProcessedTrip[];
+    color: string;
+    isSelected: boolean;
+    vehicleName: string;
+    routeName?: string;
+    noOfStudent?: string | number;
+    noOfStops?: string | number;
+    showArrows: boolean;
+    totalRoutesCount: number;
+  }) => {
+    const arrowSpacing = totalRoutesCount > 50 ? 5000 : 1500;
+
+    return (
+      <React.Fragment key={`route-group-${imei}`}>
+        {trips.map((tripObj, tripIndex) => {
+          const { positions, rawTrip } = tripObj;
+          if (positions.length < 2) return null;
+
+          return (
+            <React.Fragment key={`route-trip-group-${imei}-${tripIndex}`}>
+              <Polyline
+                key={`route-trip-${imei}-${tripIndex}`}
+                positions={positions}
+                pathOptions={{
+                  color: color,
+                  weight: isSelected ? 6 : 4,
+                  opacity: isSelected ? 0.95 : 0.75,
+                  lineJoin: "round",
+                  lineCap: "round",
+                  smoothFactor: 1.5,
+                }}
+              >
+                <Tooltip
+                  direction="top"
+                  opacity={0.95}
+                  sticky={totalRoutesCount < 50}
+                >
+                  <div
+                    style={{
+                      fontFamily: "'Inter', sans-serif",
+                      padding: "4px 8px",
+                      fontSize: "12px",
+                      lineHeight: "1.4",
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontWeight: 600,
+                        color: "#111827",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "6px",
+                      }}
+                    >
+                      <span
+                        style={{
+                          width: "8px",
+                          height: "8px",
+                          borderRadius: "50%",
+                          backgroundColor: color,
+                          display: "inline-block",
+                        }}
+                      />
+                      <span>{vehicleName}</span>
+                    </div>
+                    <div
+                      style={{
+                        marginTop: "4px",
+                        fontSize: "11px",
+                        color: "#374151",
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "2px",
+                      }}
+                    >
+                      {routeName && (
+                        <div>
+                          <strong>Route No:</strong> {routeName}
+                        </div>
+                      )}
+                      {noOfStudent !== undefined && (
+                        <div>
+                          <strong>No. of Students:</strong> {noOfStudent}
+                        </div>
+                      )}
+                      {noOfStops !== undefined && (
+                        <div>
+                          <strong>No. of Stops:</strong> {noOfStops}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </Tooltip>
+              </Polyline>
+
+              {showArrows && (
+                <RouteArrows
+                  trip={rawTrip}
+                  color={color}
+                  arrowSpacing={arrowSpacing}
+                  imei={imei}
+                  tripIndex={tripIndex}
+                  isSelected={isSelected}
+                  totalRoutesCount={totalRoutesCount}
+                />
+              )}
+            </React.Fragment>
+          );
+        })}
+      </React.Fragment>
+    );
+  },
+  (prev, next) => {
+    return (
+      prev.imei === next.imei &&
+      prev.color === next.color &&
+      prev.isSelected === next.isSelected &&
+      prev.showArrows === next.showArrows &&
+      prev.trips === next.trips &&
+      prev.vehicleName === next.vehicleName &&
+      prev.routeName === next.routeName &&
+      prev.noOfStudent === next.noOfStudent &&
+      prev.noOfStops === next.noOfStops &&
+      prev.totalRoutesCount === next.totalRoutesCount
+    );
+  }
+);
+
 // Map route bounds updater
 const RouteBoundsUpdater = ({
   routeData,
@@ -842,7 +1339,6 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
   const rawRole = (userRoleProp || decodedToken?.role || "").toLowerCase();
   const isRouteDisabled = [
     "superadmin",
-    "school",
   ].includes(rawRole);
 
   const [isInitialLoad, setIsInitialLoad] = useState(true);
@@ -853,6 +1349,62 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
   const [showArrows, setShowArrows] = useState(false);
   const [showStoppages, setShowStoppages] = useState(false);
   const [mapType, setMapType] = useState<"roadmap" | "satellite">("roadmap");
+  const [stoppagesMap, setStoppagesMap] = useState<
+    Record<
+      string,
+      {
+        stops: Geofence[];
+        startPoint: Geofence | null;
+        endPoint: Geofence | null;
+        vehicle: VehicleData;
+      }
+    >
+  >({});
+  const [isFetchingStoppages, setIsFetchingStoppages] = useState(false);
+  const requestedStoppageImeisRef = useRef<Set<string>>(new Set());
+  const [selectedStoppageImei, setSelectedStoppageImei] = useState<string | null>(null);
+  const [stoppageSearch, setStoppageSearch] = useState("");
+  const stoppageMarkersRef = useRef<Map<string, L.Marker>>(new Map());
+  const [activeStoppageKey, setActiveStoppageKey] = useState<string | null>(null);
+  const [selectedGeofenceId, setSelectedGeofenceId] = useState<string | null>(null);
+
+  const handleStoppageClick = useCallback(
+    (stoppageKey: string, coords: [number, number], geofenceId?: string) => {
+      setShowStoppages(true);
+      setActiveStoppageKey(stoppageKey);
+      if (geofenceId) {
+        setSelectedGeofenceId(geofenceId);
+      }
+      if (mapRef.current) {
+        const map = mapRef.current;
+        map.flyTo(coords, 17, { animate: true, duration: 0.8 });
+
+        const openTargetPopup = () => {
+          const marker = stoppageMarkersRef.current.get(stoppageKey);
+          if (marker) {
+            marker.openPopup();
+          }
+        };
+
+        map.once("moveend", openTargetPopup);
+        setTimeout(openTargetPopup, 350);
+        setTimeout(openTargetPopup, 850);
+      }
+    },
+    []
+  );
+
+  useEffect(() => {
+    if (!activeStoppageKey) return;
+    const timer = setTimeout(() => {
+      const marker = stoppageMarkersRef.current.get(activeStoppageKey);
+      if (marker) {
+        marker.openPopup();
+      }
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [activeStoppageKey, showStoppages, stoppagesMap]);
+
   const [showTraffic, setShowTraffic] = useState(false);
   const [showMarkers, setShowMarkers] = useState(true);
 
@@ -889,31 +1441,90 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
     }
   }, []);
 
+  // Draggable Route Stoppages Panel refs & mouse handlers
+  const stoppagePanelPosRef = useRef({ x: 335, y: 70 });
+  const stoppageDragRef = useRef<HTMLDivElement>(null);
+  const stoppageRelRef = useRef<{ x: number; y: number } | null>(null);
+
+  const onStoppageMouseDown = useCallback((e: React.MouseEvent) => {
+    if (e.button !== 0) return;
+    const target = e.target as HTMLElement;
+    if (
+      target.closest(".close-stoppage-btn") ||
+      target.closest("button") ||
+      target.closest("input")
+    )
+      return;
+
+    const rect = stoppageDragRef.current?.getBoundingClientRect();
+    const parentRect = stoppageDragRef.current?.parentElement?.getBoundingClientRect();
+    if (rect && parentRect) {
+      stoppageRelRef.current = {
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top,
+      };
+      e.preventDefault();
+    }
+  }, []);
+
+  // Position stoppage panel beside legend panel when opened
+  useEffect(() => {
+    if (selectedStoppageImei && stoppageDragRef.current) {
+      const parentWidth =
+        stoppageDragRef.current.parentElement?.offsetWidth || window.innerWidth;
+      let targetX = legendPositionRef.current.x + 312;
+      if (targetX + 320 > parentWidth) {
+        targetX = Math.max(10, legendPositionRef.current.x - 322);
+      }
+      const targetY = legendPositionRef.current.y;
+      stoppagePanelPosRef.current = { x: targetX, y: targetY };
+      stoppageDragRef.current.style.left = `${targetX}px`;
+      stoppageDragRef.current.style.top = `${targetY}px`;
+    }
+  }, [selectedStoppageImei]);
+
   useEffect(() => {
     const onMouseMove = (e: MouseEvent) => {
-      if (!relRef.current || !dragRef.current) return;
-      const parentRect = dragRef.current.parentElement?.getBoundingClientRect();
-      if (!parentRect) return;
+      if (relRef.current && dragRef.current) {
+        const parentRect = dragRef.current.parentElement?.getBoundingClientRect();
+        if (parentRect) {
+          let newX = e.clientX - parentRect.left - relRef.current.x;
+          let newY = e.clientY - parentRect.top - relRef.current.y;
 
-      // Restrict within the parent map container bounds for professional confinement
-      let newX = e.clientX - parentRect.left - relRef.current.x;
-      let newY = e.clientY - parentRect.top - relRef.current.y;
+          const maxBoundX = parentRect.width - dragRef.current.offsetWidth - 10;
+          const maxBoundY = parentRect.height - dragRef.current.offsetHeight - 10;
 
-      // Calculate boundaries
-      const maxBoundX = parentRect.width - dragRef.current.offsetWidth - 10;
-      const maxBoundY = parentRect.height - dragRef.current.offsetHeight - 10;
+          newX = Math.max(10, Math.min(newX, maxBoundX));
+          newY = Math.max(10, Math.min(newY, maxBoundY));
 
-      newX = Math.max(10, Math.min(newX, maxBoundX));
-      newY = Math.max(10, Math.min(newY, maxBoundY));
+          legendPositionRef.current = { x: newX, y: newY };
+          dragRef.current.style.left = `${newX}px`;
+          dragRef.current.style.top = `${newY}px`;
+        }
+      }
 
-      // Update ref and DOM directly for butter-smooth 60fps drag without map re-renders
-      legendPositionRef.current = { x: newX, y: newY };
-      dragRef.current.style.left = `${newX}px`;
-      dragRef.current.style.top = `${newY}px`;
+      if (stoppageRelRef.current && stoppageDragRef.current) {
+        const parentRect = stoppageDragRef.current.parentElement?.getBoundingClientRect();
+        if (parentRect) {
+          let newX = e.clientX - parentRect.left - stoppageRelRef.current.x;
+          let newY = e.clientY - parentRect.top - stoppageRelRef.current.y;
+
+          const maxBoundX = parentRect.width - stoppageDragRef.current.offsetWidth - 10;
+          const maxBoundY = parentRect.height - stoppageDragRef.current.offsetHeight - 10;
+
+          newX = Math.max(10, Math.min(newX, maxBoundX));
+          newY = Math.max(10, Math.min(newY, maxBoundY));
+
+          stoppagePanelPosRef.current = { x: newX, y: newY };
+          stoppageDragRef.current.style.left = `${newX}px`;
+          stoppageDragRef.current.style.top = `${newY}px`;
+        }
+      }
     };
 
     const onMouseUp = () => {
       relRef.current = null;
+      stoppageRelRef.current = null;
     };
 
     window.addEventListener("mousemove", onMouseMove);
@@ -1091,6 +1702,113 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
     fetchRoutes();
   }, [isRouteDisabled, showHistory, validVehicles, routeDate]);
 
+  // Fetch geofence timeline stoppages for visible valid vehicles when showStoppages or showLegend is active
+  useEffect(() => {
+    if ((!showStoppages && !showLegend) || validVehicles.length === 0) return;
+
+    const unrequested = validVehicles.filter((vehicle) => {
+      const imei = String(vehicle.uniqueId || vehicle.imei);
+      return imei && !requestedStoppageImeisRef.current.has(imei);
+    });
+
+    if (unrequested.length === 0) return;
+
+    unrequested.forEach((v) => {
+      const imei = String(v.uniqueId || v.imei);
+      requestedStoppageImeisRef.current.add(imei);
+    });
+
+    setIsFetchingStoppages(true);
+    const BATCH_SIZE = 5;
+
+    const fetchStoppages = async () => {
+      try {
+        for (let i = 0; i < unrequested.length; i += BATCH_SIZE) {
+          const batch = unrequested.slice(i, i + BATCH_SIZE);
+          await Promise.allSettled(
+            batch.map(async (vehicle) => {
+              const imei = String(vehicle.uniqueId || vehicle.imei);
+              try {
+                const res = await geofenceService.getGeofenceByUniqueId({
+                  uniqueId: imei,
+                });
+                if (res) {
+                  const rawStart = res.startPointGeoId;
+                  const rawEnd = res.endPointGeoId;
+                  const rawData = Array.isArray(res.data) ? res.data : [];
+
+                  const startPoint = isValidGeofencePoint(rawStart)
+                    ? { ...rawStart, _id: rawStart._id ?? (rawStart as any).id }
+                    : null;
+                  const endPoint = isValidGeofencePoint(rawEnd)
+                    ? { ...rawEnd, _id: rawEnd._id ?? (rawEnd as any).id }
+                    : null;
+
+                  setStoppagesMap((prev) => ({
+                    ...prev,
+                    [imei]: {
+                      stops: rawData,
+                      startPoint,
+                      endPoint,
+                      vehicle,
+                    },
+                  }));
+                }
+              } catch {
+                setStoppagesMap((prev) => ({
+                  ...prev,
+                  [imei]: {
+                    stops: [],
+                    startPoint: null,
+                    endPoint: null,
+                    vehicle,
+                  },
+                }));
+              }
+            })
+          );
+        }
+      } finally {
+        setIsFetchingStoppages(false);
+      }
+    };
+
+    fetchStoppages();
+  }, [showStoppages, showLegend, validVehicles]);
+
+  // Keep vehicle data updated in stoppagesMap when validVehicles updates
+  useEffect(() => {
+    if (Object.keys(stoppagesMap).length === 0) return;
+    setStoppagesMap((prev) => {
+      let changed = false;
+      const updated = { ...prev };
+      validVehicles.forEach((v) => {
+        const imei = String(v.uniqueId || v.imei);
+        if (updated[imei] && updated[imei].vehicle !== v) {
+          updated[imei] = { ...updated[imei], vehicle: v };
+          changed = true;
+        }
+      });
+      return changed ? updated : prev;
+    });
+  }, [validVehicles]);
+
+
+  // Memoize simplified coordinates for each vehicle's trips to keep position arrays stable across renders
+  const processedRoutesMap = useMemo(() => {
+    const map: Record<string, ProcessedTrip[]> = {};
+    for (const [imei, routeData] of Object.entries(routesMap)) {
+      if (!routeData?.deviceDataByTrips) continue;
+      map[imei] = routeData.deviceDataByTrips
+        .filter((trip: any) => Array.isArray(trip) && trip.length > 0)
+        .map((trip: any) => ({
+          positions: simplifyTripPoints(trip, 8),
+          rawTrip: trip,
+        }));
+    }
+    return map;
+  }, [routesMap]);
+
   // Extract and memoize route items with their vehicle details for filtering
   const routeEntries = useMemo(() => {
     return Object.entries(routesMap)
@@ -1192,8 +1910,35 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
   const handleVehicleClick = useCallback(
     (vehicle: VehicleData) => {
       onVehicleClick?.(vehicle);
+      const imei = String(vehicle.uniqueId || vehicle.imei);
+      setSelectedStoppageImei(imei);
+      if (!stoppagesMap[imei] && !requestedStoppageImeisRef.current.has(imei)) {
+        requestedStoppageImeisRef.current.add(imei);
+        geofenceService.getGeofenceByUniqueId({ uniqueId: imei }).then((res) => {
+          if (res) {
+            const rawStart = res.startPointGeoId;
+            const rawEnd = res.endPointGeoId;
+            const rawData = Array.isArray(res.data) ? res.data : [];
+            const startPoint = isValidGeofencePoint(rawStart)
+              ? { ...rawStart, _id: rawStart._id ?? (rawStart as any).id }
+              : null;
+            const endPoint = isValidGeofencePoint(rawEnd)
+              ? { ...rawEnd, _id: rawEnd._id ?? (rawEnd as any).id }
+              : null;
+            setStoppagesMap((prev) => ({
+              ...prev,
+              [imei]: { stops: rawData, startPoint, endPoint, vehicle },
+            }));
+          }
+        }).catch(() => {
+          setStoppagesMap((prev) => ({
+            ...prev,
+            [imei]: { stops: [], startPoint: null, endPoint: null, vehicle },
+          }));
+        });
+      }
     },
-    [onVehicleClick]
+    [onVehicleClick, stoppagesMap]
   );
 
   // Handle initial load bounds fitting
@@ -1245,6 +1990,8 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
         vehicle={vehicle}
         onClick={handleVehicleClick}
         isSelected={selectedVehicleId === vehicle.deviceId}
+        stoppageData={stoppagesMap[String(vehicle.uniqueId || vehicle.imei)]}
+        onStoppageClick={handleStoppageClick}
       />
     ));
 
@@ -1266,7 +2013,77 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
     // }
 
     return markers;
-  }, [validVehicles, handleVehicleClick, selectedVehicleId]);
+  }, [validVehicles, handleVehicleClick, selectedVehicleId, stoppagesMap, handleStoppageClick]);
+
+  // Derived data for the separate Route Stoppages Panel
+  const selectedStoppageVehicle = useMemo(() => {
+    if (!selectedStoppageImei) return null;
+    return validVehicles.find(
+      (v) => String(v.uniqueId || v.imei) === selectedStoppageImei
+    );
+  }, [selectedStoppageImei, validVehicles]);
+
+  const selectedVehicleStoppageData = selectedStoppageImei
+    ? stoppagesMap[selectedStoppageImei]
+    : null;
+
+  const separateOrderedStops = useMemo(() => {
+    if (!selectedVehicleStoppageData) return [];
+    const ordered: Array<{
+      item: any;
+      type: "start" | "stop" | "end";
+      stopNumber?: number;
+      coords: [number, number] | null;
+    }> = [];
+
+    const startId =
+      selectedVehicleStoppageData.startPoint?._id ??
+      (selectedVehicleStoppageData.startPoint as any)?.id;
+    const endId =
+      selectedVehicleStoppageData.endPoint?._id ??
+      (selectedVehicleStoppageData.endPoint as any)?.id;
+
+    if (selectedVehicleStoppageData.startPoint) {
+      ordered.push({
+        item: selectedVehicleStoppageData.startPoint,
+        type: "start",
+        coords: getGeofenceCoords(selectedVehicleStoppageData.startPoint),
+      });
+    }
+
+    let stopNum = 1;
+    (selectedVehicleStoppageData.stops || []).forEach((st) => {
+      const stId = st._id ?? (st as any)?.id;
+      if (startId && stId === startId) return;
+      if (endId && stId === endId) return;
+      ordered.push({
+        item: st,
+        type: "stop",
+        stopNumber: stopNum++,
+        coords: getGeofenceCoords(st),
+      });
+    });
+
+    if (selectedVehicleStoppageData.endPoint) {
+      ordered.push({
+        item: selectedVehicleStoppageData.endPoint,
+        type: "end",
+        coords: getGeofenceCoords(selectedVehicleStoppageData.endPoint),
+      });
+    }
+
+    return ordered;
+  }, [selectedVehicleStoppageData]);
+
+  const filteredSeparateStops = useMemo(() => {
+    if (!stoppageSearch.trim()) return separateOrderedStops;
+    const term = stoppageSearch.trim().toLowerCase();
+    return separateOrderedStops.filter((st) => {
+      const name = (st.item.geofenceName || "").toLowerCase();
+      const addr = (st.item.address || "").toLowerCase();
+      return name.includes(term) || addr.includes(term);
+    });
+  }, [separateOrderedStops, stoppageSearch]);
 
   return (
     <div className="vehicle-map-container" style={{ height, width: "100%" }}>
@@ -1468,8 +2285,16 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
         <button
           className={`map-control-button ${showStoppages ? "fit-bounds-btn" : ""}`}
           onClick={() => setShowStoppages((prev) => !prev)}
-          title={showStoppages ? "Hide Stoppages" : "Show Stoppages"}
-          data-tooltip={showStoppages ? "Hide Stoppages" : "Show Stoppages"}
+          title={
+            showStoppages
+              ? (isFetchingStoppages ? "Loading Stoppages..." : "Hide Stoppages")
+              : "Show Stoppages"
+          }
+          data-tooltip={
+            showStoppages
+              ? (isFetchingStoppages ? "Loading Stoppages..." : "Hide Stoppages")
+              : "Show Stoppages"
+          }
           style={{
             width: "36px",
             height: "36px",
@@ -1486,7 +2311,11 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
             transition: "all 0.2s ease"
           }}
         >
-          <MapPin size={18} className={showStoppages ? "text-white" : "text-gray-700"} />
+          {isFetchingStoppages ? (
+            <Loader2 size={18} className={`animate-spin ${showStoppages ? "text-white" : "text-blue-600"}`} />
+          ) : (
+            <MapPin size={18} className={showStoppages ? "text-white" : "text-gray-700"} />
+          )}
         </button>
 
         {/* Toggle Satellite View */}
@@ -1637,104 +2466,34 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
         {showMarkers && renderMarkers}
 
         {/* Render travelled routes for all loaded vehicles automatically */}
-        {showHistory && Object.entries(routesMap).map(([imei, routeData]: [string, any]) => {
-          if (!routeData?.deviceDataByTrips) return null;
-          if (hiddenRouteImeis[imei]) return null;
+        {showHistory &&
+          Object.entries(processedRoutesMap).map(([imei, trips]) => {
+            if (hiddenRouteImeis[imei]) return null;
 
-          const isSelected = selectedVehicle && String(selectedVehicle.uniqueId || selectedVehicle.imei) === imei;
-          const color = getRouteColorById(imei);
-          const vehicle = validVehicles.find(
-            (v) => String(v.uniqueId || v.imei) === imei
-          );
+            const isSelected =
+              selectedVehicle &&
+              String(selectedVehicle.uniqueId || selectedVehicle.imei) === imei;
+            const color = getRouteColorById(imei);
+            const vehicle = validVehicles.find(
+              (v) => String(v.uniqueId || v.imei) === imei
+            );
 
-          return (
-            <React.Fragment key={`route-group-${imei}`}>
-              {routeData.deviceDataByTrips.map((trip: any, tripIndex: number) => {
-                const positions = trip.map((pt: any) => [pt.latitude, pt.longitude] as [number, number]);
-                const { arrows, stops } = computeRouteDecorations(trip, 1000);
-
-                return (
-                  <React.Fragment key={`route-trip-group-${imei}-${tripIndex}`}>
-                    <Polyline
-                      key={`route-trip-${imei}-${tripIndex}`}
-                      positions={positions}
-                      pathOptions={{
-                        color: color,
-                        weight: isSelected ? 6 : 4, // highlight selected route slightly thicker
-                        opacity: isSelected ? 0.95 : 0.75, // dim non-selected routes slightly for visual balance
-                        lineJoin: "round",
-                        lineCap: "round",
-                      }}
-                    >
-                      <Tooltip sticky direction="top" opacity={0.95}>
-                        <div style={{ fontFamily: "'Inter', sans-serif", padding: "4px 8px", fontSize: "12px", lineHeight: "1.4" }}>
-                          <div style={{ fontWeight: 600, color: "#111827", display: "flex", alignItems: "center", gap: "6px" }}>
-                            <span style={{ width: "8px", height: "8px", borderRadius: "50%", backgroundColor: color, display: "inline-block" }} />
-                            <span>{vehicle?.name || `Vehicle ${imei.slice(-6)}`}</span>
-                          </div>
-                          <div style={{ marginTop: "4px", fontSize: "11px", color: "#374151", display: "flex", flexDirection: "column", gap: "2px" }}>
-                            {vehicle?.routeName && <div><strong>Route No:</strong> {vehicle.routeName}</div>}
-                            {vehicle?.noOfStudent !== undefined && <div><strong>No. of Students:</strong> {vehicle.noOfStudent}</div>}
-                            {vehicle?.noOfStops !== undefined && <div><strong>No. of Stops:</strong> {vehicle.noOfStops}</div>}
-                          </div>
-                        </div>
-                      </Tooltip>
-                      <Popup maxWidth={220}>
-                        <div style={{ fontFamily: "'Inter', sans-serif", padding: "6px" }}>
-                          <div style={{ fontWeight: 600, color: "#111827", fontSize: "13px", display: "flex", alignItems: "center", gap: "6px", marginBottom: "6px" }}>
-                            <span style={{ width: "10px", height: "10px", borderRadius: "50%", backgroundColor: color, display: "inline-block" }} />
-                            <span>{vehicle?.name || `Vehicle ${imei.slice(-6)}`}</span>
-                          </div>
-                          <div style={{ fontSize: "11px", color: "#374151", display: "flex", flexDirection: "column", gap: "3px" }}>
-                            {vehicle?.routeName && <div><strong>Route No:</strong> {vehicle.routeName}</div>}
-                            {vehicle?.noOfStudent !== undefined && <div><strong>No. of Students:</strong> {vehicle.noOfStudent}</div>}
-                            {vehicle?.noOfStops !== undefined && <div><strong>No. of Stops:</strong> {vehicle.noOfStops}</div>}
-                          </div>
-                        </div>
-                      </Popup>
-                    </Polyline>
-
-                    {/* Directional Arrows at 1 km spacing */}
-                    {showArrows && arrows.map((arrow, arrowIdx) => (
-                      <Marker
-                        key={`arrow-${imei}-${tripIndex}-${arrowIdx}`}
-                        position={[arrow.lat, arrow.lng]}
-                        icon={createArrowIcon(arrow.course, color, 24)}
-                        zIndexOffset={200}
-                      >
-                        <Popup maxWidth={200}>
-                          <div style={{ fontFamily: "sans-serif", padding: "4px" }}>
-                            <strong>Vehicle speed:</strong> ~{arrow.speed?.toFixed(1) || "0.0"} km/h
-                            <br />
-                            <strong>Time:</strong> {new Date(arrow.createdAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true })}
-                          </div>
-                        </Popup>
-                      </Marker>
-                    ))}
-                    {/* Easy to spot Stop Dots at every stop */}
-                    {showStoppages && stops.map((stop, stopIdx) => (
-                      <Marker
-                        key={`stop-${imei}-${tripIndex}-${stopIdx}`}
-                        position={[stop.lat, stop.lng]}
-                        icon={createStopDotIcon()}
-                        zIndexOffset={300}
-                      >
-                        <Popup maxWidth={200}>
-                          <div style={{ fontFamily: "sans-serif", padding: "4px", textAlign: "center" }}>
-                            <strong style={{ color: "#ef4444" }}>Stop Dot</strong>
-                            <div style={{ fontSize: "11px", color: "#666", marginTop: "4px" }}>
-                              Stopped at: {new Date(stop.createdAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true })}
-                            </div>
-                          </div>
-                        </Popup>
-                      </Marker>
-                    ))}
-                  </React.Fragment>
-                );
-              })}
-            </React.Fragment>
-          );
-        })}
+            return (
+              <VehicleRouteItem
+                key={`route-group-${imei}`}
+                imei={imei}
+                trips={trips}
+                color={color}
+                isSelected={!!isSelected}
+                vehicleName={vehicle?.name || `Vehicle ${imei.slice(-6)}`}
+                routeName={vehicle?.routeName}
+                noOfStudent={vehicle?.noOfStudent}
+                noOfStops={vehicle?.noOfStops}
+                showArrows={showArrows}
+                totalRoutesCount={totalRoutesCount}
+              />
+            );
+          })}
 
         {/* Start/End flag markers */}
         {showHistory && isSelectedRouteVisible && routeMarkers?.start && (
@@ -1742,7 +2501,7 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
             position={[routeMarkers.start.lat, routeMarkers.start.lng]}
             icon={createRouteFlagIcon("green", 34)}
           >
-            <Popup maxWidth={200}>
+            <Popup maxWidth={200} autoPan={false}>
               <div style={{ textAlign: "center", fontFamily: "sans-serif" }}>
                 <strong style={{ color: "#10b981" }}>Start Point</strong>
                 {selectedVehicle?.routeName && (
@@ -1767,7 +2526,7 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
             position={[routeMarkers.end.lat, routeMarkers.end.lng]}
             icon={createRouteFlagIcon("red", 34)}
           >
-            <Popup maxWidth={200}>
+            <Popup maxWidth={200} autoPan={false}>
               <div style={{ textAlign: "center", fontFamily: "sans-serif" }}>
                 <strong style={{ color: "#ef4444" }}>End Point</strong>
                 <div style={{ fontSize: "11px", color: "#666", marginTop: "4px" }}>
@@ -1777,6 +2536,392 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
             </Popup>
           </Marker>
         )}
+
+        {/* Route Geofence Stoppages Layer from /geofence/timeline API */}
+        {(showStoppages || selectedStoppageImei) &&
+          Object.entries(stoppagesMap).map(([imei, stopData]) => {
+            if (!showStoppages && selectedStoppageImei !== imei) return null;
+            if (hiddenRouteImeis[imei]) return null;
+
+            const color = getRouteColorById(imei);
+            const vehicle = stopData.vehicle;
+            const routeName = vehicle.routeName || "";
+            const vehicleName = vehicle.name || `Device ${imei}`;
+            const isSelected =
+              selectedVehicle &&
+              String(selectedVehicle.uniqueId || selectedVehicle.imei) === imei;
+
+            // Build ordered list of stoppages
+            const orderedStoppages: Array<{
+              item: any;
+              type: "start" | "stop" | "end";
+              stopNumber?: number;
+              coords: [number, number];
+            }> = [];
+
+            const startId =
+              stopData.startPoint?._id ?? (stopData.startPoint as any)?.id;
+            const endId =
+              stopData.endPoint?._id ?? (stopData.endPoint as any)?.id;
+
+            if (stopData.startPoint) {
+              const coords = getGeofenceCoords(stopData.startPoint);
+              if (coords) {
+                orderedStoppages.push({
+                  item: stopData.startPoint,
+                  type: "start",
+                  coords,
+                });
+              }
+            }
+
+            let currentStopNum = 1;
+            stopData.stops.forEach((st) => {
+              const stId = st._id ?? (st as any)?.id;
+              if (startId && stId === startId) return;
+              if (endId && stId === endId) return;
+              const coords = getGeofenceCoords(st);
+              if (coords) {
+                orderedStoppages.push({
+                  item: st,
+                  type: "stop",
+                  stopNumber: currentStopNum++,
+                  coords,
+                });
+              }
+            });
+
+            if (stopData.endPoint) {
+              const coords = getGeofenceCoords(stopData.endPoint);
+              if (coords) {
+                orderedStoppages.push({
+                  item: stopData.endPoint,
+                  type: "end",
+                  coords,
+                });
+              }
+            }
+
+            const totalIntermediateStops = currentStopNum - 1;
+
+            return (
+              <React.Fragment key={`stoppages-group-${imei}`}>
+                {orderedStoppages.map((stoppage, sIdx) => {
+                  const { item, type, stopNumber, coords } = stoppage;
+                  const stoppageKey = `${imei}-${type}-${item._id || item.id || sIdx}`;
+                  const radius = item.area?.radius || 50;
+                  const stopColor =
+                    type === "start" ? "#059669" : type === "end" ? "#dc2626" : color;
+                  const zIndexOffset = isSelected
+                    ? 700
+                    : type === "start" || type === "end"
+                    ? 500
+                    : 400;
+
+                  return (
+                    <React.Fragment
+                      key={`stoppage-${stoppageKey}`}
+                    >
+                      {/* Geofence Perimeter Circle */}
+                      <Circle
+                        center={coords}
+                        radius={radius}
+                        pathOptions={{
+                          color: stopColor,
+                          fillColor: stopColor,
+                          fillOpacity: 0.12,
+                          weight: 1.5,
+                          dashArray: "4 4",
+                        }}
+                        eventHandlers={{
+                          click: () => {
+                            const geofenceId = item._id ?? (item as any)?.id ?? item.geofenceId;
+                            handleStoppageClick(
+                              stoppageKey,
+                              coords,
+                              geofenceId ? String(geofenceId) : undefined
+                            );
+                          },
+                        }}
+                      />
+
+                      {/* Stoppage Pin Marker */}
+                      <Marker
+                        key={`stoppage-marker-${stoppageKey}`}
+                        ref={(ref) => {
+                          if (ref) {
+                            stoppageMarkersRef.current.set(stoppageKey, ref);
+                          } else {
+                            stoppageMarkersRef.current.delete(stoppageKey);
+                          }
+                        }}
+                        position={coords}
+                        icon={createMapStoppageIcon(type, stopNumber, stopColor)}
+                        zIndexOffset={zIndexOffset}
+                        eventHandlers={{
+                          click: (e) => {
+                            const geofenceId = item._id ?? (item as any)?.id ?? item.geofenceId;
+                            setActiveStoppageKey(stoppageKey);
+                            if (geofenceId) {
+                              setSelectedGeofenceId(String(geofenceId));
+                            }
+                            if (mapRef.current) {
+                              mapRef.current.flyTo(coords, 17, { animate: true, duration: 0.8 });
+                              mapRef.current.once("moveend", () => {
+                                e.target?.openPopup();
+                              });
+                              setTimeout(() => {
+                                e.target?.openPopup();
+                              }, 850);
+                            }
+                          },
+                        }}
+                      >
+                        <Tooltip direction="top" offset={[0, -36]} opacity={0.95}>
+                          <div
+                            style={{
+                              fontSize: "11px",
+                              fontWeight: "600",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {type === "start"
+                              ? "Start Point"
+                              : type === "end"
+                              ? "End Point"
+                              : `Stop #${stopNumber}`}
+                            : {item.geofenceName || "Stoppage"}
+                            {routeName ? ` (${routeName})` : ""}
+                          </div>
+                        </Tooltip>
+
+                        <Popup maxWidth={320} className="custom-stoppage-popup" autoPan={false}>
+                          <div
+                            style={{
+                              fontFamily:
+                                "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+                              padding: "2px",
+                              minWidth: "210px",
+                            }}
+                          >
+                            {/* Badge & Route Name */}
+                            <div
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "space-between",
+                                marginBottom: "8px",
+                                borderBottom: "1px solid #e5e7eb",
+                                paddingBottom: "6px",
+                              }}
+                            >
+                              <span
+                                style={{
+                                  backgroundColor:
+                                    type === "start"
+                                      ? "#ecfdf5"
+                                      : type === "end"
+                                      ? "#fef2f2"
+                                      : "#eff6ff",
+                                  color:
+                                    type === "start"
+                                      ? "#059669"
+                                      : type === "end"
+                                      ? "#dc2626"
+                                      : "#2563eb",
+                                  fontSize: "11px",
+                                  fontWeight: "700",
+                                  padding: "2px 8px",
+                                  borderRadius: "12px",
+                                  textTransform: "uppercase",
+                                  letterSpacing: "0.5px",
+                                }}
+                              >
+                                {type === "start"
+                                  ? "Start Point"
+                                  : type === "end"
+                                  ? "End Point"
+                                  : `Stop #${stopNumber} of ${totalIntermediateStops}`}
+                              </span>
+                              {routeName && (
+                                <span
+                                  style={{
+                                    fontSize: "11px",
+                                    fontWeight: "600",
+                                    color: "#4b5563",
+                                  }}
+                                >
+                                  {routeName}
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Stoppage Name */}
+                            <div
+                              style={{
+                                fontSize: "14px",
+                                fontWeight: "700",
+                                color: "#111827",
+                                marginBottom: "4px",
+                              }}
+                            >
+                              {item.geofenceName ||
+                                (type === "start"
+                                  ? "Start Location"
+                                  : type === "end"
+                                  ? "End Location"
+                                  : `Stoppage #${stopNumber}`)}
+                            </div>
+
+                            {/* Address */}
+                            {item.address && (
+                              <div
+                                style={{
+                                  fontSize: "11px",
+                                  color: "#6b7280",
+                                  marginBottom: "6px",
+                                  lineHeight: "1.3",
+                                }}
+                              >
+                                📍 {item.address}
+                              </div>
+                            )}
+
+                            {/* Vehicle and Device info */}
+                            <div
+                              style={{
+                                backgroundColor: "#f9fafb",
+                                padding: "6px 8px",
+                                borderRadius: "6px",
+                                marginBottom: "6px",
+                                fontSize: "11px",
+                                border: "1px solid #f3f4f6",
+                              }}
+                            >
+                              <div
+                                style={{
+                                  display: "flex",
+                                  justifyContent: "space-between",
+                                  marginBottom: "2px",
+                                }}
+                              >
+                                <span style={{ color: "#6b7280" }}>Vehicle:</span>
+                                <span
+                                  style={{
+                                    fontWeight: "600",
+                                    color: "#1f2937",
+                                  }}
+                                >
+                                  {vehicleName}
+                                </span>
+                              </div>
+                              <div
+                                style={{
+                                  display: "flex",
+                                  justifyContent: "space-between",
+                                }}
+                              >
+                                <span style={{ color: "#6b7280" }}>
+                                  IMEI / Unique ID:
+                                </span>
+                                <span
+                                  style={{
+                                    fontFamily: "monospace",
+                                    color: "#374151",
+                                  }}
+                                >
+                                  {imei}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Pickup / Drop Timings */}
+                            {(item.pickupTime || item.dropTime) && (
+                              <div
+                                style={{
+                                  backgroundColor: "#f0fdf4",
+                                  padding: "6px 8px",
+                                  borderRadius: "6px",
+                                  marginBottom: "6px",
+                                  fontSize: "11px",
+                                  border: "1px solid #dcfce7",
+                                }}
+                              >
+                                {item.pickupTime && (
+                                  <div
+                                    style={{
+                                      display: "flex",
+                                      justifyContent: "space-between",
+                                      marginBottom: item.dropTime ? "2px" : 0,
+                                    }}
+                                  >
+                                    <span style={{ color: "#166534" }}>
+                                      Pickup Time:
+                                    </span>
+                                    <span
+                                      style={{
+                                        fontWeight: "700",
+                                        color: "#15803d",
+                                      }}
+                                    >
+                                      {item.pickupTime}
+                                    </span>
+                                  </div>
+                                )}
+                                {item.dropTime && (
+                                  <div
+                                    style={{
+                                      display: "flex",
+                                      justifyContent: "space-between",
+                                    }}
+                                  >
+                                    <span style={{ color: "#166534" }}>
+                                      Drop Time:
+                                    </span>
+                                    <span
+                                      style={{
+                                        fontWeight: "700",
+                                        color: "#15803d",
+                                      }}
+                                    >
+                                      {item.dropTime}
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+
+                            {/* Details (Radius, Coords) */}
+                            <div
+                              style={{
+                                fontSize: "10px",
+                                color: "#9ca3af",
+                                display: "flex",
+                                justifyContent: "space-between",
+                                paddingTop: "2px",
+                              }}
+                            >
+                              <span>Radius: {radius}m</span>
+                              <span>
+                                {coords[0].toFixed(5)}, {coords[1].toFixed(5)}
+                              </span>
+                            </div>
+
+                            {/* Students at this geofence stoppage from /stop-children/:geofenceId */}
+                            <StopChildrenList
+                              geofenceId={item._id ?? (item as any)?.id ?? item.geofenceId}
+                              geofenceName={item.geofenceName}
+                              maxHeight="180px"
+                            />
+                          </div>
+                        </Popup>
+                      </Marker>
+                    </React.Fragment>
+                  );
+                })}
+              </React.Fragment>
+            );
+          })}
 
         {/* Route auto-bounding */}
         {showHistory && isSelectedRouteVisible && <RouteBoundsUpdater routeData={currentSelectedRouteData} />}
@@ -2173,11 +3318,52 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
               filteredRouteEntries.map(({ imei, vehicle, isHidden, statusKey }) => {
                 if (!vehicle) return null;
                 const color = getRouteColorById(imei);
-                const statusInfo = ROUTE_STATUS_CONFIG[statusKey] || {
-                  bg: "#f3f4f6",
-                  text: "#6b7280",
-                  dot: "#9ca3af",
-                  label: statusKey,
+
+                const stopsFromApi = stoppagesMap[imei]
+                  ? (stoppagesMap[imei].stops?.length || 0) +
+                    (stoppagesMap[imei].startPoint ? 1 : 0) +
+                    (stoppagesMap[imei].endPoint ? 1 : 0)
+                  : undefined;
+
+                const totalStopsCount =
+                  stopsFromApi !== undefined
+                    ? stopsFromApi
+                    : vehicle.noOfStops !== undefined && vehicle.noOfStops !== null && vehicle.noOfStops !== ""
+                    ? vehicle.noOfStops
+                    : undefined;
+
+                const isSelectedForStoppages = selectedStoppageImei === imei;
+
+                const handleToggleStoppages = () => {
+                  setSelectedStoppageImei((prev) => (prev === imei ? null : imei));
+                  if (!stoppagesMap[imei] && !requestedStoppageImeisRef.current.has(imei)) {
+                    requestedStoppageImeisRef.current.add(imei);
+                    geofenceService
+                      .getGeofenceByUniqueId({ uniqueId: imei })
+                      .then((res) => {
+                        if (res) {
+                          const rawStart = res.startPointGeoId;
+                          const rawEnd = res.endPointGeoId;
+                          const rawData = Array.isArray(res.data) ? res.data : [];
+                          const startPoint = isValidGeofencePoint(rawStart)
+                            ? { ...rawStart, _id: rawStart._id ?? (rawStart as any).id }
+                            : null;
+                          const endPoint = isValidGeofencePoint(rawEnd)
+                            ? { ...rawEnd, _id: rawEnd._id ?? (rawEnd as any).id }
+                            : null;
+                          setStoppagesMap((prev) => ({
+                            ...prev,
+                            [imei]: { stops: rawData, startPoint, endPoint, vehicle },
+                          }));
+                        }
+                      })
+                      .catch(() => {
+                        setStoppagesMap((prev) => ({
+                          ...prev,
+                          [imei]: { stops: [], startPoint: null, endPoint: null, vehicle },
+                        }));
+                      });
+                  }
                 };
 
                 return (
@@ -2189,11 +3375,18 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
                       justifyContent: "space-between",
                       padding: "6px 8px",
                       borderRadius: "6px",
-                      backgroundColor: isHidden ? "rgba(243, 244, 246, 0.4)" : "rgba(255, 255, 255, 0.65)",
-                      border: "1px solid rgba(229, 231, 235, 0.5)",
+                      backgroundColor: isSelectedForStoppages
+                        ? "rgba(239, 246, 255, 0.95)"
+                        : isHidden
+                        ? "rgba(243, 244, 246, 0.4)"
+                        : "rgba(255, 255, 255, 0.65)",
+                      border: isSelectedForStoppages
+                        ? "1.5px solid #3b82f6"
+                        : "1px solid rgba(229, 231, 235, 0.5)",
+                      boxShadow: isSelectedForStoppages ? "0 2px 8px rgba(59, 130, 246, 0.12)" : "none",
                       fontSize: "12px",
                       transition: "all 0.15s ease",
-                      opacity: isHidden ? 0.75 : 1
+                      opacity: isHidden ? 0.75 : 1,
                     }}
                   >
                     <div
@@ -2206,6 +3399,7 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
                             easeLinearity: 0.25,
                           });
                         }
+                        handleToggleStoppages();
                       }}
                       style={{
                         display: "flex",
@@ -2213,107 +3407,456 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
                         gap: "8px",
                         minWidth: 0,
                         flex: 1,
-                        cursor: "pointer"
+                        cursor: "pointer",
                       }}
-                      title={`Click to locate: ${vehicle.name || vehicle.deviceId}`}
+                      title={`Click to view stoppages & locate: ${vehicle.name || vehicle.deviceId}`}
                     >
-                      <span
-                        style={{
-                          width: "12px",
-                          height: "12px",
-                          borderRadius: "50%",
-                          backgroundColor: color,
-                          flexShrink: 0,
-                          boxShadow: "0 0 4px rgba(0, 0, 0, 0.15)",
-                          border: isHidden ? "1px dashed #9ca3af" : "none"
-                        }}
-                      />
-                      <div style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
                         <span
                           style={{
-                            fontWeight: 500,
-                            color: isHidden ? "#6b7280" : "#1f2937",
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                            whiteSpace: "nowrap"
-                          }}
-                        >
-                          {vehicle.name || `Vehicle ${vehicle.deviceId}`}
-                        </span>
-                        {(vehicle.routeName || vehicle.noOfStudent !== undefined) && (
-                          <div
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: "6px",
-                              fontSize: "10px",
-                              color: isHidden ? "#9ca3af" : "#4b5563",
-                              marginTop: "1px",
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
-                              whiteSpace: "nowrap"
-                            }}
-                          >
-                            {vehicle.routeName && (
-                              <span
-                                style={{
-                                  backgroundColor: "rgba(59, 130, 246, 0.08)",
-                                  color: "#2563eb",
-                                  padding: "0px 4px",
-                                  borderRadius: "3px",
-                                  fontWeight: 600
-                                }}
-                              >
-                                Rt: {vehicle.routeName}
-                              </span>
-                            )}
-                            {vehicle.noOfStudent !== undefined && (
-                              <span style={{ color: "#4b5563" }}>
-                                👥 {vehicle.noOfStudent} std
-                              </span>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>
-                      {statusKey && statusKey !== "other" && (
-                        <span
-                          title={`Status: ${statusInfo.label}`}
-                          style={{
-                            width: "7px",
-                            height: "7px",
+                            width: "12px",
+                            height: "12px",
                             borderRadius: "50%",
-                            backgroundColor: statusInfo.dot,
-                            flexShrink: 0
+                            backgroundColor: color,
+                            flexShrink: 0,
+                            boxShadow: "0 0 4px rgba(0, 0, 0, 0.15)",
+                            border: isHidden ? "1px dashed #9ca3af" : "none",
                           }}
                         />
-                      )}
-                      <span style={{ fontSize: "10px", color: "#9ca3af", fontFamily: "monospace" }}>
-                        {imei.slice(-6)}
-                      </span>
-                      <button
-                        onClick={() => {
-                          setHiddenRouteImeis((prev) => ({
-                            ...prev,
-                            [imei]: !prev[imei],
-                          }));
-                        }}
+                        <div style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+                          <span
+                            style={{
+                              fontWeight: 500,
+                              color: isHidden ? "#6b7280" : "#1f2937",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {vehicle.name || `Vehicle ${vehicle.deviceId}`}
+                          </span>
+                          {(vehicle.noOfStudent !== undefined || totalStopsCount !== undefined) && (
+                            <div
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "6px",
+                                fontSize: "10px",
+                                color: isHidden ? "#9ca3af" : "#4b5563",
+                                marginTop: "1px",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                whiteSpace: "nowrap",
+                              }}
+                            >
+                              {vehicle.noOfStudent !== undefined && (
+                                <span style={{ color: "#4b5563" }}>
+                                  👥 {vehicle.noOfStudent} std
+                                </span>
+                              )}
+                              {totalStopsCount !== undefined && (
+                                <span
+                                  style={{
+                                    color: "#4b5563",
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: "2px",
+                                  }}
+                                  title={`Total Stoppages: ${totalStopsCount}`}
+                                >
+                                  🚏 {totalStopsCount} {Number(totalStopsCount) === 1 ? "stop" : "stops"}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <div style={{ display: "flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>
+                        {vehicle.routeName && (
+                          <span
+                            style={{
+                              backgroundColor: "rgba(59, 130, 246, 0.08)",
+                              color: "#2563eb",
+                              padding: "1px 5px",
+                              borderRadius: "4px",
+                              fontSize: "10px",
+                              fontWeight: 600,
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            Rt: {vehicle.routeName}
+                          </span>
+                        )}
+                        <button
+                          onClick={() => {
+                            setHiddenRouteImeis((prev) => ({
+                              ...prev,
+                              [imei]: !prev[imei],
+                            }));
+                          }}
+                          style={{
+                            border: "none",
+                            background: "none",
+                            cursor: "pointer",
+                            padding: "2px",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            color: isHidden ? "#9ca3af" : "#3b82f6",
+                            transition: "color 0.2s",
+                          }}
+                          title={isHidden ? "Show route" : "Hide route"}
+                        >
+                          {isHidden ? <EyeOff size={16} /> : <Eye size={16} />}
+                        </button>
+                        <button
+                          onClick={handleToggleStoppages}
+                          style={{
+                            border: "none",
+                            background: isSelectedForStoppages ? "rgba(59, 130, 246, 0.15)" : "none",
+                            cursor: "pointer",
+                            padding: "3px 4px",
+                            borderRadius: "4px",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            color: isSelectedForStoppages ? "#2563eb" : "#9ca3af",
+                            transition: "all 0.2s",
+                          }}
+                          title={isSelectedForStoppages ? "Close stoppages panel" : "View stoppages panel"}
+                        >
+                          <MapPin size={15} />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        )}
+
+      {/* Dedicated Route Stoppages Panel (Separate List) */}
+      {selectedStoppageImei && selectedStoppageVehicle && (
+        <div
+          ref={stoppageDragRef}
+          style={{
+            position: "absolute",
+            top: `${stoppagePanelPosRef.current.y}px`,
+            left: `${stoppagePanelPosRef.current.x}px`,
+            zIndex: 1000,
+            width: "350px",
+            maxHeight: "520px",
+            display: "flex",
+            flexDirection: "column",
+            backgroundColor: "rgba(255, 255, 255, 0.95)",
+            backdropFilter: "blur(12px)",
+            borderRadius: "12px",
+            boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.1)",
+            border: "1px solid rgba(229, 231, 235, 0.8)",
+            overflow: "hidden",
+            fontFamily: "inherit",
+          }}
+        >
+          {/* Draggable Header */}
+          <div
+            onMouseDown={onStoppageMouseDown}
+            style={{
+              padding: "10px 14px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              borderBottom: "1px solid rgba(229, 231, 235, 0.8)",
+              backgroundColor: "rgba(249, 250, 251, 0.85)",
+              cursor: "move",
+              userSelect: "none",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", minWidth: 0 }}>
+              <div
+                style={{
+                  width: "28px",
+                  height: "28px",
+                  borderRadius: "8px",
+                  backgroundColor: "rgba(59, 130, 246, 0.1)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "#2563eb",
+                  flexShrink: 0,
+                }}
+              >
+                <MapPin size={16} />
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                  <span
+                    style={{
+                      fontSize: "13px",
+                      fontWeight: 700,
+                      color: "#111827",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {selectedStoppageVehicle.name || `Vehicle ${selectedStoppageVehicle.deviceId}`}
+                  </span>
+                  <span
+                    style={{
+                      fontSize: "10px",
+                      fontWeight: 700,
+                      backgroundColor: "#eff6ff",
+                      color: "#2563eb",
+                      padding: "1px 6px",
+                      borderRadius: "10px",
+                      flexShrink: 0,
+                    }}
+                  >
+                    {separateOrderedStops.length} stops
+                  </span>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "10px", color: "#6b7280" }}>
+                  {selectedStoppageVehicle.routeName && (
+                    <span>
+                      Route: <strong>{selectedStoppageVehicle.routeName}</strong>
+                    </span>
+                  )}
+                  {selectedStoppageVehicle.noOfStudent !== undefined && (
+                    <span>• {selectedStoppageVehicle.noOfStudent} std</span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <button
+              onClick={() => setSelectedStoppageImei(null)}
+              style={{
+                border: "none",
+                background: "none",
+                cursor: "pointer",
+                padding: "4px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "#9ca3af",
+                borderRadius: "6px",
+                transition: "all 0.15s ease",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.color = "#111827";
+                e.currentTarget.style.backgroundColor = "rgba(0,0,0,0.05)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.color = "#9ca3af";
+                e.currentTarget.style.backgroundColor = "transparent";
+              }}
+              title="Close stoppages"
+            >
+              <X size={16} />
+            </button>
+          </div>
+
+          {/* Search Filter input */}
+          <div style={{ padding: "8px 12px", borderBottom: "1px solid rgba(243, 244, 246, 0.9)" }}>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                padding: "5px 8px",
+                backgroundColor: "#f9fafb",
+                borderRadius: "6px",
+                border: "1px solid #e5e7eb",
+              }}
+            >
+              <Search size={13} style={{ color: "#9ca3af", flexShrink: 0 }} />
+              <input
+                type="text"
+                placeholder="Filter stoppages by name or address..."
+                value={stoppageSearch}
+                onChange={(e) => setStoppageSearch(e.target.value)}
+                style={{
+                  border: "none",
+                  outline: "none",
+                  background: "transparent",
+                  fontSize: "11px",
+                  width: "100%",
+                  color: "#1f2937",
+                }}
+              />
+              {stoppageSearch && (
+                <button
+                  onClick={() => setStoppageSearch("")}
+                  style={{
+                    border: "none",
+                    background: "none",
+                    cursor: "pointer",
+                    padding: 0,
+                    color: "#9ca3af",
+                    display: "flex",
+                  }}
+                >
+                  <X size={12} />
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Stoppages List */}
+          <div
+            style={{
+              padding: "8px 12px",
+              overflowY: "auto",
+              flex: 1,
+              display: "flex",
+              flexDirection: "column",
+              gap: "6px",
+            }}
+          >
+            {isFetchingStoppages && !stoppagesMap[selectedStoppageImei] ? (
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "8px",
+                  padding: "28px 0",
+                  color: "#6b7280",
+                  fontSize: "12px",
+                }}
+              >
+                <Loader2 size={16} className="animate-spin text-blue-600" />
+                <span>Loading route stoppages...</span>
+              </div>
+            ) : filteredSeparateStops.length === 0 ? (
+              <div style={{ textAlign: "center", padding: "24px 8px", color: "#9ca3af", fontSize: "12px" }}>
+                {stoppageSearch ? "No stoppages match your search" : "No stoppages found for this vehicle route"}
+              </div>
+            ) : (
+              filteredSeparateStops.map((stoppage) => {
+                const { item, type, stopNumber, coords } = stoppage;
+                const isStart = type === "start";
+                const isEnd = type === "end";
+                const badgeBg = isStart ? "#ecfdf5" : isEnd ? "#fef2f2" : "#eff6ff";
+                const badgeColor = isStart ? "#059669" : isEnd ? "#dc2626" : "#2563eb";
+                const badgeText = isStart ? "Start" : isEnd ? "End" : `#${stopNumber}`;
+                const geofenceId = item._id ?? (item as any)?.id ?? item.geofenceId;
+                const stoppageKey = `${selectedStoppageImei}-${type}-${item._id || item.id || stopNumber}`;
+                const isSelected = activeStoppageKey === stoppageKey;
+
+                return (
+                  <div
+                    key={`sep-stop-${stoppageKey}`}
+                    onClick={() => {
+                      if (coords) {
+                        handleStoppageClick(
+                          stoppageKey,
+                          coords,
+                          geofenceId ? String(geofenceId) : undefined
+                        );
+                      }
+                    }}
+                    style={{
+                      display: "flex",
+                      alignItems: "flex-start",
+                      gap: "8px",
+                      padding: "8px 10px",
+                      borderRadius: "8px",
+                      backgroundColor: isSelected ? "rgba(239, 246, 255, 0.95)" : "rgba(249, 250, 251, 0.8)",
+                      border: isSelected ? "1.5px solid #3b82f6" : "1px solid rgba(229, 231, 235, 0.7)",
+                      cursor: coords ? "pointer" : "default",
+                      transition: "all 0.15s ease",
+                    }}
+                    onMouseEnter={(e) => {
+                      if (coords && !isSelected) {
+                        e.currentTarget.style.backgroundColor = "rgba(239, 246, 255, 0.6)";
+                        e.currentTarget.style.borderColor = "rgba(191, 219, 254, 0.9)";
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (coords && !isSelected) {
+                        e.currentTarget.style.backgroundColor = "rgba(249, 250, 251, 0.8)";
+                        e.currentTarget.style.borderColor = "rgba(229, 231, 235, 0.7)";
+                      }
+                    }}
+                    title={coords ? `Click to locate & open popup on map` : undefined}
+                  >
+                    <span
+                      style={{
+                        fontSize: "10px",
+                        fontWeight: 700,
+                        padding: "2px 6px",
+                        borderRadius: "4px",
+                        backgroundColor: badgeBg,
+                        color: badgeColor,
+                        flexShrink: 0,
+                        marginTop: "1px",
+                      }}
+                    >
+                      {badgeText}
+                    </span>
+                    <div style={{ display: "flex", flexDirection: "column", minWidth: 0, flex: 1 }}>
+                      <span
                         style={{
-                          border: "none",
-                          background: "none",
-                          cursor: "pointer",
-                          padding: "2px",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          color: isHidden ? "#9ca3af" : "#3b82f6",
-                          transition: "color 0.2s"
+                          fontSize: "12px",
+                          fontWeight: 600,
+                          color: "#1f2937",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
                         }}
-                        title={isHidden ? "Show route" : "Hide route"}
                       >
-                        {isHidden ? <EyeOff size={16} /> : <Eye size={16} />}
-                      </button>
+                        {item.geofenceName || (isStart ? "Start Point" : isEnd ? "End Point" : `Stop #${stopNumber}`)}
+                      </span>
+                      {(item.pickupTime || item.dropTime) && (
+                        <div
+                          style={{
+                            fontSize: "10px",
+                            color: "#4b5563",
+                            marginTop: "2px",
+                            display: "flex",
+                            gap: "10px",
+                          }}
+                        >
+                          {item.pickupTime && (
+                            <span>
+                              Pickup: <strong style={{ color: "#059669" }}>{item.pickupTime}</strong>
+                            </span>
+                          )}
+                          {item.dropTime && (
+                            <span>
+                              Drop: <strong style={{ color: "#dc2626" }}>{item.dropTime}</strong>
+                            </span>
+                          )}
+                        </div>
+                      )}
+                      {item.address && (
+                        <span
+                          style={{
+                            fontSize: "10px",
+                            color: "#9ca3af",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                            marginTop: "2px",
+                          }}
+                        >
+                          📍 {item.address}
+                        </span>
+                      )}
+
+                      {/* Display students list for selected stop inside panel */}
+                      {isSelected && geofenceId && (
+                        <div onClick={(e) => e.stopPropagation()}>
+                          <StopChildrenList
+                            geofenceId={geofenceId}
+                            geofenceName={item.geofenceName}
+                            compact
+                            maxHeight="160px"
+                          />
+                        </div>
+                      )}
                     </div>
                   </div>
                 );

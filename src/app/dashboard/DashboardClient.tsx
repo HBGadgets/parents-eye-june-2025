@@ -945,7 +945,7 @@ export default function DashboardClient() {
                           pagination.pageSize > 100 || (totalCount > 0 && pagination.pageSize >= totalCount)
                         }
                         onToggleAllInTable={(showAll) => {
-                          if (userRole === "superadmin" || userRole === "school") return;
+                          if (userRole === "superadmin") return;
                           const allPageSize = totalCount || devices.length || 100;
                           handlePaginationChange({
                             pageIndex: 0,
