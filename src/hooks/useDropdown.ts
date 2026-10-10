@@ -57,8 +57,13 @@ export const useDeviceDropdown = (
   return useQuery<DropdownResponse<DropdownItem>>({
     queryKey: ["device-dropdown", branchId],
     queryFn: () => dropdownService.getDevices(branchId),
-    enabled: !!branchId,
-    select: (res) => res.data.data,
+    enabled: shouldFetch,
+    select: (res: any) =>
+      Array.isArray(res?.data?.data)
+        ? res.data.data
+        : Array.isArray(res?.data)
+        ? res.data
+        : [],
     refetchOnWindowFocus: false,
     retry: false,
   });
@@ -98,8 +103,13 @@ export const useRouteDropdown = (
   return useQuery<DropdownResponse<DropdownItem>>({
     queryKey: ["route-dropdown", branchId],
     queryFn: async () => await dropdownService.getRoutes(branchId),
-    enabled: !!branchId && shouldFetch,
-    select: (res) => res.data.data,
+    enabled: shouldFetch,
+    select: (res: any) =>
+      Array.isArray(res?.data?.data)
+        ? res.data.data
+        : Array.isArray(res?.data)
+        ? res.data
+        : [],
     refetchOnWindowFocus: false,
     retry: false,
   });

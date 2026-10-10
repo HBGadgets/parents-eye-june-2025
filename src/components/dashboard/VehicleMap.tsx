@@ -160,10 +160,18 @@ const VehicleBusMarker = React.memo(
 
       // Check for overspeeding
       const speedLimit = parseFloat(vehicle.speedLimit) || 60;
-      if (vehicle.speed > speedLimit) return "overspeeding";
+      const rawCat = (vehicle.category || "").toLowerCase();
+      const rawStatus = (vehicle.status || "").toLowerCase();
+      if (
+        vehicle.speed > speedLimit ||
+        rawCat.includes("overspeed") ||
+        rawStatus.includes("overspeed")
+      ) {
+        return "overspeeding";
+      }
 
       // Extract vehicle attributes
-      const { ignition, motion } = vehicle.attributes;
+      const { ignition, motion } = vehicle.attributes || {};
       const speed = vehicle.speed;
       if (ignition === true) {
         if (speed > 5 && speed < speedLimit) {
@@ -174,25 +182,74 @@ const VehicleBusMarker = React.memo(
       } else if (ignition === false) {
         return "stopped";
       }
+
+      if (rawCat.includes("run") || rawStatus.includes("run")) return "running";
+      if (rawCat.includes("stop") || rawStatus.includes("stop")) return "stopped";
+      if (rawCat.includes("idle") || rawStatus.includes("idle")) return "idle";
+      if (rawCat.includes("inact") || rawStatus.includes("inact")) return "inactive";
+      if (rawCat.includes("new") || rawStatus.includes("new")) return "new";
+
+      return "new";
     }, [
       vehicle.speed,
       vehicle.speedLimit,
       vehicle.lastUpdate,
-      vehicle.attributes.ignition,
+      vehicle.attributes?.ignition,
+      vehicle.category,
+      vehicle.status,
+      vehicle.latitude,
+      vehicle.longitude,
     ]);
 
     // Memoize image URL
     const imageUrl = useMemo(() => {
-      const statusToImageUrl = {
+      const statusToImageUrl: Record<string, string> = {
         running: "/BUS/top-view/green.svg",
         idle: "/BUS/top-view/yellow.svg",
         stopped: "/BUS/top-view/red.svg",
         inactive: "/BUS/top-view/gray.svg",
         overspeeding: "/BUS/top-view/orange.svg",
+        overspeed: "/BUS/top-view/orange.svg",
         new: "/BUS/top-view/blue.svg",
+        noData: "/BUS/top-view/blue.svg",
       };
-      return statusToImageUrl[vehicle.category] || statusToImageUrl.new;
-    }, [vehicle.category]);
+
+      const speedLimit = parseFloat(vehicle.speedLimit) || 60;
+      const rawCat = (vehicle.category || "").toLowerCase();
+      const rawStatus = (vehicle.status || "").toLowerCase();
+
+      // 1. Direct check: is vehicle overspeeding by speed limit or category/status?
+      if (
+        vehicle.speed > speedLimit ||
+        rawCat.includes("overspeed") ||
+        rawStatus.includes("overspeed") ||
+        vehicleStatus === "overspeeding" ||
+        vehicleStatus === "overspeed"
+      ) {
+        return "/BUS/top-view/orange.svg";
+      }
+
+      // 2. Check computed vehicleStatus
+      if (vehicleStatus && statusToImageUrl[vehicleStatus]) {
+        return statusToImageUrl[vehicleStatus];
+      }
+
+      // 3. Fallback to category / status
+      if (rawCat && statusToImageUrl[rawCat]) {
+        return statusToImageUrl[rawCat];
+      }
+      if (rawStatus && statusToImageUrl[rawStatus]) {
+        return statusToImageUrl[rawStatus];
+      }
+
+      return statusToImageUrl.new;
+    }, [
+      vehicle.speed,
+      vehicle.speedLimit,
+      vehicle.category,
+      vehicle.status,
+      vehicleStatus,
+    ]);
 
     // Memoize icon with proper sizing
     const busIcon = useMemo(() => {
@@ -244,12 +301,14 @@ const VehicleBusMarker = React.memo(
 
     // Memoize status info
     const statusInfo = useMemo(() => {
-      const statusMap = {
+      const statusMap: Record<string, { text: string; color: string }> = {
         running: { text: "Running", color: "#28a745" },
         idle: { text: "Idle", color: "#ffc107" },
         stopped: { text: "Stopped", color: "#dc3545" },
         inactive: { text: "Inactive", color: "#666666" },
         overspeeding: { text: "Overspeeding", color: "#fd7e14" },
+        overspeed: { text: "Overspeeding", color: "#fd7e14" },
+        new: { text: "New", color: "#2196f3" },
         noData: { text: "No Data", color: "#007bff" },
       };
       return statusMap[vehicleStatus] || statusMap.noData;

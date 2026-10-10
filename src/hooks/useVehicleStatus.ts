@@ -27,6 +27,8 @@ export type VehicleStatus =
   | "stopped"
   | "inactive"
   | "overspeeding"
+  | "overspeed"
+  | "new"
   | "noData";
 
 export const useVehicleStatus = ({
@@ -46,15 +48,25 @@ export const useVehicleStatus = ({
     const timeDifference = currentTime - lastUpdateTime;
     const thirtyFiveHoursInMs = 35 * 60 * 60 * 1000;
 
-    if (category === "inactive") return "inactive";
+    const rawCat = (category || "").toLowerCase();
+    if (rawCat === "inactive") return "inactive";
     if (timeDifference > thirtyFiveHoursInMs) return "inactive";
 
     const parsedSpeedLimit = parseFloat(speedLimit) || 60;
-    if (speed > parsedSpeedLimit) return "overspeeding";
+    if (speed > parsedSpeedLimit || rawCat.includes("overspeed")) return "overspeeding";
 
-    const validStatuses = ["running", "idle", "stopped", "inactive", "overspeeding", "noData"];
-    if (validStatuses.includes(category)) {
-      return category as VehicleStatus;
+    const validStatuses: VehicleStatus[] = [
+      "running",
+      "idle",
+      "stopped",
+      "inactive",
+      "overspeeding",
+      "overspeed",
+      "new",
+      "noData",
+    ];
+    if (validStatuses.includes(rawCat as VehicleStatus)) {
+      return rawCat as VehicleStatus;
     }
 
     return "noData";

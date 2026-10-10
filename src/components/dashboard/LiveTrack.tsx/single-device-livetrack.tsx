@@ -527,12 +527,25 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
     const timeDifference = currentTime - lastUpdateTime;
     const thirtyFiveHoursInMs = 35 * 60 * 60 * 1000;
 
-    if (vehicle.category === "inactive") return "inactive";
+    const rawCat = (vehicle.category || "").toLowerCase();
+    if (rawCat === "inactive") return "inactive";
     if (timeDifference > thirtyFiveHoursInMs) return "inactive";
 
-    const validStatuses = ["running", "idle", "stopped", "inactive", "overspeeding", "noData"];
-    if (validStatuses.includes(vehicle.category)) {
-      return vehicle.category;
+    const speedLimit = parseFloat(vehicle.speedLimit) || 60;
+    if (vehicle.speed > speedLimit || rawCat.includes("overspeed")) return "overspeeding";
+
+    const validStatuses = [
+      "running",
+      "idle",
+      "stopped",
+      "inactive",
+      "overspeeding",
+      "overspeed",
+      "new",
+      "noData",
+    ];
+    if (validStatuses.includes(rawCat)) {
+      return rawCat;
     }
 
     return "noData";

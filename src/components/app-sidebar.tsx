@@ -61,6 +61,8 @@ const iconMap: Record<string, React.ElementType> = {
   Geofence: MapPin,
   "Pickup And Drop": Route,
   Routes: Route,
+  "Route Roster": Route,
+  "School Roster": Route,
   Absent: UserX,
   Present: UserCheck,
   "Leave Request": FileText,
@@ -143,6 +145,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 url: "/dashboard/users/parents-master",
               },
               { title: "Routes", url: "/dashboard/master/route" },
+              { title: "Route Roster", url: "/dashboard/master/route-roster" },
               {
                 title: "Geofence",
                 url: "/dashboard/school/geofence",
@@ -172,6 +175,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 url: "/dashboard/master/route",
               },
               {
+                title: "Route Roster",
+                url: "/dashboard/master/route-roster",
+              },
+              {
                 title: "Geofence",
                 url: "/dashboard/school/geofence",
               },
@@ -190,6 +197,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               {
                 title: "Routes",
                 url: "/dashboard/master/route",
+              },
+              {
+                title: "Route Roster",
+                url: "/dashboard/master/route-roster",
               },
               {
                 title: "Geofence",
