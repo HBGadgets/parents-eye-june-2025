@@ -582,12 +582,12 @@ export default function RouteRosterPage() {
     const start =
       typeof routeObjId.startPointGeoId === "object"
         ? routeObjId.startPointGeoId?.geofenceName ||
-          routeObjId.startPointGeoId?.address
+        routeObjId.startPointGeoId?.address
         : undefined;
     const end =
       typeof routeObjId.endPointGeoId === "object"
         ? routeObjId.endPointGeoId?.geofenceName ||
-          routeObjId.endPointGeoId?.address
+        routeObjId.endPointGeoId?.address
         : undefined;
     if (start && end) return `${start} → ${end}`;
     if (start) return `From ${start}`;
@@ -704,8 +704,8 @@ export default function RouteRosterPage() {
             typeof s.routeObjId === "object" && s.routeObjId?._id
               ? s.routeObjId._id
               : typeof s.routeObjId === "string"
-              ? s.routeObjId
-              : "",
+                ? s.routeObjId
+                : "",
           startTime: s.startTime || "06:00",
           endTime: s.endTime || "09:00",
         }))
@@ -946,27 +946,27 @@ export default function RouteRosterPage() {
               rosterActiveFilter !== "ALL" ||
               selectedBranchId ||
               selectedSchoolId) && (
-              <>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onClick={() => {
-                    setStatusFilter("ALL");
-                    setRosterActiveFilter("ALL");
-                    setSelectedBranchId("");
-                    setSelectedSchoolId("");
-                    setSearchQuery("");
-                  }}
-                  className="text-red-600 text-xs cursor-pointer font-medium"
-                >
-                  Clear All Filters
-                </DropdownMenuItem>
-              </>
-            )}
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={() => {
+                      setStatusFilter("ALL");
+                      setRosterActiveFilter("ALL");
+                      setSelectedBranchId("");
+                      setSelectedSchoolId("");
+                      setSearchQuery("");
+                    }}
+                    className="text-red-600 text-xs cursor-pointer font-medium"
+                  >
+                    Clear All Filters
+                  </DropdownMenuItem>
+                </>
+              )}
           </DropdownMenuContent>
         </DropdownMenu>
 
         {/* Assign Route Primary Button */}
-        <Button
+        {isSuperAdmin && (<Button
           onClick={() => {
             resetAssignForm();
             setIsAssignDialogOpen(true);
@@ -975,7 +975,7 @@ export default function RouteRosterPage() {
         >
           <Plus className="w-4 h-4" />
           <span>Assign Route</span>
-        </Button>
+        </Button>)}
       </div>
 
       {/* ------------------- ROSTERS TABLE ------------------- */}
@@ -995,7 +995,7 @@ export default function RouteRosterPage() {
               ? `No records matching your filters. Try adjusting your search query or filters.`
               : "No route shifting schedules exist yet. Click 'Assign Route' to create your first roster."}
           </p>
-          <Button
+          {isSuperAdmin && (<Button
             onClick={() => {
               resetAssignForm();
               setIsAssignDialogOpen(true);
@@ -1003,7 +1003,7 @@ export default function RouteRosterPage() {
             className="bg-[#0b57d0] hover:bg-blue-700 text-white text-xs h-8.5"
           >
             <Plus className="w-3.5 h-3.5 mr-1" /> Assign Route
-          </Button>
+          </Button>)}
         </div>
       ) : (
         <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-2xs">
@@ -1061,8 +1061,8 @@ export default function RouteRosterPage() {
                 const maxMinutes =
                   sortedShifts.length > 0
                     ? Math.max(
-                        ...sortedShifts.map((s) => timeToMin(s.endTime))
-                      )
+                      ...sortedShifts.map((s) => timeToMin(s.endTime))
+                    )
                     : 1080; // 18:00
                 const totalSpan = Math.max(maxMinutes - minMinutes, 60);
 
@@ -1312,7 +1312,7 @@ export default function RouteRosterPage() {
                             .toUpperCase() || "—";
                         const avatarColor =
                           DRIVER_AVATAR_COLORS[
-                            shiftIndex % DRIVER_AVATAR_COLORS.length
+                          shiftIndex % DRIVER_AVATAR_COLORS.length
                           ];
 
                         return (
@@ -1435,8 +1435,8 @@ export default function RouteRosterPage() {
                                               typeof shift.routeObjId === "object" && shift.routeObjId?._id
                                                 ? shift.routeObjId._id
                                                 : typeof shift.routeObjId === "string"
-                                                ? shift.routeObjId
-                                                : "",
+                                                  ? shift.routeObjId
+                                                  : "",
                                             startTime: shift.startTime || "06:00",
                                             endTime: shift.endTime || "09:00",
                                             routeName: routeCode,
@@ -1580,8 +1580,8 @@ export default function RouteRosterPage() {
                           !formSchoolId
                             ? "Select school first"
                             : isLoadingFormBranches
-                            ? "Loading branches..."
-                            : "Select Branch"
+                              ? "Loading branches..."
+                              : "Select Branch"
                         }
                       />
                     </SelectTrigger>
@@ -1658,27 +1658,27 @@ export default function RouteRosterPage() {
               </div>
             )}
 
-              {/* Vehicle Selection */}
-              <div>
-                <label className="text-xs font-semibold text-gray-700 mb-1 block">
-                  Select Vehicle (Bus) <span className="text-red-500">*</span>
-                </label>
-                <Select
-                  value={formDeviceId}
-                  onValueChange={setFormDeviceId}
-                  disabled={
-                    !!editingRosterId ||
-                    ((isSuperAdmin || userRole === "school") && !formBranchId)
-                  }
-                >
+            {/* Vehicle Selection */}
+            <div>
+              <label className="text-xs font-semibold text-gray-700 mb-1 block">
+                Select Vehicle (Bus) <span className="text-red-500">*</span>
+              </label>
+              <Select
+                value={formDeviceId}
+                onValueChange={setFormDeviceId}
+                disabled={
+                  !!editingRosterId ||
+                  ((isSuperAdmin || userRole === "school") && !formBranchId)
+                }
+              >
                 <SelectTrigger className="w-full bg-white text-xs h-9.5">
                   <SelectValue
                     placeholder={
                       (isSuperAdmin || userRole === "school") && !formBranchId
                         ? "Select branch first"
                         : isLoadingDevices
-                        ? "Loading devices..."
-                        : "Choose a bus / device..."
+                          ? "Loading devices..."
+                          : "Choose a bus / device..."
                     }
                   />
                 </SelectTrigger>
@@ -1857,7 +1857,7 @@ export default function RouteRosterPage() {
               className="bg-[#0b57d0] hover:bg-blue-700 text-white text-xs h-9 cursor-pointer"
             >
               {createRosterMutation.isPending ||
-              updateRosterMutation.isPending ? (
+                updateRosterMutation.isPending ? (
                 <>
                   <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
                   {editingRosterId ? "Updating..." : "Saving..."}
