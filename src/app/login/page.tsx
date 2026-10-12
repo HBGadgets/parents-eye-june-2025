@@ -57,7 +57,14 @@ export default function LoginPage() {
 
       if (data?.token) {
         localStorage.clear();
-        login(data.token, values.rememberMe ? 30 : undefined);
+        login(
+          data.token,
+          values.rememberMe ? 30 : undefined,
+          data.access,
+          data.fullAccess,
+          data.role,
+          data.username
+        );
         router.push("/dashboard");
       } else {
         form.setError("root", {

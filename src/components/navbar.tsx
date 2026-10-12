@@ -17,6 +17,8 @@ import { useNotificationStore } from "@/store/notificationStore";
 import { NotificationSheet } from "./NotificationDropdown";
 import { Menu, X, Sparkles } from "lucide-react";
 import { useAiChatBotStore } from "@/store/aiChatBotStore";
+import { useAuthStore } from "@/store/authStore";
+import { UserRole, getAccessibleSidebarItems } from "@/util/navigationAccess";
 import { FrameSequencePlayer } from "@/components/ui/FrameSequencePlayer";
 import {
   DropdownMenu,
@@ -46,6 +48,7 @@ export function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
   const { isOpen: isAiChatBotOpen, toggleOpen: toggleAiChatBot } =
     useAiChatBotStore();
+  const { access, fullAccess, role } = useAuthStore();
 
   const navigationMap: Record<string, string> = {
     Dashboard: "/dashboard",
@@ -56,17 +59,61 @@ export function Navbar() {
     Notifications: "/dashboard/users/notification",
   };
 
-  const navSections = [
-    "Dashboard",
-    "Master",
-    "School",
-    "Users",
-    "Reports",
-    "Incident Management",
-    "Maintenance",
-    // "Basic Maintenance",
-    "Support",
-  ];
+  const navSections = React.useMemo(
+    () => [
+      "Dashboard",
+      "Master",
+      "School",
+      "Users",
+      "Reports",
+      "Incident Management",
+      "Maintenance",
+      // "Basic Maintenance",
+      "Support",
+    ],
+    []
+  );
+
+  const isSectionAccessible = React.useCallback(
+    (section: string) => {
+      if (fullAccess || role === "superAdmin") return true;
+
+      switch (section) {
+        case "Dashboard":
+        case "Incident Management":
+        case "Maintenance":
+        case "Basic Maintenance":
+        case "Support":
+          return true;
+        case "Master":
+        case "School":
+        case "Users":
+        case "Reports": {
+          const items = getAccessibleSidebarItems(
+            section,
+            (role as UserRole) || null,
+            access,
+            fullAccess
+          );
+          return items.length > 0;
+        }
+        default:
+          return true;
+      }
+    },
+    [access, fullAccess, role]
+  );
+
+
+  const visibleNavSections = React.useMemo(() => {
+    return navSections.filter(isSectionAccessible);
+  }, [navSections, isSectionAccessible]);
+
+  React.useEffect(() => {
+    if (activeSection && !visibleNavSections.includes(activeSection)) {
+      setActiveSection("Dashboard");
+    }
+  }, [activeSection, visibleNavSections, setActiveSection]);
 
   React.useEffect(() => {
     if (pathname === "/dashboard/basic-maintenance") {
@@ -128,7 +175,7 @@ export function Navbar() {
               align="start"
               className="w-48 bg-primary border-yellow-600/20"
             >
-              {navSections.map((section) => (
+              {visibleNavSections.map((section) => (
                 <DropdownMenuItem
                   key={section}
                   className="cursor-pointer font-semibold text-yellow-900 hover:bg-yellow-500/20 focus:bg-yellow-500/20"
@@ -176,7 +223,7 @@ export function Navbar() {
       <div className="hidden md:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 items-center z-[9999] max-w-[calc(100%-160px)]">
         <NavigationMenu className="max-w-full">
           <NavigationMenuList className="flex-nowrap justify-center gap-0.5 sm:gap-1 xl:gap-1.5">
-            {navSections.map((section) => {
+            {visibleNavSections.map((section) => {
               const isActive =
                 activeSection === section ||
                 (section === "Basic Maintenance" &&

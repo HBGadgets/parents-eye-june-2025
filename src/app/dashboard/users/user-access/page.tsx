@@ -43,6 +43,7 @@ import { createPortal } from "react-dom";
 import authAxios from "@/lib/authAxios";
 import Cookies from "js-cookie";
 import { toast } from "sonner";
+import { ModuleAccessModal } from "@/components/access/ModuleAccessModal";
 
 interface BranchGroupAccess {
   _id: string;
@@ -423,6 +424,9 @@ export default function UserAccessPage() {
     null
   );
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [moduleAccessTarget, setModuleAccessTarget] =
+    useState<BranchGroupAccess | null>(null);
+  const [moduleAccessOpen, setModuleAccessOpen] = useState(false);
   const [editSelectedBranches, setEditSelectedBranches] = useState<string[]>(
     []
   );
@@ -914,10 +918,21 @@ export default function UserAccessPage() {
                 } cursor-pointer w-24`,
               disabled: deactivateMutation.isPending,
             },
+            {
+              type: "button",
+              label: "Permissions",
+              onClick: () => {
+                setModuleAccessTarget(row);
+                setModuleAccessOpen(true);
+              },
+              className:
+                "bg-yellow-400 hover:bg-yellow-500 text-yellow-950 font-semibold py-1 px-3 rounded-md text-sm cursor-pointer transition-colors duration-200",
+            },
           ],
           render: () => (
             <div className="flex gap-2">
               <button
+                type="button"
                 onClick={() => {
                   setEditTarget(row);
                   setIsEditDialogOpen(true);
@@ -927,18 +942,29 @@ export default function UserAccessPage() {
                 Edit
               </button>
               <button
+                type="button"
                 onClick={() => setDeleteTarget(row)}
                 className="cursor-pointer bg-red-500 hover:bg-red-600 text-white font-semibold py-1 px-3 rounded-md text-sm"
               >
                 Delete
               </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setModuleAccessTarget(row);
+                  setModuleAccessOpen(true);
+                }}
+                className="cursor-pointer bg-yellow-400 hover:bg-yellow-500 text-yellow-950 font-semibold py-1 px-3 rounded-md text-sm"
+              >
+                Permissions
+              </button>
             </div>
           ),
         }),
         meta: {
-          minWidth: 280,
-          maxWidth: 320,
-          width: 300,
+          minWidth: 360,
+          maxWidth: 420,
+          width: 380,
         },
       },
     ],
@@ -1195,6 +1221,24 @@ export default function UserAccessPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      {moduleAccessTarget && (
+        <ModuleAccessModal
+          isOpen={moduleAccessOpen}
+          onClose={() => {
+            setModuleAccessOpen(false);
+            setModuleAccessTarget(null);
+          }}
+          targetType="branchGroup"
+          targetId={moduleAccessTarget._id}
+          targetName={moduleAccessTarget.branchGroupName}
+          initialAccess={(moduleAccessTarget as any).access}
+          onSuccess={() => {
+            queryClient.invalidateQueries({ queryKey: ["branchGroups"] });
+            fetchBranchGroups();
+          }}
+        />
+      )}
     </main>
   );
 }

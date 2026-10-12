@@ -53,7 +53,9 @@ import { GiGps } from "react-icons/gi";
 import Image from "next/image";
 import Model from "@/app/dashboard/master/model/page";
 
-type UserRole = "superAdmin" | "school" | "branchGroup" | "branch" | null;
+import { useAuthStore } from "@/store/authStore";
+import { UserRole, getAccessibleSidebarItems } from "@/util/navigationAccess";
+
 
 // Icon mapping for menu items
 const iconMap: Record<string, React.ElementType> = {
@@ -75,6 +77,7 @@ const iconMap: Record<string, React.ElementType> = {
   "Driver Approve": UserCheck,
   "Student Approve": UserCheck,
   "Supervisor Approve": UserCheck,
+  Driver: UserCheck,
   "Device": Smartphone,
   "Read Device": Smartphone,
   Devices: Smartphone,
@@ -98,6 +101,7 @@ const iconMap: Record<string, React.ElementType> = {
   "Send Broadcast": Bell,
   "Analytics Report": BarChart3,
   "Incident Management": ShieldAlert,
+  "e-Police Report": ShieldAlert,
 };
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
@@ -105,6 +109,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const activeSection = useNavigationStore((state) => state.activeSection);
   const [isLoading, setIsLoading] = React.useState(true);
   const [searchQuery, setSearchQuery] = React.useState("");
+
+  const { access, fullAccess, role: authRole } = useAuthStore();
 
   const router = useRouter();
   const pathname = usePathname();
@@ -114,7 +120,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   React.useEffect(() => {
     const token = Cookies.get("token");
     const decoded = token ? getDecodedToken(token) : null;
-    const role = decoded?.role;
+    const role = authRole || decoded?.role;
 
     if (
       typeof role === "string" &&
@@ -124,162 +130,13 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     }
 
     setIsLoading(false);
-  }, []);
-
-  const getSidebarData = React.useCallback(
-    (section: string, role: UserRole) => {
-      switch (section) {
-        case "Master":
-          if (role === "superAdmin") {
-            return [
-              { title: "Device", url: "/dashboard/users/add-device" },
-              { title: "School Master", url: "/dashboard/users/school-master" },
-              { title: "Branch Master", url: "/dashboard/users/branch-master" },
-              { title: "User Access", url: "/dashboard/users/user-access" },
-              {
-                title: "Student Details",
-                url: "/dashboard/school/student-details",
-              },
-              {
-                title: "Parents Master",
-                url: "/dashboard/users/parents-master",
-              },
-              { title: "Routes", url: "/dashboard/master/route" },
-              { title: "Route Roster", url: "/dashboard/master/route-roster" },
-              {
-                title: "Geofence",
-                url: "/dashboard/school/geofence",
-              },
-              // { title: "Notification", url: "/dashboard/users/notification" },
-              { title: "Model", url: "/dashboard/master/model" },
-              { title: "Category", url: "/dashboard/master/category" },
-              { title: "Ticket Types", url: "/dashboard/support/ticket-types" },
-            ];
-          } else if (role === "school" || role === "branchGroup") {
-            return [
-              { title: "Device", url: "/dashboard/users/add-device" },
-              {
-                title: "Branch Master",
-                url: "/dashboard/users/branch-master",
-              },
-              {
-                title: "Student Details",
-                url: "/dashboard/school/student-details",
-              },
-              {
-                title: "Parents Master",
-                url: "/dashboard/users/parents-master",
-              },
-              {
-                title: "Routes",
-                url: "/dashboard/master/route",
-              },
-              {
-                title: "Route Roster",
-                url: "/dashboard/master/route-roster",
-              },
-              {
-                title: "Geofence",
-                url: "/dashboard/school/geofence",
-              },
-            ];
-          } else {
-            return [
-              { title: "Device", url: "/dashboard/users/add-device" },
-              {
-                title: "Student Details",
-                url: "/dashboard/school/student-details",
-              },
-              {
-                title: "Parents Master",
-                url: "/dashboard/users/parents-master",
-              },
-              {
-                title: "Routes",
-                url: "/dashboard/master/route",
-              },
-              {
-                title: "Route Roster",
-                url: "/dashboard/master/route-roster",
-              },
-              {
-                title: "Geofence",
-                url: "/dashboard/school/geofence",
-              },
-            ];
-          }
-        case "School":
-          return [
-            { title: "Pickup And Drop", url: "/dashboard/school/pickup-drop" },
-            { title: "Leave Request", url: "/dashboard/school/leave-request" },
-            { title: "Send Broadcast", url: "/dashboard/school/send-broadcast" }
-          ];
-        case "Users":
-          return [
-            {
-              title: "Driver Approve",
-              url: "/dashboard/users/driver-approve",
-            },
-            {
-              title: "Supervisor Approve",
-              url: "/dashboard/users/supervisor-approve",
-            },
-          ];
-        case "Reports":
-          return [
-            {
-              title: "Analytics Report",
-              url: "/dashboard/reports/analytics-report",
-            },
-            { title: "Status Report", url: "/dashboard/reports/status-report" },
-            {
-              title: "Distance Report",
-              url: "/dashboard/reports/distance-report",
-            },
-            {
-              title: "History Report",
-              url: "/dashboard/reports/history-report",
-            },
-            { title: "Stop Report", url: "/dashboard/reports/stop-report" },
-            {
-              title: "Stoppage Summary",
-              url: "/dashboard/reports/stoppage-summary",
-            },
-            {
-              title: "Travel Summary",
-              url: "/dashboard/reports/travel-summary",
-            },
-            { title: "Trip Report", url: "/dashboard/reports/trip-report" },
-            { title: "Idle Report", url: "/dashboard/reports/idle-report" },
-            { title: "Alerts/Events", url: "/dashboard/reports/events" },
-            {
-              title: "Geofence Report",
-              url: "/dashboard/reports/geofence-report",
-            },
-            {
-              title: "Route Report",
-              url: "/dashboard/reports/route-report",
-            },
-          ];
-        case "Support":
-          return [
-            { title: "Chat Box", url: "/dashboard/support/contact-us" },
-            { title: "Raise Ticket", url: "/dashboard/support/raise-ticket" },
-            { title: "Incident Management", url: "/dashboard/incident-management" },
-            // { title: "Answer Ticket", url: "/dashboard/support/answer-ticket" },
-            { title: "FAQ", url: "/dashboard/support/faq" },
-          ];
-        default:
-          return [];
-      }
-    },
-    []
-  );
+  }, [authRole]);
 
   const sidebarData = React.useMemo(() => {
     if (!activeSection || !userRole) return [];
-    return getSidebarData(activeSection, userRole);
-  }, [activeSection, userRole, getSidebarData]);
+    return getAccessibleSidebarItems(activeSection, userRole, access, fullAccess);
+  }, [activeSection, userRole, access, fullAccess]);
+
 
   const filteredData = React.useMemo(() => {
     if (!searchQuery.trim()) return sidebarData;
@@ -351,7 +208,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
         {/* Scrollable Content - Animated */}
         <SidebarContent className="bg-primary px-2 py-2 transition-all duration-300 ease-in-out">
-          {isLoading || !userRole || sidebarData.length === 0 ? (
+          {isLoading || !userRole ? (
             <div className="flex flex-col gap-2 p-2">
               {[...Array(6)].map((_, i) => (
                 <Skeleton
@@ -360,6 +217,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   style={{ animationDelay: `${i * 50}ms` }}
                 />
               ))}
+            </div>
+          ) : sidebarData.length === 0 ? (
+            <div className="px-3 py-8 text-center text-sm text-yellow-800/70 font-medium group-data-[collapsible=icon]:hidden">
+              No accessible modules
             </div>
           ) : (
             <SidebarGroup className="p-0">

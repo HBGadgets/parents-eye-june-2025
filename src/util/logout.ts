@@ -46,6 +46,10 @@ export const performLogout = async (router?: any) => {
       localStorage.removeItem("ct-notifications");
       localStorage.removeItem("device-store");
       localStorage.removeItem("userId");
+      localStorage.removeItem("userAccess");
+      localStorage.removeItem("fullAccess");
+      localStorage.removeItem("userRole");
+      localStorage.removeItem("username");
 
       // 5. Clear notification store
       useNotificationStore.getState().clearNotifications();

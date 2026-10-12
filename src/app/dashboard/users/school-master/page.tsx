@@ -35,8 +35,8 @@ import ResponseLoader from "@/components/ResponseLoader";
 import { ColumnVisibilitySelector } from "@/components/column-visibility-selector";
 import { Eye, EyeOff } from "lucide-react";
 import authAxios from "@/lib/authAxios";
-import Cookies from "js-cookie";
 import { toast } from "sonner";
+import { ModuleAccessModal } from "@/components/access/ModuleAccessModal";
 
 declare module "@tanstack/react-table" {
   interface ColumnMeta<TData, TValue> {
@@ -55,6 +55,8 @@ export default function SchoolMaster() {
   const [deleteTarget, setDeleteTarget] = useState<School | null>(null);
   const [editTarget, setEditTarget] = useState<School | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [permissionTarget, setPermissionTarget] = useState<School | null>(null);
+  const [permissionDialogOpen, setPermissionDialogOpen] = useState(false);
   const [columnVisibility, setColumnVisibility] =
     React.useState<VisibilityState>({});
   const { exportToPDF, exportToExcel } = useExport();
@@ -159,6 +161,27 @@ export default function SchoolMaster() {
     },
 
     {
+      header: "Access",
+      accessorFn: (row: School) => ({
+        type: "group",
+        items: [
+          {
+            type: "button",
+            label: "Permissions",
+            onClick: () => {
+              setPermissionTarget(row);
+              setPermissionDialogOpen(true);
+            },
+            className:
+              "w-32 text-center text-xs bg-yellow-400 hover:bg-yellow-500 font-semibold text-yellow-950 rounded-full px-3 py-1.5 cursor-pointer",
+          },
+        ],
+      }),
+      meta: { flex: 1, minWidth: 150, maxWidth: 180 },
+      enableSorting: false,
+      enableHiding: true,
+    },
+    {
       header: "Action",
       accessorFn: (row) => ({
         type: "group",
@@ -171,7 +194,6 @@ export default function SchoolMaster() {
               setEditDialogOpen(true);
             },
             className: "cursor-pointer",
-            // note: original used updateSchoolMutation.isPending; keep as-is if desired
             disabled: false,
           },
           {
@@ -201,6 +223,7 @@ export default function SchoolMaster() {
       enableSorting: false,
       enableHiding: true,
     },
+
   ];
 
   // // columns for export
@@ -396,14 +419,9 @@ export default function SchoolMaster() {
     });
   };
 
-  // --- FIXED handleSubmit: safely read checkbox if present ---
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const form = e.currentTarget;
-    // Use namedItem to safely get the checkbox if it exists
-    const fullAccessEl = form.elements.namedItem(
-      "fullAccess"
-    ) as HTMLInputElement | null;
 
     const data = {
       schoolName: (form.elements.namedItem("schoolName") as HTMLInputElement)
@@ -415,8 +433,8 @@ export default function SchoolMaster() {
       email: (form.elements.namedItem("email") as HTMLInputElement)?.value,
       mobileNo: (form.elements.namedItem("mobileNo") as HTMLInputElement)
         ?.value,
-      fullAccess: fullAccessEl ? !!fullAccessEl.checked : false,
     };
+
 
     try {
       await addSchoolMutation.mutateAsync(data);
@@ -551,20 +569,7 @@ export default function SchoolMaster() {
                     />
                   </div>
 
-                  {/* If you want the fullAccess checkbox back in the form,
-                      uncomment the block below. The handleSubmit safely reads it either way.
-                  */}
-                  {/*
-                  <div className="flex items-center gap-3 mt-6">
-                    <input
-                      type="checkbox"
-                      id="fullAccess"
-                      name="fullAccess"
-                      className="h-5 w-5"
-                    />
-                    <Label htmlFor="fullAccess">Full Access</Label>
-                  </div>
-                  */}
+
                 </div>
 
                 <DialogFooter>
@@ -632,6 +637,23 @@ export default function SchoolMaster() {
             avatarConfig={{
               imageKey: "logo",
               nameKeys: ["schoolName"],
+            }}
+          />
+        )}
+
+        {permissionTarget && (
+          <ModuleAccessModal
+            isOpen={permissionDialogOpen}
+            onClose={() => {
+              setPermissionDialogOpen(false);
+              setPermissionTarget(null);
+            }}
+            targetType="school"
+            targetId={permissionTarget._id}
+            targetName={permissionTarget.schoolName}
+            initialAccess={(permissionTarget as any).access}
+            onSuccess={() => {
+              queryClient.invalidateQueries({ queryKey: ["schools"] });
             }}
           />
         )}

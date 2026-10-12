@@ -45,6 +45,7 @@ import Cookies from "js-cookie";
 import { toast } from "sonner";
 import { BranchNotificationCell } from "@/components/branch-master/BranchNotificationCell";
 import authAxios from "@/lib/authAxios";
+import { ModuleAccessModal } from "@/components/access/ModuleAccessModal";
 
 type branchAccess = {
   _id: string;
@@ -306,6 +307,8 @@ export default function BranchMaster() {
   const [deleteTarget, setDeleteTarget] = useState<branch | null>(null);
   const [editTarget, setEditTarget] = useState<branch | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [moduleAccessTarget, setModuleAccessTarget] = useState<branch | null>(null);
+  const [moduleAccessOpen, setModuleAccessOpen] = useState(false);
   const [columnVisibility, setColumnVisibility] =
     React.useState<VisibilityState>({});
   const { exportToPDF, exportToExcel } = useExport();
@@ -992,26 +995,26 @@ export default function BranchMaster() {
         enableHiding: true,
       },
 
-      ...(isSuperAdmin
+      ...(isSuperAdmin || isSchoolRole
         ? [
           {
             header: "Access",
-            accessorFn: (row) => ({
+            accessorFn: (row: branch) => ({
               type: "group",
               items: [
                 {
                   type: "button",
-                  label: row.fullAccess
-                    ? "Grant Limited Access"
-                    : "Grant Full Access",
-                  onClick: () => setAccessTarget(row),
-                  disabled: accessMutation.isPending,
-                  className: `w-38 text-center text-sm bg-yellow-400 hover:bg-yellow-500 font-semibold rounded-full px-4 py-2 ${row.fullAccess ? "text-red-600" : "text-emerald-600"
-                    }`,
+                  label: "Permissions",
+                  onClick: () => {
+                    setModuleAccessTarget(row);
+                    setModuleAccessOpen(true);
+                  },
+                  className:
+                    "w-32 text-center text-xs bg-yellow-400 hover:bg-yellow-500 font-semibold text-yellow-950 rounded-full px-3 py-1.5 cursor-pointer",
                 },
               ],
             }),
-            meta: { flex: 1.5, minWidth: 230 },
+            meta: { flex: 1, minWidth: 150, maxWidth: 180 },
             enableSorting: false,
             enableHiding: true,
           },
@@ -1379,6 +1382,23 @@ export default function BranchMaster() {
             isSuperAdmin={isSuperAdmin}
             isSchoolRole={isSchoolRole}
             updatebranchMutation={updatebranchMutation}
+          />
+        )}
+
+        {moduleAccessTarget && (
+          <ModuleAccessModal
+            isOpen={moduleAccessOpen}
+            onClose={() => {
+              setModuleAccessOpen(false);
+              setModuleAccessTarget(null);
+            }}
+            targetType="branch"
+            targetId={moduleAccessTarget._id}
+            targetName={moduleAccessTarget.branchName}
+            initialAccess={(moduleAccessTarget as any).access}
+            onSuccess={() => {
+              queryClient.invalidateQueries({ queryKey: ["branches"] });
+            }}
           />
         )}
       </section>
