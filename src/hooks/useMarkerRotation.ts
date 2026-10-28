@@ -12,7 +12,8 @@ export const useMarkerRotation = (
   longitude: number,
   course: number,
   imageUrl: string,
-  busIcon: L.DivIcon
+  busIcon: L.DivIcon,
+  enabled: boolean = true
 ) => {
   const prevPositionRef = useRef<[number, number] | null>(null);
   const prevRotationRef = useRef<number>(0);
@@ -20,6 +21,16 @@ export const useMarkerRotation = (
   const isZoomingRef = useRef(false);
 
   useEffect(() => {
+    if (!enabled) {
+      if (markerRef.current) {
+        const el = markerRef.current.getElement();
+        if (el) {
+          el.classList.remove("smooth-marker");
+        }
+      }
+      return;
+    }
+
     if (!markerRef.current) return;
 
     const newPosition: [number, number] = [latitude, longitude];

@@ -13,7 +13,9 @@ export const geofenceService = {
     if (
       !params?.uniqueId ||
       String(params.uniqueId) === "undefined" ||
-      String(params.uniqueId) === "null"
+      String(params.uniqueId) === "null" ||
+      params?.category === "BLE" ||
+      params?.isBle
     ) {
       return {
         total: 0,

@@ -16,9 +16,10 @@ export interface SidebarItem {
 // 1. Super Admin baseline for Master
 export const SUPER_ADMIN_MASTER_ITEMS: NavItemConfig[] = [
   { title: "Device", url: "/dashboard/users/add-device", key: "device" },
+  { title: "CRTag", url: "/dashboard/master/geo-tag", key: ["geoTag", "geotag"] },
   { title: "School Master", url: "/dashboard/users/school-master", key: "schoolMaster" },
   { title: "Branch Master", url: "/dashboard/users/branch-master", key: "branchMaster" },
-  { title: "User Access", url: "/dashboard/users/user-access", key: "userAccess" },
+  { title: "Branch Group", url: "/dashboard/users/user-access", key: "userAccess" },
   {
     title: "Student Details",
     url: "/dashboard/school/student-details",
@@ -39,12 +40,12 @@ export const SUPER_ADMIN_MASTER_ITEMS: NavItemConfig[] = [
   { title: "Model", url: "/dashboard/master/model", key: "model" },
   { title: "Category", url: "/dashboard/master/category", key: "category" },
   { title: "Ticket Types", url: "/dashboard/support/ticket-types", key: "ticketTypes" },
-  { title: "Driver", url: "/dashboard/users/driver-approve", key: "driver" },
 ];
 
 // 2. School and BranchGroup baseline for Master
 export const SCHOOL_BRANCH_GROUP_MASTER_ITEMS: NavItemConfig[] = [
   { title: "Device", url: "/dashboard/users/add-device", key: "device" },
+  { title: "CRTag", url: "/dashboard/master/geo-tag", key: ["geoTag", "geotag"] },
   { title: "Branch Master", url: "/dashboard/users/branch-master", key: "branchMaster" },
   {
     title: "Student Details",
@@ -68,6 +69,7 @@ export const SCHOOL_BRANCH_GROUP_MASTER_ITEMS: NavItemConfig[] = [
 // 3. Branch baseline for Master
 export const BRANCH_MASTER_ITEMS: NavItemConfig[] = [
   { title: "Device", url: "/dashboard/users/add-device", key: "device" },
+  { title: "CRTag", url: "/dashboard/master/geo-tag", key: ["geoTag", "geotag"] },
   {
     title: "Student Details",
     url: "/dashboard/school/student-details",
@@ -87,15 +89,11 @@ export const BRANCH_MASTER_ITEMS: NavItemConfig[] = [
   },
 ];
 
-// School section baseline
+// School section baseline (includes School & User management items)
 export const SCHOOL_CONFIG: NavItemConfig[] = [
   { title: "Pickup And Drop", url: "/dashboard/school/pickup-drop", key: "pickupAndDrop" },
   { title: "Leave Request", url: "/dashboard/school/leave-request", key: "leaveRequest" },
   { title: "Send Broadcast", url: "/dashboard/school/send-broadcast", key: "sendBroadcast" },
-];
-
-// Users section baseline
-export const USERS_CONFIG: NavItemConfig[] = [
   {
     title: "Driver Approve",
     url: "/dashboard/users/driver-approve",
@@ -107,6 +105,9 @@ export const USERS_CONFIG: NavItemConfig[] = [
     key: "supervisorApprove",
   },
 ];
+
+// Alias for backwards compatibility
+export const USERS_CONFIG: NavItemConfig[] = SCHOOL_CONFIG;
 
 // Reports section baseline
 export const REPORTS_CONFIG: NavItemConfig[] = [
@@ -227,10 +228,11 @@ export const getAccessibleSidebarItems = (
       sectionPermissions = userAccess.master;
       break;
     case "School":
-      sectionPermissions = userAccess.school;
-      break;
     case "Users":
-      sectionPermissions = userAccess.users;
+      sectionPermissions = {
+        ...userAccess.school,
+        ...userAccess.users,
+      };
       break;
     case "Reports":
       sectionPermissions = userAccess.reports;
@@ -257,4 +259,56 @@ export const getAccessibleSidebarItems = (
       return sectionPermissions[item.key] === true;
     })
     .map(({ title, url }) => ({ title, url }));
+};
+
+/**
+ * Infers the active navigation section from a URL pathname.
+ */
+export const getSectionFromPath = (pathname: string): string => {
+  if (!pathname || pathname === "/dashboard") {
+    return "Dashboard";
+  }
+  if (pathname.startsWith("/dashboard/incident-management")) {
+    return "Incident Management";
+  }
+  if (pathname.startsWith("/dashboard/basic-maintenance")) {
+    return "Basic Maintenance";
+  }
+
+  // Check Master items
+  const isMaster = SUPER_ADMIN_MASTER_ITEMS.some(
+    (item) => item.url === pathname || (item.url !== "/dashboard" && pathname.startsWith(item.url))
+  );
+  if (isMaster || pathname.startsWith("/dashboard/master")) {
+    return "Master";
+  }
+
+  // Check School items
+  const isSchool = SCHOOL_CONFIG.some(
+    (item) => item.url === pathname || (item.url !== "/dashboard" && pathname.startsWith(item.url))
+  );
+  if (isSchool) {
+    return "School";
+  }
+
+  // Check Reports items
+  const isReports = REPORTS_CONFIG.some(
+    (item) => item.url === pathname || (item.url !== "/dashboard" && pathname.startsWith(item.url))
+  );
+  if (isReports || pathname.startsWith("/dashboard/reports")) {
+    return "Reports";
+  }
+
+  // Check Support items
+  const isSupport = SUPPORT_CONFIG.some(
+    (item) => item.url === pathname || (item.url !== "/dashboard" && pathname.startsWith(item.url))
+  );
+  if (isSupport || pathname.startsWith("/dashboard/support")) {
+    return "Support";
+  }
+
+  if (pathname.startsWith("/dashboard/school")) return "School";
+  if (pathname.startsWith("/dashboard/users")) return "Master";
+
+  return "Dashboard";
 };

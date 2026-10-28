@@ -102,6 +102,35 @@ const VehicleMapInner = forwardRef<VehicleMapHandle, VehicleMapProps>((
 
   // Vehicle icon
   const createVehicleIcon = useCallback(() => {
+    if (deviceCategory?.toUpperCase() === "BLE") {
+      const size = 42;
+      return L.divIcon({
+        className: "ble-history-marker",
+        html: `
+        <div class="vehicle-rotator" style="
+          width: ${size}px;
+          height: ${size}px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        ">
+          <img 
+            src="/geotag-icon/crtag.png" 
+            alt="GeoTag"
+            style="
+              width: ${size}px;
+              height: ${size}px;
+              object-fit: contain;
+              filter: drop-shadow(0 4px 8px rgba(0,0,0,0.4));
+            "
+          />
+        </div>
+      `,
+        iconSize: [size, size],
+        iconAnchor: [size / 2, size / 2],
+      });
+    }
+
     const size = 100;
     const category = getValidDeviceCategory(deviceCategory);
     return L.divIcon({
@@ -529,8 +558,20 @@ const VehicleMapInner = forwardRef<VehicleMapHandle, VehicleMapProps>((
 
   // Draw route with flags
   useEffect(() => {
-    if (!mapRef.current || !data || data.length === 0) return;
+    if (!mapRef.current) return;
     const map = mapRef.current;
+
+    if (!data || data.length === 0) {
+      if (polylineRef.current) polylineRef.current.remove();
+      if (startFlagRef.current) startFlagRef.current.remove();
+      if (endFlagRef.current) endFlagRef.current.remove();
+      if (markerPlayerRef.current) markerPlayerRef.current.remove();
+      setIsRouteDrawn(false);
+      return;
+    }
+
+    // Ensure map is properly sized before fitting bounds
+    map.invalidateSize();
 
     if (completeRoute.length > 1) {
       if (polylineRef.current) polylineRef.current.remove();
@@ -543,6 +584,16 @@ const VehicleMapInner = forwardRef<VehicleMapHandle, VehicleMapProps>((
         opacity: 0.8,
         smoothFactor: 0, // Fix for marker drifting off the line
       }).addTo(map);
+
+      // Fit map bounds so route is instantly visible on screen
+      try {
+        const bounds = polylineRef.current.getBounds();
+        if (bounds.isValid()) {
+          map.fitBounds(bounds, { padding: [50, 50], maxZoom: 17 });
+        }
+      } catch (e) {
+        console.warn("Could not fit route bounds:", e);
+      }
 
       const startPoint = data[0];
       const startLat = startPoint.latitude;
@@ -703,8 +754,21 @@ const VehicleMapInner = forwardRef<VehicleMapHandle, VehicleMapProps>((
       reverseGeocode(endLat, endLng).then(setEndAddress);
 
       setIsRouteDrawn(true);
+    } else if (data.length === 1) {
+      if (polylineRef.current) polylineRef.current.remove();
+      if (startFlagRef.current) startFlagRef.current.remove();
+      if (endFlagRef.current) endFlagRef.current.remove();
+      if (markerPlayerRef.current) markerPlayerRef.current.remove();
+
+      const pt = data[0];
+      map.setView([pt.latitude, pt.longitude], 16);
+      startFlagRef.current = L.marker([pt.latitude, pt.longitude], {
+        icon: createVehicleIcon(),
+        zIndexOffset: 500,
+      }).addTo(map);
+      setIsRouteDrawn(true);
     }
-  }, [data, completeRoute, startAddress, endAddress, createFlagIcon]);
+  }, [data, completeRoute, createFlagIcon, createVehicleIcon]);
 
   // Create arrows when route is drawn
   useEffect(() => {

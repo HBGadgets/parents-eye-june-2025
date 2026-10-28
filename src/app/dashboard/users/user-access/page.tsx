@@ -999,7 +999,7 @@ export default function UserAccessPage() {
   }, [editSelectedSchool, branchDataFromHook]);
 
   return (
-    <main className="p-4">
+    <div className="flex flex-col flex-1 min-h-0">
       <ResponseLoader
         isLoading={
           isLoading ||
@@ -1010,12 +1010,12 @@ export default function UserAccessPage() {
         }
       />
       {error && (
-        <div className="text-red-600 p-2 border border-red-300 bg-red-50 mb-4 rounded">
+        <div className="text-red-600 p-2 border border-red-300 bg-red-50 mb-3 rounded">
           {error}
         </div>
       )}
 
-      <header className="flex items-center justify-between mb-4">
+      <header className="flex items-center justify-between mb-3 shrink-0">
         <section className="flex space-x-4">
           <SearchComponent
             data={branchGroupsData}
@@ -1123,22 +1123,20 @@ export default function UserAccessPage() {
         </Dialog>
       </header>
 
-      {/* Table Wrapper - Remove overflow constraints that might cut off dropdowns */}
-      <div className="mb-4 relative">
-        <div className="custom-table-container">
-          <CustomTable
-            data={filteredData || []}
-            columns={columns}
-            columnVisibility={columnVisibility}
-            onColumnVisibilityChange={setColumnVisibility}
-            pageSizeArray={[10, 20, 30]}
-            maxHeight={600}
-            minHeight={200}
-            showSerialNumber={true}
-            noDataMessage={error || "No branch groups found"}
-            isLoading={isLoading}
-          />
-        </div>
+      {/* Table Wrapper */}
+      <div className="flex-1 min-h-0 flex flex-col relative">
+        <CustomTable
+          data={filteredData || []}
+          columns={columns}
+          columnVisibility={columnVisibility}
+          onColumnVisibilityChange={setColumnVisibility}
+          pageSizeArray={[10, 20, 30]}
+          showSerialNumber={true}
+          noDataMessage={error || "No branch groups found"}
+          isLoading={isLoading}
+          fullHeight={true}
+          autoFitRows={true}
+        />
       </div>
 
       {/* Edit Dialog */}
@@ -1239,6 +1237,6 @@ export default function UserAccessPage() {
           }}
         />
       )}
-    </main>
+    </div>
   );
 }

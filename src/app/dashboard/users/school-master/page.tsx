@@ -474,17 +474,17 @@ export default function SchoolMaster() {
   });
 
   return (
-    <main>
+    <div className="flex flex-col flex-1 min-h-0">
       <ResponseLoader isLoading={isLoading} />
 
-      <header className="flex items-center justify-between mb-4">
-        <section className="flex space-x-4">
+      <header className="flex items-center justify-between mb-3 shrink-0">
+        <section className="flex space-x-4 items-center">
           <SearchComponent
             data={filterResults}
             displayKey={["schoolName", "username", "email", "mobileNo"]}
             onResults={handleSearchResults}
             onQueryChange={setSearchQuery}
-            className="w-[300px] mb-4"
+            className="w-[300px]"
           />
 
           <div>
@@ -588,18 +588,18 @@ export default function SchoolMaster() {
         </section>
       </header>
 
-      <section className="mb-4">
+      <section className="flex-1 min-h-0 flex flex-col">
         <CustomTable
           data={filteredData || []}
           columns={columns}
           columnVisibility={columnVisibility}
           onColumnVisibilityChange={setColumnVisibility}
           pageSizeArray={[10, 20, 50]}
-          maxHeight={600}
-          minHeight={200}
           showSerialNumber={true}
           noDataMessage="No schools found"
           isLoading={isLoading}
+          fullHeight={true}
+          autoFitRows={true}
         />
       </section>
 
@@ -683,6 +683,6 @@ export default function SchoolMaster() {
           }}
         />
       </section> */}
-    </main>
+    </div>
   );
 }

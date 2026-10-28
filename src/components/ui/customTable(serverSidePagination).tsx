@@ -349,14 +349,17 @@ export function CustomTableServerSidePagination<
     table,
     selectedRows,
     tableElement: (
-      <div className="space-y-4">
-        <div className="border rounded-lg">
+      <div className="flex flex-col h-full min-h-0">
+        <div className="border rounded-lg flex-1 min-h-0 flex flex-col overflow-hidden bg-background">
           <div
             ref={tableContainerRef}
-            className="overflow-auto scrollbar-thin scrollbar-thumb-muted-foreground/20"
-            style={{ maxHeight, position: 'relative' }}
+            className="overflow-auto scrollbar-thin scrollbar-thumb-muted-foreground/20 flex-1 min-h-0 relative"
+            style={{ maxHeight: maxHeight && maxHeight !== "h-[full]" ? maxHeight : undefined, position: 'relative' }}
           >
-            <Table wrapperClassName="overflow-visible">
+            <Table
+              className="w-full h-full flex-1"
+              wrapperClassName="overflow-visible min-h-full h-full flex flex-col"
+            >
               <TableHeader className="sticky top-0 bg-[#f5da6c] z-20 shadow-sm">
                 {table.getHeaderGroups().map((headerGroup) => (
                   <TableRow key={headerGroup.id} className="border-b hover:bg-transparent">
@@ -540,6 +543,11 @@ export function CustomTableServerSidePagination<
                         );
                       })
                     : null}
+                  {!enableVirtualization && rows?.length > 0 && rows.length < pagination.pageSize && (
+                    <TableRow className="border-0 hover:bg-transparent pointer-events-none" style={{ height: "100%" }}>
+                      <TableCell colSpan={tableColumns.length} className="p-0 border-0" />
+                    </TableRow>
+                  )}
                   {enableVirtualization && paddingBottom > 0 && (
                     <TableRow style={{ height: paddingBottom }} aria-hidden="true">
                       <TableCell colSpan={tableColumns.length} className="p-0 border-0" />
@@ -559,11 +567,10 @@ export function CustomTableServerSidePagination<
               )}
             </Table>
           </div>
-        </div>
 
-        {showPagination && (
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-2 py-2">
-            <div className="flex items-center space-x-2 text-xs sm:text-sm text-muted-foreground order-2 sm:order-1">
+          {showPagination && (
+            <div className="border-t bg-background px-3 py-2 shrink-0 flex flex-col sm:flex-row items-center justify-between gap-3">
+              <div className="flex items-center space-x-2 text-xs sm:text-sm text-muted-foreground order-2 sm:order-1">
               <span className="hidden sm:inline">
                 Showing {pagination.pageIndex * pagination.pageSize + 1} to{" "}
                 {Math.min(
@@ -653,8 +660,9 @@ export function CustomTableServerSidePagination<
           </div>
         )}
       </div>
-    ),
-  };
+    </div>
+  ),
+};
 }
 
 export const useCustomTable = CustomTableServerSidePagination;

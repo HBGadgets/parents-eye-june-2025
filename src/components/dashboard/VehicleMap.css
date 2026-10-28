@@ -17,6 +17,19 @@
     transition: transform 10s linear !important;
 }
 
+/* BLE GeoTag marker styles - ensure exact anchor lock during zoom */
+.custom-ble-tag-pin {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    transition: none !important;
+}
+
+.leaflet-marker-pane .custom-ble-tag-pin,
+.leaflet-marker-pane .custom-ble-tag-pin * {
+    transition: none !important;
+}
+
 /* Vehicle marker styles */
 .custom-vehicle-marker {
     background: transparent !important;

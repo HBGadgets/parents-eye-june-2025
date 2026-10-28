@@ -18,8 +18,7 @@ import {
   TripReport,
   Incident,
 } from "@/interface/modal";
-import { CellContent } from "@/components/ui/CustomTable";
-import { Eye, EyeOff, Locate, Music, WifiOff, Copy, Check } from "lucide-react";
+import { Eye, EyeOff, Locate, Music, WifiOff, Copy, Check, MapPin, History, Pencil } from "lucide-react";
 import { FaPlus, FaMinus } from "react-icons/fa";
 import {
   GeofenceGroup,
@@ -939,6 +938,321 @@ export const getLiveVehicleColumns = (userRole: string = "", customColors: Recor
     enableHiding: true,
     enableSorting: true,
   },
+];
+
+export const getBleDeviceColumns = (
+  onLiveTrack?: (device: any) => void,
+  onHistoryPlayback?: (device: any) => void,
+  onEdit?: (device: any) => void
+): ColumnDef<any>[] => [
+  {
+    id: "status",
+    header: "Status",
+    cell: ({ row }: any) => {
+      const status =
+        row.original.status || (row.original.isActive ? "active" : "inactive");
+      const isOnline = status === "active" || status === "running";
+      return (
+        <div className="flex items-center justify-center flex-shrink-0">
+          <span
+            className={`px-2 py-0.5 rounded-full text-[11px] font-semibold border ${
+              isOnline
+                ? "bg-green-50 text-green-700 border-green-200"
+                : "bg-gray-100 text-gray-600 border-gray-200"
+            }`}
+          >
+            {isOnline ? "Active" : "Inactive"}
+          </span>
+        </div>
+      );
+    },
+    meta: { flex: 1, maxWidth: 90 },
+    enableSorting: true,
+  },
+  {
+    id: "name",
+    header: "Tag / Device Name",
+    accessorFn: (row: any) => row.name ?? "N/A",
+    cell: ({ row }: any) => {
+      const name = row.original?.name ?? "N/A";
+      return (
+        <div className="flex items-center gap-2 font-semibold text-slate-800 dark:text-slate-100">
+          <MapPin className="w-4 h-4 text-blue-600 flex-shrink-0" />
+          <CopyableCell value={name} allowWrap={true} />
+        </div>
+      );
+    },
+    meta: {
+      wrapConfig: { wrap: "break-word", maxWidth: "220px" },
+    },
+    enableSorting: true,
+  },
+  {
+    id: "uniqueId",
+    header: "Serial Number (SN)",
+    accessorFn: (row: any) => row.uniqueId || row.imei || "",
+    cell: ({ row }: any) => {
+      const val = row.original.uniqueId || row.original.imei || "";
+      return <CopyableCell value={val} />;
+    },
+    meta: {
+      wrapConfig: { wrap: "nowrap" },
+    },
+    enableSorting: true,
+  },
+  {
+    id: "child",
+    header: "Child",
+    accessorFn: (row: any) => {
+      const raw = row?.rawBleDevice || row?.original?.rawBleDevice || row;
+      const child =
+        typeof raw?.childId === "object"
+          ? raw?.childId
+          : typeof row?.childId === "object"
+          ? row?.childId
+          : null;
+      return (
+        child?.childName ||
+        row?.childName ||
+        row?.original?.childName ||
+        (typeof raw?.childId === "string" ? raw?.childId : "-")
+      );
+    },
+    cell: ({ row }: any) => {
+      const raw = row.original?.rawBleDevice || row.original;
+      const child =
+        typeof raw?.childId === "object"
+          ? raw?.childId
+          : typeof row.original?.childId === "object"
+          ? row.original?.childId
+          : null;
+
+      const childName =
+        child?.childName ||
+        row.original?.childName ||
+        (typeof raw?.childId === "string" ? raw?.childId : null);
+
+      if (!childName || childName === "-") {
+        return <span className="text-gray-400 text-xs">-</span>;
+      }
+
+      return (
+        <div className="font-medium text-slate-700 capitalize">
+          {childName}
+        </div>
+      );
+    },
+    meta: {
+      wrapConfig: { wrap: "break-word", maxWidth: "160px" },
+    },
+    enableSorting: true,
+  },
+  {
+    id: "school",
+    header: "School",
+    accessorFn: (row: any) => {
+      const raw = row?.rawBleDevice || row?.original?.rawBleDevice || row;
+      const school =
+        typeof raw?.schoolId === "object"
+          ? raw?.schoolId?.schoolName
+          : typeof row?.schoolId === "object"
+          ? row?.schoolId?.schoolName
+          : row?.schoolName;
+      return school || "-";
+    },
+    cell: ({ row }: any) => {
+      const raw = row.original?.rawBleDevice || row.original;
+      const school =
+        typeof raw?.schoolId === "object"
+          ? raw?.schoolId?.schoolName
+          : typeof row.original?.schoolId === "object"
+          ? row.original?.schoolId?.schoolName
+          : row.original?.schoolName;
+      return school ? (
+        <span className="text-xs font-medium text-slate-700">{school}</span>
+      ) : (
+        <span className="text-gray-400 text-xs">-</span>
+      );
+    },
+    meta: {
+      wrapConfig: { wrap: "break-word", maxWidth: "160px" },
+    },
+    enableSorting: true,
+  },
+  {
+    id: "branch",
+    header: "Branch",
+    accessorFn: (row: any) => {
+      const raw = row?.rawBleDevice || row?.original?.rawBleDevice || row;
+      const branch =
+        typeof raw?.branchId === "object"
+          ? raw?.branchId?.branchName
+          : typeof row?.branchId === "object"
+          ? row?.branchId?.branchName
+          : row?.branchName;
+      return branch || "-";
+    },
+    cell: ({ row }: any) => {
+      const raw = row.original?.rawBleDevice || row.original;
+      const branch =
+        typeof raw?.branchId === "object"
+          ? raw?.branchId?.branchName
+          : typeof row.original?.branchId === "object"
+          ? row.original?.branchId?.branchName
+          : row.original?.branchName;
+      return branch ? (
+        <span className="text-xs font-medium text-slate-700">{branch}</span>
+      ) : (
+        <span className="text-gray-400 text-xs">-</span>
+      );
+    },
+    meta: {
+      wrapConfig: { wrap: "break-word", maxWidth: "160px" },
+    },
+    enableSorting: true,
+  },
+  {
+    id: "battery",
+    header: "Battery",
+    cell: ({ row }: any) => {
+      const level = row.original.batteryLevel ?? 100;
+      const raw = row.original.rawBleDevice;
+      const batStatus = raw?.batteryStatus || "OK";
+      const color =
+        level <= 20
+          ? "text-red-600"
+          : level <= 50
+          ? "text-amber-600"
+          : "text-green-600";
+      return (
+        <div className="flex items-center gap-1.5">
+          <span className={`font-bold ${color}`}>{level}%</span>
+          <span className="text-[10px] text-gray-400">({batStatus})</span>
+        </div>
+      );
+    },
+    enableSorting: true,
+  },
+  {
+    id: "address",
+    header: "Last Location",
+    accessorFn: (row: any) =>
+      row.address || row.rawBleDevice?.lastLocation?.address || "-",
+    cell: ({ row }: any) => {
+      const addr =
+        row.original.address ||
+        row.original.rawBleDevice?.lastLocation?.address;
+      if (!addr || addr === "-")
+        return <span className="text-gray-400 text-xs">No GPS Data</span>;
+      return (
+        <div className="text-xs text-gray-600 line-clamp-2" title={addr}>
+          📍 {addr}
+        </div>
+      );
+    },
+    meta: {
+      wrapConfig: { wrap: "break-word", maxWidth: "250px" },
+    },
+  },
+  {
+    id: "lastUpdate",
+    header: "Last Update",
+    cell: ({ row }: any) => {
+      const val = row.original.lastUpdate;
+      if (!val) return <span className="text-gray-400">-</span>;
+      const date = new Date(val);
+      return (
+        <div className="text-xs text-gray-600 whitespace-nowrap">
+          {date.toLocaleString("en-GB", {
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+            hour12: true,
+          })}
+        </div>
+      );
+    },
+    enableSorting: true,
+  },
+  {
+    id: "mac",
+    header: "MAC Address",
+    accessorFn: (row: any) =>
+      row.mac || row.rawBleDevice?.mac || row.sim || "",
+    cell: ({ row }: any) => {
+      const val =
+        row.original.mac ||
+        row.original.rawBleDevice?.mac ||
+        row.original.sim ||
+        "-";
+      return <CopyableCell value={val} />;
+    },
+    meta: {
+      wrapConfig: { wrap: "nowrap" },
+    },
+    enableSorting: true,
+  },
+  ...(onLiveTrack || onHistoryPlayback || onEdit
+    ? [
+        {
+          id: "actions",
+          header: "Action",
+          cell: ({ row }: any) => {
+            const dev = row.original;
+            return (
+              <div className="flex items-center justify-center gap-1.5">
+                {onEdit && (
+                  <button
+                    type="button"
+                    title="Edit GeoTag"
+                    className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-md hover:bg-amber-600 hover:text-white transition-all shadow-sm cursor-pointer"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onEdit(dev);
+                    }}
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                    <span>Edit</span>
+                  </button>
+                )}
+                {onLiveTrack && (
+                  <button
+                    type="button"
+                    title="Live Track"
+                    className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-blue-600 bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-600 hover:text-white transition-all shadow-sm cursor-pointer"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onLiveTrack(dev);
+                    }}
+                  >
+                    <Locate className="w-3.5 h-3.5" />
+                    <span>Live Track</span>
+                  </button>
+                )}
+                {onHistoryPlayback && (
+                  <button
+                    type="button"
+                    title="History Playback"
+                    className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-md hover:bg-emerald-600 hover:text-white transition-all shadow-sm cursor-pointer"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onHistoryPlayback(dev);
+                    }}
+                  >
+                    <History className="w-3.5 h-3.5" />
+                    <span>History</span>
+                  </button>
+                )}
+              </div>
+            );
+          },
+          meta: { flex: 1, maxWidth: 190 },
+        },
+      ]
+    : []),
 ];
 
 export const getParentsColumns = (

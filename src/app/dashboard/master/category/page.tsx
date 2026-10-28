@@ -64,8 +64,8 @@ export default function CategoryPage() {
   };
 
   return (
-    <div className="p-4 space-y-4">
-      <div className="flex justify-between items-center">
+    <div className="flex flex-col flex-1 min-h-0 space-y-4">
+      <div className="flex justify-between items-center shrink-0">
         <h2 className="text-xl font-bold">Categories</h2>
         <Button onClick={openCreateModal} className="bg-primary">
           Add Category
@@ -77,8 +77,9 @@ export default function CategoryPage() {
         columns={columnsWithHandlers}
         isLoading={isLoading}
         showSerialNumber
-        maxHeight={450}
         noDataMessage="No categories added yet"
+        fullHeight={true}
+        autoFitRows={true}
       />
 
       {/* ADD / EDIT MODAL */}

@@ -18,9 +18,17 @@ interface BottomDrawerProps {
   selectedDevice: any;
   addresses: any;
   loadingAddresses: any;
-  handleOpenLiveTrack: (imei: string, name: string, routeName: string, schoolId?: string, branchId?: string) => void;
+  handleOpenLiveTrack: (
+    uniqueId: any,
+    name: string,
+    routeName?: string,
+    routeObjId?: string,
+    schoolId?: string,
+    branchId?: string,
+    device?: any
+  ) => void;
   onOpenRouteTimeline: (
-    uniqueId: number,
+    uniqueId: any,
     deviceName: string,
     routeObjId?: string
   ) => void;
@@ -36,11 +44,17 @@ export const BottomDrawer = ({
   onOpenRouteTimeline,
 }: BottomDrawerProps) => {
   const router = useRouter();
-  const handleHistoryClick = (uniqueId: number) => {
-    router.push("/dashboard/reports/history-report?uniqueId=" + uniqueId);
+  const isBle = selectedDevice?.category === "BLE";
+  const handleHistoryClick = (uniqueId: any) => {
+    router.push(
+      `/dashboard/reports/history-report?uniqueId=${uniqueId}${
+        isBle ? "&deviceCategory=BLE" : ""
+      }`
+    );
   };
-
-  const { distance, isLoading } = useDistance(selectedDevice?.uniqueId);
+  const { distance, isLoading } = useDistance(
+    isBle ? undefined : selectedDevice?.uniqueId
+  );
   return (
     <Drawer open={isDrawerOpen} onOpenChange={setIsDrawerOpen}>
       <DrawerPortal>
@@ -49,20 +63,46 @@ export const BottomDrawer = ({
           <DrawerHeader>
             <DrawerTitle className="flex justify-between items-center">
               <div className="flex flex-col items-start">
-                {selectedDevice && selectedDevice.name}
+                <div className="flex items-center gap-1.5">
+                  {isBle && (
+                    <img
+                      src="/geotag-icon/crtag.png"
+                      alt="GeoTag"
+                      className="w-5 h-5 object-contain inline-block shrink-0"
+                    />
+                  )}
+                  <span>{selectedDevice && selectedDevice.name}</span>
+                </div>
 
                 {selectedDevice?.uniqueId && (
                   <span className="text-xs text-gray-500 mt-1">
-                    IMEI: {selectedDevice?.uniqueId}
+                    {isBle ? "SN" : "IMEI"}: {selectedDevice?.uniqueId}
                   </span>
                 )}
+
+                {(() => {
+                  const rawBle = selectedDevice?.rawBleDevice;
+                  const childObj =
+                    typeof rawBle?.childId === "object"
+                      ? rawBle?.childId
+                      : typeof selectedDevice?.childId === "object"
+                      ? selectedDevice?.childId
+                      : null;
+                  const childName = selectedDevice?.childName || childObj?.childName;
+                  if (!childName) return null;
+                  return (
+                    <span className="text-xs font-semibold text-blue-600 mt-0.5">
+                      Child: {childName}
+                    </span>
+                  );
+                })()}
 
                 {/* Address display below the device name */}
                 <div className="mt-1 text-left text-sm text-gray-600 ">
                   {selectedDevice &&
                     (() => {
                       const deviceId = selectedDevice.deviceId;
-                      const address = addresses[deviceId];
+                      const address = addresses[deviceId] || selectedDevice.address;
                       const isLoading = loadingAddresses[deviceId];
 
                       if (isLoading) {
@@ -101,8 +141,10 @@ export const BottomDrawer = ({
                         selectedDevice?.uniqueId,
                         selectedDevice?.name,
                         selectedDevice?.routeName,
+                        selectedDevice?.routeId || selectedDevice?.routeObjId,
                         selectedDevice?.schoolId,
-                        selectedDevice?.branchId
+                        selectedDevice?.branchId,
+                        selectedDevice
                       );
                     }
                   }}
@@ -118,19 +160,21 @@ export const BottomDrawer = ({
                 >
                   History
                 </button>
-                <button
-                  className="rounded-sm mr-1 text-black border border-black px-2 py-1 hover:bg-black hover:text-white transition-colors duration-200 cursor-pointer"
-                  onClick={() =>
-                    selectedDevice?.uniqueId !== undefined &&
-                    onOpenRouteTimeline(
-                      selectedDevice.uniqueId,
-                      selectedDevice.name,
-                      selectedDevice.routeId
-                    )
-                  }
-                >
-                  Timeline
-                </button>
+                {!isBle && (
+                  <button
+                    className="rounded-sm mr-1 text-black border border-black px-2 py-1 hover:bg-black hover:text-white transition-colors duration-200 cursor-pointer"
+                    onClick={() =>
+                      selectedDevice?.uniqueId !== undefined &&
+                      onOpenRouteTimeline(
+                        selectedDevice.uniqueId,
+                        selectedDevice.name,
+                        selectedDevice.routeId
+                      )
+                    }
+                  >
+                    Timeline
+                  </button>
+                )}
                 <DrawerClose
                   className="rounded-sm text-white border border-black px-2 py-1 bg-black cursor-pointer"
                   aria-label="Close"
@@ -144,87 +188,167 @@ export const BottomDrawer = ({
           <div className="p-3 sm:p-4 space-y-4">
             {selectedDevice ? (
               <>
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
-                  <div>
-                    <label className="flex items-center gap-2">
-                      <img
-                        src="/dashboard-icons/speed.svg"
-                        className="w-6"
-                        alt=""
-                      />{" "}
-                      <span className="text-stone-600">Speed</span>
-                    </label>
-                    <p className="ml-8">
-                      {selectedDevice?.speed.toFixed(2) + " km/h" || "N/A"}
-                    </p>
-                  </div>
-                  <div>
-                    <label className="flex items-center gap-2">
-                      <img
-                        src="/dashboard-icons/odometer.svg"
-                        className="w-6"
-                        alt=""
-                      />{" "}
-                      <span className="text-stone-600">Odometer</span>
-                    </label>
-                    <p className="ml-8">
-                      {isLoading
-                        ? "Loading..."
-                        : `${
-                            distance?.totalDistance
-                              ? distance?.totalDistance
-                              : 0
-                          }` + " km"}
-                    </p>
-                  </div>
-                  <div>
-                    <label className="flex items-center gap-2">
-                      <img
-                        src="/dashboard-icons/coordinate.svg"
-                        className="w-6"
-                        alt=""
-                      />{" "}
-                      <span className="text-stone-600">Co-ordinates</span>
-                    </label>
-                    <Link
-                      href={`https://www.google.com/maps?q=${selectedDevice?.latitude},${selectedDevice?.longitude}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="hover:underline"
-                    >
-                      <p className="ml-8 text-blue-700">
-                        {`${selectedDevice?.latitude}, ${selectedDevice?.longitude}` ||
-                          "N/A"}
+                {isBle ? (
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+                    <div>
+                      <label className="flex items-center gap-2">
+                        <span className="text-stone-600 font-medium text-sm">Battery</span>
+                      </label>
+                      <p className="font-semibold text-green-600 text-sm mt-1">
+                        {selectedDevice?.batteryLevel ??
+                          selectedDevice?.rawBleDevice?.battery ??
+                          100}
+                        %
                       </p>
-                    </Link>
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-2">
+                        <span className="text-stone-600 font-medium text-sm">Status</span>
+                      </label>
+                      <p className="font-semibold capitalize text-sm mt-1">
+                        {selectedDevice?.status || "Active"}
+                      </p>
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-2">
+                        <img
+                          src="/dashboard-icons/coordinate.svg"
+                          className="w-5"
+                          alt=""
+                        />{" "}
+                        <span className="text-stone-600 text-sm">Co-ordinates</span>
+                      </label>
+                      {selectedDevice?.latitude && selectedDevice?.longitude ? (
+                        <Link
+                          href={`https://www.google.com/maps?q=${selectedDevice.latitude},${selectedDevice.longitude}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="hover:underline"
+                        >
+                          <p className="text-blue-700 text-sm mt-1">
+                            {selectedDevice.latitude.toFixed(6)},{" "}
+                            {selectedDevice.longitude.toFixed(6)}
+                          </p>
+                        </Link>
+                      ) : (
+                        <p className="text-sm mt-1 text-gray-500">N/A</p>
+                      )}
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-2">
+                        <img
+                          src="/dashboard-icons/last-update.svg"
+                          className="w-5"
+                          alt=""
+                        />{" "}
+                        <span className="text-stone-600 text-sm">Last Update</span>
+                      </label>
+                      <p className="text-sm mt-1">
+                        {selectedDevice.lastUpdate
+                          ? new Date(selectedDevice.lastUpdate).toLocaleString(
+                              "en-GB",
+                              {
+                                day: "2-digit",
+                                month: "2-digit",
+                                year: "numeric",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                                second: "2-digit",
+                                hour12: true,
+                              }
+                            )
+                          : "N/A"}
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <label className="flex items-center gap-2">
-                      <img
-                        src="/dashboard-icons/last-update.svg"
-                        className="w-6"
-                        alt=""
-                      />{" "}
-                      <span className="text-stone-600">Last Update</span>
-                    </label>
+                ) : (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
+                    <div>
+                      <label className="flex items-center gap-2">
+                        <img
+                          src="/dashboard-icons/speed.svg"
+                          className="w-6"
+                          alt=""
+                        />{" "}
+                        <span className="text-stone-600">Speed</span>
+                      </label>
+                      <p className="ml-8">
+                        {selectedDevice?.speed != null
+                          ? `${selectedDevice.speed.toFixed(2)} km/h`
+                          : "N/A"}
+                      </p>
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-2">
+                        <img
+                          src="/dashboard-icons/odometer.svg"
+                          className="w-6"
+                          alt=""
+                        />{" "}
+                        <span className="text-stone-600">Odometer</span>
+                      </label>
+                      <p className="ml-8">
+                        {isLoading
+                          ? "Loading..."
+                          : `${
+                              distance?.totalDistance
+                                ? distance?.totalDistance
+                                : 0
+                            } km`}
+                      </p>
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-2">
+                        <img
+                          src="/dashboard-icons/coordinate.svg"
+                          className="w-6"
+                          alt=""
+                        />{" "}
+                        <span className="text-stone-600">Co-ordinates</span>
+                      </label>
+                      <Link
+                        href={`https://www.google.com/maps?q=${selectedDevice?.latitude},${selectedDevice?.longitude}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="hover:underline"
+                      >
+                        <p className="ml-8 text-blue-700">
+                          {selectedDevice?.latitude && selectedDevice?.longitude
+                            ? `${selectedDevice.latitude}, ${selectedDevice.longitude}`
+                            : "N/A"}
+                        </p>
+                      </Link>
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-2">
+                        <img
+                          src="/dashboard-icons/last-update.svg"
+                          className="w-6"
+                          alt=""
+                        />{" "}
+                        <span className="text-stone-600">Last Update</span>
+                      </label>
 
-                    <p className="ml-8 ">
-                      {`${new Date(selectedDevice.lastUpdate).toLocaleString(
-                        "en-GB",
-                        {
-                          day: "2-digit",
-                          month: "2-digit",
-                          year: "numeric",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                          second: "2-digit",
-                          hour12: true,
-                          timeZone: "UTC",
-                        }
-                      )}` || "N/A"}
-                    </p>
+                      <p className="ml-8 ">
+                        {selectedDevice?.lastUpdate
+                          ? new Date(selectedDevice.lastUpdate).toLocaleString(
+                              "en-GB",
+                              {
+                                day: "2-digit",
+                                month: "2-digit",
+                                year: "numeric",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                                second: "2-digit",
+                                hour12: true,
+                                timeZone: "UTC",
+                              }
+                            )
+                          : "N/A"}
+                      </p>
+                    </div>
                   </div>
-                </div>
+                )}
               </>
             ) : (
               <p>No device selected</p>

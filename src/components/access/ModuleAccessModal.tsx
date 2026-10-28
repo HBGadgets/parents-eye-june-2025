@@ -22,7 +22,6 @@ import {
   Loader2,
   LayoutGrid,
   School as SchoolIcon,
-  Users as UsersIcon,
   FileBarChart2,
 } from "lucide-react";
 
@@ -33,14 +32,15 @@ export interface PermissionModuleMeta {
 }
 
 export const MODULE_PERMISSIONS_SCHEMA: Record<
-  "master" | "school" | "users" | "reports",
+  "master" | "school" | "reports",
   PermissionModuleMeta[]
 > = {
   master: [
     { key: "device", label: "Device", description: "Device GPS tracking & hardware management" },
+    { key: "geoTag", label: "CRTag", description: "BLE GeoTag device management & tracking" },
     { key: "schoolMaster", label: "School Master", description: "School admin management" },
     { key: "branchMaster", label: "Branch Master", description: "Branch management" },
-    { key: "userAccess", label: "User Access", description: "Access control configuration" },
+    { key: "userAccess", label: "Branch Group", description: "Branch group access control configuration" },
     { key: "studentDetails", label: "Student Details", description: "Student master database" },
     { key: "parentsMaster", label: "Parents Master", description: "Parent profiles & contacts" },
     { key: "routes", label: "Routes", description: "Bus route planning" },
@@ -49,14 +49,11 @@ export const MODULE_PERMISSIONS_SCHEMA: Record<
     { key: "model", label: "Model", description: "Vehicle device models" },
     { key: "category", label: "Category", description: "Vehicle categories" },
     { key: "ticketTypes", label: "Ticket Types", description: "Support ticket categories" },
-    { key: "driver", label: "Driver", description: "Driver master details" },
   ],
   school: [
     { key: "pickupAndDrop", label: "Pickup And Drop", description: "Student pickup & drop status" },
     { key: "leaveRequest", label: "Leave Request", description: "Student leave submissions & approvals" },
     { key: "sendBroadcast", label: "Send Broadcast", description: "Broadcast messaging to parents" },
-  ],
-  users: [
     { key: "driverApprove", label: "Driver Approve", description: "Driver account approval & onboarding" },
     { key: "supervisorApprove", label: "Supervisor Approve", description: "Supervisor account approval & onboarding" },
   ],
@@ -78,7 +75,7 @@ export const MODULE_PERMISSIONS_SCHEMA: Record<
 };
 
 export const getSchemaForCategory = (
-  category: "master" | "school" | "users" | "reports",
+  category: "master" | "school" | "reports",
   targetType: "school" | "branch" | "branchGroup"
 ): PermissionModuleMeta[] => {
   const list = MODULE_PERMISSIONS_SCHEMA[category];
@@ -87,6 +84,7 @@ export const getSchemaForCategory = (
       // School/BranchGroup baseline items in Master
       const allowedKeys = [
         "device",
+        "geoTag",
         "branchMaster",
         "studentDetails",
         "parentsMaster",
@@ -100,6 +98,7 @@ export const getSchemaForCategory = (
       // Branch baseline items in Master (no Branch Master)
       const allowedKeys = [
         "device",
+        "geoTag",
         "studentDetails",
         "parentsMaster",
         "routes",
@@ -115,6 +114,7 @@ export const getSchemaForCategory = (
 const DEFAULT_ACCESS: UserAccessPermissions = {
   master: {
     device: true,
+    geoTag: true,
     schoolMaster: false,
     branchMaster: false,
     userAccess: false,
@@ -127,12 +127,13 @@ const DEFAULT_ACCESS: UserAccessPermissions = {
     model: false,
     category: false,
     ticketTypes: true,
-    driver: true,
   },
   school: {
     pickupAndDrop: true,
     leaveRequest: true,
     sendBroadcast: true,
+    driverApprove: true,
+    supervisorApprove: true,
   },
   users: {
     driverApprove: true,
@@ -185,7 +186,12 @@ export const ModuleAccessModal: React.FC<ModuleAccessModalProps> = ({
     if (initialAccess && Object.keys(initialAccess).length > 0) {
       setAccess({
         master: { ...DEFAULT_ACCESS.master, ...initialAccess.master },
-        school: { ...DEFAULT_ACCESS.school, ...initialAccess.school },
+        school: {
+          ...DEFAULT_ACCESS.school,
+          ...initialAccess.school,
+          ...(initialAccess.users?.driverApprove !== undefined ? { driverApprove: initialAccess.users.driverApprove } : {}),
+          ...(initialAccess.users?.supervisorApprove !== undefined ? { supervisorApprove: initialAccess.users.supervisorApprove } : {}),
+        },
         users: { ...DEFAULT_ACCESS.users, ...initialAccess.users },
         reports: { ...DEFAULT_ACCESS.reports, ...initialAccess.reports },
       });
@@ -208,7 +214,12 @@ export const ModuleAccessModal: React.FC<ModuleAccessModalProps> = ({
         if (fetched && typeof fetched === "object") {
           setAccess({
             master: { ...DEFAULT_ACCESS.master, ...fetched.master },
-            school: { ...DEFAULT_ACCESS.school, ...fetched.school },
+            school: {
+              ...DEFAULT_ACCESS.school,
+              ...fetched.school,
+              ...(fetched.users?.driverApprove !== undefined ? { driverApprove: fetched.users.driverApprove } : {}),
+              ...(fetched.users?.supervisorApprove !== undefined ? { supervisorApprove: fetched.users.supervisorApprove } : {}),
+            },
             users: { ...DEFAULT_ACCESS.users, ...fetched.users },
             reports: { ...DEFAULT_ACCESS.reports, ...fetched.reports },
           });
@@ -224,21 +235,31 @@ export const ModuleAccessModal: React.FC<ModuleAccessModalProps> = ({
   }, [isOpen, targetId, targetType, initialAccess]);
 
   const handleToggle = (
-    category: "master" | "school" | "users" | "reports",
+    category: "master" | "school" | "reports",
     feature: string,
     value: boolean
   ) => {
-    setAccess((prev) => ({
-      ...prev,
-      [category]: {
+    setAccess((prev) => {
+      const updatedCategory = {
         ...(prev[category] || {}),
         [feature]: value,
-      },
-    }));
+      };
+
+      const updatedUsers =
+        category === "school" && (feature === "driverApprove" || feature === "supervisorApprove")
+          ? { ...(prev.users || {}), [feature]: value }
+          : prev.users;
+
+      return {
+        ...prev,
+        [category]: updatedCategory,
+        ...(category === "school" ? { users: updatedUsers } : {}),
+      };
+    });
   };
 
   const handleToggleAllCategory = (
-    category: "master" | "school" | "users" | "reports",
+    category: "master" | "school" | "reports",
     value: boolean
   ) => {
     const updatedCategory: Record<string, boolean> = { ...(access[category] || {}) };
@@ -249,31 +270,54 @@ export const ModuleAccessModal: React.FC<ModuleAccessModalProps> = ({
     setAccess((prev) => ({
       ...prev,
       [category]: updatedCategory,
+      ...(category === "school"
+        ? {
+            users: {
+              ...(prev.users || {}),
+              driverApprove: value,
+              supervisorApprove: value,
+            },
+          }
+        : {}),
     }));
   };
 
   const handleToggleAllGlobal = (value: boolean) => {
     const newAccess: UserAccessPermissions = { ...access };
     (Object.keys(MODULE_PERMISSIONS_SCHEMA) as Array<
-      "master" | "school" | "users" | "reports"
+      "master" | "school" | "reports"
     >).forEach((cat) => {
       newAccess[cat] = { ...(newAccess[cat] || {}) };
       getSchemaForCategory(cat, targetType).forEach((item) => {
         newAccess[cat]![item.key] = value;
       });
     });
+    newAccess.users = {
+      ...(newAccess.users || {}),
+      driverApprove: value,
+      supervisorApprove: value,
+    };
     setAccess(newAccess);
   };
 
   const handleSave = async () => {
     setSaving(true);
     try {
+      const payloadToSave: UserAccessPermissions = {
+        ...access,
+        users: {
+          ...(access.users || {}),
+          ...(access.school?.driverApprove !== undefined ? { driverApprove: access.school.driverApprove } : {}),
+          ...(access.school?.supervisorApprove !== undefined ? { supervisorApprove: access.school.supervisorApprove } : {}),
+        },
+      };
+
       if (targetType === "school") {
-        await accessService.updateSchoolAccess(targetId, access);
+        await accessService.updateSchoolAccess(targetId, payloadToSave);
       } else if (targetType === "branch") {
-        await accessService.updateBranchAccess(targetId, access);
+        await accessService.updateBranchAccess(targetId, payloadToSave);
       } else if (targetType === "branchGroup") {
-        await accessService.updateBranchGroupAccess(targetId, access);
+        await accessService.updateBranchGroupAccess(targetId, payloadToSave);
       }
 
       toast.success(
@@ -291,7 +335,7 @@ export const ModuleAccessModal: React.FC<ModuleAccessModalProps> = ({
     }
   };
 
-  const getCategoryCount = (category: "master" | "school" | "users" | "reports") => {
+  const getCategoryCount = (category: "master" | "school" | "reports") => {
     const list = getSchemaForCategory(category, targetType);
     const active = list.filter((item) => access[category]?.[item.key] === true).length;
     return `${active}/${list.length}`;
@@ -360,7 +404,7 @@ export const ModuleAccessModal: React.FC<ModuleAccessModalProps> = ({
             className="flex-1 flex flex-col overflow-hidden"
           >
             <div className="px-5 pt-3 pb-2 border-b bg-background">
-              <TabsList className="grid grid-cols-4 w-full h-11 p-1 bg-muted/60">
+              <TabsList className="grid grid-cols-3 w-full h-11 p-1 bg-muted/60">
                 <TabsTrigger
                   value="master"
                   className="flex items-center justify-center gap-1.5 text-xs font-semibold data-[state=checked]:bg-white data-[state=checked]:shadow-xs"
@@ -384,17 +428,6 @@ export const ModuleAccessModal: React.FC<ModuleAccessModalProps> = ({
                 </TabsTrigger>
 
                 <TabsTrigger
-                  value="users"
-                  className="flex items-center justify-center gap-1.5 text-xs font-semibold data-[state=checked]:bg-white data-[state=checked]:shadow-xs"
-                >
-                  <UsersIcon className="h-3.5 w-3.5" />
-                  <span>Users</span>
-                  <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-yellow-400/30 text-yellow-950 font-bold ml-1">
-                    {getCategoryCount("users")}
-                  </span>
-                </TabsTrigger>
-
-                <TabsTrigger
                   value="reports"
                   className="flex items-center justify-center gap-1.5 text-xs font-semibold data-[state=checked]:bg-white data-[state=checked]:shadow-xs"
                 >
@@ -412,9 +445,8 @@ export const ModuleAccessModal: React.FC<ModuleAccessModalProps> = ({
                 [
                   "master",
                   "school",
-                  "users",
                   "reports",
-                ] as Array<"master" | "school" | "users" | "reports">
+                ] as Array<"master" | "school" | "reports">
               ).map((category) => (
                 <TabsContent
                   key={category}

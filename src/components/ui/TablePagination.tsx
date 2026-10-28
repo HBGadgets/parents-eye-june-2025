@@ -27,23 +27,42 @@ function TablePagination<TData>({ table, pageSizeArray, totalRecords }: TablePag
   const pagination = table.getState().pagination;
   const pageCount = table.getPageCount();
 
+  const currentSizeStr = pagination.pageSize.toString();
+  const hasCurrentSize = pageSizeArray.some((size) => size.toString() === currentSizeStr);
+
+  const selectValue = hasCurrentSize
+    ? currentSizeStr
+    : pageSizeArray.includes("All") && pagination.pageSize >= totalRecords
+    ? "All"
+    : currentSizeStr;
+
+  const displayList =
+    hasCurrentSize || selectValue === "All"
+      ? pageSizeArray
+      : [...pageSizeArray.filter((x): x is number => typeof x === "number"), pagination.pageSize]
+          .sort((a, b) => a - b)
+          .concat(pageSizeArray.filter((x) => typeof x !== "number") as any);
+
   return (
     <div className="flex flex-col sm:flex-row items-center justify-between p-2 sm:p-4 text-xs sm:text-sm border-t bg-background gap-2 sm:gap-0">
       <div className="flex items-center gap-2 order-2 sm:order-1">
         <span>
-          Showing {pagination.pageIndex * pagination.pageSize + 1} to {Math.min((pagination.pageIndex + 1) * pagination.pageSize, totalRecords)} of {totalRecords} results
+          Showing {totalRecords === 0 ? 0 : pagination.pageIndex * pagination.pageSize + 1} to{" "}
+          {Math.min((pagination.pageIndex + 1) * pagination.pageSize, totalRecords)} of {totalRecords} results
         </span>
       </div>
       <div className="flex flex-col sm:flex-row items-center gap-2 sm:gap-4 order-1 sm:order-2">
         <div className="flex items-center gap-2">
           <span>Rows per page:</span>
           <Select
-            value={pagination.pageSize >= totalRecords ? "All" : pagination.pageSize.toString()}
-            onValueChange={(v) => table.setPageSize(v === "All" ? totalRecords : Number(v))}
+            value={selectValue}
+            onValueChange={(v) => table.setPageSize(v === "All" ? (totalRecords || 1000) : Number(v))}
           >
-            <SelectTrigger className="w-[80px] h-8"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="w-[80px] h-8">
+              <SelectValue placeholder={pagination.pageSize.toString()} />
+            </SelectTrigger>
             <SelectContent>
-              {pageSizeArray.map((size) => (
+              {displayList.map((size) => (
                 <SelectItem key={size} value={size.toString()}>{size}</SelectItem>
               ))}
             </SelectContent>

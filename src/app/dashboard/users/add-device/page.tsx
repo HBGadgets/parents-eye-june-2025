@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getDeviceColumns } from "@/components/columns/columns";
 import { CustomTableServerSidePagination } from "@/components/ui/customTable(serverSidePagination)";
 import { useAddDeviceNew } from "@/hooks/device/useAddDevice(new)";
@@ -70,6 +70,78 @@ const DevicesPage = () => {
     pageSize: 10,
   });
   const [sorting, setSorting] = useState<SortingState>([]);
+  const userChangedPageSizeRef = useRef(false);
+  const tableWrapperRef = useRef<HTMLDivElement>(null);
+
+  // Auto-calculate optimal pageSize based on measured container height
+  useEffect(() => {
+    const calculateOptimalSize = () => {
+      let availableHeight = 0;
+      if (tableWrapperRef.current && tableWrapperRef.current.clientHeight > 150) {
+        // Table header is ~40px, pagination footer is ~48px, border is ~2px
+        availableHeight = tableWrapperRef.current.clientHeight - 90;
+      } else {
+        // Fallback using viewport height
+        availableHeight = window.innerHeight - 270;
+      }
+      const targetRowHeight = 40;
+      return Math.max(5, Math.round(availableHeight / targetRowHeight));
+    };
+
+    const updateOptimalPageSize = () => {
+      if (userChangedPageSizeRef.current) return;
+      const optimalSize = calculateOptimalSize();
+      setPagination((prev) => {
+        if (prev.pageSize !== optimalSize) {
+          return { ...prev, pageSize: optimalSize };
+        }
+        return prev;
+      });
+    };
+
+    updateOptimalPageSize();
+    const rafId = requestAnimationFrame(updateOptimalPageSize);
+
+    let resizeObserver: ResizeObserver | null = null;
+    if (tableWrapperRef.current && typeof ResizeObserver !== "undefined") {
+      resizeObserver = new ResizeObserver(() => {
+        updateOptimalPageSize();
+      });
+      resizeObserver.observe(tableWrapperRef.current);
+    }
+
+    window.addEventListener("resize", updateOptimalPageSize);
+    return () => {
+      cancelAnimationFrame(rafId);
+      window.removeEventListener("resize", updateOptimalPageSize);
+      if (resizeObserver) {
+        resizeObserver.disconnect();
+      }
+    };
+  }, []);
+
+  const handlePaginationChange = useCallback(
+    (updater: PaginationState | ((prev: PaginationState) => PaginationState)) => {
+      setPagination((prev) => {
+        const next = typeof updater === "function" ? updater(prev) : updater;
+        if (next.pageSize !== prev.pageSize) {
+          userChangedPageSizeRef.current = true;
+        }
+        return next;
+      });
+    },
+    []
+  );
+
+  const pageSizeOptions = useMemo(() => {
+    const defaultOptions = [5, 10, 15, 20, 30, 50, 100, 200, 300, 400, 500];
+    if (!defaultOptions.includes(pagination.pageSize)) {
+      return [...defaultOptions, pagination.pageSize]
+        .sort((a, b) => a - b)
+        .concat("All" as any);
+    }
+    return [...defaultOptions, "All"];
+  }, [pagination.pageSize]);
 
   // ---------------- Search State ----------------
   const [searchInput, setSearchInput] = useState("");
@@ -477,23 +549,19 @@ const DevicesPage = () => {
     pagination,
     totalCount: total,
     loading: isLoading,
-    onPaginationChange: setPagination,
+    onPaginationChange: handlePaginationChange,
     onSortingChange: setSorting,
     sorting,
     emptyMessage: "No devices found",
-    pageSizeOptions: [5, 10, 15, 20, 30, 50, 100, 200, 300, 400, 500, "All"],
+    pageSizeOptions,
     showSerialNumber: true,
     enableSorting: true,
     enableMultiSelect: false,
-    // Enable virtualization
-    enableVirtualization: true,
-    estimatedRowHeight: 50,
-    overscan: 5,
-    maxHeight: "calc(100vh - 200px)",
+    enableVirtualization: false,
   });
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col flex-1 min-h-0">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-bold mb-3">Devices</h2>
         <div className="mr-3">
@@ -521,124 +589,127 @@ const DevicesPage = () => {
         </div>
       </div>
 
-      {/* SEARCH & FILTERS BAR */}
-      <div className="flex flex-wrap items-center gap-3 my-3">
-        {/* Search Bar */}
-        <div className="flex gap-2 items-center">
-          <SearchBar
-            value={searchInput}
-            onChange={setSearchInput}
-            placeholder="Search devices..."
-            width="w-[280px]"
+      {/* SEARCH, FILTERS & ACTION BAR */}
+      <div className="flex flex-wrap items-center justify-between gap-3 my-2 sm:my-3">
+        {/* Left: Search Bar, Columns, and Filter Dropdowns */}
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Search Bar */}
+          <div className="flex gap-2 items-center">
+            <SearchBar
+              value={searchInput}
+              onChange={setSearchInput}
+              placeholder="Search devices..."
+              width="w-[200px] sm:w-[240px]"
+            />
+
+            {/* Loading Indicator */}
+            {isLoading && debouncedSearch && (
+              <div className="text-sm text-muted-foreground whitespace-nowrap">
+                Searching...
+              </div>
+            )}
+          </div>
+
+          <ColumnVisibilitySelector
+            columns={table.getAllColumns()}
+            buttonVariant="outline"
+            buttonSize="default"
+            className="cursor-pointer"
           />
 
-          {/* Loading Indicator */}
-          {isLoading && debouncedSearch && (
-            <div className="text-sm text-muted-foreground whitespace-nowrap">
-              Searching...
-            </div>
-          )}
-        </div>
-
-        <ColumnVisibilitySelector
-          columns={table.getAllColumns()}
-          buttonVariant="outline"
-          buttonSize="default"
-          className="cursor-pointer"
-        />
-
-        {/* Filters */}
-        <div className="flex flex-wrap gap-3 items-center flex-1 min-w-0">
-          {/* SCHOOL FILTER (SuperAdmin only) */}
-          {role === "superAdmin" && (
-            <Combobox
-              items={schoolItems}
-              value={filterSchoolId}
-              onValueChange={(val) => {
-                setFilterSchoolId(val || undefined);
-                setFilterBranchId(undefined);
-                setFilterRouteId(undefined);
-                if (val) {
-                  setShouldFetchBranches(true);
-                }
-              }}
-              onOpenChange={(open) => {
-                if (open && !shouldFetchSchools) {
-                  setShouldFetchSchools(true);
-                }
-              }}
-              placeholder="Filter School"
-              searchPlaceholder="Search School..."
-              className="cursor-pointer"
-              width="w-[150px]"
-              emptyMessage={schoolsLoading ? "Loading..." : "No schools found"}
-            />
-          )}
-
-          {/* BRANCH FILTER */}
-          {(role === "superAdmin" ||
-            role === "school" ||
-            role === "branchGroup") && (
+          {/* Filters */}
+          <div className="flex flex-wrap gap-2 items-center">
+            {/* SCHOOL FILTER (SuperAdmin only) */}
+            {role === "superAdmin" && (
               <Combobox
-                items={branchItems}
-                value={filterBranchId}
+                items={schoolItems}
+                value={filterSchoolId}
                 onValueChange={(val) => {
-                  setFilterBranchId(val || undefined);
+                  setFilterSchoolId(val || undefined);
+                  setFilterBranchId(undefined);
                   setFilterRouteId(undefined);
                   if (val) {
-                    setShouldFetchRoutes(true);
-                  }
-                }}
-                onOpenChange={(open) => {
-                  if (open && !shouldFetchBranches && filterSchoolId) {
                     setShouldFetchBranches(true);
                   }
                 }}
-                placeholder="Filter Branch"
-                searchPlaceholder="Search Branch..."
+                onOpenChange={(open) => {
+                  if (open && !shouldFetchSchools) {
+                    setShouldFetchSchools(true);
+                  }
+                }}
+                placeholder="Filter School"
+                searchPlaceholder="Search School..."
                 className="cursor-pointer"
-                width="w-[150px]"
-                emptyMessage={
-                  branchesLoading ? "Loading..." : "No branches found"
-                }
-                disabled={role === "superAdmin" && !filterSchoolId}
+                width="w-[140px]"
+                emptyMessage={schoolsLoading ? "Loading..." : "No schools found"}
               />
             )}
 
-          {/* ROUTE FILTER */}
-          <Combobox
-            items={routeItems}
-            value={filterRouteId}
-            onValueChange={(val) => setFilterRouteId(val || undefined)}
-            onOpenChange={(open) => {
-              if (open && !shouldFetchRoutes && filterBranchId) {
-                setShouldFetchRoutes(true);
-              }
-            }}
-            placeholder="Filter Route"
-            searchPlaceholder="Search Route..."
-            className="cursor-pointer"
-            width="w-[150px]"
-            emptyMessage={routesLoading ? "Loading..." : "No routes found"}
-            disabled={!filterBranchId}
-          />
+            {/* BRANCH FILTER */}
+            {(role === "superAdmin" ||
+              role === "school" ||
+              role === "branchGroup") && (
+                <Combobox
+                  items={branchItems}
+                  value={filterBranchId}
+                  onValueChange={(val) => {
+                    setFilterBranchId(val || undefined);
+                    setFilterRouteId(undefined);
+                    if (val) {
+                      setShouldFetchRoutes(true);
+                    }
+                  }}
+                  onOpenChange={(open) => {
+                    if (open && !shouldFetchBranches && filterSchoolId) {
+                      setShouldFetchBranches(true);
+                    }
+                  }}
+                  placeholder="Filter Branch"
+                  searchPlaceholder="Search Branch..."
+                  className="cursor-pointer"
+                  width="w-[140px]"
+                  emptyMessage={
+                    branchesLoading ? "Loading..." : "No branches found"
+                  }
+                  disabled={role === "superAdmin" && !filterSchoolId}
+                />
+              )}
 
-          {/* CLEAR FILTERS BUTTON */}
-          {hasActiveFilters && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleClearFilters}
-              className="gap-2 shrink-0 cursor-pointer"
-            >
-              <X className="h-4 w-4" color="red" />
-            </Button>
-          )}
+            {/* ROUTE FILTER */}
+            <Combobox
+              items={routeItems}
+              value={filterRouteId}
+              onValueChange={(val) => setFilterRouteId(val || undefined)}
+              onOpenChange={(open) => {
+                if (open && !shouldFetchRoutes && filterBranchId) {
+                  setShouldFetchRoutes(true);
+                }
+              }}
+              placeholder="Filter Route"
+              searchPlaceholder="Search Route..."
+              className="cursor-pointer"
+              width="w-[140px]"
+              emptyMessage={routesLoading ? "Loading..." : "No routes found"}
+              disabled={!filterBranchId}
+            />
+
+            {/* CLEAR FILTERS BUTTON */}
+            {hasActiveFilters && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleClearFilters}
+                className="gap-2 shrink-0 cursor-pointer h-9 px-2"
+              >
+                <X className="h-4 w-4" color="red" />
+              </Button>
+            )}
+          </div>
         </div>
 
-        {/* Action Buttons */}
+        {/* Action Buttons on the right */}
         {role === "superAdmin" && (
-          <div className="flex gap-3 items-center ml-auto">
+          <div className="flex gap-2 sm:gap-3 items-center shrink-0">
             <Button
               onClick={() => setShowUploadDialog(true)}
               size="sm"
@@ -669,7 +740,7 @@ const DevicesPage = () => {
       )}
 
       {/* TABLE */}
-      <div className="flex-1 min-h-0 pb-3">{tableElement}</div>
+      <div ref={tableWrapperRef} className="flex-1 min-h-0 flex flex-col">{tableElement}</div>
 
       {/* ADD/EDIT DEVICE DIALOG */}
       <AddDeviceForm

@@ -2,7 +2,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
-const PORT = process.env.PORT || 5001;
+const PORT = process.env.PORT;
 
 const server = http.createServer((req, res) => {
   // Set CORS headers so the client browser can make requests to this sidecar server

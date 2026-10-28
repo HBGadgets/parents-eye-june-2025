@@ -18,6 +18,7 @@ import { MdDirections } from "react-icons/md";
 import { reportService } from "@/services/api/reportService";
 import { geofenceService } from "@/services/api/geofenceSerevice";
 import { Geofence } from "@/interface/modal";
+import type { BleDevice } from "@/interface/ble";
 import { getYesterdayDateRange, getYesterdayDateString, getTodayDateString, getDateRangeForDay } from "@/util/dateFormatters";
 import { useAuthStore } from "@/store/authStore";
 import StopChildrenList from "./route/StopChildrenList";
@@ -74,8 +75,8 @@ interface VehicleMapProps {
   zoom?: number;
   height?: string;
   onVehicleClick?: (vehicle: VehicleData) => void;
-  selectedVehicleId?: number | null;
-  onVehicleSelect?: (vehicleId: number | null) => void;
+  selectedVehicleId?: number | string | null;
+  onVehicleSelect?: (vehicleId: number | string | null) => void;
   showTrails?: boolean;
   clusterMarkers?: boolean;
   autoFitBounds?: boolean;
@@ -95,6 +96,9 @@ interface VehicleMapProps {
   onToggleAllInTable?: (showAll: boolean) => void;
   isAllInTableActive?: boolean;
   userRole?: string;
+  showGeotag?: boolean;
+  onToggleGeotag?: (show: boolean) => void;
+  bleDevices?: BleDevice[];
 }
 
 // Optimized marker component with proper memoization
@@ -253,6 +257,10 @@ const VehicleBusMarker = React.memo(
 
     // Memoize icon with proper sizing
     const busIcon = useMemo(() => {
+      if (vehicle.category === "BLE") {
+        return createBleTagIcon(vehicle.batteryLevel, vehicle.status, isSelected);
+      }
+
       const rotationAngle = vehicle.course || 0;
 
       return L.divIcon({
@@ -278,7 +286,14 @@ const VehicleBusMarker = React.memo(
         iconAnchor: [16, 16],
         popupAnchor: [0, -16],
       });
-    }, [imageUrl, vehicle.course, isSelected]);
+    }, [
+      imageUrl,
+      vehicle.course,
+      vehicle.category,
+      vehicle.batteryLevel,
+      vehicle.status,
+      isSelected,
+    ]);
 
     const handleClick = useCallback(() => {
       onClick?.(vehicle);
@@ -313,6 +328,116 @@ const VehicleBusMarker = React.memo(
       };
       return statusMap[vehicleStatus] || statusMap.noData;
     }, [vehicleStatus]);
+
+    if (vehicle.category === "BLE") {
+      const tag = (vehicle as any).rawBleDevice;
+      const childObj =
+        typeof tag?.childId === "object"
+          ? tag.childId
+          : typeof (vehicle as any).childId === "object"
+          ? (vehicle as any).childId
+          : null;
+      const childName = (vehicle as any).childName || childObj?.childName;
+      const schoolObj = typeof tag?.schoolId === "object" ? tag.schoolId : null;
+      const branchObj = typeof tag?.branchId === "object" ? tag.branchId : null;
+      const supervisorObj = typeof tag?.supervisorId === "object" ? tag.supervisorId : null;
+      const address = (vehicle as any).address || tag?.lastLocation?.address;
+      const isOnline = vehicle.status === "running" || tag?.status === "active";
+      const battery = (vehicle as any).batteryLevel ?? tag?.battery;
+
+      const lat =
+        Number(vehicle.latitude) ||
+        Number(tag?.lastLocation?.lat) ||
+        Number(tag?.location?.lat) ||
+        0;
+      const lng =
+        Number(vehicle.longitude) ||
+        Number(tag?.lastLocation?.lng) ||
+        Number(tag?.location?.lng) ||
+        0;
+
+      if (!lat || !lng || isNaN(lat) || isNaN(lng) || (lat === 0 && lng === 0)) {
+        return null;
+      }
+
+      return (
+        <Marker
+          position={[lat, lng]}
+          icon={busIcon}
+          eventHandlers={{
+            click: handleClick,
+          }}
+        >
+          <Tooltip direction="top" offset={[0, -36]} opacity={0.95}>
+            <div style={{ fontSize: "11px", fontWeight: "600" }}>
+              🏷️ {vehicle.name} {childName ? `• Child: ${childName}` : ""} {battery !== undefined ? `(${battery}%)` : ""}
+            </div>
+          </Tooltip>
+          <Popup maxWidth={300} autoPan={false}>
+            <div style={{ fontFamily: "sans-serif", padding: "4px", fontSize: "12px", minWidth: "220px" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid #e5e7eb", paddingBottom: "4px", marginBottom: "6px" }}>
+                <span style={{ fontWeight: 700, color: "#1d4ed8", fontSize: "13px" }}>
+                  🏷️ {vehicle.name || "BLE GeoTag"}
+                </span>
+                <span style={{
+                  fontSize: "10px",
+                  padding: "2px 6px",
+                  borderRadius: "9999px",
+                  backgroundColor: isOnline ? "#dcfce7" : "#fee2e2",
+                  color: isOnline ? "#15803d" : "#b91c1c",
+                  fontWeight: 600,
+                }}>
+                  {isOnline ? "active" : "inactive"}
+                </span>
+              </div>
+              <div style={{ color: "#4b5563", marginBottom: "4px" }}>
+                <strong>SN:</strong> {vehicle.uniqueId || vehicle.imei}
+              </div>
+              {((vehicle as any).sim || tag?.mac) && (
+                <div style={{ color: "#4b5563", marginBottom: "4px" }}>
+                  <strong>MAC:</strong> {(vehicle as any).sim || tag?.mac}
+                </div>
+              )}
+              {childName && (
+                <div style={{ color: "#4b5563", marginBottom: "4px" }}>
+                  <strong>Child:</strong> {childName}
+                </div>
+              )}
+              {schoolObj?.schoolName && (
+                <div style={{ color: "#4b5563", marginBottom: "4px" }}>
+                  <strong>School:</strong> {schoolObj.schoolName}
+                </div>
+              )}
+              {branchObj?.branchName && (
+                <div style={{ color: "#4b5563", marginBottom: "4px" }}>
+                  <strong>Branch:</strong> {branchObj.branchName}
+                </div>
+              )}
+              {supervisorObj?.supervisorName && (
+                <div style={{ color: "#4b5563", marginBottom: "4px" }}>
+                  <strong>Supervisor:</strong> {supervisorObj.supervisorName}
+                </div>
+              )}
+              {vehicle.batteryLevel !== undefined && (
+                <div style={{ color: "#4b5563", marginBottom: "4px" }}>
+                  <strong>Battery:</strong> {vehicle.batteryLevel}% ({tag?.batteryStatus || "OK"})
+                </div>
+              )}
+              {address && (
+                <div style={{ color: "#6b7280", fontSize: "11px", marginTop: "4px", lineHeight: "1.3" }}>
+                  📍 {address}
+                </div>
+              )}
+              {vehicle.lastUpdate && (
+                <div style={{ color: "#9ca3af", fontSize: "10px", marginTop: "4px" }}>
+                  🕒 {new Date(vehicle.lastUpdate).toLocaleString()}
+                </div>
+              )}
+            </div>
+          </Popup>
+        </Marker>
+      );
+    }
 
     return (
       <Marker
@@ -527,11 +652,11 @@ const VehicleZoomHandler = ({
   selectedVehicleId,
   vehicles,
 }: {
-  selectedVehicleId: number | null;
+  selectedVehicleId: number | string | null;
   vehicles: VehicleData[];
 }) => {
   const map = useMap();
-  const [lastZoomedId, setLastZoomedId] = useState<number | null>(null);
+  const [lastZoomedId, setLastZoomedId] = useState<number | string | null>(null);
 
   const zoomToVehicle = useCallback(
     (vehicle: VehicleData) => {
@@ -619,7 +744,10 @@ const VehicleZoomHandler = ({
     }
 
     const selectedVehicle = vehicles.find(
-      (v) => v.deviceId === selectedVehicleId
+      (v) =>
+        v.deviceId === selectedVehicleId ||
+        (v as any)._id === selectedVehicleId ||
+        String(v.uniqueId) === String(selectedVehicleId)
     );
 
     if (selectedVehicle) {
@@ -984,6 +1112,45 @@ const createMapStoppageIcon = (
   });
 };
 
+
+const createBleTagIcon = (battery?: number, status?: string, isSelected?: boolean) => {
+  const isOnline = status === "active" || status === "running";
+  const arrowColor = isSelected ? "#ea580c" : isOnline ? "#2563eb" : "#64748b";
+  const scale = isSelected ? "scale(1.18)" : "scale(1)";
+
+  return L.divIcon({
+    className: "custom-ble-tag-pin",
+    html: `
+      <div style="position: relative; width: 36px; height: 44px; display: flex; flex-direction: column; align-items: center; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3)); cursor: pointer; transform: ${scale};">
+        <div style="
+          position: relative;
+          width: 36px;
+          height: 36px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        ">
+          <img 
+            src="/geotag-icon/crtag.png" 
+            alt="GeoTag"
+            style="width: 36px; height: 36px; object-fit: contain; display: block;"
+          />
+        </div>
+        <div style="
+          width: 0;
+          height: 0;
+          border-left: 5px solid transparent;
+          border-right: 5px solid transparent;
+          border-top: 7px solid ${arrowColor};
+          margin-top: -1px;
+        "></div>
+      </div>
+    `,
+    iconSize: [36, 44],
+    iconAnchor: [18, 42],
+    popupAnchor: [0, -42],
+  });
+};
 
 const computeRouteDecorations = (trip: any[], arrowSpacing: number = 1000) => {
   const arrows: Array<{
@@ -1392,6 +1559,9 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
   onToggleAllInTable,
   isAllInTableActive,
   userRole: userRoleProp,
+  showGeotag,
+  onToggleGeotag,
+  bleDevices,
 }) => {
   const mapRef = useRef<L.Map | null>(null);
   const { decodedToken } = useAuthStore();
@@ -1407,6 +1577,13 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
   const [isFetchingRoutes, setIsFetchingRoutes] = useState(false);
   const [showArrows, setShowArrows] = useState(false);
   const [showStoppages, setShowStoppages] = useState(false);
+
+  useEffect(() => {
+    if (showGeotag) {
+      setShowStoppages(false);
+      setSelectedStoppageImei(null);
+    }
+  }, [showGeotag]);
   const [mapType, setMapType] = useState<"roadmap" | "satellite">("roadmap");
   const [stoppagesMap, setStoppagesMap] = useState<
     Record<
@@ -1638,7 +1815,12 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
 
   // Find selected vehicle to generate its deterministic route color
   const selectedVehicle = useMemo(() => {
-    return vehicles.find((v) => v.deviceId === selectedVehicleId);
+    return vehicles.find(
+      (v) =>
+        v.deviceId === selectedVehicleId ||
+        (v as any)._id === selectedVehicleId ||
+        String(v.uniqueId) === String(selectedVehicleId)
+    );
   }, [vehicles, selectedVehicleId]);
 
   const isSelectedRouteVisible = useMemo(() => {
@@ -1761,11 +1943,12 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
     fetchRoutes();
   }, [isRouteDisabled, showHistory, validVehicles, routeDate]);
 
-  // Fetch geofence timeline stoppages for visible valid vehicles when showStoppages or showLegend is active
+  // Fetch geofence timeline stoppages for visible valid vehicles when showStoppages or showLegend is active (disabled for GeoTag tab)
   useEffect(() => {
-    if ((!showStoppages && !showLegend) || validVehicles.length === 0) return;
+    if (showGeotag || (!showStoppages && !showLegend) || validVehicles.length === 0) return;
 
     const unrequested = validVehicles.filter((vehicle) => {
+      if (vehicle.category === "BLE" || (vehicle as any).rawBleDevice) return false;
       const imei = String(vehicle.uniqueId || vehicle.imei);
       return imei && !requestedStoppageImeisRef.current.has(imei);
     });
@@ -1833,7 +2016,7 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
     };
 
     fetchStoppages();
-  }, [showStoppages, showLegend, validVehicles]);
+  }, [showStoppages, showLegend, validVehicles, showGeotag]);
 
   // Keep vehicle data updated in stoppagesMap when validVehicles updates
   useEffect(() => {
@@ -1969,6 +2152,9 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
   const handleVehicleClick = useCallback(
     (vehicle: VehicleData) => {
       onVehicleClick?.(vehicle);
+      if (showGeotag || vehicle.category === "BLE" || (vehicle as any).rawBleDevice) {
+        return;
+      }
       const imei = String(vehicle.uniqueId || vehicle.imei);
       setSelectedStoppageImei(imei);
       if (!stoppagesMap[imei] && !requestedStoppageImeisRef.current.has(imei)) {
@@ -2041,6 +2227,17 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
     }
   }, [isInitialLoad]);
 
+  // Trigger fit bounds when showGeotag changes
+  const prevShowGeotagRef = useRef(showGeotag);
+  useEffect(() => {
+    if (prevShowGeotagRef.current !== showGeotag) {
+      prevShowGeotagRef.current = showGeotag;
+      if (validVehicles.length > 0) {
+        setShouldFitBounds(true);
+      }
+    }
+  }, [showGeotag, validVehicles.length]);
+
   // Render markers with or without clustering - optimized
   const renderMarkers = useMemo(() => {
     const markers = validVehicles.map((vehicle) => (
@@ -2048,7 +2245,11 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
         key={`${vehicle.deviceId}-${vehicle?.uniqueId}`}
         vehicle={vehicle}
         onClick={handleVehicleClick}
-        isSelected={selectedVehicleId === vehicle.deviceId}
+        isSelected={
+          selectedVehicleId === vehicle.deviceId ||
+          (selectedVehicleId && String(vehicle.uniqueId) === String(selectedVehicleId)) ||
+          (selectedVehicleId && (vehicle as any)._id === selectedVehicleId)
+        }
         stoppageData={stoppagesMap[String(vehicle.uniqueId || vehicle.imei)]}
         onStoppageClick={handleStoppageClick}
       />
@@ -2340,19 +2541,30 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
           <Navigation size={18} className={`transform rotate-45 ${isRouteDisabled ? "text-gray-400" : (showArrows ? "text-white" : "text-gray-700")}`} />
         </button>
 
-        {/* Toggle Stoppages */}
+        {/* Toggle Stoppages / Geotags */}
         <button
-          className={`map-control-button ${showStoppages ? "fit-bounds-btn" : ""}`}
-          onClick={() => setShowStoppages((prev) => !prev)}
+          className={`map-control-button ${(showGeotag || showStoppages) ? "fit-bounds-btn" : ""}`}
+          onClick={() => {
+            if (onToggleGeotag) {
+              onToggleGeotag(!showGeotag);
+            } else {
+              const next = !showStoppages;
+              setShowStoppages(next);
+            }
+          }}
           title={
-            showStoppages
+            showGeotag
+              ? "Hide Geotag"
+              : showStoppages
               ? (isFetchingStoppages ? "Loading Stoppages..." : "Hide Stoppages")
-              : "Show Stoppages"
+              : "Show Geotag"
           }
           data-tooltip={
-            showStoppages
+            showGeotag
+              ? "Hide Geotag"
+              : showStoppages
               ? (isFetchingStoppages ? "Loading Stoppages..." : "Hide Stoppages")
-              : "Show Stoppages"
+              : "Show Geotag"
           }
           style={{
             width: "36px",
@@ -2365,15 +2577,15 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
             boxShadow: "0 2px 8px rgba(0, 0, 0, 0.15)",
             cursor: "pointer",
             border: "none",
-            backgroundColor: showStoppages ? "#007bff" : "#ffffff",
-            color: showStoppages ? "#ffffff" : "#374151",
+            backgroundColor: (showGeotag || showStoppages) ? "#007bff" : "#ffffff",
+            color: (showGeotag || showStoppages) ? "#ffffff" : "#374151",
             transition: "all 0.2s ease"
           }}
         >
-          {isFetchingStoppages ? (
+          {isFetchingStoppages && !showGeotag ? (
             <Loader2 size={18} className={`animate-spin ${showStoppages ? "text-white" : "text-blue-600"}`} />
           ) : (
-            <MapPin size={18} className={showStoppages ? "text-white" : "text-gray-700"} />
+            <MapPin size={18} className={(showGeotag || showStoppages) ? "text-white" : "text-gray-700"} />
           )}
         </button>
 
@@ -3394,6 +3606,9 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
                 const isSelectedForStoppages = selectedStoppageImei === imei;
 
                 const handleToggleStoppages = () => {
+                  if (showGeotag || vehicle.category === "BLE" || (vehicle as any).rawBleDevice) {
+                    return;
+                  }
                   setSelectedStoppageImei((prev) => (prev === imei ? null : imei));
                   if (!stoppagesMap[imei] && !requestedStoppageImeisRef.current.has(imei)) {
                     requestedStoppageImeisRef.current.add(imei);

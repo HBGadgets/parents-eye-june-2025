@@ -8,11 +8,12 @@ import FullScreenSpinner from "@/components/RouteLoader";
 import { formatDateToYYYYMMDD } from "@/util/formatDate";
 import { api } from "@/services/apiService";
 import TripsSidebar from "@/components/history/sliding-side-bar";
-import { Menu, Gauge, Clock, MapPinOff, Save, Check, RotateCcw, ZoomIn } from "lucide-react";
+import { Menu, Gauge, Clock, MapPinOff, Save, Check, RotateCcw, ZoomIn, List, Activity, Search, MapPin, Eye, BatteryCharging, Car } from "lucide-react";
 import { toast } from "sonner";
 import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useDeviceDropdownWithUniqueIdForHistory } from "@/hooks/useDropdown";
+import { bleService } from "@/services/api/bleService";
 import { SpeedTimelineGraph, type SpeedTimelineGraphHandle } from "@/components/history/SpeedGraph";
 import type { VehicleMapHandle } from "@/components/history/vehicle-map";
 import {
@@ -25,7 +26,7 @@ import {
   Tooltip,
   Legend,
 } from "chart.js";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useHistoryReport } from "@/hooks/playback-history/useHistoryReport";
 import { GiPathDistance } from "react-icons/gi";
 
@@ -71,6 +72,7 @@ const PALETTE_OPTIONS = [
 ];
 
 function HistoryReportContent() {
+  const router = useRouter();
   const queryClient = useQueryClient();
   const [isSaving, setIsSaving] = useState(false);
   const [shouldFetch, setShouldFetch] = useState(false);
@@ -104,7 +106,7 @@ function HistoryReportContent() {
   }, [hasGenerated]);
 
   const handleSavePlayback = async () => {
-    const finalUniqueId = uniqueIdFromUrl || selectedVehicle;
+    const finalUniqueId = selectedVehicle || uniqueIdFromUrl;
     if (!finalUniqueId) {
       toast.error("Please select a vehicle first");
       return;
@@ -176,8 +178,43 @@ function HistoryReportContent() {
   const deviceCategoryFromUrl = searchParams.get("deviceCategory");
   const [stopAddressMap, setStopAddressMap] = useState<StopAddressMap>({});
 
+  const isInitialBle =
+    deviceCategoryFromUrl === "BLE" ||
+    (uniqueIdFromUrl ? String(uniqueIdFromUrl).startsWith("GeoTag-") : false);
+  const [deviceType, setDeviceType] = useState<"VEHICLE" | "BLE">(
+    isInitialBle ? "BLE" : "VEHICLE"
+  );
+  const isGeoTagMode = deviceType === "BLE";
+
+  // Only query BLE devices when in GeoTag mode (prevents calling /api/ble-devices on default vehicle mode)
+  const { data: bleDevicesData, isLoading: bleDevicesLoading } = useQuery({
+    queryKey: ["ble-devices-history-dropdown"],
+    queryFn: () => bleService.getBleDevices({ limit: 1000 }),
+    enabled: isGeoTagMode,
+    staleTime: 5 * 60 * 1000,
+  });
+
   const { data: vehicleData, isLoading: vehiclesLoading } =
     useDeviceDropdownWithUniqueIdForHistory();
+
+  const combinedVehicleData = useMemo(() => {
+    const list: any[] = Array.isArray(vehicleData) ? [...vehicleData] : [];
+    if (
+      uniqueIdFromUrl &&
+      !list.some((v) => String(v.uniqueId) === String(uniqueIdFromUrl))
+    ) {
+      const isBleTarget =
+        deviceCategoryFromUrl === "BLE" ||
+        String(uniqueIdFromUrl).startsWith("GeoTag-");
+      list.push({
+        uniqueId: uniqueIdFromUrl,
+        name: uniqueIdFromUrl,
+        category: isBleTarget ? "BLE" : deviceCategoryFromUrl || "CAR",
+        isBle: isBleTarget,
+      });
+    }
+    return list;
+  }, [vehicleData, uniqueIdFromUrl, deviceCategoryFromUrl]);
 
   const [apiFilters, setApiFilters] = useState<Record<string, any>>({
     uniqueId: undefined,
@@ -191,15 +228,59 @@ function HistoryReportContent() {
   );
 
   const [selectedVehicle, setSelectedVehicle] = useState("");
-  const [isMapExpanded, setIsMapExpanded] = useState(true);
+  const [isMapExpanded, setIsMapExpanded] = useState(false);
+  const [bottomView, setBottomView] = useState<"packets" | "graph">("packets");
+  const [packetSearch, setPacketSearch] = useState("");
+  const [bleGraphMetric, setBleGraphMetric] = useState<"speed" | "battery">("speed");
   const [fromDate, setFromDate] = useState<string | null>(null);
   const [toDate, setToDate] = useState<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
+  // Ble dropdown items for GeoTag mode
+  const bleDropdownItems = useMemo(() => {
+    const devices = bleDevicesData?.devices || [];
+    const list = devices.map((d: any) => {
+      const id = d.sn || d.uniqueId;
+      return {
+        value: String(id),
+        label: d.name ? `${d.name} (${id})` : String(id),
+      };
+    });
+    if (
+      uniqueIdFromUrl &&
+      (deviceCategoryFromUrl === "BLE" || String(uniqueIdFromUrl).startsWith("GeoTag-")) &&
+      !list.some((item) => String(item.value) === String(uniqueIdFromUrl))
+    ) {
+      list.unshift({
+        value: String(uniqueIdFromUrl),
+        label: String(uniqueIdFromUrl),
+      });
+    }
+    return list;
+  }, [bleDevicesData, uniqueIdFromUrl, deviceCategoryFromUrl]);
+
+  // Vehicle dropdown items for Vehicle mode
+  const vehicleDropdownItems = useMemo(() => {
+    if (!combinedVehicleData || !Array.isArray(combinedVehicleData)) return [];
+    return combinedVehicleData
+      .filter(
+        (v: any) =>
+          v.category !== "BLE" &&
+          !v.isBle &&
+          !String(v.uniqueId).startsWith("GeoTag-")
+      )
+      .map((vehicle: any) => ({
+        value: String(vehicle.uniqueId),
+        label: vehicle.name || String(vehicle.uniqueId),
+      }));
+  }, [combinedVehicleData]);
+
+  const dropdownItems = isGeoTagMode ? bleDropdownItems : vehicleDropdownItems;
+
   // ✅ Track raw progress and throttled progress separately
   const [playbackProgress, setPlaybackProgress] = useState(0);
   const [throttledProgress, setThrottledProgress] = useState(0);
-  const progressUpdateRef = useRef<number>();
+  const progressUpdateRef = useRef<number | undefined>(undefined);
 
   // ✅ Refs for direct DOM manipulation (avoids React re-renders during playback)
   const playbackProgressRef = useRef(0);
@@ -262,24 +343,48 @@ function HistoryReportContent() {
 
   const currentData = activePlayback[displayIndex];
 
-  const vehicleMetaData = useMemo(() => {
-    if (!vehicleData || !Array.isArray(vehicleData)) return [];
-    return vehicleData.map((vehicle) => ({
-      value: vehicle.uniqueId,
-      label: vehicle.name,
-    }));
-  }, [vehicleData]);
-
   const selectedVehicleObj = useMemo(() => {
-    if (!vehicleData || !Array.isArray(vehicleData)) return null;
-    const targetId = uniqueIdFromUrl || selectedVehicle;
+    const targetId = selectedVehicle;
+    if (!targetId) return null;
+    if (isGeoTagMode) {
+      const devices = bleDevicesData?.devices || [];
+      const found = devices.find(
+        (d: any) => String(d.sn || d.uniqueId) === String(targetId)
+      );
+      if (found) {
+        return {
+          uniqueId: found.sn || found.uniqueId,
+          name: found.name || String(targetId),
+          category: "BLE",
+          isBle: true,
+        };
+      }
+      return {
+        uniqueId: targetId,
+        name: String(targetId),
+        category: "BLE",
+        isBle: true,
+      };
+    }
+    if (!combinedVehicleData || !Array.isArray(combinedVehicleData)) return null;
     return (
-      vehicleData.find((v: any) => String(v.uniqueId) === String(targetId)) ||
-      null
+      combinedVehicleData.find(
+        (v: any) => String(v.uniqueId) === String(targetId)
+      ) || null
     );
-  }, [vehicleData, uniqueIdFromUrl, selectedVehicle]);
+  }, [isGeoTagMode, bleDevicesData, combinedVehicleData, selectedVehicle]);
 
-  const selectedVehicleName = selectedVehicleObj?.name || selectedVehicle || "";
+  const isCurrentBle = useMemo(() => {
+    if (isGeoTagMode) return true;
+    return Boolean(
+      selectedVehicleObj?.category === "BLE" ||
+      selectedVehicleObj?.isBle ||
+      (selectedVehicle && String(selectedVehicle).startsWith("GeoTag-"))
+    );
+  }, [isGeoTagMode, selectedVehicleObj, selectedVehicle]);
+
+  const selectedVehicleName =
+    (historyReport as any)?.name || selectedVehicleObj?.name || selectedVehicle || "";
   const selectedVehicleImei = selectedVehicleObj?.uniqueId
     ? String(selectedVehicleObj.uniqueId)
     : selectedVehicle || "";
@@ -314,16 +419,18 @@ function HistoryReportContent() {
     ? formatDateTime(currentData.createdAt)
     : { date: "-- : --", time: "-- : --" };
 
+  const isBatteryMode = isCurrentBle && bleGraphMetric === "battery";
+
   const baseChartData = useMemo(() => {
     if (!activePlayback || activePlayback.length === 0) {
       return {
         labels: [],
         speeds: [],
         baseDataset: {
-          label: "Speed (km/h)",
+          label: isBatteryMode ? "Battery (%)" : "Speed (km/h)",
           data: [],
-          borderColor: "rgb(59, 130, 246)",
-          backgroundColor: "rgba(59, 130, 246, 0.1)",
+          borderColor: isBatteryMode ? "rgb(34, 197, 94)" : "rgb(59, 130, 246)",
+          backgroundColor: isBatteryMode ? "rgba(34, 197, 94, 0.1)" : "rgba(59, 130, 246, 0.1)",
           borderWidth: 1.5,
           pointRadius: 0,
           pointHoverRadius: 0,
@@ -346,16 +453,18 @@ function HistoryReportContent() {
       });
     });
 
-    const speeds = activePlayback.map((item) => item.speed);
+    const values = isBatteryMode
+      ? activePlayback.map((item) => Number(item.battery ?? item.attributes?.battery ?? 100))
+      : activePlayback.map((item) => Number(item.speed || 0));
 
     return {
       labels,
-      speeds,
+      speeds: values,
       baseDataset: {
-        label: "Speed (km/h)",
-        data: speeds,
-        borderColor: "rgb(59, 130, 246)",
-        backgroundColor: "rgba(59, 130, 246, 0.1)",
+        label: isBatteryMode ? "Battery (%)" : "Speed (km/h)",
+        data: values,
+        borderColor: isBatteryMode ? "rgb(34, 197, 94)" : "rgb(59, 130, 246)",
+        backgroundColor: isBatteryMode ? "rgba(34, 197, 94, 0.1)" : "rgba(59, 130, 246, 0.1)",
         borderWidth: 1.5,
         pointRadius: 0,
         pointHoverRadius: 0,
@@ -363,7 +472,43 @@ function HistoryReportContent() {
         fill: true,
       },
     };
-  }, [activePlayback]);
+  }, [activePlayback, isBatteryMode]);
+
+  const filteredPackets = useMemo(() => {
+    if (!activePlayback || activePlayback.length === 0) return [];
+    if (!packetSearch.trim()) {
+      return activePlayback.map((item, idx) => ({ item, originalIndex: idx }));
+    }
+    const q = packetSearch.toLowerCase();
+    return activePlayback
+      .map((item, idx) => ({ item, originalIndex: idx }))
+      .filter(({ item, originalIndex }) => {
+        const addr = (
+          item.address ||
+          item.attributes?.address ||
+          item.rawBlePoint?.address ||
+          ""
+        ).toLowerCase();
+        const time = (item.createdAt || "").toLowerCase();
+        const sn = String(item.deviceId || "").toLowerCase();
+        const coords = `${item.latitude},${item.longitude}`;
+        return (
+          addr.includes(q) ||
+          time.includes(q) ||
+          sn.includes(q) ||
+          coords.includes(q) ||
+          String(originalIndex + 1).includes(q)
+        );
+      });
+  }, [activePlayback, packetSearch]);
+
+  const handlePacketClick = (index: number) => {
+    if (!activePlayback || activePlayback.length === 0) return;
+    const progress = (index / Math.max(1, activePlayback.length - 1)) * 100;
+    handlePlaybackProgress(progress);
+    setPlaybackProgress(progress);
+    vehicleMapRef.current?.seekToProgress(progress);
+  };
 
   const chartData = useMemo(
     () => ({
@@ -449,13 +594,22 @@ function HistoryReportContent() {
               });
             },
             label: (context: any) => {
-              return `Speed: ${context.parsed.y.toFixed(1)} km/h`;
+              const val = context.parsed.y;
+              if (isBatteryMode) {
+                return `Battery: ${val}%`;
+              }
+              return `Speed: ${val.toFixed(1)} km/h`;
+            },
+            afterLabel: (context: any) => {
+              const item = activePlayback[context.dataIndex];
+              const addr = item?.address || item?.attributes?.address;
+              return addr ? `📍 ${addr}` : "";
             },
           },
           backgroundColor: "rgba(0, 0, 0, 0.8)",
           titleColor: "white",
           bodyColor: "white",
-          borderColor: "rgb(239, 68, 68)",
+          borderColor: isBatteryMode ? "rgb(34, 197, 94)" : "rgb(239, 68, 68)",
           borderWidth: 1,
           cornerRadius: 6,
           displayColors: false,
@@ -485,12 +639,16 @@ function HistoryReportContent() {
           display: true,
           title: {
             display: true,
-            text: "Speed (km/h)",
+            text: isBatteryMode ? "Battery (%)" : "Speed (km/h)",
             font: { size: 12 },
           },
           beginAtZero: true,
+          min: 0,
+          max: isBatteryMode ? 100 : undefined,
+          suggestedMax: isBatteryMode ? 100 : 80,
           ticks: {
             font: { size: 10 },
+            stepSize: isBatteryMode ? 20 : 10,
           },
           grid: {
             color: "rgba(0, 0, 0, 0.1)",
@@ -519,27 +677,33 @@ function HistoryReportContent() {
     [activePlayback]
   );
 
-  const handleVehicleChange = (vehicleId: string) => {
+  const handleVehicleChange = (vehicleId?: string) => {
     console.log("Vehicle change to:", vehicleId);
-    setSelectedVehicle(vehicleId);
+    setSelectedVehicle(vehicleId || "");
   };
 
-  const handleDateFilter = useMemo(
-    () => (startDate: Date | null, endDate: Date | null) => {
+  const handleDateFilter = useCallback(
+    (startDate: Date | null, endDate: Date | null) => {
       if (!startDate || !endDate) return;
-      const formattedStart = formatDateToYYYYMMDD(startDate);
-      const formattedEnd = formatDateToYYYYMMDD(endDate);
+      const fromIso = startDate.toISOString();
+      const toIso = endDate.toISOString();
 
-      const startHours = startDate.getHours().toString().padStart(2, "0");
-      const startMinutes = startDate.getMinutes().toString().padStart(2, "0");
+      setFromDate(fromIso);
+      setToDate(toIso);
 
-      const endHours = endDate.getHours().toString().padStart(2, "0");
-      const endMinutes = endDate.getMinutes().toString().padStart(2, "0");
-
-      setFromDate(`${formattedStart}T${startHours}:${startMinutes}:00.000Z`);
-      setToDate(`${formattedEnd}T${endHours}:${endMinutes}:59.000Z`);
+      const targetId = selectedVehicle || uniqueIdFromUrl;
+      if (targetId && hasGenerated) {
+        setApiFilters({
+          uniqueId: String(targetId),
+          from: fromIso,
+          to: toIso,
+          period: "Custom",
+          isBle: isCurrentBle,
+          deviceCategory: isCurrentBle ? "BLE" : undefined,
+        });
+      }
     },
-    []
+    [selectedVehicle, uniqueIdFromUrl, hasGenerated, isCurrentBle]
   );
 
   const { odometerDistance, summedDistance } = useMemo(() => {
@@ -615,7 +779,7 @@ function HistoryReportContent() {
       return {
         id: index,
         startTime: endPoint.createdAt,
-        endTime: stopEndTime,
+        endTime: nextTrip ? nextTrip[0].createdAt : endPoint.createdAt,
         duration: formatDurationHMS(stopDurationMs),
         distanceFromPrev,
         lat: endPoint.latitude,
@@ -626,97 +790,128 @@ function HistoryReportContent() {
 
   const getTodayUtcRange = () => {
     const now = new Date();
-    const start = new Date(
-      Date.UTC(
-        now.getUTCFullYear(),
-        now.getUTCMonth(),
-        now.getUTCDate(),
-        0,
-        0,
-        0
-      )
-    );
-
-    const end = new Date(
-      Date.UTC(
-        now.getUTCFullYear(),
-        now.getUTCMonth(),
-        now.getUTCDate(),
-        23,
-        59,
-        59
-      )
-    );
+    const start = new Date(now);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(now);
+    end.setHours(23, 59, 59, 999);
 
     return {
       from: start.toISOString(),
       to: end.toISOString(),
+      startDate: start,
+      endDate: end,
     };
   };
 
   const handleShow = () => {
-    const finalUniqueId = uniqueIdFromUrl || selectedVehicle;
-    if (!finalUniqueId) return;
+    const finalUniqueId = selectedVehicle || uniqueIdFromUrl;
+    if (!finalUniqueId) {
+      toast.error(isGeoTagMode ? "Please select a GeoTag" : "Please select a vehicle");
+      return;
+    }
 
-    const finalFrom = fromDate || getTodayUtcRange().from;
-    const finalTo = toDate || getTodayUtcRange().to;
+    const { from: todayFrom, to: todayTo } = getTodayUtcRange();
+    const finalFrom = fromDate || todayFrom;
+    const finalTo = toDate || todayTo;
 
     setApiFilters({
-      uniqueId: finalUniqueId,
+      uniqueId: String(finalUniqueId),
       from: finalFrom,
       to: finalTo,
       period: "Custom",
+      isBle: isCurrentBle,
+      deviceCategory: isCurrentBle ? "BLE" : undefined,
     });
     setHasGenerated(true);
   };
 
-  // Sync uniqueId from URL with dropdown selection and set today's date
+  const hasSyncedFromUrl = useRef(false);
+
+  const handleModeChange = (mode: "VEHICLE" | "BLE") => {
+    if (deviceType === mode) return;
+    hasSyncedFromUrl.current = true;
+    setDeviceType(mode);
+    setSelectedVehicle("");
+    setHasGenerated(false);
+    setTrips([]);
+    setBasePlayback([]);
+    setActivePlayback([]);
+    setSelectedTripIndex(null);
+    setPlaybackProgress(0);
+    setThrottledProgress(0);
+    // Remove query params from URL so stale ?uniqueId=... does not override user selection
+    router.replace("/dashboard/reports/history-report");
+  };
+
+  // Ensure default date range is initialized on initial page load
   useEffect(() => {
-    if (uniqueIdFromUrl && vehicleData && !selectedVehicle) {
-      const vehicleExists = vehicleData.some(
-        (vehicle: any) => vehicle.uniqueId === uniqueIdFromUrl
-      );
-
-      if (vehicleExists) {
-        setSelectedVehicle(uniqueIdFromUrl);
-
-        const { from, to } = getTodayUtcRange();
-
-        setApiFilters({
-          uniqueId: uniqueIdFromUrl,
-          from,
-          to,
-          period: "Custom",
-        });
-
-        setFromDate(from);
-        setToDate(to);
-
-        // ✅ Set default date range for DateRangeFilter
-        const today = new Date();
-        setDefaultDateRange({
-          startDate: new Date(
-            today.getFullYear(),
-            today.getMonth(),
-            today.getDate()
-          ),
-          endDate: new Date(
-            today.getFullYear(),
-            today.getMonth(),
-            today.getDate()
-          ),
-        });
-
-        setHasGenerated(true);
-      }
+    if (!defaultDateRange) {
+      const today = getTodayUtcRange();
+      setFromDate(today.from);
+      setToDate(today.to);
+      setDefaultDateRange({
+        startDate: today.startDate,
+        endDate: today.endDate,
+      });
     }
-  }, [uniqueIdFromUrl, vehicleData, selectedVehicle]);
+  }, [defaultDateRange]);
+
+  // Sync uniqueId from URL with dropdown selection and set today's date (only once on initial mount)
+  useEffect(() => {
+    if (hasSyncedFromUrl.current) return;
+    if (uniqueIdFromUrl) {
+      hasSyncedFromUrl.current = true;
+      const isBleTarget =
+        deviceCategoryFromUrl === "BLE" ||
+        String(uniqueIdFromUrl).startsWith("GeoTag-");
+
+      setDeviceType(isBleTarget ? "BLE" : "VEHICLE");
+      setSelectedVehicle(String(uniqueIdFromUrl));
+
+      const { from, to, startDate, endDate } = getTodayUtcRange();
+
+      setApiFilters({
+        uniqueId: String(uniqueIdFromUrl),
+        from,
+        to,
+        period: "Custom",
+        isBle: isBleTarget,
+        deviceCategory: isBleTarget ? "BLE" : undefined,
+      });
+
+      setFromDate(from);
+      setToDate(to);
+
+      setDefaultDateRange({
+        startDate,
+        endDate,
+      });
+
+      setHasGenerated(true);
+    }
+  }, [uniqueIdFromUrl, deviceCategoryFromUrl]);
 
   useEffect(() => {
-    if (!historyReport?.deviceDataByTrips) return;
-    const history = historyReport.deviceDataByTrips;
-    setTrips(history);
-    const flat = history.flat();
+    if (!historyReport) return;
+    const history =
+      historyReport.deviceDataByTrips ||
+      historyReport.data?.deviceDataByTrips ||
+      (Array.isArray(historyReport.data) ? historyReport.data : null) ||
+      (Array.isArray(historyReport) ? historyReport : null);
+
+    if (!history) return;
+
+    // Ensure history is trips array (array of arrays)
+    const normalizedTrips: any[][] = Array.isArray(history)
+      ? history.length === 0
+        ? []
+        : Array.isArray(history[0])
+        ? history
+        : [history]
+      : [];
+
+    setTrips(normalizedTrips);
+    const flat = normalizedTrips.flat();
     setBasePlayback(flat);
     setActivePlayback(flat);
     setIsRangeFiltered(false);
@@ -835,16 +1030,56 @@ function HistoryReportContent() {
     <>
       <section>
         {/* Filters */}
-        <header className="flex flex-col">
-          <div className="flex gap-4">
+        <header className="flex flex-col gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
+            {/* Mode Switcher Toggle: Vehicles vs GeoTags */}
+            <div className="inline-flex items-center bg-muted/60 p-1 rounded-lg border border-border shadow-xs">
+              <button
+                type="button"
+                onClick={() => handleModeChange("VEHICLE")}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all cursor-pointer ${
+                  !isGeoTagMode
+                    ? "bg-background text-foreground shadow-xs"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <Car className="h-3.5 w-3.5" />
+                Vehicles
+              </button>
+              <button
+                type="button"
+                onClick={() => handleModeChange("BLE")}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all cursor-pointer ${
+                  isGeoTagMode
+                    ? "bg-background text-primary shadow-xs"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <img
+                  src="/geotag-icon/crtag.png"
+                  alt="GeoTag"
+                  className="w-3.5 h-3.5 object-contain"
+                />
+                GeoTags
+              </button>
+            </div>
+
             <Combobox
-              items={vehicleMetaData}
+              items={dropdownItems}
               value={selectedVehicle}
               onValueChange={handleVehicleChange}
-              placeholder="Select Vehicle"
+              placeholder={isGeoTagMode ? "Select GeoTag" : "Select Vehicle"}
               className="cursor-pointer"
-              searchPlaceholder="Search vehicles..."
-              emptyMessage="No vehicles found"
+              searchPlaceholder={isGeoTagMode ? "Search GeoTags..." : "Search vehicles..."}
+              emptyMessage={
+                isGeoTagMode
+                  ? bleDevicesLoading
+                    ? "Loading GeoTags..."
+                    : "No GeoTags found"
+                  : vehiclesLoading
+                  ? "Loading vehicles..."
+                  : "No vehicles found"
+              }
               width="w-[300px]"
             />
             <div className="flex gap-3">
@@ -859,7 +1094,7 @@ function HistoryReportContent() {
               <Button className="cursor-pointer" onClick={handleShow}>
                 Show
               </Button>
-              {hasGenerated && historyReport && (
+              {hasGenerated && historyReport && !isCurrentBle && (
                 <Button
                   className="cursor-pointer bg-emerald-600 hover:bg-emerald-700 text-white ml-2 flex items-center gap-1.5"
                   onClick={() => setIsColorModalOpen(true)}
@@ -900,7 +1135,7 @@ function HistoryReportContent() {
                   currentIndex={displayIndex}
                   isExpanded={isMapExpanded}
                   onProgressChange={setPlaybackProgress}
-                  deviceCategory={deviceCategoryFromUrl || "CAR"}
+                  deviceCategory={isCurrentBle ? "BLE" : deviceCategoryFromUrl || "CAR"}
                 />
                 <div>
                   <div
@@ -974,12 +1209,12 @@ function HistoryReportContent() {
                     data={activePlayback}
                     stops={showStopsOnMap ? derivedStops : []}
                     activeStopId={activeStopId}
-                    onStopClick={(id) => setActiveStopId(id)}
+                    onStopClick={(id: number) => setActiveStopId(id)}
                     currentIndex={displayIndex}
                     isExpanded={isMapExpanded}
                     onProgressChange={handlePlaybackProgress}
                     stopAddressMap={stopAddressMap}
-                    deviceCategory={deviceCategoryFromUrl || "CAR"}
+                    deviceCategory={isCurrentBle ? "BLE" : deviceCategoryFromUrl || "CAR"}
                   />
                 )}
 
@@ -1043,14 +1278,36 @@ function HistoryReportContent() {
                 {/* Info Row */}
                 {currentData && activePlayback.length > 1 && (
                   <div className="flex gap-6 items-center flex-wrap">
-                    {/* Speed */}
-                    <div className="flex items-center gap-2 text-muted-foreground text-sm">
-                      <Gauge className="w-4 h-4" />
-                      <span>Speed</span>
-                      <span ref={speedRef} className="bg-gray-200 px-2 py-1 rounded-sm">
-                        {currentData.speed.toFixed(1)} kmph
-                      </span>
-                    </div>
+                    {/* Speed / Battery */}
+                    {isCurrentBle ? (
+                      <div className="flex items-center gap-2 text-muted-foreground text-sm">
+                        <span className="font-semibold text-slate-700">Battery</span>
+                        <span className="bg-green-100 text-green-700 font-bold px-2 py-1 rounded-sm">
+                          {currentData.battery ?? currentData.attributes?.battery ?? 100}%
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 text-muted-foreground text-sm">
+                        <Gauge className="w-4 h-4" />
+                        <span>Speed</span>
+                        <span ref={speedRef} className="bg-gray-200 px-2 py-1 rounded-sm">
+                          {currentData.speed.toFixed(1)} kmph
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Address for BLE */}
+                    {isCurrentBle && (currentData.address || currentData.attributes?.address) && (
+                      <div
+                        className="flex items-center gap-1.5 text-muted-foreground text-xs max-w-xs truncate"
+                        title={currentData.address || currentData.attributes?.address}
+                      >
+                        <span className="font-semibold text-slate-700">Location:</span>
+                        <span className="truncate text-slate-600">
+                          📍 {currentData.address || currentData.attributes?.address}
+                        </span>
+                      </div>
+                    )}
 
                     {/* Timestamp */}
                     <div className="flex items-center gap-2 text-muted-foreground text-sm">
@@ -1180,26 +1437,188 @@ function HistoryReportContent() {
                   </div>
                 )}
 
-                {activePlayback.length > 1 && (
-                  <div className="w-full h-[1px] bg-gray-300"></div>
+                {activePlayback.length > 0 && (
+                  <div className="w-full h-[1px] bg-gray-200 dark:bg-gray-800 my-1"></div>
                 )}
 
-                {/* Speed vs Timeline Graph */}
-                {!isMapExpanded &&
-                  activePlayback &&
-                  activePlayback.length > 1 && (
-                    <div style={{ height: "180px" }}>
-                      <SpeedTimelineGraph
-                        ref={graphRef}
-                        data={chartData}
-                        options={chartOptions}
-                        onHoverSeek={() => { }}
-                        isExpanded={isMapExpanded}
-                        onRangeSelect={handleRangeSelect}
-                        onResetRange={handleResetRange}
-                      />
+                {/* ✅ GeoTag Mode: Show the list of all data packets */}
+                {isCurrentBle && !isMapExpanded && activePlayback && activePlayback.length > 0 && (
+                  <div className="space-y-2 pt-1">
+                    <div className="flex items-center justify-between gap-3 flex-wrap">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                          <img src="/geotag-icon/crtag.png" alt="GeoTag" className="w-4 h-4 object-contain inline-block shrink-0" />
+                          GeoTag Data Packets ({activePlayback.length})
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <span className="text-[11px] text-muted-foreground hidden sm:inline">
+                          Showing {filteredPackets.length} of {activePlayback.length} packets
+                        </span>
+                        <div className="relative w-64">
+                          <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                          <input
+                            type="text"
+                            placeholder="Filter packets by address, time..."
+                            value={packetSearch}
+                            onChange={(e) => setPacketSearch(e.target.value)}
+                            className="w-full text-xs pl-8 pr-3 py-1 rounded-md border border-input bg-background focus:outline-none focus:ring-1 focus:ring-primary shadow-xs"
+                          />
+                        </div>
+                      </div>
                     </div>
-                  )}
+
+                    {/* Data Packets Table */}
+                    <div className="w-full border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden shadow-xs bg-white dark:bg-slate-900">
+                      <div className="max-h-[320px] overflow-y-auto overflow-x-auto">
+                        <table className="w-full text-left text-xs border-collapse">
+                          <thead className="sticky top-0 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-b border-slate-200 dark:border-slate-700 z-10 font-semibold shadow-xs">
+                            <tr>
+                              <th className="py-2 px-3 text-center w-12">#</th>
+                              <th className="py-2 px-3 whitespace-nowrap">Timestamp</th>
+                              <th className="py-2 px-3 whitespace-nowrap">Battery</th>
+                              <th className="py-2 px-3 whitespace-nowrap">Speed</th>
+                              <th className="py-2 px-3 whitespace-nowrap">Accuracy</th>
+                              <th className="py-2 px-3 whitespace-nowrap">Coordinates</th>
+                              <th className="py-2 px-3 min-w-[200px]">Address / Location</th>
+                              <th className="py-2 px-3 text-right whitespace-nowrap w-20">Action</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-normal">
+                            {filteredPackets.length === 0 ? (
+                              <tr>
+                                <td colSpan={8} className="py-6 text-center text-muted-foreground">
+                                  No data packets found matching &quot;{packetSearch}&quot;
+                                </td>
+                              </tr>
+                            ) : (
+                              filteredPackets.map(({ item, originalIndex }) => {
+                                const isCurrent = originalIndex === displayIndex;
+                                const timeFormatted = formatDateTime(item.createdAt || item.deviceTime);
+                                const address =
+                                  item.address ||
+                                  item.attributes?.address ||
+                                  item.rawBlePoint?.address ||
+                                  "Location address not available";
+                                const batteryVal =
+                                  item.battery ?? item.attributes?.battery ?? item.rawBlePoint?.battery ?? 100;
+                                const batteryStatus =
+                                  item.attributes?.batteryStatus ?? item.rawBlePoint?.batteryStatus ?? "OK";
+                                const accuracy =
+                                  item.attributes?.accuracy ?? item.rawBlePoint?.accuracy;
+                                const confidence =
+                                  item.attributes?.confidence ?? item.rawBlePoint?.confidence;
+
+                                return (
+                                  <tr
+                                    key={`packet-${originalIndex}-${item.createdAt}`}
+                                    onClick={() => handlePacketClick(originalIndex)}
+                                    className={`transition-colors cursor-pointer text-slate-700 dark:text-slate-300 ${
+                                      isCurrent
+                                        ? "bg-blue-50/90 dark:bg-blue-950/40 border-l-4 border-l-blue-600 font-semibold"
+                                        : "hover:bg-slate-50 dark:hover:bg-slate-800/50"
+                                    }`}
+                                  >
+                                    {/* Packet Number */}
+                                    <td className="py-2 px-3 text-center">
+                                      <div className="flex items-center justify-center gap-1">
+                                        {isCurrent && (
+                                          <span className="w-1.5 h-1.5 rounded-full bg-blue-600 animate-pulse"></span>
+                                        )}
+                                        <span className="font-mono text-slate-500 text-[11px]">
+                                          {originalIndex + 1}
+                                        </span>
+                                      </div>
+                                    </td>
+
+                                    {/* Timestamp */}
+                                    <td className="py-2 px-3 whitespace-nowrap font-medium text-slate-900 dark:text-slate-100">
+                                      {timeFormatted.date} {timeFormatted.time}
+                                    </td>
+
+                                    {/* Battery */}
+                                    <td className="py-2 px-3 whitespace-nowrap">
+                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
+                                        <BatteryCharging className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                                        {batteryVal}% ({batteryStatus})
+                                      </span>
+                                    </td>
+
+                                    {/* Speed */}
+                                    <td className="py-2 px-3 whitespace-nowrap">
+                                      <span className="font-semibold text-slate-800 dark:text-slate-200">
+                                        {(item.speed || 0).toFixed(1)}
+                                      </span>{" "}
+                                      <span className="text-[11px] text-muted-foreground">km/h</span>
+                                    </td>
+
+                                    {/* Accuracy & Confidence */}
+                                    <td className="py-2 px-3 whitespace-nowrap text-slate-600 dark:text-slate-400 text-[11px]">
+                                      {accuracy ? (
+                                        <span>
+                                          ±{accuracy}m{confidence ? ` (c:${confidence})` : ""}
+                                        </span>
+                                      ) : (
+                                        <span className="text-muted-foreground">---</span>
+                                      )}
+                                    </td>
+
+                                    {/* Coordinates */}
+                                    <td className="py-2 px-3 whitespace-nowrap font-mono text-[11px] text-slate-600 dark:text-slate-400">
+                                      {Number(item.latitude).toFixed(6)}, {Number(item.longitude).toFixed(6)}
+                                    </td>
+
+                                    {/* Address / Location */}
+                                    <td className="py-2 px-3 max-w-sm truncate" title={address}>
+                                      <span className="flex items-center gap-1.5 truncate">
+                                        <MapPin className="w-3 h-3 text-blue-500 shrink-0" />
+                                        <span className="truncate">{address}</span>
+                                      </span>
+                                    </td>
+
+                                    {/* Action button */}
+                                    <td className="py-2 px-3 text-right whitespace-nowrap">
+                                      <Button
+                                        size="sm"
+                                        variant={isCurrent ? "default" : "outline"}
+                                        className={`h-6 px-2 text-[11px] gap-1 cursor-pointer ${
+                                          isCurrent ? "bg-blue-600 text-white" : "hover:bg-primary hover:text-white"
+                                        }`}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handlePacketClick(originalIndex);
+                                        }}
+                                      >
+                                        <Eye className="w-3 h-3" />
+                                        Seek
+                                      </Button>
+                                    </td>
+                                  </tr>
+                                );
+                              })
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* ✅ Regular Vehicle Mode: Standard Speed vs Timeline Graph */}
+                {!isCurrentBle && !isMapExpanded && activePlayback && activePlayback.length > 1 && (
+                  <div style={{ height: "180px" }}>
+                    <SpeedTimelineGraph
+                      ref={graphRef}
+                      data={chartData}
+                      options={chartOptions}
+                      onHoverSeek={() => { }}
+                      isExpanded={isMapExpanded}
+                      onRangeSelect={handleRangeSelect}
+                      onResetRange={handleResetRange}
+                    />
+                  </div>
+                )}
               </Card>
             </div>
           </div>
@@ -1241,7 +1660,7 @@ function HistoryReportContent() {
       </section>
 
       {/* Visual Color Picker Modal Overlay */}
-      {isColorModalOpen && (
+      {!isCurrentBle && isColorModalOpen && (
         <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/60 backdrop-blur-sm">
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-2xl p-6 max-w-sm w-full mx-4 animate-scale-up">
             <div className="flex justify-between items-center mb-4">

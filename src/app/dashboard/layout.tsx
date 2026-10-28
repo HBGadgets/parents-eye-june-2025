@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useDeviceStore } from "@/store/deviceStore";
 import { AppSidebar } from "@/components/app-sidebar";
 import FCMHandler from "@/components/FCMHandler";
@@ -20,26 +20,45 @@ import { useRouter } from "next/navigation";
 import { AiChatBot } from "@/components/dashboard/AiChatBot";
 import { ActiveStatusChecker } from "@/components/ActiveStatusChecker";
 
-export default function DashboardLayout({
+import { getSectionFromPath } from "@/util/navigationAccess";
 
+export default function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
   const activeSection = useNavigationStore((state) => state.activeSection);
+  const setActiveSection = useNavigationStore((state) => state.setActiveSection);
+  const pathname = usePathname();
+
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const currentSection =
+    mounted && activeSection && activeSection !== "Dashboard"
+      ? activeSection
+      : getSectionFromPath(pathname);
+
   const SHOW_SIDEBAR_SECTIONS = [
     "Master",
     "School",
-    "Users",
     "Reports",
     "Support",
   ];
   const router = useRouter();
 
   const store = useDeviceStore();
-  const pathname = usePathname();
   const isDashboard = pathname === "/dashboard";
   const hasConnected = useRef(false);
+
+  useEffect(() => {
+    const detected = getSectionFromPath(pathname);
+    if (detected && detected !== "Dashboard") {
+      setActiveSection(detected);
+    }
+  }, [pathname, setActiveSection]);
 
   useEffect(() => {
     if (!store.isConnected) return;
@@ -74,12 +93,12 @@ export default function DashboardLayout({
   }, []);
   return (
     <TooltipProvider delayDuration={0}>
-      <SidebarProvider defaultOpen={false}>
-        {SHOW_SIDEBAR_SECTIONS.includes(activeSection) && <AppSidebar />}
+      <SidebarProvider defaultOpen={true}>
+        {SHOW_SIDEBAR_SECTIONS.includes(currentSection) && <AppSidebar />}
         <SidebarInset className="overflow-hidden flex flex-col h-screen">
           <header className="sticky top-0 z-20 flex h-14 md:h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear overflow-hidden bg-background border-b">
             <div className="flex items-center gap-2 px-2 md:px-4 min-w-0 relative z-20">
-              {SHOW_SIDEBAR_SECTIONS.includes(activeSection) && (
+              {SHOW_SIDEBAR_SECTIONS.includes(currentSection) && (
                 <>
                   <SidebarTrigger className="-ml-1 flex-shrink-0 cursor-pointer" />
                   <Separator
@@ -98,7 +117,7 @@ export default function DashboardLayout({
             </div>
           </header>
 
-          <main className="pt-2 md:pt-4 px-2 md:px-4 overflow-auto h-full">
+          <main className="pt-2 md:pt-4 px-2 md:px-4 pb-2 md:pb-3 overflow-auto flex-1 min-h-0 flex flex-col">
             <FCMHandler />
             <ActiveStatusChecker />
             {children}

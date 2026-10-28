@@ -17,8 +17,7 @@ import { ChevronsLeft, ChevronsRight, Locate } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import { LiveTrack } from "@/components/dashboard/LiveTrack.tsx/livetrack";
 import { BottomDrawer } from "@/components/dashboard/bottom-drawer";
-// import SubscriptionExpiry from "@/components/dashboard/SubscriptionExpiry/SubscriptionExpiry";
-import { getLiveVehicleColumns } from "@/components/columns/columns";
+import { getLiveVehicleColumns, getBleDeviceColumns } from "@/components/columns/columns";
 import { RouteTimeline } from "@/components/dashboard/route/route-timeline";
 import { useSubscriptionExpiry } from "@/hooks/subscription/useSubscription";
 import { SubscriptionExpiry } from "@/components/dashboard/SubscriptionExpiry/SubscriptionExpiry";
@@ -36,12 +35,23 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
-import { ListFilter, X, Download, FileSpreadsheet, FileText } from "lucide-react";
+import {
+  ListFilter,
+  X,
+  Download,
+  FileSpreadsheet,
+  FileText,
+  MapPin,
+  Loader2,
+} from "lucide-react";
 import { useAuthStore } from "@/store/authStore";
 import { Combobox } from "@/components/ui/combobox";
 import { useExport } from "@/hooks/useExport";
 import { reportService } from "@/services/api/reportService";
 import { getYesterdayDateRange } from "@/util/dateFormatters";
+import { bleService } from "@/services/api/bleService";
+import { toast } from "sonner";
+import type { BleDevice } from "@/interface/ble";
 
 type ViewState = "split" | "tableExpanded" | "mapExpanded";
 type StatusFilter = "all" | "running" | "idle" | "stopped" | "inactive" | "new";
@@ -50,6 +60,7 @@ type StatusFilter = "all" | "running" | "idle" | "stopped" | "inactive" | "new";
 const SUBSCRIPTION_POPUP_KEY = "subscription_popup_shown";
 
 export default function DashboardClient() {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
 
   // Local search state (for input value)
@@ -62,23 +73,35 @@ export default function DashboardClient() {
 
   const [sorting, setSorting] = useState([]);
   const [columnVisibility, setColumnVisibility] = useState({});
+  const [bleColumnVisibility, setBleColumnVisibility] = useState({});
   const [viewState, setViewState] = useState<ViewState>("split");
-  const [selectedVehicleId, setSelectedVehicleId] = useState<number | null>(
-    null
+  const [selectedVehicleId, setSelectedVehicleId] = useState<number | string | null>(
+    null,
   );
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [selectedDevice, setSelectedDevice] = useState<DeviceData | null>(null);
   const [selectedRouteData, setSelectedRouteData] = useState<any | null>(null);
   const [isLoadingRoute, setIsLoadingRoute] = useState<boolean>(false);
+  const [showGeotag, setShowGeotag] = useState<boolean>(false);
+  const [bleDevices, setBleDevices] = useState<BleDevice[]>([]);
+  const [bleTotal, setBleTotal] = useState<number>(0);
+  const [isLoadingBle, setIsLoadingBle] = useState<boolean>(false);
+  const [blePagination, setBlePagination] = useState({
+    pageIndex: 0,
+    pageSize: 20,
+  });
 
   // Fetch route playback data for the selected vehicle using yesterday's date range
   useEffect(() => {
-    if (!selectedDevice) {
+    if (!selectedDevice || selectedDevice.category === "BLE") {
       setSelectedRouteData(null);
       return;
     }
 
-    const uniqueId = selectedDevice.uniqueId || selectedDevice.imei || String(selectedDevice.deviceId);
+    const uniqueId =
+      selectedDevice.uniqueId ||
+      selectedDevice.imei ||
+      String(selectedDevice.deviceId);
     if (!uniqueId) {
       setSelectedRouteData(null);
       return;
@@ -101,7 +124,10 @@ export default function DashboardClient() {
         }
       })
       .catch((err) => {
-        console.warn(`No history route data loaded for device ${uniqueId}:`, err?.message || err);
+        console.warn(
+          `No history route data loaded for device ${uniqueId}:`,
+          err?.message || err,
+        );
         setSelectedRouteData(null);
       })
       .finally(() => {
@@ -110,12 +136,13 @@ export default function DashboardClient() {
   }, [selectedDevice]);
 
   const [selectedImei, setSelectedImei] = useState<{
-    uniqueId: number;
+    uniqueId: number | string;
     name: string;
     routeName?: string;
     routeObjId?: string;
     schoolId?: string;
     branchId?: string;
+    device?: DeviceData;
   }>({
     uniqueId: 0,
     name: "",
@@ -136,7 +163,7 @@ export default function DashboardClient() {
       setRouteTimelineData({ uniqueId, deviceName, routeObjId });
       setIsRouteTimelineOpen(true);
     },
-    []
+    [],
   );
 
   // Active status filter
@@ -206,21 +233,131 @@ export default function DashboardClient() {
     (decodedToken as any)?._id ||
     (decodedToken as any)?.userId;
   const superSupportUrl = process.env.NEXT_PUBLIC_SUPERSUPPORT_URL;
-  const isSuperSupport = Boolean(
-    superSupportUrl && userId === superSupportUrl
-  );
+  const isSuperSupport = Boolean(superSupportUrl && userId === superSupportUrl);
 
   const userRole = useMemo(() => {
-    if (["superadmin", "super_admin", "admin", "root"].includes(rawRole)) return "superadmin";
+    if (["superadmin", "super_admin", "admin", "root"].includes(rawRole))
+      return "superadmin";
     if (["school", "schooladmin"].includes(rawRole)) return "school";
     if (["branch", "branchadmin"].includes(rawRole)) return "branch";
     if (["branchgroup"].includes(rawRole)) return "branchGroup";
     return rawRole;
   }, [rawRole]);
 
+  const fetchBleDevices = useCallback(
+    async (page: number = 1, limit: number = 20, isSilent: boolean = false) => {
+      if (!isSilent) setIsLoadingBle(true);
+      try {
+        const res = await bleService.getBleDevices({ page, limit });
+        if (res && (res.success || Array.isArray(res.devices))) {
+          const fetched = res.devices || [];
+          setBleDevices(fetched);
+          setBleTotal(typeof res.total === "number" ? res.total : fetched.length);
+          setBlePagination({ pageIndex: page - 1, pageSize: limit });
+          if (!isSilent) {
+            toast.success(`Successfully loaded ${fetched.length} BLE devices`);
+          }
+        } else {
+          if (!isSilent) {
+            toast.info("No BLE devices found");
+          }
+        }
+      } catch (err: any) {
+        console.error("Failed to fetch BLE devices:", err);
+        if (!isSilent) {
+          toast.error(
+            err?.response?.data?.message || err?.message || "Failed to fetch BLE devices"
+          );
+        }
+      } finally {
+        if (!isSilent) setIsLoadingBle(false);
+      }
+    },
+    [],
+  );
+
+  const handleGeotagClick = useCallback(async () => {
+    setActiveStatus("all");
+    setShowGeotag(true);
+    await fetchBleDevices(1, 20);
+  }, [fetchBleDevices]);
+
+  // Auto-refresh BLE CRTag devices every 10 seconds while on the CRTag tab
+  useEffect(() => {
+    if (!showGeotag) return;
+
+    const intervalId = setInterval(() => {
+      fetchBleDevices(blePagination.pageIndex + 1, blePagination.pageSize, true);
+    }, 10000);
+
+    return () => clearInterval(intervalId);
+  }, [showGeotag, blePagination.pageIndex, blePagination.pageSize, fetchBleDevices]);
+
+  // Auto-refresh live coordinates for the selected GeoTag device every 10 seconds
+  useEffect(() => {
+    if (!selectedDevice || selectedDevice.category !== "BLE") return;
+    const identifier =
+      (selectedDevice as any).sn ||
+      selectedDevice.uniqueId ||
+      (selectedDevice as any)._id;
+    if (!identifier) return;
+
+    const intervalId = setInterval(async () => {
+      try {
+        console.log(`[Dashboard] Polling live GeoTag API for selected device: ${identifier}`);
+        const res = await bleService.getLiveDevice(String(identifier));
+        const dev =
+          (res && res.device) ||
+          (res && res.data && res.data.device) ||
+          (res && res.data) ||
+          res;
+        const loc =
+          dev?.lastLocation ||
+          dev?.location ||
+          res?.lastLocation ||
+          res?.location ||
+          res?.data?.lastLocation ||
+          res?.data?.location;
+
+        const parsedLat = Number(loc?.lat ?? dev?.lat ?? dev?.latitude);
+        const parsedLng = Number(loc?.lng ?? dev?.lng ?? dev?.longitude);
+
+        setSelectedDevice((prev) => {
+          if (!prev) return prev;
+          const lat = !isNaN(parsedLat) && parsedLat !== 0 ? parsedLat : prev.latitude;
+          const lng = !isNaN(parsedLng) && parsedLng !== 0 ? parsedLng : prev.longitude;
+          return {
+            ...prev,
+            latitude: lat,
+            longitude: lng,
+            batteryLevel: dev?.battery ?? prev.batteryLevel,
+            lastUpdate:
+              dev?.lastUpdate ||
+              loc?.locationTime ||
+              loc?.reportedTime ||
+              prev.lastUpdate,
+            address: loc?.address || dev?.address || (prev as any).address,
+            rawBleDevice: dev,
+          };
+        });
+      } catch (e) {
+        console.error("[Dashboard] Failed to poll live GeoTag coordinates:", e);
+      }
+    }, 10000);
+
+    return () => clearInterval(intervalId);
+  }, [
+    selectedDevice?.deviceId,
+    (selectedDevice as any)?.sn,
+    selectedDevice?.uniqueId,
+    selectedDevice?.category,
+  ]);
+
   // console.log("🚀 ~ DashboardClient ~ userRole:", userRole, "rawRole:", rawRole);
 
-  const userSchoolId = decodedToken?.schoolId || (userRole === "school" ? decodedToken?.id : undefined);
+  const userSchoolId =
+    decodedToken?.schoolId ||
+    (userRole === "school" ? decodedToken?.id : undefined);
 
   const [isSchoolDropdownOpen, setIsSchoolDropdownOpen] = useState(false);
   const { data: schoolData } = useSchoolDropdown(isSchoolDropdownOpen);
@@ -236,13 +373,13 @@ export default function DashboardClient() {
   const { data: branchData } = useBranchDropdown(
     filters.schoolId,
     isBranchDropdownOpen,
-    !filters.schoolId
+    !filters.schoolId,
   );
 
   // console.log("🚀 ~ DashboardClient ~ filters:", filters);
 
   const { expiredBranches, expiredBranchesCount } = useSubscriptionExpiry(
-    showSubscriptionPopup
+    showSubscriptionPopup,
   );
   // console.log(
   //   "🚀 ~ file: DashboardClient.tsx:261 ~ expiredBranchesCount:",
@@ -340,7 +477,7 @@ export default function DashboardClient() {
         });
       }, 500);
     },
-    [updateFilters]
+    [updateFilters],
   );
 
   // **Status Filter Handler**
@@ -353,24 +490,31 @@ export default function DashboardClient() {
         page: 1,
       });
     },
-    [updateFilters]
+    [updateFilters],
   );
 
   // **Pagination Handler**
   const handlePaginationChange = useCallback(
     (updater: unknown) => {
+      const currentPag = showGeotag ? blePagination : pagination;
       const newPagination =
-        typeof updater === "function" ? updater(pagination) : updater;
+        typeof updater === "function"
+          ? (updater as any)(currentPag)
+          : (updater as any);
 
-      setPagination(newPagination);
-
-      // Update store with new page
-      updateFilters({
-        page: newPagination.pageIndex + 1,
-        limit: newPagination.pageSize,
-      });
+      if (showGeotag) {
+        setBlePagination(newPagination);
+        fetchBleDevices(newPagination.pageIndex + 1, newPagination.pageSize);
+      } else {
+        setPagination(newPagination);
+        // Update store with new page
+        updateFilters({
+          page: newPagination.pageIndex + 1,
+          limit: newPagination.pageSize,
+        });
+      }
     },
-    [pagination, updateFilters]
+    [showGeotag, blePagination, pagination, fetchBleDevices, updateFilters],
   );
 
   const queueVisibleDevicesForGeocoding = useCallback(() => {
@@ -393,7 +537,7 @@ export default function DashboardClient() {
         selectedDevice.deviceId,
         selectedDevice.latitude,
         selectedDevice.longitude,
-        true
+        true,
       );
     }
   }, [selectedDevice, queueForGeocoding]);
@@ -439,7 +583,7 @@ export default function DashboardClient() {
       setViewState("split");
     } else {
       setViewState((prevState) =>
-        prevState === "tableExpanded" ? "split" : "tableExpanded"
+        prevState === "tableExpanded" ? "split" : "tableExpanded",
       );
     }
   }, [viewState]);
@@ -449,7 +593,7 @@ export default function DashboardClient() {
       setViewState("split");
     } else {
       setViewState((prevState) =>
-        prevState === "mapExpanded" ? "split" : "mapExpanded"
+        prevState === "mapExpanded" ? "split" : "mapExpanded",
       );
     }
   }, [viewState]);
@@ -467,17 +611,36 @@ export default function DashboardClient() {
           device.deviceId,
           device.latitude,
           device.longitude,
-          true
+          true,
         );
       }
     },
-    [queueForGeocoding, isSuperSupport]
+    [queueForGeocoding, isSuperSupport],
   );
 
-  const handleOpenLiveTrack = (uniqueId: number, name: string, routeName?: string, routeObjId?: string, schoolId?: string, branchId?: string) => {
-    setOpen(true);
-    setSelectedImei({ uniqueId, name, routeName, routeObjId, schoolId, branchId });
-  };
+  const handleOpenLiveTrack = useCallback(
+    (
+      uniqueId: number | string,
+      name: string,
+      routeName?: string,
+      routeObjId?: string,
+      schoolId?: string,
+      branchId?: string,
+      device?: DeviceData,
+    ) => {
+      setOpen(true);
+      setSelectedImei({
+        uniqueId,
+        name,
+        routeName,
+        routeObjId,
+        schoolId,
+        branchId,
+        device: device || selectedDevice || undefined,
+      });
+    },
+    [selectedDevice],
+  );
 
   useEffect(() => {
     queueSelectedDeviceForGeocoding();
@@ -514,29 +677,176 @@ export default function DashboardClient() {
     return statusCount ? statusCount[activeStatus] : 0;
   }, [counts, activeStatus]);
 
+  // Map BLE devices to standard DeviceData shape for seamless display in table & map
+  const mappedBleDevices = useMemo(() => {
+    return bleDevices.map((tag, idx) => {
+      const lat =
+        tag.lastLocation &&
+        typeof tag.lastLocation.lat === "number" &&
+        !isNaN(tag.lastLocation.lat)
+          ? tag.lastLocation.lat
+          : 0;
+      const lng =
+        tag.lastLocation &&
+        typeof tag.lastLocation.lng === "number" &&
+        !isNaN(tag.lastLocation.lng)
+          ? tag.lastLocation.lng
+          : 0;
+      const childObj = typeof tag.childId === "object" ? tag.childId : null;
+      const schoolObj = typeof tag.schoolId === "object" ? tag.schoolId : null;
+      const branchObj = typeof tag.branchId === "object" ? tag.branchId : null;
+      const supervisorObj =
+        typeof tag.supervisorId === "object" ? tag.supervisorId : null;
+
+      const numId = tag._id
+        ? parseInt(tag._id.slice(-6), 16) || idx + 100000
+        : idx + 100000;
+
+      return {
+        deviceId: numId,
+        _id: tag._id,
+        uniqueId: tag.sn || tag.uuid || tag._id,
+        imei: tag.sn || tag.mac || tag.uuid || "",
+        sim: tag.mac || "",
+        mac: tag.mac || "",
+        sn: tag.sn || "",
+        name: tag.name || tag.sn || "BLE CRTag",
+        latitude: lat,
+        longitude: lng,
+        speed: 0,
+        course: 0,
+        batteryLevel: tag.battery ?? 100,
+        status: tag.status === "active" ? "running" : "inactive",
+        category: "BLE",
+        lastUpdate:
+          tag.lastUpdate ||
+          tag.lastLocation?.locationTime ||
+          tag.createdAt ||
+          new Date().toISOString(),
+        attributes: {
+          charge: tag.batteryStatus === "OK",
+          ignition: false,
+          motion: false,
+          sat: 0,
+          distance: 0,
+          totalDistance: 0,
+          todayDistance: 0,
+        },
+        gsmSignal: tag.battery ?? 100,
+        TD: 0,
+        mileage: "0",
+        speedLimit: "0",
+        fuelConsumption: "0",
+        matchesSearch: true,
+        total: bleTotal || bleDevices.length,
+        address: tag.lastLocation?.address || "",
+        rawBleDevice: tag,
+        childName: childObj?.childName,
+        schoolName: schoolObj?.schoolName,
+        branchName: branchObj?.branchName,
+        supervisorName: supervisorObj?.supervisorName,
+      } as unknown as DeviceData;
+    });
+  }, [bleDevices, bleTotal]);
+
+  const filteredBleDevices = useMemo(() => {
+    if (!showGeotag) return [];
+    let list = mappedBleDevices;
+    if (searchInput.trim()) {
+      const q = searchInput.trim().toLowerCase();
+      list = list.filter((d) => {
+        const name = (d.name || "").toLowerCase();
+        const sn = String(d.uniqueId || d.imei || "").toLowerCase();
+        const mac = String((d as any).mac || (d as any).sim || "").toLowerCase();
+        const child = String((d as any).childName || "").toLowerCase();
+        return (
+          name.includes(q) ||
+          sn.includes(q) ||
+          mac.includes(q) ||
+          child.includes(q)
+        );
+      });
+    }
+    return list;
+  }, [showGeotag, searchInput, mappedBleDevices]);
+
+  // When showGeotag is active, use BLE API response ONLY for table and map; otherwise use live socket devices
+  const displayedDevices = useMemo(() => {
+    return showGeotag ? filteredBleDevices : devices || [];
+  }, [showGeotag, filteredBleDevices, devices]);
+
+  const bleColumns = useMemo(
+    () =>
+      getBleDeviceColumns(
+        (device) => {
+          setSelectedVehicleId(device.deviceId);
+          setSelectedDevice(device);
+          handleOpenLiveTrack(
+            device.uniqueId || device.sn || device.imei,
+            device.name,
+            device.routeName,
+            device.routeObjId,
+            device.schoolId,
+            device.branchId,
+            device,
+          );
+        },
+        (device) => {
+          const id =
+            device.uniqueId ||
+            device.sn ||
+            device.imei ||
+            device._id ||
+            device.deviceId;
+          router.push(
+            `/dashboard/reports/history-report?uniqueId=${id}&deviceCategory=BLE`
+          );
+        }
+      ),
+    [handleOpenLiveTrack, router],
+  );
+
+  const displayedColumns = useMemo(() => {
+    return showGeotag ? bleColumns : columns;
+  }, [showGeotag, bleColumns, columns]);
+
+  const displayedTotalCount = useMemo(() => {
+    return showGeotag ? bleTotal || bleDevices.length : totalCount;
+  }, [showGeotag, bleTotal, bleDevices.length, totalCount]);
+
+  const displayedLoading = showGeotag ? isLoadingBle : isLoading;
+  const displayedPagination = showGeotag ? blePagination : pagination;
+
+  const displayedCounts = useMemo(() => {
+    if (showGeotag) return [];
+    return counts;
+  }, [showGeotag, counts]);
+
   // Server side pagination table instance
   const { table, tableElement } = CustomTableServerSidePagination({
-    data: devices || [],
-    columns,
-    pagination,
-    totalCount: totalCount,
-    loading: isLoading,
+    data: displayedDevices,
+    columns: displayedColumns,
+    pagination: displayedPagination,
+    totalCount: displayedTotalCount,
+    loading: displayedLoading,
     onPaginationChange: handlePaginationChange,
     onSortingChange: setSorting,
     sorting,
-    columnVisibility,
-    onColumnVisibilityChange: setColumnVisibility,
-    emptyMessage: "No devices found",
+    columnVisibility: showGeotag ? bleColumnVisibility : columnVisibility,
+    onColumnVisibilityChange: showGeotag
+      ? setBleColumnVisibility
+      : setColumnVisibility,
+    emptyMessage: showGeotag ? "No BLE CRTag devices found" : "No devices found",
     pageSizeOptions: [5, 10, 20, 30, 50, 100, 500, "All"],
     enableSorting: true,
     showSerialNumber: true,
     onRowClick: handleDeviceSelection,
-    selectedRowId: selectedVehicleId,
-    getRowId: (row: DeviceData) => row.deviceId,
+    selectedRowId: selectedVehicleId as any,
+    getRowId: (row: DeviceData) => (row as any).deviceId ?? (row as any).uniqueId,
     selectedRowClassName:
       "bg-blue-100 hover:bg-blue-200 border-l-4 border-blue-500",
-    // Enable virtualization
-    enableVirtualization: true,
+    // Enable virtualization only for large socket lists
+    enableVirtualization: !showGeotag && (devices?.length || 0) > 50,
     estimatedRowHeight: 20,
     overscan: 5,
     maxHeight: "calc(100vh - 200px)",
@@ -566,91 +876,157 @@ export default function DashboardClient() {
 
   const { exportToPDF, exportToExcel } = useExport();
 
-  const columnsForExport = useMemo(() => [
-    { key: "name", header: "Vehicle Name" },
-    { key: "uniqueId", header: "IMEI Number" },
-    { key: "sim", header: "SIM Number" },
-    { key: "routeName", header: "Route Number" },
-    { key: "noOfStudent", header: "No. of Students" },
-    { key: "noOfStops", header: "No. of Stops" },
-    {
-      key: "todayKm",
-      header: "Today's Km",
-      formatter: (val: any) => typeof val === "number" ? val.toFixed(2) : (val ?? "0.00")
-    },
-    { key: "stateDuration", header: "Since" },
-    {
-      key: "speed",
-      header: "Speed",
-      formatter: (val: any) => `${val ?? 0} km/h`
-    },
-    {
-      key: "status",
-      header: "Status",
-      formatter: (val: any, row: any) => {
-        const cat = String(row?.category || "").toLowerCase();
-        if (cat === "new") return "NEW";
-        if (cat === "inactive") return "INACTIVE";
-        return val ? String(val).toUpperCase() : "N/A";
-      }
-    },
-    {
-      key: "lastUpdate",
-      header: "Last Update",
-      formatter: (val: any) => {
-        if (!val) return "-";
-        const date = new Date(val);
-        return date.toLocaleString("en-GB", {
-          day: "2-digit",
-          month: "2-digit",
-          year: "numeric",
-          hour: "2-digit",
-          minute: "2-digit",
-          second: "2-digit",
-          hour12: true,
-          timeZone: "UTC",
-        });
-      }
-    },
-  ], []);
+  const columnsForExport = useMemo(() => {
+    if (showGeotag) {
+      return [
+        { key: "name", header: "Tag / Device Name" },
+        { key: "uniqueId", header: "Serial Number (SN)" },
+        { key: "childName", header: "Child" },
+        { key: "schoolName", header: "School" },
+        { key: "branchName", header: "Branch" },
+        {
+          key: "batteryLevel",
+          header: "Battery (%)",
+          formatter: (val: any) => `${val ?? 100}%`,
+        },
+        { key: "address", header: "Last Location" },
+        {
+          key: "lastUpdate",
+          header: "Last Update",
+          formatter: (val: any) => {
+            if (!val) return "-";
+            const date = new Date(val);
+            return date.toLocaleString("en-GB", {
+              day: "2-digit",
+              month: "2-digit",
+              year: "numeric",
+              hour: "2-digit",
+              minute: "2-digit",
+              second: "2-digit",
+              hour12: true,
+              timeZone: "UTC",
+            });
+          },
+        },
+        { key: "mac", header: "MAC Address" },
+      ];
+    }
+
+    return [
+      { key: "name", header: "Vehicle Name" },
+      { key: "uniqueId", header: "IMEI Number" },
+      { key: "sim", header: "SIM Number" },
+      { key: "routeName", header: "Route Number" },
+      { key: "noOfStudent", header: "No. of Students" },
+      { key: "noOfStops", header: "No. of Stops" },
+      {
+        key: "todayKm",
+        header: "Today's Km",
+        formatter: (val: any) =>
+          typeof val === "number" ? val.toFixed(2) : (val ?? "0.00"),
+      },
+      { key: "stateDuration", header: "Since" },
+      {
+        key: "speed",
+        header: "Speed",
+        formatter: (val: any) => `${val ?? 0} km/h`,
+      },
+      {
+        key: "status",
+        header: "Status",
+        formatter: (val: any, row: any) => {
+          const cat = String(row?.category || "").toLowerCase();
+          if (cat === "new") return "NEW";
+          if (cat === "inactive") return "INACTIVE";
+          return val ? String(val).toUpperCase() : "N/A";
+        },
+      },
+      {
+        key: "lastUpdate",
+        header: "Last Update",
+        formatter: (val: any) => {
+          if (!val) return "-";
+          const date = new Date(val);
+          return date.toLocaleString("en-GB", {
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+            hour12: true,
+            timeZone: "UTC",
+          });
+        },
+      },
+    ];
+  }, [showGeotag]);
 
   const handleExportExcel = useCallback(() => {
-    const activeFiltersText = activeStatus === "all" ? "All Statuses" : activeStatus.toUpperCase();
+    const activeFiltersText =
+      activeStatus === "all" ? "All Statuses" : activeStatus.toUpperCase();
     const searchVal = searchInput ? `Search: ${searchInput}` : "No search term";
-    const schoolVal = filters.schoolId ? `School ID: ${filters.schoolId}` : "All Schools";
-    const branchVal = filters.branchId ? `Branch ID: ${filters.branchId}` : "All Branches";
+    const schoolVal = filters.schoolId
+      ? `School ID: ${filters.schoolId}`
+      : "All Schools";
+    const branchVal = filters.branchId
+      ? `Branch ID: ${filters.branchId}`
+      : "All Branches";
 
-    exportToExcel(devices || [], columnsForExport, {
-      title: "Live Vehicles Status Report",
+    exportToExcel(displayedDevices || [], columnsForExport, {
+      title: showGeotag ? "BLE CRTag Devices Report" : "Live Vehicles Status Report",
       companyName: "Parents Eye",
       metadata: {
         Status: activeFiltersText,
         Search: searchVal,
         School: schoolVal,
         Branch: branchVal,
-        Total: `${devices?.length || 0} vehicles`,
+        Total: `${displayedDevices?.length || 0} ${showGeotag ? "devices" : "vehicles"}`,
       },
     });
-  }, [devices, activeStatus, searchInput, filters.schoolId, filters.branchId, exportToExcel, columnsForExport]);
+  }, [
+    displayedDevices,
+    showGeotag,
+    activeStatus,
+    searchInput,
+    filters.schoolId,
+    filters.branchId,
+    exportToExcel,
+    columnsForExport,
+  ]);
 
   const handleExportPdf = useCallback(() => {
-    const activeFiltersText = activeStatus === "all" ? "All Statuses" : activeStatus.toUpperCase();
+    const activeFiltersText =
+      activeStatus === "all" ? "All Statuses" : activeStatus.toUpperCase();
     const searchVal = searchInput ? `Search: ${searchInput}` : "No search term";
-    const schoolVal = filters.schoolId ? `School ID: ${filters.schoolId}` : "All Schools";
-    const branchVal = filters.branchId ? `Branch ID: ${filters.branchId}` : "All Branches";
+    const schoolVal = filters.schoolId
+      ? `School ID: ${filters.schoolId}`
+      : "All Schools";
+    const branchVal = filters.branchId
+      ? `Branch ID: ${filters.branchId}`
+      : "All Branches";
 
-    exportToPDF(devices || [], columnsForExport, {
-      title: "Live Vehicles Status Report",
+    exportToPDF(displayedDevices || [], columnsForExport, {
+      title: showGeotag ? "BLE CRTag Devices Report" : "Live Vehicles Status Report",
       companyName: "Parents Eye",
       metadata: {
         Status: activeFiltersText,
         Search: searchVal,
         School: schoolVal,
         Branch: branchVal,
-        Total: `${devices?.length || 0} vehicles`,
+        Total: `${displayedDevices?.length || 0} ${showGeotag ? "devices" : "vehicles"}`,
       },
     });
-  }, [devices, activeStatus, searchInput, filters.schoolId, filters.branchId, exportToPDF, columnsForExport]);
+  }, [
+    displayedDevices,
+    showGeotag,
+    activeStatus,
+    searchInput,
+    filters.schoolId,
+    filters.branchId,
+    exportToPDF,
+    columnsForExport,
+  ]);
 
   const handleCloseSubscriptionPopup = () => {
     setShowSubscriptionPopup(false);
@@ -700,7 +1076,10 @@ export default function DashboardClient() {
               {userRole !== "branch" && (
                 <Popover>
                   <PopoverTrigger asChild>
-                    <Button variant="outline" className="h-10 gap-2 ml-2 cursor-pointer">
+                    <Button
+                      variant="outline"
+                      className="h-10 gap-2 ml-2 cursor-pointer"
+                    >
                       <ListFilter className="h-4 w-4" />
                       Filters
                     </Button>
@@ -710,7 +1089,9 @@ export default function DashboardClient() {
                       {/* School Dropdown */}
                       {userRole === "superadmin" && (
                         <div className="space-y-2">
-                          <h4 className="font-medium text-sm leading-none mb-2">School</h4>
+                          <h4 className="font-medium text-sm leading-none mb-2">
+                            School
+                          </h4>
                           <Combobox
                             items={[
                               { label: "All Schools", value: "all" },
@@ -736,7 +1117,9 @@ export default function DashboardClient() {
 
                       {/* Branch Dropdown */}
                       <div className="space-y-2">
-                        <h4 className="font-medium text-sm leading-none mb-2">Branch</h4>
+                        <h4 className="font-medium text-sm leading-none mb-2">
+                          Branch
+                        </h4>
                         <Combobox
                           items={[
                             { label: "All Branches", value: "all" },
@@ -747,7 +1130,9 @@ export default function DashboardClient() {
                           ]}
                           value={filters.branchId || "all"}
                           onValueChange={(value) =>
-                            updateFilters({ branchId: value === "all" ? undefined : value })
+                            updateFilters({
+                              branchId: value === "all" ? undefined : value,
+                            })
                           }
                           onOpenChange={setIsBranchDropdownOpen}
                           placeholder="Select Branch"
@@ -763,7 +1148,8 @@ export default function DashboardClient() {
                         onClick={() =>
                           updateFilters({
                             schoolId:
-                              userRole === "school" || userRole === "branchGroup"
+                              userRole === "school" ||
+                              userRole === "branchGroup"
                                 ? userSchoolId
                                 : undefined,
                             branchId: undefined,
@@ -781,7 +1167,10 @@ export default function DashboardClient() {
               {/* Export Popover */}
               <Popover>
                 <PopoverTrigger asChild>
-                  <Button variant="outline" className="h-10 gap-2 ml-2 cursor-pointer">
+                  <Button
+                    variant="outline"
+                    className="h-10 gap-2 ml-2 cursor-pointer"
+                  >
                     <Download className="h-4 w-4" />
                     Export
                   </Button>
@@ -808,78 +1197,121 @@ export default function DashboardClient() {
                 </PopoverContent>
               </Popover>
 
+              {/* Show CRTag Button */}
+              <div className="flex items-center">
+                <Button
+                  variant={showGeotag ? "default" : "outline"}
+                  className={`h-10 gap-2 ml-2 cursor-pointer ${
+                    showGeotag ? "bg-blue-600 text-white hover:bg-blue-700" : ""
+                  }`}
+                  onClick={handleGeotagClick}
+                  disabled={isLoadingBle}
+                  title="Click to fetch all BLE CRTag devices"
+                >
+                  {isLoadingBle ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <MapPin className="h-4 w-4" />
+                  )}
+                  {isLoadingBle
+                    ? "Loading Geotags..."
+                    : showGeotag && bleDevices.length > 0
+                    ? `Show CRTag (${bleDevices.length})`
+                    : "Show CRTag"}
+                </Button>
+                {showGeotag && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-10 w-10 text-gray-500 hover:text-red-600 cursor-pointer"
+                    onClick={() => setShowGeotag(false)}
+                    title="Hide Geotags"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
+
               {/* Added margin for spacing */}
               <div className="ml-4"></div>
             </div>
 
             {/* Device/Status Count Buttons with Filtering */}
-            <div className="flex flex-wrap gap-2 w-full lg:w-auto">
-              {counts.map((countObj, index) => {
-                const [key, value] = Object.entries(countObj)[0];
-                const label = key.charAt(0).toUpperCase() + key.slice(1);
-                const statusKey = key.toLowerCase() as StatusFilter;
-                const isActive =
-                  activeStatus === (key === "total" ? "all" : statusKey);
+            {!showGeotag && (
+              <div className="flex flex-wrap gap-2 w-full lg:w-auto">
+                {displayedCounts.map((countObj, index) => {
+                  const [key, value] = Object.entries(countObj)[0];
+                  const label = key.charAt(0).toUpperCase() + key.slice(1);
+                  const statusKey = key.toLowerCase() as StatusFilter;
+                  const isActive =
+                    activeStatus === (key === "total" ? "all" : statusKey);
+                  const colorConfig = statusColors[label] || statusColors.Total;
 
-                return (
-                  <button
-                    key={index}
-                    onClick={() =>
-                      handleStatusFilter(key === "total" ? "all" : statusKey)
-                    }
-                    className={`
-                      inline-flex items-center justify-center
-                      ${isActive
-                        ? statusColors[label].active
-                        : statusColors[label].default
+                  return (
+                    <button
+                      key={index}
+                      onClick={() =>
+                        handleStatusFilter(key === "total" ? "all" : statusKey)
                       }
-                      font-semibold text-[9px] sm:text-[10px]
-                      px-2 sm:px-3 py-2 sm:py-2.5 rounded-lg
-                      shadow-md hover:shadow-lg
-                      transform transition-all duration-200 ease-in-out
-                      hover:scale-105 active:scale-95
-                      focus:outline-none focus:ring-4 focus:ring-opacity-50
-                      min-w-[40px] sm:min-w-[60px] max-w-[100px]
-                      cursor-pointer
-                      select-none
-                      relative
-                      overflow-hidden
-                      group
-                      ${isActive
-                        ? "status-button-active ring-4 ring-blue-300"
-                        : ""
-                      }
-                    `}
-                    type="button"
-                    aria-label={`${label} count: ${value}`}
-                    aria-pressed={isActive}
-                  >
-                    <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/20 to-transparent group-hover:translate-x-full transition-transform duration-700 ease-out" />
+                      className={`
+                        inline-flex items-center justify-center
+                        ${
+                          isActive
+                            ? colorConfig.active
+                            : colorConfig.default
+                        }
+                        font-semibold text-[9px] sm:text-[10px]
+                        px-2 sm:px-3 py-2 sm:py-2.5 rounded-lg
+                        shadow-md hover:shadow-lg
+                        transform transition-all duration-200 ease-in-out
+                        hover:scale-105 active:scale-95
+                        focus:outline-none focus:ring-4 focus:ring-opacity-50
+                        min-w-[40px] sm:min-w-[60px] max-w-[100px]
+                        cursor-pointer
+                        select-none
+                        relative
+                        overflow-hidden
+                        group
+                        ${
+                          isActive
+                            ? "status-button-active ring-4 ring-blue-300"
+                            : ""
+                        }
+                      `}
+                      type="button"
+                      aria-label={`${label} count: ${value}`}
+                      aria-pressed={isActive}
+                    >
+                      <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/20 to-transparent group-hover:translate-x-full transition-transform duration-700 ease-out" />
 
-                    <span className="relative z-10 flex items-center gap-2">
-                      <span className="font-medium">{label}</span>
-                      <span className="bg-white/20 backdrop-blur-sm px-2 py-0.5 rounded-full text-xs font-bold">
-                        {value}
+                      <span className="relative z-10 flex items-center gap-2">
+                        <span className="font-medium">{label}</span>
+                        <span className="bg-white/20 backdrop-blur-sm px-2 py-0.5 rounded-full text-xs font-bold">
+                          {value}
+                        </span>
                       </span>
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {/* Main Layout */}
           <div className="dashboard">
             <div className="flex flex-col lg:flex-row gap-2 lg:gap-0 h-auto lg:h-[80vh] xl:h-[85vh]">
-              <section className={`overflow-auto min-h-[300px] lg:min-h-0 ${isSuperSupport ? "w-full flex-1" : getTableClass}`}>
-                {(!isSuperSupport && viewState === "mapExpanded") && (
+              <section
+                className={`overflow-auto min-h-[300px] lg:min-h-0 ${isSuperSupport ? "w-full flex-1" : getTableClass}`}
+              >
+                {!isSuperSupport && viewState === "mapExpanded" && (
                   <div className="absolute top-1/2 left-0 z-50 hidden lg:block">
                     <button
                       onClick={handleExpandTable}
-                      className={`p-2 rounded-full border border-gray-300 hover:bg-primary transition-all duration-200 cursor-pointer shadow-lg hover:shadow-xl hover:-translate-y-0.5  ${viewState === "mapExpanded"
-                        ? "bg-blue-100"
-                        : "bg-white text-gray-600"
-                        }`}
+                      className={`p-2 rounded-full border border-gray-300 hover:bg-primary transition-all duration-200 cursor-pointer shadow-lg hover:shadow-xl hover:-translate-y-0.5  ${
+                        viewState === "mapExpanded"
+                          ? "bg-blue-100"
+                          : "bg-white text-gray-600"
+                      }`}
                       title={"Expand table"}
                     >
                       <ChevronsRight className="w-4 h-4" />
@@ -887,7 +1319,9 @@ export default function DashboardClient() {
                   </div>
                 )}
 
-                {(isSuperSupport || viewState !== "mapExpanded") && <div className="min-h-[300px] lg:min-h-0">{tableElement}</div>}
+                {(isSuperSupport || viewState !== "mapExpanded") && (
+                  <div className="min-h-[300px] lg:min-h-0">{tableElement}</div>
+                )}
               </section>
 
               {!isSuperSupport && (
@@ -897,12 +1331,15 @@ export default function DashboardClient() {
                     <div className="hidden lg:flex flex-col justify-center items-center space-y-2 z-50 absolute top-1/2 right-[48.5%]">
                       <button
                         onClick={handleExpandMap}
-                        className={`p-2 rounded-full border border-gray-300 hover:bg-primary transition-all duration-200 cursor-pointer shadow-lg hover:shadow-xl hover:-translate-y-0.5 [animation-duration:_300ms] [animation:_fadeIn_300ms_ease-in_forwards] ${viewState === "mapExpanded"
-                          ? "bg-blue-100 "
-                          : "bg-white text-gray-600"
-                          }`}
+                        className={`p-2 rounded-full border border-gray-300 hover:bg-primary transition-all duration-200 cursor-pointer shadow-lg hover:shadow-xl hover:-translate-y-0.5 [animation-duration:_300ms] [animation:_fadeIn_300ms_ease-in_forwards] ${
+                          viewState === "mapExpanded"
+                            ? "bg-blue-100 "
+                            : "bg-white text-gray-600"
+                        }`}
                         title={
-                          viewState === "mapExpanded" ? "Show both" : "Expand map"
+                          viewState === "mapExpanded"
+                            ? "Show both"
+                            : "Expand map"
                         }
                       >
                         <ChevronsLeft className="w-4 h-4" />
@@ -910,10 +1347,11 @@ export default function DashboardClient() {
 
                       <button
                         onClick={handleExpandTable}
-                        className={`p-2 rounded-full border border-gray-300 hover:bg-primary transition-all duration-200 cursor-pointer shadow-lg hover:shadow-xl hover:-translate-y-0.5  [animation-duration:_500ms] [animation:_fadeIn_300ms_ease-in_forwards] ${viewState === "tableExpanded"
-                          ? "bg-blue-100"
-                          : "bg-white text-gray-600"
-                          }`}
+                        className={`p-2 rounded-full border border-gray-300 hover:bg-primary transition-all duration-200 cursor-pointer shadow-lg hover:shadow-xl hover:-translate-y-0.5  [animation-duration:_500ms] [animation:_fadeIn_300ms_ease-in_forwards] ${
+                          viewState === "tableExpanded"
+                            ? "bg-blue-100"
+                            : "bg-white text-gray-600"
+                        }`}
                         title={
                           viewState === "tableExpanded"
                             ? "Show both"
@@ -926,30 +1364,45 @@ export default function DashboardClient() {
                   )}
 
                   {/* Right Side - Map */}
-                  <section className={`${getMapClass} rounded-lg overflow-hidden min-h-[300px] lg:min-h-0`}>
+                  <section
+                    className={`${getMapClass} rounded-lg overflow-hidden min-h-[300px] lg:min-h-0`}
+                  >
                     {viewState !== "tableExpanded" && (
                       <VehicleMap
-                        vehicles={devices}
+                        vehicles={displayedDevices as any}
                         height="100%"
                         autoFitBounds={false}
                         showTrails={false}
-                        clusterMarkers={devices.length > 100}
+                        clusterMarkers={displayedDevices.length > 100}
                         zoom={6}
-                        selectedVehicleId={selectedVehicleId}
-                        onVehicleSelect={setSelectedVehicleId}
-                        onVehicleClick={(vehicle) => handleDeviceSelection(vehicle as any)}
+                        selectedVehicleId={selectedVehicleId as any}
+                        onVehicleSelect={setSelectedVehicleId as any}
+                        onVehicleClick={(vehicle) =>
+                          handleDeviceSelection(vehicle as any)
+                        }
                         activeFilter={activeStatus}
                         selectedRouteData={selectedRouteData}
                         userRole={userRole}
+                        showGeotag={showGeotag}
+                        bleDevices={bleDevices}
+                        onToggleGeotag={(show) => {
+                          if (show) {
+                            handleGeotagClick();
+                          } else {
+                            setShowGeotag(false);
+                          }
+                        }}
                         isAllInTableActive={
-                          pagination.pageSize > 100 || (totalCount > 0 && pagination.pageSize >= totalCount)
+                          pagination.pageSize > 100 ||
+                          (totalCount > 0 && pagination.pageSize >= totalCount)
                         }
                         onToggleAllInTable={(showAll) => {
                           if (userRole === "superadmin") return;
-                          const allPageSize = totalCount || devices.length || 100;
+                          const allPageSize =
+                            totalCount || devices.length || 100;
                           handlePaginationChange({
                             pageIndex: 0,
-                            pageSize: showAll ? allPageSize : 10
+                            pageSize: showAll ? allPageSize : 10,
                           });
                         }}
                       />
@@ -958,12 +1411,15 @@ export default function DashboardClient() {
                       <div className="absolute top-1/2 right-2 z-50 hidden lg:block">
                         <button
                           onClick={handleExpandMap}
-                          className={`p-2 rounded-full border border-gray-300 hover:bg-primary transition-all duration-200 cursor-pointer shadow-lg hover:shadow-xl hover:-translate-y-0.5  ${viewState === "mapExpanded"
-                            ? "bg-blue-100 "
-                            : "bg-white text-gray-600"
-                            }`}
+                          className={`p-2 rounded-full border border-gray-300 hover:bg-primary transition-all duration-200 cursor-pointer shadow-lg hover:shadow-xl hover:-translate-y-0.5  ${
+                            viewState === "mapExpanded"
+                              ? "bg-blue-100 "
+                              : "bg-white text-gray-600"
+                          }`}
                           title={
-                            viewState === "mapExpanded" ? "Show both" : "Expand map"
+                            viewState === "mapExpanded"
+                              ? "Show both"
+                              : "Expand map"
                           }
                         >
                           <ChevronsLeft className="w-4 h-4" />
@@ -985,7 +1441,11 @@ export default function DashboardClient() {
         )}
 
         {!isSuperSupport && (
-          <LiveTrack open={open} setOpen={setOpen} selectedImei={selectedImei} />
+          <LiveTrack
+            open={open}
+            setOpen={setOpen}
+            selectedImei={selectedImei}
+          />
         )}
 
         <RouteTimeline

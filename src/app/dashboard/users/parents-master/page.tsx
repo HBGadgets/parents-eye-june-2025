@@ -5,7 +5,7 @@ import { CustomTableServerSidePagination } from "@/components/ui/customTable(ser
 import { useDebounce } from "@/hooks/useDebounce";
 import { useParent } from "@/hooks/useParents";
 import { SortingState, PaginationState } from "@tanstack/react-table";
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import AddParentForm from "@/components/parent/AddParentForm";
 import { Parent } from "@/interface/modal";
@@ -39,6 +39,79 @@ export default function ParentsMaster() {
     pageSize: 10,
   });
   const [sorting, setSorting] = useState<SortingState>([]);
+  const userChangedPageSizeRef = useRef(false);
+  const tableWrapperRef = useRef<HTMLDivElement>(null);
+
+  // Auto-calculate optimal pageSize based on measured container height
+  useEffect(() => {
+    const calculateOptimalSize = () => {
+      let availableHeight = 0;
+      if (tableWrapperRef.current && tableWrapperRef.current.clientHeight > 150) {
+        // Table header is ~40px, pagination footer is ~48px, border is ~2px
+        availableHeight = tableWrapperRef.current.clientHeight - 90;
+      } else {
+        // Fallback using viewport height
+        availableHeight = window.innerHeight - 270;
+      }
+      const targetRowHeight = 40;
+      return Math.max(5, Math.round(availableHeight / targetRowHeight));
+    };
+
+    const updateOptimalPageSize = () => {
+      if (userChangedPageSizeRef.current) return;
+      const optimalSize = calculateOptimalSize();
+      setPagination((prev) => {
+        if (prev.pageSize !== optimalSize) {
+          return { ...prev, pageSize: optimalSize };
+        }
+        return prev;
+      });
+    };
+
+    updateOptimalPageSize();
+    const rafId = requestAnimationFrame(updateOptimalPageSize);
+
+    let resizeObserver: ResizeObserver | null = null;
+    if (tableWrapperRef.current && typeof ResizeObserver !== "undefined") {
+      resizeObserver = new ResizeObserver(() => {
+        updateOptimalPageSize();
+      });
+      resizeObserver.observe(tableWrapperRef.current);
+    }
+
+    window.addEventListener("resize", updateOptimalPageSize);
+    return () => {
+      cancelAnimationFrame(rafId);
+      window.removeEventListener("resize", updateOptimalPageSize);
+      if (resizeObserver) {
+        resizeObserver.disconnect();
+      }
+    };
+  }, []);
+
+  const handlePaginationChange = useCallback(
+    (updater: PaginationState | ((prev: PaginationState) => PaginationState)) => {
+      setPagination((prev) => {
+        const next = typeof updater === "function" ? updater(prev) : updater;
+        if (next.pageSize !== prev.pageSize) {
+          userChangedPageSizeRef.current = true;
+        }
+        return next;
+      });
+    },
+    []
+  );
+
+  const pageSizeOptions = useMemo(() => {
+    const defaultOptions = [5, 10, 15, 20, 30, 50, 100, 200, 300, 400, 500];
+    if (!defaultOptions.includes(pagination.pageSize)) {
+      return [...defaultOptions, pagination.pageSize]
+        .sort((a, b) => a - b)
+        .concat("All" as any);
+    }
+    return [...defaultOptions, "All"];
+  }, [pagination.pageSize]);
+
   const [searchInput, setSearchInput] = useState("");
   const debouncedSearch = useDebounce(searchInput, 500);
 
@@ -341,22 +414,18 @@ export default function ParentsMaster() {
     pagination,
     totalCount: total,
     loading: isLoadingParents,
-    onPaginationChange: setPagination,
+    onPaginationChange: handlePaginationChange,
     onSortingChange: setSorting,
     sorting,
     emptyMessage: "No parents found",
-    pageSizeOptions: [5, 10, 15, 20, 30, 50, 100, 500, 1000, "All"],
+    pageSizeOptions,
     showSerialNumber: true,
     enableSorting: true,
-    // Enable virtualization
-    enableVirtualization: true,
-    estimatedRowHeight: 50,
-    overscan: 5,
-    maxHeight: "calc(100vh - 200px)",
+    enableVirtualization: false,
   });
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col flex-1 min-h-0">
       {/* Header */}
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-bold">Parents Master</h2>
@@ -460,7 +529,7 @@ export default function ParentsMaster() {
       </div>
 
       {/* Table */}
-      <div className="flex-1 min-h-0 pb-3">{tableElement}</div>
+      <div ref={tableWrapperRef} className="flex-1 min-h-0 flex flex-col">{tableElement}</div>
 
       {/* Dialog with Form */}
       {showAddParent && (

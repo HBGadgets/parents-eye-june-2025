@@ -3,7 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --turbopack & npm run save-server",
+    "dev": "next dev --hostname 127.0.0.1 & npm run save-server",
+    "dev-turbopack": "next dev --turbopack & npm run save-server",
     "build": "npm run save-server & next build",
     "start": "next start -p 4000",
     "lint": "next lint",

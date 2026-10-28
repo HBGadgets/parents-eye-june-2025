@@ -18,7 +18,7 @@ import { NotificationSheet } from "./NotificationDropdown";
 import { Menu, X, Sparkles } from "lucide-react";
 import { useAiChatBotStore } from "@/store/aiChatBotStore";
 import { useAuthStore } from "@/store/authStore";
-import { UserRole, getAccessibleSidebarItems } from "@/util/navigationAccess";
+import { UserRole, getAccessibleSidebarItems, getSectionFromPath } from "@/util/navigationAccess";
 import { FrameSequencePlayer } from "@/components/ui/FrameSequencePlayer";
 import {
   DropdownMenu,
@@ -31,7 +31,6 @@ import { cn } from "@/lib/utils";
 const SHOW_SIDEBAR_SECTIONS = [
   "Master",
   "School",
-  "Users",
   "Reports",
   "Support",
 ];
@@ -42,6 +41,11 @@ export function Navbar() {
   const setActiveSection = useNavigationStore(
     (state) => state.setActiveSection
   );
+  const [mounted, setMounted] = React.useState(false);
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const { setOpen, setOpenMobile, isMobile, state } = useSidebar();
   const isCollapsed = state === "collapsed";
   const { notifications } = useNotificationStore();
@@ -64,7 +68,6 @@ export function Navbar() {
       "Dashboard",
       "Master",
       "School",
-      "Users",
       "Reports",
       "Incident Management",
       "Maintenance",
@@ -87,7 +90,6 @@ export function Navbar() {
           return true;
         case "Master":
         case "School":
-        case "Users":
         case "Reports": {
           const items = getAccessibleSidebarItems(
             section,
@@ -116,14 +118,32 @@ export function Navbar() {
   }, [activeSection, visibleNavSections, setActiveSection]);
 
   React.useEffect(() => {
-    if (pathname === "/dashboard/basic-maintenance") {
-      setActiveSection("Basic Maintenance");
-    } else if (pathname === "/dashboard/incident-management") {
-      setActiveSection("Incident Management");
+    const detected = getSectionFromPath(pathname);
+    if (detected && detected !== "Dashboard") {
+      setActiveSection(detected);
     } else if (pathname === "/dashboard") {
-      setActiveSection("Dashboard");
+      if (!SHOW_SIDEBAR_SECTIONS.includes(activeSection)) {
+        setActiveSection("Dashboard");
+      }
     }
-  }, [pathname, setActiveSection]);
+  }, [pathname]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const getSectionFirstUrl = React.useCallback(
+    (section: string) => {
+      if (navigationMap[section]) return navigationMap[section];
+      const items = getAccessibleSidebarItems(
+        section,
+        (role as UserRole) || null,
+        access,
+        fullAccess
+      );
+      if (items && items.length > 0) {
+        return items[0].url;
+      }
+      return "#";
+    },
+    [access, fullAccess, role]
+  );
 
   const handleNavClick = React.useCallback(
     (section: string) => {
@@ -151,6 +171,14 @@ export function Navbar() {
     },
     [setActiveSection, setOpen, setOpenMobile, isMobile]
   );
+
+  const currentSection =
+    mounted && activeSection && activeSection !== "Dashboard"
+      ? activeSection
+      : getSectionFromPath(pathname);
+
+  const hasSidebar = SHOW_SIDEBAR_SECTIONS.includes(currentSection);
+  const showNavbarLogo = !hasSidebar || (mounted ? isCollapsed : false);
 
   return (
     <div className="w-full h-14 md:h-16 flex items-center justify-between relative px-2 sm:px-4 bg-primary border-b border-yellow-600/20">
@@ -182,7 +210,7 @@ export function Navbar() {
                   asChild
                 >
                   <Link
-                    href={navigationMap[section] || "#"}
+                    href={getSectionFirstUrl(section)}
                     onClick={() => handleNavClick(section)}
                   >
                     {section}
@@ -193,13 +221,14 @@ export function Navbar() {
           </DropdownMenu>
         </div>
 
-        {/* Logo - visible when sidebar is collapsed */}
-        {isCollapsed && (
+        {/* Logo - visible when sidebar is collapsed or when section has no sidebar */}
+        {showNavbarLogo && (
           <div
-            className={`flex items-center animate-in fade-in duration-200 ${SHOW_SIDEBAR_SECTIONS.includes(activeSection)
+            className={`flex items-center animate-in fade-in duration-200 ${
+              hasSidebar
                 ? "ml-10 sm:ml-12 md:ml-14"
                 : "ml-0 sm:ml-1"
-              }`}
+            }`}
           >
             <Link
               href="/dashboard"
@@ -225,12 +254,14 @@ export function Navbar() {
           <NavigationMenuList className="flex-nowrap justify-center gap-0.5 sm:gap-1 xl:gap-1.5">
             {visibleNavSections.map((section) => {
               const isActive =
-                activeSection === section ||
+                currentSection === section ||
                 (section === "Basic Maintenance" &&
                   pathname === "/dashboard/basic-maintenance") ||
                 (section === "Incident Management" &&
                   pathname.startsWith("/dashboard/incident-management")) ||
-                (section === "Dashboard" && pathname === "/dashboard");
+                (section === "Dashboard" &&
+                  pathname === "/dashboard" &&
+                  !SHOW_SIDEBAR_SECTIONS.includes(currentSection));
               return (
                 <NavigationMenuItem key={section}>
                   <NavigationMenuLink
@@ -243,7 +274,7 @@ export function Navbar() {
                     )}
                   >
                     <Link
-                      href={navigationMap[section] || "#"}
+                      href={getSectionFirstUrl(section)}
                       onClick={() => handleNavClick(section)}
                     >
                       {section === "Incident Management" ? (

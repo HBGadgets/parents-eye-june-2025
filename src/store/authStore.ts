@@ -7,6 +7,8 @@ import { useDeviceStore } from "./deviceStore";
 export interface UserAccessPermissions {
   master?: {
     device?: boolean;
+    geoTag?: boolean;
+    geotag?: boolean;
     schoolMaster?: boolean;
     branchMaster?: boolean;
     userAccess?: boolean;
@@ -19,13 +21,14 @@ export interface UserAccessPermissions {
     model?: boolean;
     category?: boolean;
     ticketTypes?: boolean;
-    driver?: boolean;
     [key: string]: boolean | undefined;
   };
   school?: {
     pickupAndDrop?: boolean;
     leaveRequest?: boolean;
     sendBroadcast?: boolean;
+    driverApprove?: boolean;
+    supervisorApprove?: boolean;
     [key: string]: boolean | undefined;
   };
   users?: {

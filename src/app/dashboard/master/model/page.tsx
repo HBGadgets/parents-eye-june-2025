@@ -67,9 +67,9 @@ export default function ModelPage() {
   };
 
   return (
-    <div className="p-4 space-y-4">
+    <div className="flex flex-col flex-1 min-h-0 space-y-4">
       {/* HEADER */}
-      <div className="flex justify-between items-center">
+      <div className="flex justify-between items-center shrink-0">
         <h2 className="text-xl font-bold">Models</h2>
         <Button onClick={openCreateModal} className="bg-primary">
           Add Model
@@ -82,8 +82,9 @@ export default function ModelPage() {
         columns={columnWithHandlers}
         isLoading={isLoading}
         showSerialNumber
-        maxHeight={450}
         noDataMessage="No models added yet"
+        fullHeight={true}
+        autoFitRows={true}
       />
 
       {/* ADD / EDIT MODAL */}

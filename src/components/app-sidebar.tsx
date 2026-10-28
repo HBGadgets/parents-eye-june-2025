@@ -48,13 +48,14 @@ import {
   Ticket,
   BarChart3,
   ShieldAlert,
+  Radio,
 } from "lucide-react";
 import { GiGps } from "react-icons/gi";
 import Image from "next/image";
 import Model from "@/app/dashboard/master/model/page";
 
 import { useAuthStore } from "@/store/authStore";
-import { UserRole, getAccessibleSidebarItems } from "@/util/navigationAccess";
+import { UserRole, getAccessibleSidebarItems, getSectionFromPath } from "@/util/navigationAccess";
 
 
 // Icon mapping for menu items
@@ -77,11 +78,12 @@ const iconMap: Record<string, React.ElementType> = {
   "Driver Approve": UserCheck,
   "Student Approve": UserCheck,
   "Supervisor Approve": UserCheck,
-  Driver: UserCheck,
   "Device": Smartphone,
   "Read Device": Smartphone,
   Devices: Smartphone,
+  "CRTag": Radio,
   "User Access": Settings,
+  "Branch Group": Settings,
   Notification: Bell,
   "Status Report": FileBarChart,
   "Distance Report": Route,
@@ -105,12 +107,12 @@ const iconMap: Record<string, React.ElementType> = {
 };
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
-  const [userRole, setUserRole] = React.useState<UserRole>(null);
+  const { access, fullAccess, role: authRole } = useAuthStore();
   const activeSection = useNavigationStore((state) => state.activeSection);
+
+  const [userRole, setUserRole] = React.useState<UserRole>(null);
   const [isLoading, setIsLoading] = React.useState(true);
   const [searchQuery, setSearchQuery] = React.useState("");
-
-  const { access, fullAccess, role: authRole } = useAuthStore();
 
   const router = useRouter();
   const pathname = usePathname();
@@ -132,10 +134,20 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     setIsLoading(false);
   }, [authRole]);
 
+  const [mounted, setMounted] = React.useState(false);
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const currentSection =
+    mounted && activeSection && activeSection !== "Dashboard"
+      ? activeSection
+      : getSectionFromPath(pathname);
+
   const sidebarData = React.useMemo(() => {
-    if (!activeSection || !userRole) return [];
-    return getAccessibleSidebarItems(activeSection, userRole, access, fullAccess);
-  }, [activeSection, userRole, access, fullAccess]);
+    if (!currentSection || !userRole) return [];
+    return getAccessibleSidebarItems(currentSection, userRole, access, fullAccess);
+  }, [currentSection, userRole, access, fullAccess]);
 
 
   const filteredData = React.useMemo(() => {
@@ -226,7 +238,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             <SidebarGroup className="p-0">
               {/* Group Label with Fade Animation */}
               <SidebarGroupLabel className="px-2 py-2 text-xs font-bold uppercase tracking-wider text-yellow-900 group-data-[collapsible=icon]:opacity-0 group-data-[collapsible=icon]:scale-90 group-data-[collapsible=icon]:h-0 group-data-[collapsible=icon]:py-0 transition-all duration-300 ease-out overflow-hidden">
-                {activeSection || "Menu"}
+                {currentSection || "Menu"}
               </SidebarGroupLabel>
 
               <SidebarSeparator className="bg-yellow-600/20 my-1 group-data-[collapsible=icon]:opacity-0 transition-all duration-200" />

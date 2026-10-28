@@ -19,7 +19,6 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import "../VehicleMap.css";
 import { VehiclePathTrail } from "./vehicle-path-trail";
-import DataRefreshIndicator from "./data-refresh-indicator";
 import { SingleDeviceLiveTrackControls } from "./single-device-livetrack-controls";
 import { VehicleMarker } from "./VehicleMarker";
 import { Slider } from "@/components/ui/slider";
@@ -253,7 +252,7 @@ const ZoomTransitionController = () => {
 
     const handleZoomStart = () => {
       const markers = document.querySelectorAll(
-        ".custom-single-vehicle-marker"
+        ".custom-single-vehicle-marker, .custom-ble-tag-pin, .leaflet-marker-icon"
       );
       const images = document.querySelectorAll(".vehicle-marker-img");
 
@@ -308,8 +307,19 @@ const AutoCenterHandler = ({
   useEffect(() => {
     if (!vehicle || !autoCenter) return;
 
+    const lat = Number(vehicle.latitude);
+    const lng = Number(vehicle.longitude);
+    const isValidCoord =
+      !isNaN(lat) &&
+      !isNaN(lng) &&
+      Math.abs(lat) <= 90 &&
+      Math.abs(lng) <= 180 &&
+      (lat !== 0 || lng !== 0);
+
+    if (!isValidCoord) return;
+
     if (!hasInitialized) {
-      map.setView([vehicle.latitude, vehicle.longitude], 15, {
+      map.setView([lat, lng], 16, {
         animate: true,
         duration: 1,
       });
@@ -320,11 +330,11 @@ const AutoCenterHandler = ({
     const currentCenter = map.getCenter();
     const distance = map.distance(
       [currentCenter.lat, currentCenter.lng],
-      [vehicle.latitude, vehicle.longitude]
+      [lat, lng]
     );
 
-    if (distance > 50) {
-      map.panTo([vehicle.latitude, vehicle.longitude], {
+    if (distance > 30) {
+      map.panTo([lat, lng], {
         animate: true,
         duration: 0.5,
         easeLinearity: 0.1,
@@ -466,7 +476,12 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
     isLoading: isLoadingGeofences,
     createGeofence,
   } = useGeofence(pagination, sorting, filters);
-  const geofenceQuery = useGeofenceByUniqueId(vehicle?.uniqueId || "");
+
+  const isBleVehicle =
+    vehicle?.category === "BLE" || Boolean((vehicle as any)?.rawBleDevice);
+  const geofenceQuery = useGeofenceByUniqueId(
+    isBleVehicle ? "" : String(vehicle?.uniqueId || "")
+  );
 
   const geofenceByRoute = geofenceQuery?.geofenceByUniqueId;
 
@@ -637,20 +652,21 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
 
   // Validate vehicle data
   const isValidVehicle = useMemo(() => {
+    const lat = Number(vehicle?.latitude);
+    const lng = Number(vehicle?.longitude);
     return (
-      vehicle &&
-      vehicle.latitude &&
-      vehicle.longitude &&
-      !isNaN(vehicle.latitude) &&
-      !isNaN(vehicle.longitude) &&
-      Math.abs(vehicle.latitude) <= 90 &&
-      Math.abs(vehicle.longitude) <= 180
+      Boolean(vehicle) &&
+      !isNaN(lat) &&
+      !isNaN(lng) &&
+      Math.abs(lat) <= 90 &&
+      Math.abs(lng) <= 180 &&
+      (lat !== 0 || lng !== 0)
     );
   }, [vehicle]);
 
   const mapCenter = useMemo(() => {
     if (isValidVehicle && vehicle) {
-      return [vehicle.latitude, vehicle.longitude] as [number, number];
+      return [Number(vehicle.latitude), Number(vehicle.longitude)] as [number, number];
     }
     return center;
   }, [isValidVehicle, vehicle, center]);
@@ -770,8 +786,6 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
           subdomains={["mt0", "mt1", "mt2", "mt3"]}
         />
 
-        {vehicle && <DataRefreshIndicator vehicle={vehicle} />}
-
         {showTraffic && (
           <TileLayer
             url={`https://{s}.google.com/vt/lyrs=${isSatelliteView ? "s" : "m"
@@ -825,7 +839,7 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
       </MapContainer>
 
       {/* Loading indicator for geofences */}
-      {isLoadingGeofences && (
+      {!isBleVehicle && isLoadingGeofences && (
         <div className="absolute top-20 right-4 z-[1000] bg-white px-4 py-2 rounded-lg shadow-lg">
           <div className="flex items-center gap-2 text-sm text-gray-600">
             <svg
@@ -853,56 +867,58 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
       )}
 
       {/* Info panel */}
-      <div className="absolute top-20 left-4 z-[1000] bg-white/90 px-3 py-2 rounded-lg shadow-lg text-xs">
-        <div>
-          Network Status:{" "}
-          <span
-            className={`${vehicle?.gsmSignal ? "text-green-600" : "text-red-600"
-              } px-1 py-0.5 rounded font-semibold`}
-          >
-            {vehicle?.gsmSignal ? "Online" : "Offline"}
-          </span>
-        </div>
-        <div>
-          Route No:{" "}
-          {routeName ? routeName : "Not assigned"}
-        </div>
-        <div>
-          Geofences: {geofenceByRoute ? geofenceByRoute?.length : "loading..."}
-        </div>
-        <div>
-          Last Update:{" "}
-          {vehicle?.lastUpdate
-            ? new Date(vehicle.lastUpdate).toLocaleString("en-GB", {
-              day: "2-digit",
-              month: "2-digit",
-              year: "numeric",
-              hour: "2-digit",
-              minute: "2-digit",
-              second: "2-digit",
-              hour12: true,
-              timeZone: "UTC",
-            })
-            : "loading..."}
-        </div>
-        <div>
-          Since:{" "}
-          {vehicle?.lastUpdate
-            ? calculateTimeSince(vehicle?.lastUpdate)
-            : "loading..."}
-        </div>
-        <div>Speed: {Math.floor(smoothSpeed)} km/h</div>
+      {!isBleVehicle && (
+        <div className="absolute top-20 left-4 z-[1000] bg-white/90 px-3 py-2 rounded-lg shadow-lg text-xs">
+          <div>
+            Network Status:{" "}
+            <span
+              className={`${vehicle?.gsmSignal ? "text-green-600" : "text-red-600"
+                } px-1 py-0.5 rounded font-semibold`}
+            >
+              {vehicle?.gsmSignal ? "Online" : "Offline"}
+            </span>
+          </div>
+          <div>
+            Route No:{" "}
+            {routeName ? routeName : "Not assigned"}
+          </div>
+          <div>
+            Geofences: {geofenceByRoute ? geofenceByRoute?.length : "loading..."}
+          </div>
+          <div>
+            Last Update:{" "}
+            {vehicle?.lastUpdate
+              ? new Date(vehicle.lastUpdate).toLocaleString("en-GB", {
+                day: "2-digit",
+                month: "2-digit",
+                year: "numeric",
+                hour: "2-digit",
+                minute: "2-digit",
+                second: "2-digit",
+                hour12: true,
+                timeZone: "UTC",
+              })
+              : "loading..."}
+          </div>
+          <div>
+            Since:{" "}
+            {vehicle?.lastUpdate
+              ? calculateTimeSince(vehicle?.lastUpdate)
+              : "loading..."}
+          </div>
+          <div>Speed: {Math.floor(smoothSpeed)} km/h</div>
 
-        <div>
-          Distance:{" "}
-          {vehicle?.todayKm?.toFixed(2)}{" "}
-          km
+          <div>
+            Distance:{" "}
+            {vehicle?.todayKm?.toFixed(2)}{" "}
+            km
+          </div>
+          <div>Odometer: {`${((vehicle?.attributes?.totalDistance!) / 1000).toFixed(2)} km`}</div>
+          <div>
+            Speed Limit: {vehicle?.speedLimit && `${vehicle.speedLimit} km/h`}
+          </div>
         </div>
-        <div>Odometer: {`${((vehicle?.attributes?.totalDistance!) / 1000).toFixed(2)} km`}</div>
-        <div>
-          Speed Limit: {vehicle?.speedLimit && `${vehicle.speedLimit} km/h`}
-        </div>
-      </div>
+      )}
 
       {/* Controls */}
       <SingleDeviceLiveTrackControls

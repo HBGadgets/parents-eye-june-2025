@@ -15,7 +15,7 @@ import {
   CommandInput,
   CommandItem,
 } from "@/components/ui/command";
-import { Check, ChevronsUpDown } from "lucide-react";
+import { Check, ChevronsUpDown, Eye, EyeOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Parent } from "@/interface/modal";
@@ -68,6 +68,7 @@ export default function AddParentForm({
   const [email, setEmail] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
 
   const decodedTokenRole = decodedToken?.role;
   const tokenSchoolId =
@@ -88,12 +89,19 @@ export default function AddParentForm({
   /* ✅ Edit Prefill */
   useEffect(() => {
     if (initialData) {
-      setParentName(initialData.parentName);
-      setMobileNo(initialData.mobileNo);
-      setEmail(initialData.email);
-      setUsername(initialData.username);
+      setParentName(initialData.parentName || "");
+      setMobileNo(initialData.mobileNo || "");
+      setEmail(initialData.email || "");
+      setUsername(initialData.username || "");
+      setPassword(initialData.password || "");
       onSchoolChange?.(initialData.schoolId?._id);
       onBranchChange?.(initialData.branchId?._id);
+    } else {
+      setParentName("");
+      setMobileNo("");
+      setEmail("");
+      setUsername("");
+      setPassword("");
     }
   }, [initialData]);
 
@@ -103,7 +111,7 @@ export default function AddParentForm({
       mobileNo,
       email,
       username,
-      ...(initialData ? {} : { password }),
+      password,
       schoolId: selectedSchoolId,
       branchId: selectedBranchId,
     });
@@ -160,18 +168,30 @@ export default function AddParentForm({
         </div>
 
         {/* PASSWORD */}
-        {!initialData && (
-          <div>
-            <label className="text-sm font-medium">Password *</label>
+        <div>
+          <label className="text-sm font-medium">Password *</label>
+          <div className="relative">
             <Input
-              type="password"
+              type={showPassword ? "text" : "password"}
               placeholder="Enter password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
+              className="pr-10"
             />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 cursor-pointer"
+            >
+              {showPassword ? (
+                <EyeOff className="h-4 w-4" />
+              ) : (
+                <Eye className="h-4 w-4" />
+              )}
+            </button>
           </div>
-        )}
+        </div>
 
         {/* SCHOOL */}
         {decodedTokenRole === "superAdmin" && (

@@ -1,5 +1,5 @@
 "use client";
-import React, { useEffect, useRef, useState, useMemo } from "react";
+import React, { useEffect, useRef, useState, useMemo, useCallback } from "react";
 import {
   useReactTable,
   getCoreRowModel,
@@ -36,6 +36,8 @@ interface CustomTableProps<TData extends RowData> {
   isLoading?: boolean;
   columnVisibility?: VisibilityState;
   onColumnVisibilityChange?: (visibility: VisibilityState) => void;
+  fullHeight?: boolean;
+  autoFitRows?: boolean;
 }
 
 const renderCellContent = (content: unknown): React.ReactNode => {
@@ -92,26 +94,77 @@ export function CustomTable<TData extends RowData>({
   data,
   columns,
   pageSizeArray = [20, 50, "All"],
-  maxHeight = 480,
-  minHeight = 100,
+  maxHeight,
+  minHeight,
   rowHeight = 48,
   showSerialNumber = true,
   noDataMessage = "No data available",
   isLoading = false,
   columnVisibility,
   onColumnVisibilityChange,
+  fullHeight = true,
+  autoFitRows = true,
 }: CustomTableProps<TData>) {
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
-    pageSize: pageSizeArray[0],
+    pageSize: typeof pageSizeArray[0] === "number" ? pageSizeArray[0] : 10,
   });
   const [sorting, setSorting] = useState<SortingState>([]);
   const [internalColumnVisibility, setInternalColumnVisibility] =
     useState<VisibilityState>({});
   const [isMobile, setIsMobile] = useState(false);
   const [containerWidth, setContainerWidth] = useState(0);
+  const userChangedPageSizeRef = useRef(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const tableScrollRef = useRef<HTMLDivElement>(null);
+
+  // Auto-calculate optimal pageSize based on measured container height
+  useEffect(() => {
+    if (!autoFitRows) return;
+
+    const calculateOptimalSize = () => {
+      const el = containerRef.current;
+      let availableRowsHeight = 0;
+      if (el && el.clientHeight > 150) {
+        // el.clientHeight minus table header (~48px) and pagination footer (~54px)
+        availableRowsHeight = el.clientHeight - 105;
+      } else {
+        // Fallback using viewport height
+        availableRowsHeight = window.innerHeight - 280;
+      }
+      const itemHeight = isMobile ? 65 : 52;
+      return Math.max(5, Math.floor(availableRowsHeight / itemHeight));
+    };
+
+    const updateOptimalSize = () => {
+      if (userChangedPageSizeRef.current) return;
+      const optimal = calculateOptimalSize();
+      setPagination((prev) => {
+        if (prev.pageSize !== optimal) {
+          return { ...prev, pageSize: optimal };
+        }
+        return prev;
+      });
+    };
+
+    updateOptimalSize();
+    const rafId = requestAnimationFrame(updateOptimalSize);
+
+    let ro: ResizeObserver | null = null;
+    if (containerRef.current && typeof ResizeObserver !== "undefined") {
+      ro = new ResizeObserver(() => {
+        updateOptimalSize();
+      });
+      ro.observe(containerRef.current);
+    }
+
+    window.addEventListener("resize", updateOptimalSize);
+    return () => {
+      cancelAnimationFrame(rafId);
+      window.removeEventListener("resize", updateOptimalSize);
+      if (ro) ro.disconnect();
+    };
+  }, [autoFitRows, isMobile]);
 
   // Use controlled visibility if provided, otherwise use internal state
   const currentColumnVisibility = columnVisibility ?? internalColumnVisibility;
@@ -139,9 +192,6 @@ export function CustomTable<TData extends RowData>({
   }, []);
 
   const finalData = Array.isArray(data) ? data : [];
-  // useEffect(() => {
-  //   setPagination((prev) => ({ ...prev, pageIndex: 0 }));
-  // }, [data]);
 
   // Handle "All" option - when pageSize equals data length, show all rows
   const isShowingAll = pagination.pageSize >= finalData.length;
@@ -172,6 +222,19 @@ export function CustomTable<TData extends RowData>({
     return showSerialNumber ? [serialNumberColumn, ...columns] : columns;
   }, [showSerialNumber, columns, pagination.pageIndex, pagination.pageSize]);
 
+  const handlePaginationChange = useCallback(
+    (updater: PaginationState | ((prev: PaginationState) => PaginationState)) => {
+      setPagination((prev) => {
+        const next = typeof updater === "function" ? updater(prev) : updater;
+        if (next.pageSize !== prev.pageSize) {
+          userChangedPageSizeRef.current = true;
+        }
+        return next;
+      });
+    },
+    []
+  );
+
   const table = useReactTable({
     data: paginatedData,
     columns: finalColumns,
@@ -180,7 +243,7 @@ export function CustomTable<TData extends RowData>({
       sorting,
       columnVisibility: currentColumnVisibility,
     },
-    onPaginationChange: setPagination,
+    onPaginationChange: handlePaginationChange,
     onSortingChange: setSorting,
     onColumnVisibilityChange: handleColumnVisibilityChange,
     pageCount,
@@ -191,51 +254,42 @@ export function CustomTable<TData extends RowData>({
 
   const rows = table.getRowModel().rows;
 
-  const adaptiveHeight = useMemo(() => {
-    if (typeof maxHeight === "string") return maxHeight;
-    const maxH = maxHeight;
-    const minH = typeof minHeight === "number" ? minHeight : 100;
+  const effectivePageSizeArray = useMemo(() => {
+    const list = Array.isArray(pageSizeArray) ? [...pageSizeArray] : [10, 20, 50, "All"];
+    if (
+      typeof pagination.pageSize === "number" &&
+      !list.includes(pagination.pageSize) &&
+      !list.includes(pagination.pageSize.toString() as any)
+    ) {
+      const numericItems = list.filter((x): x is number => typeof x === "number");
+      const stringItems = list.filter((x) => typeof x !== "number");
+      return [...numericItems, pagination.pageSize].sort((a, b) => a - b).concat(stringItems as any);
+    }
+    return list;
+  }, [pageSizeArray, pagination.pageSize]);
 
-    if (finalData.length === 0) return Math.max(minH, 150);
-
-    const actualRowHeight = isMobile
-      ? Math.max(rowHeight, 80)
-      : Math.max(rowHeight, 60);
-    const calculatedHeight = rows.length * actualRowHeight;
-    const headerHeight = 48;
-    const totalContentHeight = calculatedHeight + headerHeight;
-    return Math.max(minH, Math.min(maxH, totalContentHeight));
-  }, [
-    rows.length,
-    rowHeight,
-    isMobile,
-    minHeight,
-    maxHeight,
-    finalData.length,
-  ]);
-
-  const rowVirtualizer = useVirtualizer({
-    count: rows.length,
-    getScrollElement: () => tableScrollRef.current,
-    estimateSize: () =>
-      isMobile ? Math.max(rowHeight, 80) : Math.max(rowHeight, 60),
-    overscan: 5,
-  });
-
-  const virtualRows = rowVirtualizer.getVirtualItems();
-  const totalSize = rowVirtualizer.getTotalSize();
-  const paddingTop = virtualRows[0]?.start || 0;
-  const paddingBottom = totalSize - (virtualRows.at(-1)?.end || 0);
+  const scrollStyle = useMemo<React.CSSProperties>(() => {
+    const style: React.CSSProperties = {
+      WebkitOverflowScrolling: "touch",
+    };
+    if (maxHeight !== undefined) {
+      style.maxHeight = typeof maxHeight === "number" ? `${maxHeight}px` : maxHeight;
+    }
+    if (minHeight !== undefined) {
+      style.minHeight = typeof minHeight === "number" ? `${minHeight}px` : minHeight;
+    }
+    return style;
+  }, [maxHeight, minHeight]);
 
   const getColumnStyle = (col: unknown) => {
-    const meta = col.columnDef?.meta || {};
+    const meta = (col as any)?.columnDef?.meta || {};
     const baseWidth = meta.minWidth || (isMobile ? 80 : 100);
     const maxWidth = meta.maxWidth || 2000;
     return {
       width: baseWidth + "px",
       minWidth: baseWidth + "px",
       maxWidth: maxWidth + "px",
-      flexGrow: meta.flex || 1,
+      flexGrow: meta.flex ?? 1,
       flexShrink: 0,
     };
   };
@@ -244,7 +298,7 @@ export function CustomTable<TData extends RowData>({
   const headers = table.getHeaderGroups()[0]?.headers || [];
   const totalMinWidth = useMemo(() => {
     return headers.reduce((sum, header) => {
-      const meta = header.column.columnDef?.meta || {};
+      const meta = (header.column.columnDef as any)?.meta || {};
       const width = meta.minWidth || (isMobile ? 80 : 100);
       return sum + width;
     }, 0);
@@ -254,19 +308,30 @@ export function CustomTable<TData extends RowData>({
   const tableWidth = shouldExpand ? "100%" : totalMinWidth + "px";
 
   return (
-    <div ref={containerRef} className="w-full space-y-4 overflow-hidden">
-      <div className="rounded-md border bg-background w-full flex flex-col overflow-hidden">
+    <div
+      ref={containerRef}
+      className={`w-full overflow-hidden ${
+        fullHeight ? "flex-1 min-h-0 flex flex-col" : ""
+      }`}
+    >
+      <div
+        className={`rounded-md border bg-background w-full overflow-hidden flex flex-col ${
+          fullHeight ? "flex-1 min-h-0" : ""
+        }`}
+      >
         <div
           ref={tableScrollRef}
-          className="overflow-scroll relative"
-          style={{
-            maxHeight: typeof adaptiveHeight === "number" ? `${adaptiveHeight}px` : adaptiveHeight,
-            WebkitOverflowScrolling: "touch",
-          }}
+          className={`overflow-x-auto overflow-y-auto scrollbar-thin relative ${
+            fullHeight ? "flex-1 min-h-0 flex flex-col" : ""
+          }`}
+          style={scrollStyle}
         >
-          <div style={{ width: tableWidth, minWidth: totalMinWidth + "px" }}>
+          <div
+            style={{ width: tableWidth, minWidth: totalMinWidth + "px" }}
+            className={fullHeight ? "min-h-full flex-1 flex flex-col" : ""}
+          >
             {/* Header */}
-            <div className="sticky top-0 z-20 bg-primary border-b">
+            <div className="sticky top-0 z-20 bg-primary border-b shrink-0">
               {table.getHeaderGroups().map((hg) => (
                 <div key={hg.id} className="flex">
                   {hg.headers.map((header) => (
@@ -276,10 +341,11 @@ export function CustomTable<TData extends RowData>({
                       style={getColumnStyle(header.column)}
                     >
                       <div
-                        className={`flex items-center justify-center gap-1 w-full ${header.column.getCanSort()
-                          ? "cursor-pointer select-none"
-                          : ""
-                          }`}
+                        className={`flex items-center justify-center gap-1 w-full ${
+                          header.column.getCanSort()
+                            ? "cursor-pointer select-none"
+                            : ""
+                        }`}
                         onClick={header.column.getToggleSortingHandler()}
                       >
                         <span className="truncate">
@@ -291,7 +357,6 @@ export function CustomTable<TData extends RowData>({
                         {header.column.getCanSort() && (
                           <CustomArrowUpDown
                             direction={header.column.getIsSorted()}
-
                           />
                         )}
                       </div>
@@ -303,19 +368,19 @@ export function CustomTable<TData extends RowData>({
 
             {/* Body */}
             {isLoading ? (
-              <div className="flex flex-col gap-2 px-4 py-4">
+              <div className="flex flex-col gap-2 px-4 py-4 flex-1">
                 {[...Array(6)].map((_, i) => (
                   <div key={i} className="flex gap-4 items-center">
-                    <Skeleton key={i} className="h-6 w-16 flex-shrink-0" />
-                    {columns.map((_, i) => (
-                      <Skeleton key={i} className="h-6 w-full" />
+                    <Skeleton className="h-6 w-16 flex-shrink-0" />
+                    {columns.map((_, j) => (
+                      <Skeleton key={j} className="h-6 w-full" />
                     ))}
                   </div>
                 ))}
               </div>
             ) : finalData.length === 0 ? (
-              <div className="flex items-center justify-center h-full min-h-[100px]">
-                <div className="text-center text-muted-foreground">
+              <div className="flex items-center justify-center flex-1 min-h-[150px]">
+                <div className="text-center text-muted-foreground py-8">
                   <div className="text-lg font-medium mb-2">
                     {noDataMessage}
                   </div>
@@ -323,52 +388,48 @@ export function CustomTable<TData extends RowData>({
                 </div>
               </div>
             ) : (
-              <>
-                {paddingTop > 0 && (
-                  <div style={{ height: paddingTop + "px" }} />
-                )}
-                {virtualRows.map((vr) => {
-                  const row = rows[vr.index];
-                  return (
-                    <div
-                      key={row.id}
-                      className="flex border-b hover:bg-muted/50"
-                      style={{ height: vr.size + "px" }}
-                    >
-                      {row.getVisibleCells().map((cell) => (
-                        <div
-                          key={cell.id}
-                          className="flex items-start px-2 py-2 sm:px-4 sm:py-2 text-xs sm:text-sm border-r last:border-r-0"
-                          style={getColumnStyle(cell.column)}
-                        >
-                          <div className="w-full text-center">
-                            <div className="break-words overflow-wrap-anywhere leading-relaxed">
-                              {cell.column.id === "serialNumber"
-                                ? flexRender(
+              <div className="flex-1 flex flex-col min-h-0">
+                {rows.map((row) => (
+                  <div
+                    key={row.id}
+                    className={`flex border-b last:border-b-0 hover:bg-muted/50 items-stretch transition-colors ${
+                      fullHeight
+                        ? "flex-1 min-h-[44px] max-h-[64px]"
+                        : "min-h-[52px]"
+                    }`}
+                  >
+                    {row.getVisibleCells().map((cell) => (
+                      <div
+                        key={cell.id}
+                        className="flex items-center justify-center px-2 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm border-r last:border-r-0"
+                        style={getColumnStyle(cell.column)}
+                      >
+                        <div className="w-full text-center">
+                          <div className="break-words overflow-wrap-anywhere leading-relaxed">
+                            {cell.column.id === "serialNumber"
+                              ? flexRender(
                                   cell.column.columnDef.cell,
                                   cell.getContext()
                                 )
-                                : renderCellContent(cell.getValue())}
-                            </div>
+                              : renderCellContent(cell.getValue())}
                           </div>
                         </div>
-                      ))}
-                    </div>
-                  );
-                })}
-                {paddingBottom > 0 && (
-                  <div style={{ height: paddingBottom + "px" }} />
-                )}
-              </>
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
             )}
           </div>
         </div>
 
-        <TablePagination
-          table={table}
-          pageSizeArray={pageSizeArray}
-          totalRecords={finalData.length}
-        />
+        <div className="border-t bg-background shrink-0">
+          <TablePagination
+            table={table}
+            pageSizeArray={effectivePageSizeArray}
+            totalRecords={finalData.length}
+          />
+        </div>
       </div>
     </div>
   );
