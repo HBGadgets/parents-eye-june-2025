@@ -245,22 +245,39 @@ export default function DashboardClient() {
   }, [rawRole]);
 
   const fetchBleDevices = useCallback(
-    async (page: number = 1, limit: number = 20, isSilent: boolean = false) => {
+    async (
+      page: number = 1,
+      limit: number = 20,
+      isSilent: boolean = false,
+      searchQuery?: string,
+      schoolId?: string,
+      branchId?: string,
+    ) => {
       if (!isSilent) setIsLoadingBle(true);
       try {
-        const res = await bleService.getBleDevices({ page, limit });
+        const queryTerm = searchQuery !== undefined ? searchQuery : searchInput;
+        const currentSchool = schoolId !== undefined ? schoolId : filters.schoolId;
+        const currentBranch = branchId !== undefined ? branchId : filters.branchId;
+
+        const res = await bleService.getBleDevices({
+          page,
+          limit,
+          search: queryTerm?.trim() || undefined,
+          schoolId: currentSchool,
+          branchId: currentBranch,
+        });
+
         if (res && (res.success || Array.isArray(res.devices))) {
           const fetched = res.devices || [];
           setBleDevices(fetched);
           setBleTotal(typeof res.total === "number" ? res.total : fetched.length);
           setBlePagination({ pageIndex: page - 1, pageSize: limit });
-          if (!isSilent) {
+          if (!isSilent && !queryTerm) {
             toast.success(`Successfully loaded ${fetched.length} BLE devices`);
           }
         } else {
-          if (!isSilent) {
-            toast.info("No BLE devices found");
-          }
+          setBleDevices([]);
+          setBleTotal(0);
         }
       } catch (err: any) {
         console.error("Failed to fetch BLE devices:", err);
@@ -273,25 +290,25 @@ export default function DashboardClient() {
         if (!isSilent) setIsLoadingBle(false);
       }
     },
-    [],
+    [searchInput, filters.schoolId, filters.branchId],
   );
 
   const handleGeotagClick = useCallback(async () => {
     setActiveStatus("all");
     setShowGeotag(true);
-    await fetchBleDevices(1, 20);
-  }, [fetchBleDevices]);
+    await fetchBleDevices(1, 20, false, searchInput);
+  }, [fetchBleDevices, searchInput]);
 
   // Auto-refresh BLE CRTag devices every 10 seconds while on the CRTag tab
   useEffect(() => {
     if (!showGeotag) return;
 
     const intervalId = setInterval(() => {
-      fetchBleDevices(blePagination.pageIndex + 1, blePagination.pageSize, true);
+      fetchBleDevices(blePagination.pageIndex + 1, blePagination.pageSize, true, searchInput);
     }, 10000);
 
     return () => clearInterval(intervalId);
-  }, [showGeotag, blePagination.pageIndex, blePagination.pageSize, fetchBleDevices]);
+  }, [showGeotag, blePagination.pageIndex, blePagination.pageSize, searchInput, fetchBleDevices]);
 
   // Auto-refresh live coordinates for the selected GeoTag device every 10 seconds
   useEffect(() => {
@@ -469,15 +486,19 @@ export default function DashboardClient() {
         clearTimeout(searchDebounceRef.current);
       }
 
-      // Set new timer (500ms debounce)
+      // Set new timer (400ms debounce)
       searchDebounceRef.current = setTimeout(() => {
-        updateFilters({
-          searchTerm: value,
-          page: 1,
-        });
-      }, 500);
+        if (showGeotag) {
+          fetchBleDevices(1, blePagination.pageSize, false, value);
+        } else {
+          updateFilters({
+            searchTerm: value,
+            page: 1,
+          });
+        }
+      }, 400);
     },
-    [updateFilters],
+    [showGeotag, blePagination.pageSize, fetchBleDevices, updateFilters],
   );
 
   // **Status Filter Handler**
@@ -504,7 +525,12 @@ export default function DashboardClient() {
 
       if (showGeotag) {
         setBlePagination(newPagination);
-        fetchBleDevices(newPagination.pageIndex + 1, newPagination.pageSize);
+        fetchBleDevices(
+          newPagination.pageIndex + 1,
+          newPagination.pageSize,
+          false,
+          searchInput
+        );
       } else {
         setPagination(newPagination);
         // Update store with new page
@@ -514,7 +540,7 @@ export default function DashboardClient() {
         });
       }
     },
-    [showGeotag, blePagination, pagination, fetchBleDevices, updateFilters],
+    [showGeotag, blePagination, pagination, fetchBleDevices, searchInput, updateFilters],
   );
 
   const queueVisibleDevicesForGeocoding = useCallback(() => {
@@ -698,14 +724,16 @@ export default function DashboardClient() {
       const supervisorObj =
         typeof tag.supervisorId === "object" ? tag.supervisorId : null;
 
-      const numId = tag._id
+      const numId = tag.deviceId != null
+        ? Number(tag.deviceId)
+        : tag._id
         ? parseInt(tag._id.slice(-6), 16) || idx + 100000
         : idx + 100000;
 
       return {
         deviceId: numId,
         _id: tag._id,
-        uniqueId: tag.sn || tag.uuid || tag._id,
+        uniqueId: tag.deviceId != null ? String(tag.deviceId) : (tag.sn || tag.uuid || tag._id),
         imei: tag.sn || tag.mac || tag.uuid || "",
         sim: tag.mac || "",
         mac: tag.mac || "",
@@ -759,11 +787,15 @@ export default function DashboardClient() {
         const sn = String(d.uniqueId || d.imei || "").toLowerCase();
         const mac = String((d as any).mac || (d as any).sim || "").toLowerCase();
         const child = String((d as any).childName || "").toLowerCase();
+        const school = String((d as any).schoolName || "").toLowerCase();
+        const branch = String((d as any).branchName || "").toLowerCase();
         return (
           name.includes(q) ||
           sn.includes(q) ||
           mac.includes(q) ||
-          child.includes(q)
+          child.includes(q) ||
+          school.includes(q) ||
+          branch.includes(q)
         );
       });
     }
@@ -792,14 +824,20 @@ export default function DashboardClient() {
           );
         },
         (device) => {
-          const id =
-            device.uniqueId ||
-            device.sn ||
-            device.imei ||
-            device._id ||
-            device.deviceId;
+          const raw = (device as any).rawBleDevice || device;
+          const targetDeviceId =
+            device?.sn ||
+            raw?.sn ||
+            (typeof device?.uniqueId === "string" && device.uniqueId.startsWith("GeoTag")
+              ? device.uniqueId
+              : null) ||
+            (raw?.deviceId != null ? String(raw.deviceId) : null) ||
+            (device?.deviceId != null ? String(device.deviceId) : null) ||
+            device?.uniqueId;
           router.push(
-            `/dashboard/reports/history-report?uniqueId=${id}&deviceCategory=BLE`
+            `/dashboard/reports/history-report?uniqueId=${encodeURIComponent(
+              String(targetDeviceId)
+            )}&deviceCategory=BLE`
           );
         }
       ),
@@ -1061,12 +1099,28 @@ export default function DashboardClient() {
         <div>
           <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-3 mb-4">
             <div className="flex items-center gap-2 sm:gap-3 w-full lg:w-auto">
-              <Input
-                placeholder="Search bus number or name..."
-                className="flex-1 min-w-0 lg:min-w-[200px] xl:min-w-[250px]"
-                value={searchInput}
-                onChange={(e) => handleSearchChange(e.target.value)}
-              />
+              <div className="relative flex-1 min-w-0 lg:min-w-[200px] xl:min-w-[250px]">
+                <Input
+                  placeholder={
+                    showGeotag
+                      ? "Search tag name, SN, MAC, or child..."
+                      : "Search bus number or name..."
+                  }
+                  className="w-full pr-8"
+                  value={searchInput}
+                  onChange={(e) => handleSearchChange(e.target.value)}
+                />
+                {searchInput && (
+                  <button
+                    type="button"
+                    onClick={() => handleSearchChange("")}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
+                    title="Clear search"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
               {/* <ColumnVisibilitySelector
                 columns={table.getAllColumns()}
                 buttonVariant="outline"

@@ -205,13 +205,15 @@ function HistoryReportContent() {
     ) {
       const isBleTarget =
         deviceCategoryFromUrl === "BLE" ||
-        String(uniqueIdFromUrl).startsWith("GeoTag-");
-      list.push({
-        uniqueId: uniqueIdFromUrl,
-        name: uniqueIdFromUrl,
-        category: isBleTarget ? "BLE" : deviceCategoryFromUrl || "CAR",
-        isBle: isBleTarget,
-      });
+        String(uniqueIdFromUrl).toLowerCase().startsWith("geotag");
+      if (!isBleTarget) {
+        list.push({
+          uniqueId: uniqueIdFromUrl,
+          name: uniqueIdFromUrl,
+          category: deviceCategoryFromUrl || "CAR",
+          isBle: false,
+        });
+      }
     }
     return list;
   }, [vehicleData, uniqueIdFromUrl, deviceCategoryFromUrl]);
@@ -240,15 +242,24 @@ function HistoryReportContent() {
   const bleDropdownItems = useMemo(() => {
     const devices = bleDevicesData?.devices || [];
     const list = devices.map((d: any) => {
-      const id = d.sn || d.uniqueId;
+      const devId = d.deviceId != null ? String(d.deviceId) : String(d.sn || d.uniqueId);
+      const displayLabel = d.name
+        ? `${d.name} (${d.sn || devId})`
+        : d.sn
+        ? `${d.sn} (ID: ${devId})`
+        : String(devId);
       return {
-        value: String(id),
-        label: d.name ? `${d.name} (${id})` : String(id),
+        value: devId,
+        label: displayLabel,
       };
     });
+    const isBleTarget =
+      deviceCategoryFromUrl === "BLE" ||
+      (uniqueIdFromUrl ? String(uniqueIdFromUrl).toLowerCase().startsWith("geotag") : false);
+
     if (
       uniqueIdFromUrl &&
-      (deviceCategoryFromUrl === "BLE" || String(uniqueIdFromUrl).startsWith("GeoTag-")) &&
+      isBleTarget &&
       !list.some((item) => String(item.value) === String(uniqueIdFromUrl))
     ) {
       list.unshift({
@@ -344,23 +355,33 @@ function HistoryReportContent() {
   const currentData = activePlayback[displayIndex];
 
   const selectedVehicleObj = useMemo(() => {
-    const targetId = selectedVehicle;
+    const targetId = selectedVehicle || uniqueIdFromUrl;
     if (!targetId) return null;
     if (isGeoTagMode) {
       const devices = bleDevicesData?.devices || [];
       const found = devices.find(
-        (d: any) => String(d.sn || d.uniqueId) === String(targetId)
+        (d: any) =>
+          String(d.deviceId) === String(targetId) ||
+          String(d.sn).toLowerCase() === String(targetId).toLowerCase() ||
+          String(d.uniqueId).toLowerCase() === String(targetId).toLowerCase() ||
+          String(d._id) === String(targetId)
       );
       if (found) {
+        const resolvedDeviceId =
+          (found as any).deviceId != null ? String((found as any).deviceId) : undefined;
         return {
-          uniqueId: found.sn || found.uniqueId,
-          name: found.name || String(targetId),
-          category: "BLE",
+          uniqueId: resolvedDeviceId || found.sn || found.uniqueId,
+          deviceId: resolvedDeviceId,
+          sn: found.sn,
+          name: found.name || found.sn || String(targetId),
+          category: found.category || "BLE",
           isBle: true,
+          rawDevice: found,
         };
       }
       return {
         uniqueId: targetId,
+        deviceId: /^\d+$/.test(String(targetId)) ? String(targetId) : undefined,
         name: String(targetId),
         category: "BLE",
         isBle: true,
@@ -372,12 +393,13 @@ function HistoryReportContent() {
         (v: any) => String(v.uniqueId) === String(targetId)
       ) || null
     );
-  }, [isGeoTagMode, bleDevicesData, combinedVehicleData, selectedVehicle]);
+  }, [isGeoTagMode, bleDevicesData, combinedVehicleData, selectedVehicle, uniqueIdFromUrl]);
 
   const isCurrentBle = useMemo(() => {
     if (isGeoTagMode) return true;
     return Boolean(
       selectedVehicleObj?.category === "BLE" ||
+      selectedVehicleObj?.category === "GeoTag" ||
       selectedVehicleObj?.isBle ||
       (selectedVehicle && String(selectedVehicle).startsWith("GeoTag-"))
     );
@@ -416,7 +438,12 @@ function HistoryReportContent() {
   };
 
   const { date, time } = currentData
-    ? formatDateTime(currentData.createdAt)
+    ? currentData.locationTimeIST
+      ? {
+          date: currentData.locationTimeIST.split(" ")[0] || "",
+          time: currentData.locationTimeIST.split(" ").slice(1).join(" ") || "",
+        }
+      : formatDateTime(currentData.createdAt)
     : { date: "-- : --", time: "-- : --" };
 
   const isBatteryMode = isCurrentBle && bleGraphMetric === "battery";
@@ -441,6 +468,9 @@ function HistoryReportContent() {
     }
 
     const labels = activePlayback.map((item) => {
+      if (item.locationTimeIST) {
+        return item.locationTimeIST;
+      }
       const date = new Date(item.createdAt);
       return date.toLocaleString("en-GB", {
         day: "2-digit",
@@ -449,7 +479,7 @@ function HistoryReportContent() {
         hour: "2-digit",
         minute: "2-digit",
         hour12: true,
-        timeZone: "UTC",
+        timeZone: isCurrentBle ? undefined : "UTC",
       });
     });
 
@@ -693,8 +723,22 @@ function HistoryReportContent() {
 
       const targetId = selectedVehicle || uniqueIdFromUrl;
       if (targetId && hasGenerated) {
+        const foundBle = (bleDevicesData?.devices || []).find(
+          (d: any) =>
+            String(d.deviceId) === String(targetId) ||
+            String(d.sn).toLowerCase() === String(targetId).toLowerCase() ||
+            String(d.uniqueId).toLowerCase() === String(targetId).toLowerCase() ||
+            String(d._id) === String(targetId)
+        );
+        const resolvedDeviceId = isCurrentBle
+          ? (foundBle as any)?.deviceId != null
+            ? String((foundBle as any).deviceId)
+            : selectedVehicleObj?.deviceId
+          : undefined;
+
         setApiFilters({
-          uniqueId: String(targetId),
+          uniqueId: resolvedDeviceId || String(targetId),
+          deviceId: resolvedDeviceId,
           from: fromIso,
           to: toIso,
           period: "Custom",
@@ -703,7 +747,7 @@ function HistoryReportContent() {
         });
       }
     },
-    [selectedVehicle, uniqueIdFromUrl, hasGenerated, isCurrentBle]
+    [selectedVehicle, uniqueIdFromUrl, hasGenerated, isCurrentBle, bleDevicesData, selectedVehicleObj]
   );
 
   const { odometerDistance, summedDistance } = useMemo(() => {
@@ -814,8 +858,22 @@ function HistoryReportContent() {
     const finalFrom = fromDate || todayFrom;
     const finalTo = toDate || todayTo;
 
+    const foundBle = (bleDevicesData?.devices || []).find(
+      (d: any) =>
+        String(d.deviceId) === String(finalUniqueId) ||
+        String(d.sn).toLowerCase() === String(finalUniqueId).toLowerCase() ||
+        String(d.uniqueId).toLowerCase() === String(finalUniqueId).toLowerCase() ||
+        String(d._id) === String(finalUniqueId)
+    );
+    const resolvedDeviceId = isCurrentBle
+      ? (foundBle as any)?.deviceId != null
+        ? String((foundBle as any).deviceId)
+        : selectedVehicleObj?.deviceId
+      : undefined;
+
     setApiFilters({
-      uniqueId: String(finalUniqueId),
+      uniqueId: resolvedDeviceId || String(finalUniqueId),
+      deviceId: resolvedDeviceId,
       from: finalFrom,
       to: finalTo,
       period: "Custom",
@@ -863,15 +921,33 @@ function HistoryReportContent() {
       hasSyncedFromUrl.current = true;
       const isBleTarget =
         deviceCategoryFromUrl === "BLE" ||
-        String(uniqueIdFromUrl).startsWith("GeoTag-");
+        String(uniqueIdFromUrl).toLowerCase().startsWith("geotag");
 
       setDeviceType(isBleTarget ? "BLE" : "VEHICLE");
-      setSelectedVehicle(String(uniqueIdFromUrl));
 
       const { from, to, startDate, endDate } = getTodayUtcRange();
 
+      let resolvedDeviceId: string | undefined = undefined;
+      if (isBleTarget) {
+        const foundBle = (bleDevicesData?.devices || []).find(
+          (d: any) =>
+            String(d.deviceId) === String(uniqueIdFromUrl) ||
+            String(d.sn).toLowerCase() === String(uniqueIdFromUrl).toLowerCase() ||
+            String(d.uniqueId).toLowerCase() === String(uniqueIdFromUrl).toLowerCase() ||
+            String(d._id) === String(uniqueIdFromUrl)
+        );
+        resolvedDeviceId =
+          (foundBle as any)?.deviceId != null
+            ? String((foundBle as any).deviceId)
+            : undefined;
+      }
+
+      const activeId = resolvedDeviceId || String(uniqueIdFromUrl);
+      setSelectedVehicle(activeId);
+
       setApiFilters({
-        uniqueId: String(uniqueIdFromUrl),
+        uniqueId: activeId,
+        deviceId: resolvedDeviceId,
         from,
         to,
         period: "Custom",
@@ -889,7 +965,24 @@ function HistoryReportContent() {
 
       setHasGenerated(true);
     }
-  }, [uniqueIdFromUrl, deviceCategoryFromUrl]);
+  }, [uniqueIdFromUrl, deviceCategoryFromUrl, bleDevicesData]);
+
+  // Auto-sync deviceId when BLE devices finish loading
+  useEffect(() => {
+    if (isCurrentBle && selectedVehicleObj?.deviceId) {
+      const devId = String(selectedVehicleObj.deviceId);
+      setSelectedVehicle((prev) => {
+        if (prev && !/^\d+$/.test(prev)) return devId;
+        return prev || devId;
+      });
+      setApiFilters((prev) => {
+        if (prev.uniqueId && (prev.deviceId !== devId || !/^\d+$/.test(String(prev.uniqueId)))) {
+          return { ...prev, uniqueId: devId, deviceId: devId };
+        }
+        return prev;
+      });
+    }
+  }, [isCurrentBle, selectedVehicleObj?.deviceId]);
 
   useEffect(() => {
     if (!historyReport) return;
@@ -1109,14 +1202,16 @@ function HistoryReportContent() {
         </header>
 
         {/* Sliding Menu Trigger */}
-        <div>
-          <Button
-            className="fixed top-[225px] right-0 z-[9999] rounded-l-full rounded-r-none w-[68px] bg-primary text-primary-foreground hover:bg-primary/90 cursor-pointer shadow-[var(--shadow-panel)]"
-            onClick={() => setIsSidebarOpen(true)}
-          >
-            <Menu />
-          </Button>
-        </div>
+        {!isCurrentBle && (
+          <div>
+            <Button
+              className="fixed top-[225px] right-0 z-[9999] rounded-l-full rounded-r-none w-[68px] bg-primary text-primary-foreground hover:bg-primary/90 cursor-pointer shadow-[var(--shadow-panel)]"
+              onClick={() => setIsSidebarOpen(true)}
+            >
+              <Menu />
+            </Button>
+          </div>
+        )}
 
         {/* Main Content */}
         <div className="space-y-3">
@@ -1534,7 +1629,7 @@ function HistoryReportContent() {
 
                                     {/* Timestamp */}
                                     <td className="py-2 px-3 whitespace-nowrap font-medium text-slate-900 dark:text-slate-100">
-                                      {timeFormatted.date} {timeFormatted.time}
+                                      {item.locationTimeIST || `${timeFormatted.date} ${timeFormatted.time}`}
                                     </td>
 
                                     {/* Battery */}
@@ -1571,10 +1666,17 @@ function HistoryReportContent() {
 
                                     {/* Address / Location */}
                                     <td className="py-2 px-3 max-w-sm truncate" title={address}>
-                                      <span className="flex items-center gap-1.5 truncate">
+                                      <a
+                                        href={`https://www.google.com/maps?q=${item.latitude},${item.longitude}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="flex items-center gap-1.5 truncate text-blue-600 hover:text-blue-800 hover:underline"
+                                        onClick={(e) => e.stopPropagation()}
+                                        title={`Open location in Google Maps (${item.latitude}, ${item.longitude})`}
+                                      >
                                         <MapPin className="w-3 h-3 text-blue-500 shrink-0" />
                                         <span className="truncate">{address}</span>
-                                      </span>
+                                      </a>
                                     </td>
 
                                     {/* Action button */}
@@ -1624,38 +1726,40 @@ function HistoryReportContent() {
           </div>
 
           {/* Sliding Side Bar */}
-          <TripsSidebar
-            trips={trips}
-            selectedTripIndex={selectedTripIndex}
-            isOpen={isSidebarOpen}
-            fromDate={fromDate}
-            toDate={toDate}
-            selectedVehicle={selectedVehicleName}
-            selectedVehicleImei={selectedVehicleImei}
-            onClose={() => setIsSidebarOpen(false)}
-            onTripSelect={(index) => {
-              setSelectedTripIndex(index);
-              setBasePlayback(trips[index]);
-              setActivePlayback(trips[index]);
-              setIsRangeFiltered(false);
-              setPlaybackProgress(0);
-            }}
-            onOverallSelect={() => {
-              setSelectedTripIndex(null);
-              const flat = trips.flat();
-              setBasePlayback(flat);
-              setActivePlayback(flat);
-              setIsRangeFiltered(false);
-              setPlaybackProgress(0);
-            }}
-            derivedStops={derivedStops}
-            showStopsOnMap={showStopsOnMap}
-            onToggleStops={() => setShowStopsOnMap((p) => !p)}
-            activeStopId={activeStopId}
-            onStopSelect={(id) => setActiveStopId(id)}
-            stopAddressMap={stopAddressMap}
-            setStopAddressMap={setStopAddressMap}
-          />
+          {!isCurrentBle && (
+            <TripsSidebar
+              trips={trips}
+              selectedTripIndex={selectedTripIndex}
+              isOpen={isSidebarOpen}
+              fromDate={fromDate}
+              toDate={toDate}
+              selectedVehicle={selectedVehicleName}
+              selectedVehicleImei={selectedVehicleImei}
+              onClose={() => setIsSidebarOpen(false)}
+              onTripSelect={(index) => {
+                setSelectedTripIndex(index);
+                setBasePlayback(trips[index]);
+                setActivePlayback(trips[index]);
+                setIsRangeFiltered(false);
+                setPlaybackProgress(0);
+              }}
+              onOverallSelect={() => {
+                setSelectedTripIndex(null);
+                const flat = trips.flat();
+                setBasePlayback(flat);
+                setActivePlayback(flat);
+                setIsRangeFiltered(false);
+                setPlaybackProgress(0);
+              }}
+              derivedStops={derivedStops}
+              showStopsOnMap={showStopsOnMap}
+              onToggleStops={() => setShowStopsOnMap((p) => !p)}
+              activeStopId={activeStopId}
+              onStopSelect={(id) => setActiveStopId(id)}
+              stopAddressMap={stopAddressMap}
+              setStopAddressMap={setStopAddressMap}
+            />
+          )}
         </div>
       </section>
 

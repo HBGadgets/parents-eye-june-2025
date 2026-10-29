@@ -143,10 +143,21 @@ export const VehiclePopupContent: React.FC<VehiclePopupContentProps> = ({
         )}
       </div>
 
-      <div className="vehicle-coordinates">
-        <small>
+      <div className="vehicle-coordinates flex items-center justify-between gap-2 mt-2 pt-1 border-t border-gray-100">
+        <small className="text-gray-500">
           📍 {(vehicle.latitude ?? 0).toFixed(6)}, {(vehicle.longitude ?? 0).toFixed(6)}
         </small>
+        {vehicle.latitude && vehicle.longitude ? (
+          <a
+            href={`https://www.google.com/maps?q=${vehicle.latitude},${vehicle.longitude}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[11px] font-semibold text-blue-600 hover:text-blue-800 hover:underline inline-flex items-center gap-1"
+            title="Open in Google Maps"
+          >
+            Google Maps ↗
+          </a>
+        ) : null}
       </div>
     </div>
   );

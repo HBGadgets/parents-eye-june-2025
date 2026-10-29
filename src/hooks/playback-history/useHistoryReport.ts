@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 
 export interface HistoryReportFilters {
   uniqueId?: number | string;
+  deviceId?: string;
   from?: string;
   to?: string;
   period?: string;
@@ -25,6 +26,7 @@ export const useHistoryReport = (
   return useQuery({
     queryKey: [
       "history-report",
+      filters.deviceId || filters.uniqueId,
       filters.uniqueId,
       filters.from,
       filters.to,
@@ -32,7 +34,7 @@ export const useHistoryReport = (
     ],
     queryFn: async () => {
       if (isBle) {
-        const identifier = String(filters.uniqueId);
+        const targetDeviceId = String(filters.deviceId || filters.uniqueId);
         const beginTime = filters.from
           ? new Date(filters.from).getTime()
           : undefined;
@@ -44,19 +46,25 @@ export const useHistoryReport = (
           ? Math.max(7, Math.ceil((Date.now() - beginTime) / (24 * 3600 * 1000)) + 1)
           : 7;
 
-        const params: Record<string, any> = {
-          days: daysAgo,
+        const formatToLocalLocationTime = (dateOrStr?: string | Date | number): string => {
+          if (!dateOrStr) return "";
+          const d = new Date(dateOrStr);
+          if (isNaN(d.getTime())) return "";
+          const YYYY = d.getFullYear();
+          const MM = String(d.getMonth() + 1).padStart(2, "0");
+          const DD = String(d.getDate()).padStart(2, "0");
+          const HH = String(d.getHours()).padStart(2, "0");
+          const mm = String(d.getMinutes()).padStart(2, "0");
+          const ss = String(d.getSeconds()).padStart(2, "0");
+          return `${YYYY}-${MM}-${DD} ${HH}:${mm}:${ss}`;
         };
-        if (beginTime && !isNaN(beginTime)) {
-          params.beginTime = beginTime;
-          params.from = filters.from;
-        }
-        if (endTime && !isNaN(endTime)) {
-          params.endTime = endTime;
-          params.to = filters.to;
-        }
 
-        const bleRes: any = await bleService.getDeviceHistory(identifier, params);
+        const params: Record<string, any> = {
+          startLocationTime: formatToLocalLocationTime(filters.from),
+          endLocationTime: formatToLocalLocationTime(filters.to),
+        };
+
+        const bleRes: any = await bleService.getDeviceHistory(targetDeviceId, params);
         const rawItems: any[] = Array.isArray(bleRes?.history)
           ? bleRes.history
           : Array.isArray(bleRes?.data?.history)
@@ -77,14 +85,8 @@ export const useHistoryReport = (
           return isNaN(ms) ? 0 : ms;
         };
 
-        // Filter items strictly within requested time range
-        const historyItems = rawItems.filter((pt) => {
-          const t = parseTime(pt.locationTime || pt.reportedTime);
-          if (t === 0) return true;
-          if (beginTime && !isNaN(beginTime) && t < beginTime) return false;
-          if (endTime && !isNaN(endTime) && t > endTime) return false;
-          return true;
-        });
+        // Since backend already filters by startLocationTime and endLocationTime, keep all returned history items
+        const historyItems = [...rawItems];
 
         // Sort chronologically ascending
         historyItems.sort((a, b) => {
@@ -112,7 +114,7 @@ export const useHistoryReport = (
           }
 
           return {
-            deviceId: pt.sn || identifier,
+            deviceId: pt.sn || targetDeviceId || String(filters.uniqueId),
             latitude: Number(pt.lat),
             longitude: Number(pt.lng),
             speed: 0,
@@ -121,6 +123,8 @@ export const useHistoryReport = (
             deviceTime: isoTime,
             fixTime: isoTime,
             serverTime: isoTime,
+            locationTimeIST: pt.locationTimeIST,
+            reportedTimeIST: pt.reportedTimeIST,
             attributes: {
               ignition: true,
               distance: stepDistance,
@@ -130,9 +134,14 @@ export const useHistoryReport = (
               accuracy: pt.accuracy,
               confidence: pt.confidence,
               batteryStatus: pt.batteryStatus,
+              locationTimeIST: pt.locationTimeIST,
+              reportedTimeIST: pt.reportedTimeIST,
             },
             address: pt.address,
             battery: pt.battery,
+            batteryStatus: pt.batteryStatus,
+            accuracy: pt.accuracy,
+            confidence: pt.confidence,
             rawBlePoint: pt,
           };
         });
@@ -177,7 +186,9 @@ export const useHistoryReport = (
           sn: bleRes?.sn,
           battery: bleRes?.battery,
           batteryStatus: bleRes?.batteryStatus,
-          totalPoints: bleRes?.totalPoints,
+          totalPoints: bleRes?.total || bleRes?.totalPoints || mappedPoints.length,
+          total: bleRes?.total || bleRes?.totalPoints || mappedPoints.length,
+          timeRange: bleRes?.timeRange,
           rawBleHistory: bleRes,
         };
       }

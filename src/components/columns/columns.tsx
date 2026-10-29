@@ -18,7 +18,7 @@ import {
   TripReport,
   Incident,
 } from "@/interface/modal";
-import { Eye, EyeOff, Locate, Music, WifiOff, Copy, Check, MapPin, History, Pencil } from "lucide-react";
+import { Eye, EyeOff, Locate, Music, WifiOff, Copy, Check, MapPin, History, Pencil, ExternalLink } from "lucide-react";
 import { FaPlus, FaMinus } from "react-icons/fa";
 import {
   GeofenceGroup,
@@ -1142,12 +1142,127 @@ export const getBleDeviceColumns = (
       const addr =
         row.original.address ||
         row.original.rawBleDevice?.lastLocation?.address;
+      const lat =
+        row.original.latitude ??
+        row.original.lat ??
+        row.original.rawBleDevice?.lastLocation?.lat;
+      const lng =
+        row.original.longitude ??
+        row.original.lng ??
+        row.original.rawBleDevice?.lastLocation?.lng;
+      const reportedTime =
+        row.original.rawBleDevice?.lastLocation?.reportedTime ||
+        row.original.rawBleDevice?.lastLocation?.locationTime ||
+        row.original.lastUpdate;
+
       if (!addr || addr === "-")
         return <span className="text-gray-400 text-xs">No GPS Data</span>;
+
+      const hasCoords =
+        lat != null &&
+        lng != null &&
+        !isNaN(Number(lat)) &&
+        !isNaN(Number(lng)) &&
+        Number(lat) !== 0 &&
+        Number(lng) !== 0;
+
+      const formattedReportedTime = reportedTime
+        ? new Date(reportedTime).toLocaleString("en-GB", {
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+            hour12: true,
+          })
+        : null;
+
+      if (hasCoords) {
+        return (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <a
+                href={`https://www.google.com/maps?q=${lat},${lng}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1.5 group line-clamp-2 max-w-[240px]"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <span className="text-blue-500 group-hover:scale-110 transition-transform flex-shrink-0">
+                  📍
+                </span>
+                <span className="truncate">{addr}</span>
+                <ExternalLink className="w-3.5 h-3.5 text-blue-400 group-hover:text-blue-600 flex-shrink-0 ml-0.5" />
+              </a>
+            </TooltipTrigger>
+            <TooltipContent
+              side="top"
+              align="start"
+              className="max-w-xs p-3 text-xs bg-slate-900 text-white shadow-xl rounded-lg border border-slate-800 z-50 text-left pointer-events-auto"
+            >
+              <div className="space-y-1.5">
+                <div className="font-semibold text-slate-100 flex items-center justify-between gap-2 border-b border-slate-700/60 pb-1">
+                  <span className="flex items-center gap-1.5 text-blue-300">
+                    <span>📍</span>
+                    <span>Location Details</span>
+                  </span>
+                  <a
+                    href={`https://www.google.com/maps?q=${lat},${lng}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[11px] text-blue-400 hover:text-blue-300 hover:underline flex items-center gap-0.5"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <span>Google Maps</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                </div>
+                <p className="text-slate-200 leading-relaxed text-[11px] break-words">
+                  {addr}
+                </p>
+                <div className="pt-1 flex flex-col gap-0.5 text-[10px] text-slate-400 font-mono">
+                  <div>
+                    <span className="text-slate-500 font-sans">Coordinates: </span>
+                    {Number(lat).toFixed(6)}, {Number(lng).toFixed(6)}
+                  </div>
+                  {formattedReportedTime && (
+                    <div>
+                      <span className="text-slate-500 font-sans">Time: </span>
+                      <span className="font-sans">{formattedReportedTime}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </TooltipContent>
+          </Tooltip>
+        );
+      }
+
       return (
-        <div className="text-xs text-gray-600 line-clamp-2" title={addr}>
-          📍 {addr}
-        </div>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className="text-xs text-gray-600 line-clamp-2 max-w-[240px] cursor-default flex items-center gap-1.5">
+              <span className="text-gray-400 flex-shrink-0">📍</span>
+              <span className="truncate">{addr}</span>
+            </div>
+          </TooltipTrigger>
+          <TooltipContent
+            side="top"
+            align="start"
+            className="max-w-xs p-2.5 text-xs bg-slate-900 text-white shadow-xl rounded-lg border border-slate-800 z-50 text-left"
+          >
+            <div className="space-y-1">
+              <div className="font-semibold text-slate-100 flex items-center gap-1 text-[11px]">
+                <span>📍</span>
+                <span>Address</span>
+              </div>
+              <p className="text-slate-300 leading-relaxed text-[11px] break-words">
+                {addr}
+              </p>
+            </div>
+          </TooltipContent>
+        </Tooltip>
       );
     },
     meta: {
@@ -1246,10 +1361,43 @@ export const getBleDeviceColumns = (
                     <span>History</span>
                   </button>
                 )}
+                {(() => {
+                  const lat =
+                    dev.latitude ??
+                    dev.lat ??
+                    dev.rawBleDevice?.lastLocation?.lat;
+                  const lng =
+                    dev.longitude ??
+                    dev.lng ??
+                    dev.rawBleDevice?.lastLocation?.lng;
+                  const hasCoords =
+                    lat != null &&
+                    lng != null &&
+                    !isNaN(Number(lat)) &&
+                    !isNaN(Number(lng)) &&
+                    Number(lat) !== 0 &&
+                    Number(lng) !== 0;
+
+                  if (!hasCoords) return null;
+
+                  return (
+                    <a
+                      href={`https://www.google.com/maps?q=${lat},${lng}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="Open in Google Maps"
+                      className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-600 hover:text-white transition-all shadow-sm cursor-pointer"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      <span>Map</span>
+                    </a>
+                  );
+                })()}
               </div>
             );
           },
-          meta: { flex: 1, maxWidth: 190 },
+          meta: { flex: 1, maxWidth: 260 },
         },
       ]
     : []),

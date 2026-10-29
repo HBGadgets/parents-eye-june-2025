@@ -433,6 +433,28 @@ const VehicleBusMarker = React.memo(
                   🕒 {new Date(vehicle.lastUpdate).toLocaleString()}
                 </div>
               )}
+              {lat && lng && (
+                <div style={{ marginTop: "8px", paddingTop: "6px", borderTop: "1px solid #e5e7eb", display: "flex", justifyContent: "flex-end" }}>
+                  <a
+                    href={`https://www.google.com/maps?q=${lat},${lng}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "4px",
+                      fontSize: "11px",
+                      fontWeight: 600,
+                      color: "#2563eb",
+                      textDecoration: "none",
+                    }}
+                    title="Open location in Google Maps"
+                  >
+                    <span>Open in Google Maps</span>
+                    <span>↗</span>
+                  </a>
+                </div>
+              )}
             </div>
           </Popup>
         </Marker>
@@ -1582,6 +1604,9 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
     if (showGeotag) {
       setShowStoppages(false);
       setSelectedStoppageImei(null);
+      setShowHistory(false);
+      setShowArrows(false);
+      setShowLegend(false);
     }
   }, [showGeotag]);
   const [mapType, setMapType] = useState<"roadmap" | "satellite">("roadmap");
@@ -2361,7 +2386,7 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
         }}
       >
         {/* Toggle Show All in Table */}
-        {onToggleAllInTable && (
+        {!showGeotag && onToggleAllInTable && (
           <button
             className={`map-control-button ${isAllInTableActive ? "fit-bounds-btn" : ""}`}
             onClick={() => {
@@ -2438,108 +2463,112 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
         </button>
 
         {/* Toggle History Route */}
-        <button
-          className={`map-control-button ${showHistory ? "fit-bounds-btn" : ""}`}
-          onClick={() => {
-            if (isRouteDisabled) return;
-            setShowHistory((prev) => !prev);
-          }}
-          disabled={isRouteDisabled}
-          title={
-            isRouteDisabled
-              ? "Show Route is disabled for your role"
-              : showHistory
-              ? (isFetchingRoutes ? `Loading Routes (${routeDate})...` : `Hide Route History (${routeDate})`)
-              : `Show Route History (${routeDate})`
-          }
-          data-tooltip={
-            isRouteDisabled
-              ? "Show Route is disabled for your role"
-              : showHistory
-              ? (isFetchingRoutes ? `Loading Routes (${routeDate})...` : `Hide Route History (${routeDate})`)
-              : `Show Route History (${routeDate})`
-          }
-          style={{
-            width: "36px",
-            height: "36px",
-            padding: 0,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            borderRadius: "6px",
-            boxShadow: "0 2px 8px rgba(0, 0, 0, 0.15)",
-            cursor: isRouteDisabled ? "not-allowed" : "pointer",
-            border: "none",
-            backgroundColor: isRouteDisabled
-              ? "#f3f4f6"
-              : showHistory
-              ? "#007bff"
-              : "#ffffff",
-            color: isRouteDisabled
-              ? "#9ca3af"
-              : showHistory
-              ? "#ffffff"
-              : "#374151",
-            opacity: isRouteDisabled ? 0.5 : 1,
-            transition: "all 0.2s ease"
-          }}
-        >
-          {isFetchingRoutes ? (
-            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-          ) : (
-            <MdDirections size={22} className={isRouteDisabled ? "text-gray-400" : (showHistory ? "text-white" : "text-gray-700")} />
-          )}
-        </button>
+        {!showGeotag && (
+          <button
+            className={`map-control-button ${showHistory ? "fit-bounds-btn" : ""}`}
+            onClick={() => {
+              if (isRouteDisabled) return;
+              setShowHistory((prev) => !prev);
+            }}
+            disabled={isRouteDisabled}
+            title={
+              isRouteDisabled
+                ? "Show Route is disabled for your role"
+                : showHistory
+                ? (isFetchingRoutes ? `Loading Routes (${routeDate})...` : `Hide Route History (${routeDate})`)
+                : `Show Route History (${routeDate})`
+            }
+            data-tooltip={
+              isRouteDisabled
+                ? "Show Route is disabled for your role"
+                : showHistory
+                ? (isFetchingRoutes ? `Loading Routes (${routeDate})...` : `Hide Route History (${routeDate})`)
+                : `Show Route History (${routeDate})`
+            }
+            style={{
+              width: "36px",
+              height: "36px",
+              padding: 0,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              borderRadius: "6px",
+              boxShadow: "0 2px 8px rgba(0, 0, 0, 0.15)",
+              cursor: isRouteDisabled ? "not-allowed" : "pointer",
+              border: "none",
+              backgroundColor: isRouteDisabled
+                ? "#f3f4f6"
+                : showHistory
+                ? "#007bff"
+                : "#ffffff",
+              color: isRouteDisabled
+                ? "#9ca3af"
+                : showHistory
+                ? "#ffffff"
+                : "#374151",
+              opacity: isRouteDisabled ? 0.5 : 1,
+              transition: "all 0.2s ease"
+            }}
+          >
+            {isFetchingRoutes ? (
+              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <MdDirections size={22} className={isRouteDisabled ? "text-gray-400" : (showHistory ? "text-white" : "text-gray-700")} />
+            )}
+          </button>
+        )}
 
         {/* Toggle Route Arrows */}
-        <button
-          className={`map-control-button ${showArrows ? "fit-bounds-btn" : ""}`}
-          onClick={() => {
-            if (isRouteDisabled) return;
-            setShowArrows((prev) => !prev);
-          }}
-          disabled={isRouteDisabled}
-          title={
-            isRouteDisabled
-              ? "Route Arrows disabled for your role"
-              : showArrows
-              ? "Hide Route Arrows"
-              : "Show Route Arrows"
-          }
-          data-tooltip={
-            isRouteDisabled
-              ? "Route Arrows disabled for your role"
-              : showArrows
-              ? "Hide Route Arrows"
-              : "Show Route Arrows"
-          }
-          style={{
-            width: "36px",
-            height: "36px",
-            padding: 0,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            borderRadius: "6px",
-            boxShadow: "0 2px 8px rgba(0, 0, 0, 0.15)",
-            cursor: isRouteDisabled ? "not-allowed" : "pointer",
-            border: "none",
-            backgroundColor: isRouteDisabled
-              ? "#f3f4f6"
-              : showArrows
-              ? "#007bff"
-              : "#ffffff",
-            color: isRouteDisabled
-              ? "#9ca3af"
-              : showArrows
-              ? "#ffffff"
-              : "#374151",
-            opacity: isRouteDisabled ? 0.5 : 1,
-            transition: "all 0.2s ease"
-          }}
-        >
-          <Navigation size={18} className={`transform rotate-45 ${isRouteDisabled ? "text-gray-400" : (showArrows ? "text-white" : "text-gray-700")}`} />
-        </button>
+        {!showGeotag && (
+          <button
+            className={`map-control-button ${showArrows ? "fit-bounds-btn" : ""}`}
+            onClick={() => {
+              if (isRouteDisabled) return;
+              setShowArrows((prev) => !prev);
+            }}
+            disabled={isRouteDisabled}
+            title={
+              isRouteDisabled
+                ? "Route Arrows disabled for your role"
+                : showArrows
+                ? "Hide Route Arrows"
+                : "Show Route Arrows"
+            }
+            data-tooltip={
+              isRouteDisabled
+                ? "Route Arrows disabled for your role"
+                : showArrows
+                ? "Hide Route Arrows"
+                : "Show Route Arrows"
+            }
+            style={{
+              width: "36px",
+              height: "36px",
+              padding: 0,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              borderRadius: "6px",
+              boxShadow: "0 2px 8px rgba(0, 0, 0, 0.15)",
+              cursor: isRouteDisabled ? "not-allowed" : "pointer",
+              border: "none",
+              backgroundColor: isRouteDisabled
+                ? "#f3f4f6"
+                : showArrows
+                ? "#007bff"
+                : "#ffffff",
+              color: isRouteDisabled
+                ? "#9ca3af"
+                : showArrows
+                ? "#ffffff"
+                : "#374151",
+              opacity: isRouteDisabled ? 0.5 : 1,
+              transition: "all 0.2s ease"
+            }}
+          >
+            <Navigation size={18} className={`transform rotate-45 ${isRouteDisabled ? "text-gray-400" : (showArrows ? "text-white" : "text-gray-700")}`} />
+          </button>
+        )}
 
         {/* Toggle Stoppages / Geotags */}
         <button
@@ -2640,54 +2669,56 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
         </button>
 
         {/* Toggle Draggable Route Color Legend */}
-        <button
-          className={`map-control-button ${showLegend ? "fit-bounds-btn" : ""}`}
-          onClick={() => {
-            if (isRouteDisabled) return;
-            setShowLegend((prev) => !prev);
-          }}
-          disabled={isRouteDisabled}
-          title={
-            isRouteDisabled
-              ? "Route Legend disabled for your role"
-              : showLegend
-              ? "Hide Route Legend"
-              : "Show Route Color Legend"
-          }
-          data-tooltip={
-            isRouteDisabled
-              ? "Route Legend disabled for your role"
-              : showLegend
-              ? "Hide Route Legend"
-              : "Show Route Color Legend"
-          }
-          style={{
-            width: "36px",
-            height: "36px",
-            padding: 0,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            borderRadius: "6px",
-            boxShadow: "0 2px 8px rgba(0, 0, 0, 0.15)",
-            cursor: isRouteDisabled ? "not-allowed" : "pointer",
-            border: "none",
-            backgroundColor: isRouteDisabled
-              ? "#f3f4f6"
-              : showLegend
-              ? "#007bff"
-              : "#ffffff",
-            color: isRouteDisabled
-              ? "#9ca3af"
-              : showLegend
-              ? "#ffffff"
-              : "#374151",
-            opacity: isRouteDisabled ? 0.5 : 1,
-            transition: "all 0.2s ease"
-          }}
-        >
-          <Palette size={20} className={isRouteDisabled ? "text-gray-400" : (showLegend ? "text-white" : "text-gray-700")} />
-        </button>
+        {!showGeotag && (
+          <button
+            className={`map-control-button ${showLegend ? "fit-bounds-btn" : ""}`}
+            onClick={() => {
+              if (isRouteDisabled) return;
+              setShowLegend((prev) => !prev);
+            }}
+            disabled={isRouteDisabled}
+            title={
+              isRouteDisabled
+                ? "Route Legend disabled for your role"
+                : showLegend
+                ? "Hide Route Legend"
+                : "Show Route Color Legend"
+            }
+            data-tooltip={
+              isRouteDisabled
+                ? "Route Legend disabled for your role"
+                : showLegend
+                ? "Hide Route Legend"
+                : "Show Route Color Legend"
+            }
+            style={{
+              width: "36px",
+              height: "36px",
+              padding: 0,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              borderRadius: "6px",
+              boxShadow: "0 2px 8px rgba(0, 0, 0, 0.15)",
+              cursor: isRouteDisabled ? "not-allowed" : "pointer",
+              border: "none",
+              backgroundColor: isRouteDisabled
+                ? "#f3f4f6"
+                : showLegend
+                ? "#007bff"
+                : "#ffffff",
+              color: isRouteDisabled
+                ? "#9ca3af"
+                : showLegend
+                ? "#ffffff"
+                : "#374151",
+              opacity: isRouteDisabled ? 0.5 : 1,
+              transition: "all 0.2s ease"
+            }}
+          >
+            <Palette size={20} className={isRouteDisabled ? "text-gray-400" : (showLegend ? "text-white" : "text-gray-700")} />
+          </button>
+        )}
       </div>
 
       <MapContainer
@@ -2737,7 +2768,7 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
         {showMarkers && renderMarkers}
 
         {/* Render travelled routes for all loaded vehicles automatically */}
-        {showHistory &&
+        {!showGeotag && showHistory &&
           Object.entries(processedRoutesMap).map(([imei, trips]) => {
             if (hiddenRouteImeis[imei]) return null;
 
@@ -3195,11 +3226,11 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
           })}
 
         {/* Route auto-bounding */}
-        {showHistory && isSelectedRouteVisible && <RouteBoundsUpdater routeData={currentSelectedRouteData} />}
+        {!showGeotag && showHistory && isSelectedRouteVisible && <RouteBoundsUpdater routeData={currentSelectedRouteData} />}
       </MapContainer>
 
       {/* Draggable Route Color Legend Panel */}
-      {showLegend && (
+      {!showGeotag && showLegend && (
         <div
           ref={dragRef}
           style={{

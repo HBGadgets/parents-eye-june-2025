@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 import {
   Drawer,
@@ -44,14 +46,61 @@ export const BottomDrawer = ({
   onOpenRouteTimeline,
 }: BottomDrawerProps) => {
   const router = useRouter();
-  const isBle = selectedDevice?.category === "BLE";
-  const handleHistoryClick = (uniqueId: any) => {
-    router.push(
-      `/dashboard/reports/history-report?uniqueId=${uniqueId}${
-        isBle ? "&deviceCategory=BLE" : ""
-      }`
+  const isBle =
+    selectedDevice?.category === "BLE" ||
+    selectedDevice?.category === "GeoTag" ||
+    Boolean(selectedDevice?.rawBleDevice) ||
+    String(selectedDevice?.name || "").startsWith("GeoTag") ||
+    String(selectedDevice?.uniqueId || "").startsWith("GeoTag");
+
+  const rawBle = selectedDevice?.rawBleDevice;
+  const targetHistoryId = isBle
+    ? (selectedDevice?.sn ||
+        rawBle?.sn ||
+        (typeof selectedDevice?.uniqueId === "string" &&
+        selectedDevice.uniqueId.startsWith("GeoTag")
+          ? selectedDevice.uniqueId
+          : null) ||
+        (rawBle?.deviceId != null ? String(rawBle.deviceId) : null) ||
+        (selectedDevice?.deviceId != null ? String(selectedDevice.deviceId) : null) ||
+        selectedDevice?.uniqueId ||
+        selectedDevice?.name ||
+        "")
+    : selectedDevice?.uniqueId || "";
+
+  const historyUrl = targetHistoryId
+    ? `/dashboard/reports/history-report?uniqueId=${encodeURIComponent(
+        String(targetHistoryId)
+      )}&deviceCategory=${isBle ? "BLE" : (selectedDevice?.category || "CAR")}`
+    : `/dashboard/reports/history-report?deviceCategory=${isBle ? "BLE" : "CAR"}`;
+
+  const targetLiveId = isBle
+    ? (selectedDevice?.sn ||
+        rawBle?.sn ||
+        (typeof selectedDevice?.uniqueId === "string" &&
+        selectedDevice.uniqueId.startsWith("GeoTag")
+          ? selectedDevice.uniqueId
+          : null) ||
+        rawBle?.deviceId ||
+        selectedDevice?.deviceId ||
+        selectedDevice?.uniqueId ||
+        selectedDevice?._id)
+    : selectedDevice?.uniqueId;
+
+  const handleTrackClick = () => {
+    const finalTrackId = targetLiveId || selectedDevice?.name || "GeoTag";
+    setIsDrawerOpen(false);
+    handleOpenLiveTrack(
+      finalTrackId,
+      selectedDevice?.name || String(finalTrackId),
+      selectedDevice?.routeName,
+      selectedDevice?.routeId || selectedDevice?.routeObjId,
+      selectedDevice?.schoolId,
+      selectedDevice?.branchId,
+      selectedDevice
     );
   };
+
   const { distance, isLoading } = useDistance(
     isBle ? undefined : selectedDevice?.uniqueId
   );
@@ -74,11 +123,23 @@ export const BottomDrawer = ({
                   <span>{selectedDevice && selectedDevice.name}</span>
                 </div>
 
-                {selectedDevice?.uniqueId && (
-                  <span className="text-xs text-gray-500 mt-1">
-                    {isBle ? "SN" : "IMEI"}: {selectedDevice?.uniqueId}
-                  </span>
-                )}
+                {(() => {
+                  const snOrImei = isBle
+                    ? selectedDevice?.sn ||
+                      rawBle?.sn ||
+                      (typeof selectedDevice?.uniqueId === "string" &&
+                      selectedDevice.uniqueId.startsWith("GeoTag")
+                        ? selectedDevice.uniqueId
+                        : null) ||
+                      selectedDevice?.uniqueId
+                    : selectedDevice?.uniqueId;
+                  if (!snOrImei) return null;
+                  return (
+                    <span className="text-xs text-gray-500 mt-1">
+                      {isBle ? "SN" : "IMEI"}: {snOrImei}
+                    </span>
+                  );
+                })()}
 
                 {(() => {
                   const rawBle = selectedDevice?.rawBleDevice;
@@ -132,52 +193,60 @@ export const BottomDrawer = ({
                 </div>
               </div>
 
-              <div className="min-w-max flex gap-1 items-center">
+              <div
+                className="min-w-max flex gap-1 items-center"
+                data-vaul-no-drag
+                onPointerDown={(e) => e.stopPropagation()}
+              >
                 <button
+                  type="button"
+                  data-vaul-no-drag
                   className="rounded-sm text-black border border-black px-2 py-1 hover:bg-black hover:text-white transition-colors duration-200 cursor-pointer"
-                  onClick={() => {
-                    if (selectedDevice?.uniqueId) {
-                      handleOpenLiveTrack(
-                        selectedDevice?.uniqueId,
-                        selectedDevice?.name,
-                        selectedDevice?.routeName,
-                        selectedDevice?.routeId || selectedDevice?.routeObjId,
-                        selectedDevice?.schoolId,
-                        selectedDevice?.branchId,
-                        selectedDevice
-                      );
-                    }
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleTrackClick();
                   }}
                 >
                   Track
                 </button>
-                <button
-                  className="rounded-sm mr-1 text-black border border-black px-2 py-1 hover:bg-black hover:text-white transition-colors duration-200 cursor-pointer"
-                  onClick={() => {
-                    if (!selectedDevice?.uniqueId) return;
-                    handleHistoryClick(selectedDevice.uniqueId);
+                <Link
+                  data-vaul-no-drag
+                  href={historyUrl}
+                  className="rounded-sm mr-1 text-black border border-black px-2 py-1 hover:bg-black hover:text-white transition-colors duration-200 cursor-pointer inline-flex items-center"
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsDrawerOpen(false);
                   }}
                 >
                   History
-                </button>
+                </Link>
                 {!isBle && (
                   <button
+                    type="button"
+                    data-vaul-no-drag
                     className="rounded-sm mr-1 text-black border border-black px-2 py-1 hover:bg-black hover:text-white transition-colors duration-200 cursor-pointer"
-                    onClick={() =>
-                      selectedDevice?.uniqueId !== undefined &&
-                      onOpenRouteTimeline(
-                        selectedDevice.uniqueId,
-                        selectedDevice.name,
-                        selectedDevice.routeId
-                      )
-                    }
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (selectedDevice?.uniqueId !== undefined) {
+                        onOpenRouteTimeline(
+                          selectedDevice.uniqueId,
+                          selectedDevice.name,
+                          selectedDevice.routeId
+                        );
+                      }
+                    }}
                   >
                     Timeline
                   </button>
                 )}
                 <DrawerClose
+                  data-vaul-no-drag
                   className="rounded-sm text-white border border-black px-2 py-1 bg-black cursor-pointer"
                   aria-label="Close"
+                  onPointerDown={(e) => e.stopPropagation()}
                 >
                   X
                 </DrawerClose>
@@ -291,8 +360,8 @@ export const BottomDrawer = ({
                         {isLoading
                           ? "Loading..."
                           : `${
-                              distance?.totalDistance
-                                ? distance?.totalDistance
+                              (distance as any)?.totalDistance
+                                ? (distance as any)?.totalDistance
                                 : 0
                             } km`}
                       </p>

@@ -61,12 +61,18 @@ export const LiveTrack = ({ open, setOpen, selectedImei }: LiveTrackProps) => {
   const isDesktop = useMediaQuery("(min-width: 768px)");
 
   const isBle = useMemo(() => {
+    const dev = (selectedImei as any)?.device;
     return (
-      (selectedImei as any)?.device?.category === "BLE" ||
-      Boolean((selectedImei as any)?.device?.rawBleDevice) ||
+      dev?.category === "BLE" ||
+      dev?.category === "GeoTag" ||
+      dev?.model === "GeoTag" ||
+      Boolean(dev?.rawBleDevice) ||
+      Boolean(dev?.sn) ||
       (typeof selectedImei?.uniqueId === "string" &&
         (selectedImei.uniqueId.startsWith("GeoTag") ||
-          selectedImei.uniqueId.includes("-")))
+          selectedImei.uniqueId.includes("-"))) ||
+      (typeof selectedImei?.name === "string" &&
+        selectedImei.name.startsWith("GeoTag"))
     );
   }, [selectedImei]);
 
@@ -89,10 +95,18 @@ export const LiveTrack = ({ open, setOpen, selectedImei }: LiveTrackProps) => {
 
   const bleIdentifier = useMemo(() => {
     if (!isBle) return null;
+    const dev = (selectedImei as any)?.device;
     return (
-      (selectedImei as any)?.device?.sn ||
+      dev?.sn ||
+      dev?.rawBleDevice?.sn ||
+      (typeof selectedImei?.uniqueId === "string" &&
+      selectedImei.uniqueId.startsWith("GeoTag")
+        ? selectedImei.uniqueId
+        : null) ||
+      dev?.deviceId ||
+      dev?.rawBleDevice?.deviceId ||
       selectedImei?.uniqueId ||
-      (selectedImei as any)?.device?._id ||
+      dev?._id ||
       null
     );
   }, [isBle, selectedImei]);
@@ -281,8 +295,14 @@ export const LiveTrack = ({ open, setOpen, selectedImei }: LiveTrackProps) => {
   const closedByPopState = useRef(false);
 
   const currentImei = useMemo(
-    () => selectedImei?.uniqueId,
-    [selectedImei?.uniqueId]
+    () =>
+      selectedImei?.uniqueId ||
+      (selectedImei as any)?.device?.uniqueId ||
+      (selectedImei as any)?.device?.sn ||
+      (selectedImei as any)?.device?.rawBleDevice?.sn ||
+      (selectedImei as any)?.device?.deviceId ||
+      (selectedImei as any)?.device?._id,
+    [selectedImei]
   );
   const currentName = useMemo(() => selectedImei?.name, [selectedImei?.name]);
 

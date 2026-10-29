@@ -66,7 +66,10 @@ export const VehicleMarker: React.FC<VehicleMarkerProps> = React.memo(
     const markerRef = useRef<L.Marker | null>(null);
 
     const isBle =
-      vehicle.category === "BLE" || Boolean((vehicle as any).rawBleDevice);
+      vehicle.category === "BLE" ||
+      vehicle.category === "GeoTag" ||
+      Boolean((vehicle as any).rawBleDevice) ||
+      String(vehicle.name || "").startsWith("GeoTag");
 
     // Calculate vehicle status
     const vehicleStatus = useVehicleStatus({

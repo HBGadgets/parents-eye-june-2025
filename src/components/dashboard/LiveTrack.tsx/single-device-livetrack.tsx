@@ -478,7 +478,10 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
   } = useGeofence(pagination, sorting, filters);
 
   const isBleVehicle =
-    vehicle?.category === "BLE" || Boolean((vehicle as any)?.rawBleDevice);
+    vehicle?.category === "BLE" ||
+    vehicle?.category === "GeoTag" ||
+    Boolean((vehicle as any)?.rawBleDevice) ||
+    String(vehicle?.name || "").startsWith("GeoTag");
   const geofenceQuery = useGeofenceByUniqueId(
     isBleVehicle ? "" : String(vehicle?.uniqueId || "")
   );

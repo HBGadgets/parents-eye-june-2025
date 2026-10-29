@@ -36,6 +36,7 @@ export interface BleChildInfo {
 
 export interface BleDevice {
   _id: string;
+  deviceId?: number | string;
   name: string;
   uniqueId: string;
   sn: string;
