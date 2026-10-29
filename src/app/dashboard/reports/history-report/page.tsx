@@ -8,7 +8,12 @@ import FullScreenSpinner from "@/components/RouteLoader";
 import { formatDateToYYYYMMDD } from "@/util/formatDate";
 import { api } from "@/services/apiService";
 import TripsSidebar from "@/components/history/sliding-side-bar";
-import { Menu, Gauge, Clock, MapPinOff, Save, Check, RotateCcw, ZoomIn, List, Activity, Search, MapPin, Eye, BatteryCharging, Car } from "lucide-react";
+import { Menu, Gauge, Clock, MapPinOff, Save, Check, RotateCcw, ZoomIn, List, Activity, Search, MapPin, Eye, BatteryCharging, Car, ExternalLink } from "lucide-react";
+import {
+  Tooltip as UITooltip,
+  TooltipTrigger,
+  TooltipContent,
+} from "@/components/ui/tooltip";
 import { toast } from "sonner";
 import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -1393,15 +1398,48 @@ function HistoryReportContent() {
 
                     {/* Address for BLE */}
                     {isCurrentBle && (currentData.address || currentData.attributes?.address) && (
-                      <div
-                        className="flex items-center gap-1.5 text-muted-foreground text-xs max-w-xs truncate"
-                        title={currentData.address || currentData.attributes?.address}
-                      >
-                        <span className="font-semibold text-slate-700">Location:</span>
-                        <span className="truncate text-slate-600">
-                          📍 {currentData.address || currentData.attributes?.address}
-                        </span>
-                      </div>
+                      <UITooltip>
+                        <TooltipTrigger asChild>
+                          <div className="flex items-center gap-1.5 text-muted-foreground text-xs max-w-xs truncate cursor-pointer hover:text-blue-600 transition-colors">
+                            <span className="font-semibold text-slate-700 dark:text-slate-200">Location:</span>
+                            <span className="truncate text-slate-600 dark:text-slate-300 flex items-center gap-1">
+                              <MapPin className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                              <span className="truncate">{currentData.address || currentData.attributes?.address}</span>
+                            </span>
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent
+                          side="top"
+                          align="start"
+                          className="max-w-xs p-3 text-xs bg-slate-900 text-white shadow-xl rounded-lg border border-slate-800 z-[9999] text-left pointer-events-auto"
+                        >
+                          <div className="space-y-1.5">
+                            <div className="font-semibold text-slate-100 flex items-center justify-between gap-2 border-b border-slate-700/60 pb-1">
+                              <span className="flex items-center gap-1.5 text-blue-300">
+                                <MapPin className="w-3.5 h-3.5" />
+                                <span>Current Location</span>
+                              </span>
+                              <a
+                                href={`https://www.google.com/maps?q=${currentData.latitude},${currentData.longitude}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-[11px] text-blue-400 hover:text-blue-300 hover:underline flex items-center gap-0.5"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <span>Google Maps</span>
+                                <ExternalLink className="w-3 h-3" />
+                              </a>
+                            </div>
+                            <p className="text-slate-200 leading-relaxed text-[11px] whitespace-normal break-words">
+                              {currentData.address || currentData.attributes?.address}
+                            </p>
+                            <div className="text-[10px] text-slate-400 font-mono pt-0.5 flex items-center justify-between gap-2 border-t border-slate-800/80">
+                              <span>Lat: {Number(currentData.latitude).toFixed(6)}</span>
+                              <span>Lng: {Number(currentData.longitude).toFixed(6)}</span>
+                            </div>
+                          </div>
+                        </TooltipContent>
+                      </UITooltip>
                     )}
 
                     {/* Timestamp */}
@@ -1665,18 +1703,53 @@ function HistoryReportContent() {
                                     </td>
 
                                     {/* Address / Location */}
-                                    <td className="py-2 px-3 max-w-sm truncate" title={address}>
-                                      <a
-                                        href={`https://www.google.com/maps?q=${item.latitude},${item.longitude}`}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="flex items-center gap-1.5 truncate text-blue-600 hover:text-blue-800 hover:underline"
-                                        onClick={(e) => e.stopPropagation()}
-                                        title={`Open location in Google Maps (${item.latitude}, ${item.longitude})`}
-                                      >
-                                        <MapPin className="w-3 h-3 text-blue-500 shrink-0" />
-                                        <span className="truncate">{address}</span>
-                                      </a>
+                                    <td className="py-2 px-3 max-w-sm truncate" onClick={(e) => e.stopPropagation()}>
+                                      <UITooltip>
+                                        <TooltipTrigger asChild>
+                                          <a
+                                            href={`https://www.google.com/maps?q=${item.latitude},${item.longitude}`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="flex items-center gap-1.5 truncate text-blue-600 hover:text-blue-800 hover:underline group max-w-[260px]"
+                                            onClick={(e) => e.stopPropagation()}
+                                          >
+                                            <MapPin className="w-3.5 h-3.5 text-blue-500 shrink-0 group-hover:scale-110 transition-transform" />
+                                            <span className="truncate">{address}</span>
+                                            <ExternalLink className="w-3 h-3 text-blue-400 group-hover:text-blue-600 shrink-0 ml-0.5" />
+                                          </a>
+                                        </TooltipTrigger>
+                                        <TooltipContent
+                                          side="top"
+                                          align="start"
+                                          className="max-w-xs p-3 text-xs bg-slate-900 text-white shadow-xl rounded-lg border border-slate-800 z-[9999] text-left pointer-events-auto"
+                                        >
+                                          <div className="space-y-1.5">
+                                            <div className="font-semibold text-slate-100 flex items-center justify-between gap-2 border-b border-slate-700/60 pb-1">
+                                              <span className="flex items-center gap-1.5 text-blue-300">
+                                                <MapPin className="w-3.5 h-3.5" />
+                                                <span>Location Details</span>
+                                              </span>
+                                              <a
+                                                href={`https://www.google.com/maps?q=${item.latitude},${item.longitude}`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="text-[11px] text-blue-400 hover:text-blue-300 hover:underline flex items-center gap-0.5"
+                                                onClick={(e) => e.stopPropagation()}
+                                              >
+                                                <span>Google Maps</span>
+                                                <ExternalLink className="w-3 h-3" />
+                                              </a>
+                                            </div>
+                                            <p className="text-slate-200 leading-relaxed text-[11px] whitespace-normal break-words">
+                                              {address}
+                                            </p>
+                                            <div className="text-[10px] text-slate-400 font-mono pt-0.5 flex items-center justify-between gap-2 border-t border-slate-800/80">
+                                              <span>Lat: {Number(item.latitude).toFixed(6)}</span>
+                                              <span>Lng: {Number(item.longitude).toFixed(6)}</span>
+                                            </div>
+                                          </div>
+                                        </TooltipContent>
+                                      </UITooltip>
                                     </td>
 
                                     {/* Action button */}
