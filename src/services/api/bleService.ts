@@ -174,6 +174,11 @@ export const bleService = {
     );
     return res?.data ?? res;
   },
+
+  syncBleDevices: async () => {
+    const res: any = await api.get("/api/ble-devices/sync");
+    return res?.data ?? res;
+  },
 };
 
 export default bleService;

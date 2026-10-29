@@ -245,19 +245,31 @@ function HistoryReportContent() {
 
   // Ble dropdown items for GeoTag mode
   const bleDropdownItems = useMemo(() => {
-    const devices = bleDevicesData?.devices || [];
-    const list = devices.map((d: any) => {
-      const devId = d.deviceId != null ? String(d.deviceId) : String(d.sn || d.uniqueId);
-      const displayLabel = d.name
-        ? `${d.name} (${d.sn || devId})`
-        : d.sn
-        ? `${d.sn} (ID: ${devId})`
-        : String(devId);
-      return {
-        value: devId,
-        label: displayLabel,
-      };
-    });
+    const rawData = bleDevicesData as any;
+    const rawDevices: any[] =
+      (Array.isArray(rawData?.devices) && rawData.devices) ||
+      (Array.isArray(rawData?.data?.devices) && rawData.data.devices) ||
+      (Array.isArray(rawData?.data) && rawData.data) ||
+      (Array.isArray(rawData) && rawData) ||
+      [];
+    const list = rawDevices
+      .map((d: any) => {
+        const devId =
+          d.deviceId != null && String(d.deviceId).trim() !== ""
+            ? String(d.deviceId).trim()
+            : String(d.sn || d.uniqueId || d.name || "").trim();
+        if (!devId) return null;
+        const displayLabel = d.name
+          ? `${d.name} (${d.sn || devId})`
+          : d.sn
+          ? `${d.sn} (ID: ${devId})`
+          : String(devId);
+        return {
+          value: devId,
+          label: displayLabel,
+        };
+      })
+      .filter(Boolean) as { value: string; label: string }[];
     const isBleTarget =
       deviceCategoryFromUrl === "BLE" ||
       (uniqueIdFromUrl ? String(uniqueIdFromUrl).toLowerCase().startsWith("geotag") : false);
@@ -313,20 +325,6 @@ function HistoryReportContent() {
     endDate: Date;
   } | null>(null);
 
-  const metaPosition = [
-    {
-      attributes: {
-        ignition: true,
-        distance: 1270.9719643791261,
-        totalDistance: 10052535.677769283,
-      },
-      deviceId: 2730,
-      latitude: 21.10755111111111,
-      longitude: 79.10318222222223,
-      speed: 7.5594,
-      course: 135,
-    },
-  ];
 
   // ✅ Throttle progress updates for chart (update every 100ms)
   useEffect(() => {
@@ -853,10 +851,18 @@ function HistoryReportContent() {
   };
 
   const handleShow = () => {
-    const finalUniqueId = selectedVehicle || uniqueIdFromUrl;
+    const finalUniqueId =
+      selectedVehicle ||
+      uniqueIdFromUrl ||
+      (isGeoTagMode && bleDropdownItems.length > 0 ? bleDropdownItems[0].value : undefined);
+
     if (!finalUniqueId) {
       toast.error(isGeoTagMode ? "Please select a GeoTag" : "Please select a vehicle");
       return;
+    }
+
+    if (!selectedVehicle) {
+      setSelectedVehicle(finalUniqueId);
     }
 
     const { from: todayFrom, to: todayTo } = getTodayUtcRange();
@@ -902,8 +908,10 @@ function HistoryReportContent() {
     setSelectedTripIndex(null);
     setPlaybackProgress(0);
     setThrottledProgress(0);
-    // Remove query params from URL so stale ?uniqueId=... does not override user selection
-    router.replace("/dashboard/reports/history-report");
+    // Clear query params from browser URL bar without triggering a Next.js router re-render
+    if (typeof window !== "undefined") {
+      window.history.replaceState(null, "", "/dashboard/reports/history-report");
+    }
   };
 
   // Ensure default date range is initialized on initial page load
@@ -972,22 +980,12 @@ function HistoryReportContent() {
     }
   }, [uniqueIdFromUrl, deviceCategoryFromUrl, bleDevicesData]);
 
-  // Auto-sync deviceId when BLE devices finish loading
+  // Auto-select first GeoTag if none selected in GeoTag mode
   useEffect(() => {
-    if (isCurrentBle && selectedVehicleObj?.deviceId) {
-      const devId = String(selectedVehicleObj.deviceId);
-      setSelectedVehicle((prev) => {
-        if (prev && !/^\d+$/.test(prev)) return devId;
-        return prev || devId;
-      });
-      setApiFilters((prev) => {
-        if (prev.uniqueId && (prev.deviceId !== devId || !/^\d+$/.test(String(prev.uniqueId)))) {
-          return { ...prev, uniqueId: devId, deviceId: devId };
-        }
-        return prev;
-      });
+    if (isGeoTagMode && !selectedVehicle && bleDropdownItems.length > 0) {
+      setSelectedVehicle(bleDropdownItems[0].value);
     }
-  }, [isCurrentBle, selectedVehicleObj?.deviceId]);
+  }, [isGeoTagMode, selectedVehicle, bleDropdownItems]);
 
   useEffect(() => {
     if (!historyReport) return;
@@ -1222,153 +1220,87 @@ function HistoryReportContent() {
         <div className="space-y-3">
           {/* Map Section */}
           <div className="w-full">
-            {isFetching ? (
-              <div
-                className={`relative z-0 isolate w-full mt-3 transition-all duration-300 ease-in-out ${isMapExpanded
-                  ? "h-[100vh] md:h-[80vh] lg:h-[90vh]"
-                  : "h-[50vh] md:h-[25vh] lg:h-[40vh]"
-                  }`}
-              >
-                <FullScreenSpinner />
+            <div
+              className={`relative z-0 isolate w-full mt-3 transition-all duration-300 ease-in-out ${isMapExpanded
+                ? "h-[80vh] md:h-[60vh] lg:h-[70vh]"
+                : "h-[60vh] md:h-[45vh] lg:h-[55vh]"
+                }`}
+            >
+              {isFetching && <FullScreenSpinner />}
+              {hasGenerated && !isFetching && (!activePlayback || activePlayback.length === 0) ? (
+                <div className="flex flex-col items-center justify-center w-full h-full bg-white/50 backdrop-blur-sm rounded-lg border-2 border-dashed border-gray-300">
+                  <MapPinOff className="w-16 h-16 text-gray-400 mb-4" />
+                  <h3 className="text-xl font-semibold text-gray-700">No History Available</h3>
+                  <p className="text-gray-500 mt-2 text-center max-w-md px-4">
+                    No playback data found for the selected vehicle and date range.
+                    <br />Please try adjusting your filters.
+                  </p>
+                </div>
+              ) : (
                 <VehicleMap
-                  data={metaPosition}
+                  ref={vehicleMapRef}
+                  data={activePlayback}
+                  stops={showStopsOnMap ? derivedStops : []}
+                  activeStopId={activeStopId}
+                  onStopClick={(id: number) => setActiveStopId(id)}
                   currentIndex={displayIndex}
                   isExpanded={isMapExpanded}
-                  onProgressChange={setPlaybackProgress}
+                  onProgressChange={handlePlaybackProgress}
+                  stopAddressMap={stopAddressMap}
                   deviceCategory={isCurrentBle ? "BLE" : deviceCategoryFromUrl || "CAR"}
                 />
-                <div>
-                  <div
-                    onClick={handleMapExpand}
-                    className="h-3 w-full bg-[#0c235c] relative flex items-center justify-center hover:cursor-pointer"
-                  >
-                    <div className="flex flex-col items-center bg-[#d7a901] w-[100px]">
-                      <svg
-                        width="16"
-                        height="16"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        className="text-gray-600"
-                        style={{
-                          transform: isMapExpanded
-                            ? "rotate(180deg)"
-                            : "rotate(0deg)",
-                        }}
-                      >
-                        <path
-                          d="M7 10L12 15L17 10"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
-                      <svg
-                        width="16"
-                        height="16"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        className="text-gray-600 -mt-3"
-                        style={{
-                          transform: isMapExpanded
-                            ? "rotate(180deg)"
-                            : "rotate(0deg)",
-                        }}
-                      >
-                        <path
-                          d="M7 10L12 15L17 10"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div
-                className={`relative z-0 isolate w-full mt-3 transition-all duration-300 ease-in-out ${isMapExpanded
-                  ? "h-[80vh] md:h-[60vh] lg:h-[70vh]"
-                  : "h-[60vh] md:h-[45vh] lg:h-[55vh]"
-                  }`}
-              >
-                {hasGenerated && (!activePlayback || activePlayback.length === 0) ? (
-                  <div className="flex flex-col items-center justify-center w-full h-full bg-white/50 backdrop-blur-sm rounded-lg border-2 border-dashed border-gray-300">
-                    <MapPinOff className="w-16 h-16 text-gray-400 mb-4" />
-                    <h3 className="text-xl font-semibold text-gray-700">No History Available</h3>
-                    <p className="text-gray-500 mt-2 text-center max-w-md px-4">
-                      No playback data found for the selected vehicle and date range.
-                      <br />Please try adjusting your filters.
-                    </p>
-                  </div>
-                ) : (
-                  <VehicleMap
-                    ref={vehicleMapRef}
-                    data={activePlayback}
-                    stops={showStopsOnMap ? derivedStops : []}
-                    activeStopId={activeStopId}
-                    onStopClick={(id: number) => setActiveStopId(id)}
-                    currentIndex={displayIndex}
-                    isExpanded={isMapExpanded}
-                    onProgressChange={handlePlaybackProgress}
-                    stopAddressMap={stopAddressMap}
-                    deviceCategory={isCurrentBle ? "BLE" : deviceCategoryFromUrl || "CAR"}
-                  />
-                )}
+              )}
 
-                <div>
-                  <div
-                    onClick={handleMapExpand}
-                    className="h-3 w-full bg-[#0c235c] relative flex items-center justify-center hover:cursor-pointer"
-                  >
-                    <div className="flex flex-col items-center bg-[#d7a901] w-[100px]">
-                      <svg
-                        width="16"
-                        height="16"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        className="text-gray-600"
-                        style={{
-                          transform: isMapExpanded
-                            ? "rotate(180deg)"
-                            : "rotate(0deg)",
-                        }}
-                      >
-                        <path
-                          d="M7 10L12 15L17 10"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
-                      <svg
-                        width="16"
-                        height="16"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        className="text-gray-600 -mt-3"
-                        style={{
-                          transform: isMapExpanded
-                            ? "rotate(180deg)"
-                            : "rotate(0deg)",
-                        }}
-                      >
-                        <path
-                          d="M7 10L12 15L17 10"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
-                    </div>
+              <div>
+                <div
+                  onClick={handleMapExpand}
+                  className="h-3 w-full bg-[#0c235c] relative flex items-center justify-center hover:cursor-pointer"
+                >
+                  <div className="flex flex-col items-center bg-[#d7a901] w-[100px]">
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      className="text-gray-600"
+                      style={{
+                        transform: isMapExpanded
+                          ? "rotate(180deg)"
+                          : "rotate(0deg)",
+                      }}
+                    >
+                      <path
+                        d="M7 10L12 15L17 10"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      className="text-gray-600 -mt-3"
+                      style={{
+                        transform: isMapExpanded
+                          ? "rotate(180deg)"
+                          : "rotate(0deg)",
+                      }}
+                    >
+                      <path
+                        d="M7 10L12 15L17 10"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
                   </div>
                 </div>
               </div>
-            )}
+            </div>
           </div>
 
           {/* ✅ Metrics Section with Speed Graph */}

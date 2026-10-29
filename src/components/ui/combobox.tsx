@@ -171,14 +171,13 @@ export function Combobox({
   const handleSingleSelect = React.useCallback(
     (currentValue: string) => {
       console.log("🖱️ Combobox handleSingleSelect:", currentValue);
-      const newValue = currentValue === value ? undefined : currentValue;
-      setValue(newValue);
+      setValue(currentValue);
 
       if (shouldCloseOnSelect) {
         setOpen(false);
       }
     },
-    [value, setValue, setOpen, shouldCloseOnSelect]
+    [setValue, setOpen, shouldCloseOnSelect]
   );
 
   // Multi select handler
@@ -248,7 +247,11 @@ export function Combobox({
 
       return null; // Will show badges instead
     } else {
-      const selectedItem = items.find((item) => item.value === value);
+      const selectedItem = items.find(
+        (item) =>
+          item.value === value ||
+          (value != null && String(item.value).toLowerCase() === String(value).toLowerCase())
+      );
       return selectedItem ? selectedItem.label : placeholder;
     }
   }, [
@@ -458,8 +461,8 @@ export function Combobox({
               {items.map((item, idx) => (
                 <CommandItem
                   key={`${item.value}-${idx}`}
-                  value={item.value}
-                  onSelect={handleSelect}
+                  value={item.label || item.value}
+                  onSelect={() => handleSelect(item.value)}
                   className="cursor-pointer"
                 >
                   {multiple && (

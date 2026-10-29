@@ -523,19 +523,24 @@ const VehicleMapInner = forwardRef<VehicleMapHandle, VehicleMapProps>((
 
     return () => {
       if (mapRef.current) {
-        mapRef.current.off("zoomend", handleZoomEnd);
-        mapRef.current.off("moveend", handleMoveEnd);
-        mapRef.current.off("resize", updateArrowVisibility);
+        try {
+          mapRef.current.stop();
+        } catch {}
+        try {
+          mapRef.current.off();
+        } catch {}
         allArrowMarkersRef.current.forEach((marker) => marker.remove());
         allArrowMarkersRef.current = [];
         if (startFlagRef.current) startFlagRef.current.remove();
         if (endFlagRef.current) endFlagRef.current.remove();
         if (markerPlayerRef.current) markerPlayerRef.current.remove();
-        mapRef.current.remove();
+        try {
+          mapRef.current.remove();
+        } catch {}
         mapRef.current = null;
       }
     };
-  }, [data, handleZoomEnd, handleMoveEnd, updateArrowVisibility]);
+  }, []);
 
   // Handle tile layer changes
   useEffect(() => {
@@ -589,7 +594,7 @@ const VehicleMapInner = forwardRef<VehicleMapHandle, VehicleMapProps>((
       try {
         const bounds = polylineRef.current.getBounds();
         if (bounds.isValid()) {
-          map.fitBounds(bounds, { padding: [50, 50], maxZoom: 17 });
+          map.fitBounds(bounds, { padding: [50, 50], maxZoom: 17, animate: false });
         }
       } catch (e) {
         console.warn("Could not fit route bounds:", e);

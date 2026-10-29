@@ -196,9 +196,20 @@ export default function GeoTagMasterPage() {
     fetchDevices();
   }, [fetchDevices]);
 
-  const handleRefresh = () => {
+  const handleRefresh = async () => {
     setIsRefreshing(true);
-    fetchDevices();
+    try {
+      await bleService.syncBleDevices();
+      toast.success("Devices synced successfully");
+    } catch (err: any) {
+      console.error("Failed to sync BLE devices:", err);
+      toast.error("Failed to sync devices", {
+        description:
+          err?.response?.data?.message || err?.message || "Sync failed",
+      });
+    } finally {
+      fetchDevices();
+    }
   };
 
   // Map devices for table
