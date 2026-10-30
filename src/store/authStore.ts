@@ -51,6 +51,7 @@ export interface UserAccessPermissions {
     alertsEvents?: boolean;
     geofenceReport?: boolean;
     routeReport?: boolean;
+    pickupAndDrop?: boolean;
     ePoliceReport?: boolean;
     [key: string]: boolean | undefined;
   };

@@ -464,8 +464,9 @@ export function CustomTableServerSidePagination<
                                     const vehicleNumberCell = row
                                       .getVisibleCells()
                                       .find(
-                                        (cell) =>
-                                          cell.column.id === "vehicleNumber"
+                                        (cell: any) =>
+                                          cell.column.id === "vehicleNumber" ||
+                                          cell.column.id === "vehicleName"
                                       );
                                     if (vehicleNumberCell) {
                                       return flexRender(

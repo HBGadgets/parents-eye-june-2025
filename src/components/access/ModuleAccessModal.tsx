@@ -51,7 +51,6 @@ export const MODULE_PERMISSIONS_SCHEMA: Record<
     { key: "ticketTypes", label: "Ticket Types", description: "Support ticket categories" },
   ],
   school: [
-    { key: "pickupAndDrop", label: "Pickup And Drop", description: "Student pickup & drop status" },
     { key: "leaveRequest", label: "Leave Request", description: "Student leave submissions & approvals" },
     { key: "sendBroadcast", label: "Send Broadcast", description: "Broadcast messaging to parents" },
     { key: "driverApprove", label: "Driver Approve", description: "Driver account approval & onboarding" },
@@ -70,7 +69,8 @@ export const MODULE_PERMISSIONS_SCHEMA: Record<
     { key: "alert", label: "Alerts/Events", description: "SOS, overspeed, tampering alerts" },
     { key: "geofenceReport", label: "Geofence Report", description: "Geofence entry/exit timestamp report" },
     { key: "routeReport", label: "Route Report", description: "Route schedule completion report" },
-    { key: "ePoliceReport", label: "e-Police Report", description: "Police submission report" },
+    { key: "pickupAndDrop", label: "Pickup And Drop", description: "Student pickup & drop status" },
+    // { key: "ePoliceReport", label: "e-Police Report", description: "Police submission report" },
   ],
 };
 
@@ -152,6 +152,7 @@ const DEFAULT_ACCESS: UserAccessPermissions = {
     alert: true,
     geofenceReport: true,
     routeReport: true,
+    pickupAndDrop: true,
     ePoliceReport: false,
   },
 };

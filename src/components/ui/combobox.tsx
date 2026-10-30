@@ -401,15 +401,35 @@ export function Combobox({
         <Command
           filter={(value, search) => {
             if (onSearchChange) return 1;
+            if (!search) return 1;
 
-            const item = items.find((item) => item.value === value);
-            if (!item) return 0;
+            const searchLower = String(search).trim().toLowerCase();
+            if (!searchLower) return 1;
 
-            const searchLower = search?.toLowerCase();
-            const labelMatch = item.label?.toLowerCase()?.includes(searchLower);
-            const valueMatch = item.value?.toLowerCase()?.includes(searchLower);
+            const item = items.find((item) => {
+              const labelStr = String(item.label || "").toLowerCase();
+              const valueStr = String(item.value || "").toLowerCase();
+              const targetVal = String(value || "").toLowerCase();
+              return (
+                targetVal === labelStr ||
+                targetVal === valueStr ||
+                targetVal === `${labelStr} ${valueStr}`.trim()
+              );
+            });
 
-            return labelMatch || valueMatch ? 1 : 0;
+            if (item) {
+              const labelMatch = String(item.label || "")
+                .toLowerCase()
+                .includes(searchLower);
+              const valueMatch = String(item.value || "")
+                .toLowerCase()
+                .includes(searchLower);
+              if (labelMatch || valueMatch) return 1;
+            }
+
+            return String(value || "").toLowerCase().includes(searchLower)
+              ? 1
+              : 0;
           }}
         >
           <CommandInput
@@ -461,7 +481,7 @@ export function Combobox({
               {items.map((item, idx) => (
                 <CommandItem
                   key={`${item.value}-${idx}`}
-                  value={item.label || item.value}
+                  value={`${item.label || ""} ${item.value || ""}`.trim() || item.value}
                   onSelect={() => handleSelect(item.value)}
                   className="cursor-pointer"
                 >

@@ -11,7 +11,11 @@ import {
 } from "@/hooks/useDropdown";
 import { useStudent } from "@/hooks/useStudent";
 import { Student } from "@/interface/modal";
-import { SortingState, PaginationState } from "@tanstack/react-table";
+import type { ColumnDef, SortingState, PaginationState } from "@/components/ui/customTable(serverSidePagination)";
+import { useQuery, keepPreviousData } from "@tanstack/react-query";
+import { api } from "@/services/apiService";
+import { TravelTable } from "@/components/travel-summary/TravelTable";
+import { useExport } from "@/hooks/useExport";
 import { jwtDecode } from "jwt-decode";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Cookies from "js-cookie";
@@ -19,7 +23,19 @@ import { Button } from "@/components/ui/button";
 import { SearchBar } from "@/components/search-bar/SearchBarPagination";
 import { useDebounce } from "@/hooks/useDebounce";
 import { Combobox } from "@/components/ui/combobox";
-import { X, Upload, XCircle, Clock, CheckCircle, FilterX } from "lucide-react";
+import {
+  X,
+  Upload,
+  XCircle,
+  Clock,
+  CheckCircle,
+  FilterX,
+  ChevronDown,
+  Check,
+  Car,
+  User,
+} from "lucide-react";
+import { FaPlus, FaMinus } from "react-icons/fa";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { ExcelUploader } from "@/components/excel-uploader/ExcelUploader";
@@ -91,7 +107,7 @@ export default function StudentDetails() {
     const updateOptimalPageSize = () => {
       if (userChangedPageSizeRef.current) return;
       const optimalSize = calculateOptimalSize();
-      setPagination((prev) => {
+      setPagination((prev: PaginationState) => {
         if (prev.pageSize !== optimalSize) {
           return { ...prev, pageSize: optimalSize };
         }
@@ -122,7 +138,7 @@ export default function StudentDetails() {
 
   const handlePaginationChange = useCallback(
     (updater: PaginationState | ((prev: PaginationState) => PaginationState)) => {
-      setPagination((prev) => {
+      setPagination((prev: PaginationState) => {
         const next = typeof updater === "function" ? updater(prev) : updater;
         if (next.pageSize !== prev.pageSize) {
           userChangedPageSizeRef.current = true;
@@ -142,6 +158,9 @@ export default function StudentDetails() {
     }
     return [...defaultOptions, "All"];
   }, [pagination.pageSize]);
+
+  // ---------------- View Mode State (Student Wise vs Vehicle Wise) ----------------
+  const [viewMode, setViewMode] = useState<"student" | "vehicle">("student");
 
   // ---------------- Search State ----------------
   const [searchInput, setSearchInput] = useState("");
@@ -249,7 +268,7 @@ export default function StudentDetails() {
 
   // ---------------- Reset Pagination When Filters Change ----------------
   useEffect(() => {
-    setPagination((p) => ({ ...p, pageIndex: 0 }));
+    setPagination((p: PaginationState) => ({ ...p, pageIndex: 0 }));
   }, [filters.search, filters.schoolId, filters.branchId, filters.routeObjId]);
 
   // ---------------- Dropdown Data ----------------
@@ -264,28 +283,34 @@ export default function StudentDetails() {
   // ---------------- Dropdown Items ----------------
   const schoolItems = useMemo(
     () =>
-      schools.map((s) => ({
-        label: s.schoolName!,
-        value: s._id,
-      })),
+      Array.isArray(schools)
+        ? schools.map((s: any) => ({
+            label: s.schoolName!,
+            value: s._id,
+          }))
+        : [],
     [schools]
   );
 
   const filterBranchItems = useMemo(
     () =>
-      filterBranches.map((b) => ({
-        label: b.branchName!,
-        value: b._id,
-      })),
+      Array.isArray(filterBranches)
+        ? filterBranches.map((b: any) => ({
+            label: b.branchName!,
+            value: b._id,
+          }))
+        : [],
     [filterBranches]
   );
 
   const routeItems = useMemo(
     () =>
-      routes.map((r: any) => ({
-        label: r.routeNumber,
-        value: r._id,
-      })),
+      Array.isArray(routes)
+        ? routes.map((r: any) => ({
+            label: r.routeNumber,
+            value: r._id,
+          }))
+        : [],
     [routes]
   );
 
@@ -378,7 +403,7 @@ export default function StudentDetails() {
 
         // Close dialog and refresh data
         setShowUploadDialog(false);
-        setPagination((p) => ({ ...p, pageIndex: 0 }));
+        setPagination((p: PaginationState) => ({ ...p, pageIndex: 0 }));
       } catch (error: any) {
         const errorMessage =
           error?.response?.data?.message ||
@@ -438,13 +463,13 @@ export default function StudentDetails() {
     if (role === "superAdmin") {
       cols.splice(cols.length - 1, 0, {
         header: "Registration Status",
-        cell: ({ row }) => {
+        cell: ({ row }: { row: any }) => {
           const { statusOfRegister, _id } = row.original;
 
           const StatusSegmentedControl = () => {
             const [status, setStatus] = useState(statusOfRegister);
 
-            const handleStatusChange = (newStatus) => {
+            const handleStatusChange = (newStatus: any) => {
               setStatus(newStatus);
               approveStudent({
                 id: _id,
@@ -501,7 +526,7 @@ export default function StudentDetails() {
   // ---------------- Table ----------------
   const { table, tableElement, selectedRows } = CustomTableServerSidePagination(
     {
-      data: students || [],
+      data: (students || []) as unknown as Record<string, unknown>[],
       columns,
       pagination,
       totalCount: total,
@@ -535,10 +560,633 @@ export default function StudentDetails() {
     table?.resetRowSelection?.();
   }, [deleteStudent, selectedRows, table, selectedCount]);
 
+  // =========================================================================
+  // VEHICLE-WISE STUDENTS IMPLEMENTATION
+  // =========================================================================
+  const { exportToPDF, exportToExcel } = useExport();
+
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  const [vehiclePagination, setVehiclePagination] = useState<PaginationState>({
+    pageIndex: 0,
+    pageSize: 10,
+  });
+  const [vehicleSorting, setVehicleSorting] = useState<SortingState>([]);
+
+  const toggleRowExpansion = useCallback((rowId: string) => {
+    setExpandedRows((prev) => {
+      const next = new Set(prev);
+      if (next.has(rowId)) {
+        next.delete(rowId);
+      } else {
+        next.add(rowId);
+      }
+      return next;
+    });
+  }, []);
+
+  // Reset vehicle pagination on filter changes
+  useEffect(() => {
+    if (viewMode === "vehicle") {
+      setVehiclePagination((p: PaginationState) => ({ ...p, pageIndex: 0 }));
+    }
+  }, [debouncedSearch, filterSchoolId, filterBranchId, filterRouteId, viewMode]);
+
+  // ---------------- Vehicle Wise API Query ----------------
+  const {
+    data: vehicleResponse,
+    isLoading: isVehicleLoading,
+    isFetching: isVehicleFetching,
+  } = useQuery({
+    queryKey: [
+      "vehicle-wise-students",
+      vehiclePagination,
+      vehicleSorting,
+      debouncedSearch,
+      filterSchoolId,
+      filterBranchId,
+      filterRouteId,
+    ],
+    queryFn: async () => {
+      const params = new URLSearchParams({
+        page: (vehiclePagination.pageIndex + 1).toString(),
+        limit: vehiclePagination.pageSize.toString(),
+      });
+
+      if (debouncedSearch?.trim()) {
+        params.append("search", debouncedSearch.trim());
+      }
+      if (filterSchoolId) {
+        params.append("schoolId", filterSchoolId);
+      }
+      if (filterBranchId) {
+        params.append("branchId", filterBranchId);
+      }
+      if (filterRouteId) {
+        params.append("routeObjId", filterRouteId);
+      }
+      if (vehicleSorting.length > 0) {
+        params.append("sortBy", vehicleSorting[0].id);
+        params.append("sortOrder", vehicleSorting[0].desc ? "desc" : "asc");
+      }
+
+      const response: any = await api.get(
+        `/report/vehicle-wise-students?${params.toString()}`
+      );
+
+      let rawVehicles: any[] = [];
+      if (response?.data) {
+        if (Array.isArray(response.data)) {
+          rawVehicles = response.data;
+        } else if (typeof response.data === "object" && response.data !== null) {
+          rawVehicles = Object.values(response.data);
+        }
+      } else if (Array.isArray(response)) {
+        rawVehicles = response;
+      }
+
+      const validVehicles = rawVehicles.filter(
+        (v) =>
+          v &&
+          typeof v === "object" &&
+          (v.vehicleName ||
+            v.deviceName ||
+            v.deviceId ||
+            v.uniqueId ||
+            v.route ||
+            Array.isArray(v.students))
+      );
+
+      const parsedVehicles = validVehicles.map((vehicle: any, index: number) => {
+        const vName =
+          vehicle.vehicleName?.trim() ||
+          vehicle.deviceName?.trim() ||
+          vehicle.name?.trim() ||
+          "-";
+
+        const rNumber =
+          vehicle.route?.routeNumber ||
+          vehicle.route?.routeName ||
+          vehicle.routeNumber ||
+          "-";
+
+        let dName = "-";
+        if (vehicle.driver) {
+          if (typeof vehicle.driver === "object") {
+            dName = vehicle.driver.driverName || vehicle.driver.name || "-";
+          } else if (typeof vehicle.driver === "string") {
+            dName = vehicle.driver;
+          }
+        }
+
+        const rawStudentsList: any[] = Array.isArray(vehicle.students)
+          ? vehicle.students
+          : vehicle.students && typeof vehicle.students === "object"
+          ? Object.values(vehicle.students)
+          : [];
+
+        const vSchool =
+          vehicle.school?.schoolName ||
+          vehicle.schoolName ||
+          rawStudentsList[0]?.school?.schoolName ||
+          "-";
+
+        const vBranch =
+          vehicle.branch?.branchName ||
+          vehicle.branchName ||
+          rawStudentsList[0]?.branch?.branchName ||
+          "-";
+
+        const students = rawStudentsList.map((student: any, sIdx: number) => {
+          const studentName =
+            student.childName ||
+            student.studentName ||
+            student.name ||
+            student.parent?.parentName ||
+            "-";
+
+          const className = student.className
+            ? `${student.className}${student.section ? ` - ${student.section}` : ""}`
+            : student.section || "-";
+
+          const rollNumber = student.rollNumber || "-";
+          const gender = student.gender || "-";
+          const parentName = student.parent?.parentName || "-";
+          const contact =
+            student.parent?.mobileNo ||
+            student.mobileNo ||
+            student.contact ||
+            "-";
+
+          const pickupAddress =
+            (typeof student.pickupGeofence === "object"
+              ? student.pickupGeofence?.name ||
+                student.pickupGeofence?.address
+              : student.pickupGeofence) ||
+            "-";
+
+          const dropAddress =
+            (typeof student.dropGeofence === "object"
+              ? student.dropGeofence?.name ||
+                student.dropGeofence?.address
+              : student.dropGeofence) ||
+            "-";
+
+          return {
+            _id: student._id || `${vehicle.deviceId || vName}-${sIdx}`,
+            studentName,
+            className,
+            rollNumber,
+            gender,
+            parentName,
+            contact,
+            pickupTime: student.pickupTime || "-",
+            dropTime: student.dropTime || "-",
+            pickupAddress,
+            dropAddress,
+            statusOfRegister: student.statusOfRegister || "registered",
+          };
+        });
+
+        const totalStudents = vehicle.totalStudents ?? students.length;
+        const vehicleId = vehicle.deviceId || vehicle._id || `${vName}-${index}`;
+
+        return {
+          id: `vehicle-${vehicleId}`,
+          sn: index + 1 + vehiclePagination.pageIndex * vehiclePagination.pageSize,
+          deviceId: vehicle.deviceId,
+          vehicleName: vName,
+          deviceName: vehicle.deviceName,
+          uniqueId: vehicle.uniqueId,
+          routeNumber: rNumber,
+          driverName: dName,
+          totalStudents,
+          schoolName: vSchool,
+          branchName: vBranch,
+          students,
+        };
+      });
+
+      const total =
+        response?.total ??
+        response?.totalCount ??
+        response?.data?.total ??
+        parsedVehicles.length;
+
+      const totalPages =
+        response?.totalPages ??
+        response?.data?.totalPages ??
+        (Math.ceil(total / vehiclePagination.pageSize) || 1);
+
+      return {
+        vehicles: parsedVehicles,
+        total,
+        totalPages,
+      };
+    },
+    enabled: viewMode === "vehicle",
+    placeholderData: keepPreviousData,
+  });
+
+  // ---------------- Nested Student Detail Columns in Vehicle Mode ----------------
+  const vehicleNestedStudentColumns: ColumnDef<any>[] = useMemo(
+    () => [
+      {
+        accessorKey: "studentName",
+        header: "Student Name",
+        cell: ({ row }: any) => (
+          <span className="font-semibold text-gray-900 whitespace-nowrap">
+            {row.original.studentName}
+          </span>
+        ),
+      },
+      {
+        accessorKey: "className",
+        header: "Class & Sec",
+        cell: ({ row }: any) => (
+          <span className="whitespace-nowrap">{row.original.className || "-"}</span>
+        ),
+      },
+      {
+        accessorKey: "rollNumber",
+        header: "Roll No",
+        cell: ({ row }: any) => row.original.rollNumber || "-",
+      },
+      {
+        accessorKey: "gender",
+        header: "Gender",
+        cell: ({ row }: any) => (
+          <span className="capitalize">{row.original.gender || "-"}</span>
+        ),
+      },
+      {
+        accessorKey: "parentName",
+        header: "Parent Name",
+        cell: ({ row }: any) => (
+          <span className="whitespace-nowrap">{row.original.parentName || "-"}</span>
+        ),
+      },
+      {
+        accessorKey: "contact",
+        header: "Contact",
+        cell: ({ row }: any) => (
+          <span className="whitespace-nowrap">{row.original.contact || "-"}</span>
+        ),
+      },
+      {
+        accessorKey: "pickupAddress",
+        header: "Pickup Location",
+        cell: ({ row }: any) => (
+          <span
+            className="text-xs truncate max-w-[150px] inline-block"
+            title={row.original.pickupAddress}
+          >
+            {row.original.pickupAddress || "-"}
+          </span>
+        ),
+      },
+      {
+        accessorKey: "pickupTime",
+        header: "Pickup Time",
+        cell: ({ row }: any) => (
+          <span className="text-xs whitespace-nowrap font-medium text-gray-700">
+            {row.original.pickupTime || "-"}
+          </span>
+        ),
+      },
+      {
+        accessorKey: "dropAddress",
+        header: "Drop Location",
+        cell: ({ row }: any) => (
+          <span
+            className="text-xs truncate max-w-[150px] inline-block"
+            title={row.original.dropAddress}
+          >
+            {row.original.dropAddress || "-"}
+          </span>
+        ),
+      },
+      {
+        accessorKey: "dropTime",
+        header: "Drop Time",
+        cell: ({ row }: any) => (
+          <span className="text-xs whitespace-nowrap font-medium text-gray-700">
+            {row.original.dropTime || "-"}
+          </span>
+        ),
+      },
+      {
+        accessorKey: "statusOfRegister",
+        header: "Status",
+        cell: ({ row }: any) => {
+          const status = row.original.statusOfRegister || "registered";
+          const color =
+            status === "registered"
+              ? "bg-green-100 text-green-700 border-green-200"
+              : status === "rejected"
+              ? "bg-red-100 text-red-700 border-red-200"
+              : "bg-yellow-100 text-yellow-700 border-yellow-200";
+          return (
+            <span
+              className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium border capitalize ${color}`}
+            >
+              {status}
+            </span>
+          );
+        },
+      },
+    ],
+    []
+  );
+
+  // ---------------- Master Vehicle Columns ----------------
+  const vehicleColumns: ColumnDef<any>[] = useMemo(
+    () => [
+      {
+        accessorKey: "sn",
+        header: "SN",
+        size: 50,
+        cell: ({ row }: any) => {
+          if (row.original.isDetailTable || row.original.isEmpty) return null;
+          return row.original.sn;
+        },
+        enableSorting: false,
+        enableHiding: false,
+      },
+      {
+        id: "vehicleNumber",
+        accessorKey: "vehicleName",
+        header: "Vehicle Number",
+        size: 220,
+        cell: ({ row }: any) => {
+          if (row.original.isDetailTable && row.original.detailData) {
+            return (
+              <div className="col-span-full w-full">
+                <div className="w-full bg-gray-50 rounded-lg p-4 my-2 border border-gray-200 shadow-sm">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-sm font-semibold text-gray-700">
+                      Students ({row.original.detailData.length})
+                    </span>
+                  </div>
+                  <TravelTable
+                    columns={vehicleNestedStudentColumns}
+                    data={row.original.detailData}
+                    totalCount={row.original.detailData.length}
+                  />
+                </div>
+              </div>
+            );
+          }
+
+          if (row.original.isEmpty) {
+            return (
+              <div className="col-span-full w-full">
+                <div className="w-full bg-gray-50 rounded-lg p-4 my-2 border border-gray-200 text-center text-sm text-gray-500">
+                  No students assigned to this vehicle
+                </div>
+              </div>
+            );
+          }
+
+          const isExpanded = expandedRows.has(row.original.id);
+          const studentCount =
+            row.original.students?.length ?? row.original.totalStudents ?? 0;
+
+          return (
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleRowExpansion(row.original.id);
+                }}
+                className={`p-1 rounded transition-colors ${
+                  studentCount === 0
+                    ? "text-gray-300 cursor-not-allowed"
+                    : "text-gray-600 hover:text-black hover:bg-gray-100 cursor-pointer"
+                }`}
+                title={isExpanded ? "Collapse students" : "Expand students"}
+              >
+                {isExpanded ? (
+                  <FaMinus className="h-3 w-3" />
+                ) : (
+                  <FaPlus className="h-3 w-3" />
+                )}
+              </button>
+              <span className="font-semibold text-gray-900">
+                {row.original.vehicleName}
+              </span>
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: "routeNumber",
+        header: "Route",
+        cell: ({ row }: any) =>
+          row.original.isDetailTable || row.original.isEmpty
+            ? null
+            : row.original.routeNumber || "-",
+      },
+      ...(role === "superAdmin"
+        ? [
+            {
+              accessorKey: "schoolName",
+              header: "School",
+              cell: ({ row }: any) =>
+                row.original.isDetailTable || row.original.isEmpty
+                  ? null
+                  : row.original.schoolName || "-",
+            },
+          ]
+        : []),
+      {
+        accessorKey: "branchName",
+        header: "Branch",
+        cell: ({ row }: any) =>
+          row.original.isDetailTable || row.original.isEmpty
+            ? null
+            : row.original.branchName || "-",
+      },
+      {
+        accessorKey: "totalStudents",
+        header: "Total Students",
+        cell: ({ row }: any) => {
+          if (row.original.isDetailTable || row.original.isEmpty) return null;
+          return (
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+              {row.original.totalStudents ?? 0}
+            </span>
+          );
+        },
+      },
+    ],
+    [expandedRows, toggleRowExpansion, role, vehicleNestedStudentColumns]
+  );
+
+  // ---------------- Flattened Vehicle Expanded Data ----------------
+  const vehicleExpandedDataArray = useMemo(() => {
+    const list = vehicleResponse?.vehicles || [];
+    const result: any[] = [];
+    list.forEach((vehicleRow: any) => {
+      result.push(vehicleRow);
+
+      if (expandedRows.has(vehicleRow.id)) {
+        if (vehicleRow.students && vehicleRow.students.length > 0) {
+          result.push({
+            ...vehicleRow,
+            id: `${vehicleRow.id}-details`,
+            isDetailTable: true,
+            detailData: vehicleRow.students,
+          });
+        } else {
+          result.push({
+            ...vehicleRow,
+            id: `${vehicleRow.id}-empty`,
+            isEmpty: true,
+          });
+        }
+      }
+    });
+    return result;
+  }, [vehicleResponse?.vehicles, expandedRows]);
+
+  // ---------------- Vehicle Table Setup ----------------
+  const { table: vehicleTable, tableElement: vehicleTableElement } =
+    CustomTableServerSidePagination({
+      data: vehicleExpandedDataArray,
+      columns: vehicleColumns,
+      pagination: vehiclePagination,
+      totalCount: vehicleResponse?.total || 0,
+      loading: isVehicleLoading || isVehicleFetching,
+      onPaginationChange: setVehiclePagination,
+      onSortingChange: setVehicleSorting,
+      sorting: vehicleSorting,
+      emptyMessage: "No vehicles found",
+      pageSizeOptions: [5, 10, 15, 20, 30, 50, 100, "All"],
+      showSerialNumber: false,
+      enableSorting: true,
+      enableMultiSelect: false,
+      enableVirtualization: false,
+    });
+
+  // ---------------- Vehicle Export Handlers ----------------
+  const handleVehicleExcelExport = () => {
+    const vList = vehicleResponse?.vehicles || [];
+    const exportCols = [
+      { key: "sn", header: "S.No." },
+      { key: "vehicleName", header: "Vehicle Number" },
+      { key: "routeNumber", header: "Route" },
+      ...(role === "superAdmin" ? [{ key: "schoolName", header: "School" }] : []),
+      { key: "branchName", header: "Branch" },
+      { key: "totalStudents", header: "Total Students" },
+    ];
+    const nestedExportCols = [
+      { key: "studentName", header: "Student Name" },
+      { key: "className", header: "Class & Sec" },
+      { key: "rollNumber", header: "Roll No." },
+      { key: "gender", header: "Gender" },
+      { key: "parentName", header: "Parent Name" },
+      { key: "contact", header: "Contact" },
+      { key: "pickupAddress", header: "Pickup Location" },
+      { key: "pickupTime", header: "Pickup Time" },
+      { key: "dropAddress", header: "Drop Location" },
+      { key: "dropTime", header: "Drop Time" },
+      { key: "statusOfRegister", header: "Status" },
+    ];
+
+    exportToExcel(vList, exportCols, {
+      filename: "vehicle_wise_students",
+      title: "Vehicle Wise Students Report",
+      nestedTable: {
+        dataKey: "students",
+        columns: nestedExportCols,
+        title: "Students",
+      },
+    });
+  };
+
+  const handleVehiclePDFExport = () => {
+    const vList = vehicleResponse?.vehicles || [];
+    const exportCols = [
+      { key: "sn", header: "S.No." },
+      { key: "vehicleName", header: "Vehicle Number" },
+      { key: "routeNumber", header: "Route" },
+      ...(role === "superAdmin" ? [{ key: "schoolName", header: "School" }] : []),
+      { key: "branchName", header: "Branch" },
+      { key: "totalStudents", header: "Total Students" },
+    ];
+    const nestedExportCols = [
+      { key: "studentName", header: "Student Name" },
+      { key: "className", header: "Class & Sec" },
+      { key: "rollNumber", header: "Roll No." },
+      { key: "gender", header: "Gender" },
+      { key: "parentName", header: "Parent Name" },
+      { key: "contact", header: "Contact" },
+      { key: "pickupAddress", header: "Pickup Location" },
+      { key: "pickupTime", header: "Pickup Time" },
+      { key: "dropAddress", header: "Drop Location" },
+      { key: "dropTime", header: "Drop Time" },
+      { key: "statusOfRegister", header: "Status" },
+    ];
+
+    exportToPDF(vList, exportCols, {
+      filename: "vehicle_wise_students",
+      title: "Vehicle Wise Students Report",
+      nestedTable: {
+        dataKey: "students",
+        columns: nestedExportCols,
+        title: "Students",
+      },
+    });
+  };
+
   return (
     <div className="flex flex-col flex-1 min-h-0">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-bold mb-3">Students</h2>
+        <div className="flex items-center gap-3 mb-3">
+          {/* Dropdown Menu on Click */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                className="flex items-center gap-2 text-xl font-bold text-gray-900 hover:text-primary transition-colors cursor-pointer group focus:outline-none"
+                title="Click to switch view mode"
+              >
+                <span>
+                  {viewMode === "vehicle" ? "Vehicle Wise Students" : "Students"}
+                </span>
+                <ChevronDown className="h-5 w-5 text-gray-400 group-hover:text-primary transition-transform duration-200" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-56">
+              <DropdownMenuItem
+                className={`cursor-pointer flex items-center justify-between py-2 ${
+                  viewMode === "student" ? "font-semibold bg-gray-100" : ""
+                }`}
+                onClick={() => setViewMode("student")}
+              >
+                <div className="flex items-center gap-2">
+                  <User className="h-4 w-4 text-gray-600" />
+                  <span>Student Wise</span>
+                </div>
+                {viewMode === "student" && <Check className="h-4 w-4 text-primary" />}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                className={`cursor-pointer flex items-center justify-between py-2 ${
+                  viewMode === "vehicle" ? "font-semibold bg-gray-100" : ""
+                }`}
+                onClick={() => setViewMode("vehicle")}
+              >
+                <div className="flex items-center gap-2">
+                  <Car className="h-4 w-4 text-gray-600" />
+                  <span>Vehicle Wise</span>
+                </div>
+                {viewMode === "vehicle" && <Check className="h-4 w-4 text-primary" />}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+
         <div className="flex gap-3">
           {/* CLEAR FILTERS BUTTON */}
           <Button
@@ -553,11 +1201,11 @@ export default function StudentDetails() {
             Clear Filters
           </Button>
           <Button
-            disabled={!selectedCount || isDeleteLoading}
+            disabled={!selectedCount || isDeleteLoading || viewMode === "vehicle"}
             onClick={handleBulkDelete}
             variant={selectedCount ? "destructive" : "outline"}
             size="sm"
-            className={`transition shrink-0 ${!selectedCount || isDeleteLoading
+            className={`transition shrink-0 ${!selectedCount || isDeleteLoading || viewMode === "vehicle"
               ? "cursor-not-allowed"
               : "cursor-pointer"
               }`}
@@ -581,13 +1229,21 @@ export default function StudentDetails() {
               <DropdownMenuContent>
                 <DropdownMenuItem
                   className="cursor-pointer"
-                  onClick={handleExcelExport}
+                  onClick={
+                    viewMode === "vehicle"
+                      ? handleVehicleExcelExport
+                      : handleExcelExport
+                  }
                 >
                   Export to Excel
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   className="cursor-pointer"
-                  onClick={handlePDFExport}
+                  onClick={
+                    viewMode === "vehicle"
+                      ? handleVehiclePDFExport
+                      : handlePDFExport
+                  }
                 >
                   Export to PDF
                 </DropdownMenuItem>
@@ -604,7 +1260,11 @@ export default function StudentDetails() {
           <SearchBar
             value={searchInput}
             onChange={setSearchInput}
-            placeholder="Search by student name..."
+            placeholder={
+              viewMode === "vehicle"
+                ? "Search vehicle or student..."
+                : "Search by student name..."
+            }
             width="w-[220px]"
           />
 
@@ -617,7 +1277,11 @@ export default function StudentDetails() {
         </div>
 
         <ColumnVisibilitySelector
-          columns={table.getAllColumns()}
+          columns={
+            viewMode === "vehicle"
+              ? vehicleTable.getAllColumns()
+              : table.getAllColumns()
+          }
           buttonVariant="outline"
           buttonSize="default"
           className="cursor-pointer w-[140px]"
@@ -724,13 +1388,19 @@ export default function StudentDetails() {
       {/* RESULTS COUNT */}
       {hasActiveFilters && (
         <div className="text-sm text-muted-foreground mb-2">
-          {total} student{total !== 1 ? "s" : ""} found
+          {viewMode === "vehicle"
+            ? `${vehicleResponse?.total || 0} vehicle${
+                (vehicleResponse?.total || 0) !== 1 ? "s" : ""
+              } found`
+            : `${total} student${total !== 1 ? "s" : ""} found`}
           {searchInput && ` matching "${searchInput}"`}
         </div>
       )}
 
       {/* TABLE */}
-      <div ref={tableWrapperRef} className="flex-1 min-h-0 flex flex-col">{tableElement}</div>
+      <div ref={tableWrapperRef} className="flex-1 min-h-0 flex flex-col">
+        {viewMode === "vehicle" ? vehicleTableElement : tableElement}
+      </div>
 
       {/* ADD/EDIT STUDENT MODAL */}
       {showForm && (

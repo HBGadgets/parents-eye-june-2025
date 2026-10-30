@@ -91,7 +91,6 @@ export const BRANCH_MASTER_ITEMS: NavItemConfig[] = [
 
 // School section baseline (includes School & User management items)
 export const SCHOOL_CONFIG: NavItemConfig[] = [
-  { title: "Pickup And Drop", url: "/dashboard/school/pickup-drop", key: "pickupAndDrop" },
   { title: "Leave Request", url: "/dashboard/school/leave-request", key: "leaveRequest" },
   { title: "Send Broadcast", url: "/dashboard/school/send-broadcast", key: "sendBroadcast" },
   {
@@ -152,10 +151,15 @@ export const REPORTS_CONFIG: NavItemConfig[] = [
     key: "routeReport",
   },
   {
-    title: "e-Police Report",
-    url: "/dashboard/reports/epolice-report",
-    key: "ePoliceReport",
+    title: "Pickup And Drop",
+    url: "/dashboard/reports/pickup-drop",
+    key: "pickupAndDrop",
   },
+  // {
+  //   title: "e-Police Report",
+  //   url: "/dashboard/reports/epolice-report",
+  //   key: "ePoliceReport",
+  // },
 ];
 
 // Support section baseline
@@ -235,7 +239,13 @@ export const getAccessibleSidebarItems = (
       };
       break;
     case "Reports":
-      sectionPermissions = userAccess.reports;
+      sectionPermissions = {
+        ...userAccess.reports,
+        pickupAndDrop:
+          userAccess.reports?.pickupAndDrop ??
+          userAccess.school?.pickupAndDrop ??
+          userAccess.users?.pickupAndDrop,
+      };
       break;
     case "Support":
       // Support items don't have restrictions in schema
