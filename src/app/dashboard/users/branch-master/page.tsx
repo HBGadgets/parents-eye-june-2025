@@ -305,6 +305,8 @@ export default function BranchMaster() {
   const [filterResults, setFilterResults] = useState<branch[]>([]);
   const [accessTarget, setAccessTarget] = useState<branch | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<branch | null>(null);
+  const [deactivateTarget, setDeactivateTarget] = useState<branch | null>(null);
+  const [includeParents, setIncludeParents] = useState<boolean>(false);
   const [editTarget, setEditTarget] = useState<branch | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [moduleAccessTarget, setModuleAccessTarget] = useState<branch | null>(null);
@@ -780,14 +782,28 @@ export default function BranchMaster() {
   });
 
   const deactivateMutation = useMutation({
-    mutationFn: async (branch: any) => {
+    mutationFn: async ({
+      branch,
+      includeParents,
+    }: {
+      branch: branch;
+      includeParents: boolean;
+    }) => {
       const token = Cookies.get("token");
+      const nextActiveState = !branch.Active;
+      const payload: Record<string, any> = {
+        userRole: branch.role || "branch",
+      };
+
+      if (includeParents) {
+        payload.branchAndParentsActive = nextActiveState;
+      } else {
+        payload.Active = nextActiveState;
+      }
+
       return await authAxios.put(
         `/user/deactivate/${branch._id}`,
-        {
-          Active: !branch.Active,
-          userRole: branch.role,
-        },
+        payload,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -795,13 +811,20 @@ export default function BranchMaster() {
         }
       );
     },
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["branches"] });
-      toast.success("Branch status updated successfully.");
+      const actionText = variables.branch.Active ? "deactivated" : "activated";
+      const targetText = variables.includeParents
+        ? "Branch and parents"
+        : "Branch";
+      toast.success(`${targetText} ${actionText} successfully.`);
+      setDeactivateTarget(null);
+      setIncludeParents(false);
     },
     onError: (err: any) => {
       toast.error(
-        `Failed to update branch status: ${err.response?.data?.message || err.message
+        `Failed to update branch status: ${
+          err.response?.data?.message || err.message
         }`
       );
     },
@@ -1059,7 +1082,10 @@ export default function BranchMaster() {
                     ? "bg-red-500 hover:bg-red-600 text-white"
                     : "bg-green-500 hover:bg-green-600 text-white"
                     }`,
-                  onClick: () => deactivateMutation.mutate(row),
+                  onClick: () => {
+                    setIncludeParents(false);
+                    setDeactivateTarget(row);
+                  },
                   disabled: deactivateMutation.isPending,
                 },
               ],
@@ -1353,6 +1379,111 @@ export default function BranchMaster() {
               butttonText="Delete"
               dialogClassName="w-80" // Fixed width of 320px
             />
+          )}
+        </div>
+
+        <div>
+          {deactivateTarget && (
+            <Dialog
+              open={!!deactivateTarget}
+              onOpenChange={(open) => {
+                if (!open) {
+                  setDeactivateTarget(null);
+                  setIncludeParents(false);
+                }
+              }}
+            >
+              <DialogContent className="max-w-md w-full">
+                <DialogHeader>
+                  <DialogTitle>
+                    {deactivateTarget.Active
+                      ? "Deactivate Branch"
+                      : "Activate Branch"}
+                  </DialogTitle>
+                </DialogHeader>
+
+                <div className="py-2 text-sm text-gray-600 space-y-4">
+                  <p>
+                    Are you sure you want to{" "}
+                    <span className="font-semibold text-gray-900">
+                      {deactivateTarget.Active ? "deactivate" : "activate"}
+                    </span>{" "}
+                    branch{" "}
+                    <span className="font-semibold text-gray-900">
+                      &quot;{deactivateTarget.branchName}&quot;
+                    </span>
+                    ?
+                  </p>
+
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-amber-900">
+                    <label className="flex items-start gap-3 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        className="mt-0.5 h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
+                        checked={includeParents}
+                        onChange={(e) => setIncludeParents(e.target.checked)}
+                      />
+                      <div>
+                        <span className="font-semibold text-sm block">
+                          Also {deactivateTarget.Active ? "deactivate" : "activate"} all parents
+                        </span>
+                        <span className="text-xs text-amber-700 block mt-0.5">
+                          {includeParents
+                            ? `Both this branch and all associated parents will be ${
+                                deactivateTarget.Active
+                                  ? "deactivated"
+                                  : "activated"
+                              }.`
+                            : `Only this branch will be ${
+                                deactivateTarget.Active
+                                  ? "deactivated"
+                                  : "activated"
+                              }. Parents status will remain unchanged.`}
+                        </span>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+
+                <DialogFooter className="gap-2 sm:gap-0">
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setDeactivateTarget(null);
+                      setIncludeParents(false);
+                    }}
+                    disabled={deactivateMutation.isPending}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    variant={deactivateTarget.Active ? "destructive" : "default"}
+                    className={
+                      !deactivateTarget.Active
+                        ? "bg-green-600 hover:bg-green-700 text-white"
+                        : ""
+                    }
+                    onClick={() => {
+                      deactivateMutation.mutate({
+                        branch: deactivateTarget,
+                        includeParents,
+                      });
+                    }}
+                    disabled={deactivateMutation.isPending}
+                  >
+                    {deactivateMutation.isPending
+                      ? "Processing..."
+                      : deactivateTarget.Active
+                      ? includeParents
+                        ? "Deactivate Branch & Parents"
+                        : "Deactivate Branch Only"
+                      : includeParents
+                      ? "Activate Branch & Parents"
+                      : "Activate Branch Only"}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           )}
         </div>
       </section>

@@ -37,6 +37,7 @@ import { Eye, EyeOff } from "lucide-react";
 import authAxios from "@/lib/authAxios";
 import { toast } from "sonner";
 import { ModuleAccessModal } from "@/components/access/ModuleAccessModal";
+import Cookies from "js-cookie";
 
 declare module "@tanstack/react-table" {
   interface ColumnMeta<TData, TValue> {
@@ -353,7 +354,7 @@ export default function SchoolMaster() {
         `/user/deactivate/${school._id}`,
         {
           Active: !school.Active,
-          userRole: school.role,
+          userRole: school.role || "school",
         },
         {
           headers: {
