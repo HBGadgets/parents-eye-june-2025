@@ -23,6 +23,7 @@ import { bleService } from "@/services/api/bleService";
 import { useReverseGeocode } from "@/hooks/useReverseGeocoding";
 import { calculateDistance } from "@/util/calculate-distance";
 import { FaMapMarkerAlt } from "react-icons/fa";
+import { X } from "lucide-react";
 import SingleDeviceLiveTrack from "./single-device-livetrack";
 
 interface Imei {
@@ -502,30 +503,45 @@ export const LiveTrack = ({ open, setOpen, selectedImei }: LiveTrackProps) => {
   if (isDesktop) {
     return (
       <Dialog open={open} onOpenChange={handleDialogClose}>
-        <DialogContent className="h-[100vh] max-h-[100vh] w-full">
-          <DialogHeader className="px-6 border-b pb-3">
+        <DialogContent
+          showCloseButton={false}
+          className="fixed inset-0 top-0 left-0 translate-x-0 translate-y-0 w-screen h-screen max-w-none sm:max-w-none lg:max-w-none rounded-none border-0 p-0 flex flex-col overflow-hidden gap-0 bg-white"
+        >
+          <DialogHeader className="px-6 py-3 border-b shrink-0 bg-white z-10">
             <DialogTitle className="flex items-center justify-between gap-3">
-              <div className="flex flex-col gap-2 flex-1 min-w-0">
-                <div className="flex flex-col items-start  gap-2">
+              <div className="flex flex-col gap-1.5 flex-1 min-w-0">
+                <div className="flex flex-col items-start gap-1">
                   <div className="flex items-center gap-2">
                     {isLiveActive && (
-                      <span className="px-2 py-1 text-xs font-medium bg-green-100 text-green-800 rounded-full">
+                      <span className="px-2 py-0.5 text-xs font-medium bg-green-100 text-green-800 rounded-full">
                         Live
                       </span>
                     )}{" "}
                     <span className="text-lg font-semibold">{dialogTitle}</span>
+                    <span className="text-sm ml-2 text-gray-500 font-normal">
+                      ({isBle ? "SN" : "IMEI"}: {currentImei})
+                    </span>
                   </div>
-                  <span className="text-sm ml-2 text-gray-500">
-                    {isBle ? "SN" : "IMEI"}: {currentImei}
-                  </span>
                 </div>
                 <AddressDisplay />
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleDialogClose(false)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-gray-700 bg-gray-100 hover:bg-red-50 hover:text-red-600 hover:border-red-200 border border-gray-300 rounded-lg transition-all cursor-pointer shadow-xs"
+                  title="Close Window"
+                >
+                  <X size={15} />
+                  <span>Close Window</span>
+                </button>
               </div>
             </DialogTitle>
           </DialogHeader>
 
-          <div className="h-[calc(100vh-120px)] w-full">
-            <SingleDeviceLiveTrack {...singleDeviceProps} />
+          <div className="flex-1 w-full min-h-0 relative">
+            <SingleDeviceLiveTrack {...singleDeviceProps} height="100%" />
           </div>
         </DialogContent>
       </Dialog>

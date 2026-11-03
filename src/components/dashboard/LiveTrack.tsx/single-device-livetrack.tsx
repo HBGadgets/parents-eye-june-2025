@@ -319,6 +319,7 @@ const AutoCenterHandler = ({
     if (!isValidCoord) return;
 
     if (!hasInitialized) {
+      map.invalidateSize();
       map.setView([lat, lng], 16, {
         animate: true,
         duration: 1,
@@ -356,22 +357,43 @@ const AutoCenterHandler = ({
 const MapResizeHandler = () => {
   const map = useMap();
 
-  useLayoutEffect(() => {
-    const mapContainer = map.getContainer().parentElement;
-    if (!mapContainer) return;
+  useEffect(() => {
+    if (!map) return;
+
+    // Immediate size invalidation
+    map.invalidateSize();
+
+    // Trigger multiple invalidations during modal opening animations
+    const timers = [
+      setTimeout(() => map.invalidateSize(), 100),
+      setTimeout(() => map.invalidateSize(), 250),
+      setTimeout(() => map.invalidateSize(), 500),
+      setTimeout(() => map.invalidateSize(), 1000),
+    ];
+
+    const container = map.getContainer();
+    const parent = container?.parentElement;
 
     const handleResize = () => {
-      setTimeout(() => {
-        map.invalidateSize();
-      }, 100);
+      map.invalidateSize();
     };
 
-    const resizeObserver = new ResizeObserver(() => {
-      handleResize();
-    });
+    let resizeObserver: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== "undefined") {
+      resizeObserver = new ResizeObserver(() => {
+        handleResize();
+      });
+      if (container) resizeObserver.observe(container);
+      if (parent) resizeObserver.observe(parent);
+    }
 
-    resizeObserver.observe(mapContainer);
-    return () => resizeObserver.disconnect();
+    window.addEventListener("resize", handleResize);
+
+    return () => {
+      timers.forEach(clearTimeout);
+      window.removeEventListener("resize", handleResize);
+      if (resizeObserver) resizeObserver.disconnect();
+    };
   }, [map]);
 
   return null;
@@ -411,6 +433,7 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
   vehicle,
   center = [21.99099777777778, 78.92973111111111],
   zoom = 10,
+  height = "100%",
   onVehicleClick,
   autoCenter = false,
   showTrail = false,
@@ -568,6 +591,14 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
 
     return "noData";
   }, [vehicle]);
+
+  const isVehicleOffline = useMemo(() => {
+    const rawStatus = String(vehicle?.status || "").toLowerCase();
+    const rawCat = String(vehicle?.category || "").toLowerCase();
+    return rawStatus === "offline" || rawCat === "offline";
+  }, [vehicle?.status, vehicle?.category]);
+
+  const isNetworkOnline = !isVehicleOffline && !!vehicle?.gsmSignal;
 
   // Smooth polyline growth with throttled sampling
   useEffect(() => {
@@ -765,8 +796,8 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
 
   return (
     <div
-      style={{ height: "80vh", width: "100%", position: "relative" }}
-      className="rounded-lg overflow-hidden"
+      style={{ height: height || "100%", width: "100%", position: "relative" }}
+      className="w-full h-full relative overflow-hidden"
     >
       <MapContainer
         ref={mapRef}
@@ -875,10 +906,11 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
           <div>
             Network Status:{" "}
             <span
-              className={`${vehicle?.gsmSignal ? "text-green-600" : "text-red-600"
-                } px-1 py-0.5 rounded font-semibold`}
+              className={`${
+                isNetworkOnline ? "text-green-600" : "text-red-600"
+              } px-1 py-0.5 rounded font-semibold`}
             >
-              {vehicle?.gsmSignal ? "Online" : "Offline"}
+              {isNetworkOnline ? "Online" : "Offline"}
             </span>
           </div>
           <div>

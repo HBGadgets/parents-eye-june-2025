@@ -214,8 +214,8 @@ const VehicleBusMarker = React.memo(
         running: "/BUS/top-view/green.svg",
         idle: "/BUS/top-view/yellow.svg",
         stopped: "/BUS/top-view/red.svg",
-        inactive: "/BUS/top-view/gray.svg",
-        offline: "/BUS/top-view/brown.svg",
+        inactive: "/BUS/top-view/blue.svg",
+        offline: "/BUS/top-view/brown.png",
         overspeeding: "/BUS/top-view/orange.svg",
         overspeed: "/BUS/top-view/orange.svg",
         new: "/BUS/top-view/blue.svg",
@@ -272,6 +272,7 @@ const VehicleBusMarker = React.memo(
           <div class="vehicle-marker-container ${isSelected ? "selected" : ""}">
             <img 
               src="${imageUrl}" 
+              onerror="if(!this.dataset.tried){this.dataset.tried='1';if(this.src.endsWith('.svg')){this.src=this.src.replace(/\\.svg$/,'.png')}else if(this.src.endsWith('.png')){this.src=this.src.replace(/\\.png$/,'.svg')}}"
               class="vehicle-marker-img"
               style="
                 transform: rotate(${rotationAngle}deg);
@@ -643,10 +644,19 @@ const VehicleBusMarker = React.memo(
               <div className="detail-row">
                 <span className="label">Network:</span>
                 <span
-                  className={`value ${vehicle.gsmSignal ? "online" : "offline"
-                    }`}
+                  className={`value ${
+                    String(vehicle.status || "").toLowerCase() !== "offline" &&
+                    String(vehicle.category || "").toLowerCase() !== "offline" &&
+                    vehicle.gsmSignal
+                      ? "online"
+                      : "offline"
+                  }`}
                 >
-                  {vehicle.gsmSignal ? "Online" : "Offline"}
+                  {String(vehicle.status || "").toLowerCase() !== "offline" &&
+                  String(vehicle.category || "").toLowerCase() !== "offline" &&
+                  vehicle.gsmSignal
+                    ? "Online"
+                    : "Offline"}
                 </span>
               </div>
             </div>

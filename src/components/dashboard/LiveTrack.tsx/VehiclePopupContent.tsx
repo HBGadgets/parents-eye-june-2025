@@ -15,6 +15,11 @@ export const VehiclePopupContent: React.FC<VehiclePopupContentProps> = ({
 }) => {
   const formattedLastUpdate = formatToIST(vehicle.lastUpdate);
   const statusInfo = getStatusInfo(vehicleStatus);
+  const isVehicleOffline =
+    String(vehicle.status || "").toLowerCase() === "offline" ||
+    String(vehicle.category || "").toLowerCase() === "offline" ||
+    vehicleStatus === "offline";
+  const isNetworkOnline = !isVehicleOffline && !!vehicle.gsmSignal;
   const isBle =
     vehicle.category === "BLE" || Boolean((vehicle as any).rawBleDevice);
 
@@ -134,9 +139,9 @@ export const VehiclePopupContent: React.FC<VehiclePopupContentProps> = ({
             <div className="detail-row">
               <span className="label">Network:</span>
               <span
-                className={`value ${vehicle.gsmSignal ? "online" : "offline"}`}
+                className={`value ${isNetworkOnline ? "online" : "offline"}`}
               >
-                {vehicle.gsmSignal ? "Online" : "Offline"}
+                {isNetworkOnline ? "Online" : "Offline"}
               </span>
             </div>
           </>

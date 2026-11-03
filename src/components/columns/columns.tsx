@@ -597,25 +597,15 @@ export const getLiveVehicleColumns = (userRole: string = "", customColors: Recor
         running: `/BUS/side-view/green.svg`,
         idle: `/BUS/side-view/yellow.svg`,
         stopped: `/BUS/side-view/red.svg`,
-        inactive: `/BUS/side-view/grey.svg`,
+        inactive: `/BUS/side-view/blue.svg`,
         offline: `/BUS/side-view/brown.svg`,
         overspeed: `/BUS/side-view/orange.svg`,
         new: `/BUS/side-view/blue.svg`,
       };
 
-      const lastUpdate = row.original.lastUpdate;
-      let isOfflineByTime = false;
-      if (lastUpdate) {
-        // Backend often sends local time but appends "Z", causing JS to parse it as future UTC time.
-        // Stripping "Z" makes it parse as local time, ensuring diff matches what the user sees.
-        const parsedStr = String(lastUpdate).replace(/Z$/i, "");
-        const diff = Date.now() - new Date(parsedStr).getTime();
-        isOfflineByTime = diff > 60000;
-      }
-
       const rawCat = String(row.original.category || "").toLowerCase();
       const rawStatus = String(row.original.status || "").toLowerCase();
-      const showOffline = rawStatus === "offline" || rawCat === "offline" || isOfflineByTime;
+      const showOffline = rawStatus === "offline" || rawCat === "offline";
 
       const imageUrl = showOffline
         ? `/BUS/side-view/brown.svg`
@@ -625,7 +615,22 @@ export const getLiveVehicleColumns = (userRole: string = "", customColors: Recor
 
       return (
         <div className="relative flex items-center justify-center flex-shrink-0">
-          <img src={imageUrl} className="w-16 h-auto max-w-16 min-w-16" alt="vehicle status" />
+          <img
+            src={imageUrl}
+            onError={(e) => {
+              const target = e.currentTarget;
+              if (!target.dataset.tried) {
+                target.dataset.tried = "1";
+                if (target.src.endsWith(".svg")) {
+                  target.src = target.src.replace(/\.svg$/, ".png");
+                } else if (target.src.endsWith(".png")) {
+                  target.src = target.src.replace(/\.png$/, ".svg");
+                }
+              }
+            }}
+            className="w-16 h-auto max-w-16 min-w-16"
+            alt="vehicle status"
+          />
           {showOffline && (
             <div className="absolute -top-1 -right-1" title="Offline">
               <WifiOff className="w-5 h-5 text-red-500 bg-white rounded-full p-0.5 shadow-sm" />
