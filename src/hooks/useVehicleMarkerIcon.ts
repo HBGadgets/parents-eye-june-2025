@@ -13,6 +13,7 @@ const defaultStatusImageMap: Record<VehicleStatus, string> = {
   idle: "/BUS/top-view/yellow.svg",
   stopped: "/BUS/top-view/red.svg",
   inactive: "/BUS/top-view/gray.svg",
+  offline: "/BUS/top-view/brown.svg",
   overspeeding: "/BUS/top-view/orange.svg",
   overspeed: "/BUS/top-view/orange.svg",
   new: "/BUS/top-view/blue.svg",

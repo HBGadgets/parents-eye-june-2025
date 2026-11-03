@@ -34,6 +34,7 @@ const ROUTE_STATUS_CONFIG: Record<
   overspeed: { bg: "#fff7ed", text: "#c2410c", dot: "#f97316", label: "Overspeed" },
   overspeeding: { bg: "#fff7ed", text: "#c2410c", dot: "#f97316", label: "Overspeed" },
   new: { bg: "#eff6ff", text: "#2563eb", dot: "#3b82f6", label: "New" },
+  offline: { bg: "#fef3c7", text: "#78350f", dot: "#92400e", label: "Offline" },
 };
 
 // Types based on your socket response
@@ -157,15 +158,17 @@ const VehicleBusMarker = React.memo(
       const timeDifference = currentTime - lastUpdateTime;
       const thirtyFiveHoursInMs = 35 * 60 * 60 * 1000;
 
-      // Check if vehicle is inactive
+      // Check if vehicle is inactive or offline
       if (vehicle.latitude === 0 && vehicle.longitude === 0) return "noData";
 
+      const rawCat = (vehicle.category || "").toLowerCase();
+      const rawStatus = (vehicle.status || "").toLowerCase();
+
+      if (rawCat.includes("offline") || rawStatus.includes("offline")) return "offline";
       if (timeDifference > thirtyFiveHoursInMs) return "inactive";
 
       // Check for overspeeding
       const speedLimit = parseFloat(vehicle.speedLimit) || 60;
-      const rawCat = (vehicle.category || "").toLowerCase();
-      const rawStatus = (vehicle.status || "").toLowerCase();
       if (
         vehicle.speed > speedLimit ||
         rawCat.includes("overspeed") ||
@@ -212,6 +215,7 @@ const VehicleBusMarker = React.memo(
         idle: "/BUS/top-view/yellow.svg",
         stopped: "/BUS/top-view/red.svg",
         inactive: "/BUS/top-view/gray.svg",
+        offline: "/BUS/top-view/brown.svg",
         overspeeding: "/BUS/top-view/orange.svg",
         overspeed: "/BUS/top-view/orange.svg",
         new: "/BUS/top-view/blue.svg",
@@ -321,6 +325,7 @@ const VehicleBusMarker = React.memo(
         idle: { text: "Idle", color: "#ffc107" },
         stopped: { text: "Stopped", color: "#dc3545" },
         inactive: { text: "Inactive", color: "#666666" },
+        offline: { text: "Offline", color: "#8B4513" },
         overspeeding: { text: "Overspeeding", color: "#fd7e14" },
         overspeed: { text: "Overspeeding", color: "#fd7e14" },
         new: { text: "New", color: "#2196f3" },
@@ -2091,6 +2096,7 @@ const VehicleMap: React.FC<VehicleMapProps> = ({
         else if (rawStatus.includes("idle")) statusKey = "idle";
         else if (rawStatus.includes("overspeed")) statusKey = "overspeed";
         else if (rawStatus.includes("inact")) statusKey = "inactive";
+        else if (rawStatus.includes("offline") || rawStatus.includes("offl")) statusKey = "offline";
         else if (rawStatus.includes("new")) statusKey = "new";
 
         return {

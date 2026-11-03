@@ -17,7 +17,8 @@ export interface DeviceFilters {
     | "idle"
     | "stopped"
     | "inactive"
-    | "new";
+    | "new"
+    | "offline";
   searchTerm: string;
   branchId?: string;
   schoolId?: string;

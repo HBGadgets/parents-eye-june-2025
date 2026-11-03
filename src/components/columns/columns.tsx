@@ -598,11 +598,11 @@ export const getLiveVehicleColumns = (userRole: string = "", customColors: Recor
         idle: `/BUS/side-view/yellow.svg`,
         stopped: `/BUS/side-view/red.svg`,
         inactive: `/BUS/side-view/grey.svg`,
+        offline: `/BUS/side-view/brown.svg`,
         overspeed: `/BUS/side-view/orange.svg`,
         new: `/BUS/side-view/blue.svg`,
       };
-      const imageUrl =
-        statusToImageUrl[String(row.original.category)] || statusToImageUrl.new;
+
       const lastUpdate = row.original.lastUpdate;
       let isOfflineByTime = false;
       if (lastUpdate) {
@@ -613,7 +613,16 @@ export const getLiveVehicleColumns = (userRole: string = "", customColors: Recor
         isOfflineByTime = diff > 60000;
       }
 
-      const showOffline = row.original.status === "offline" || isOfflineByTime;
+      const rawCat = String(row.original.category || "").toLowerCase();
+      const rawStatus = String(row.original.status || "").toLowerCase();
+      const showOffline = rawStatus === "offline" || rawCat === "offline" || isOfflineByTime;
+
+      const imageUrl = showOffline
+        ? `/BUS/side-view/brown.svg`
+        : statusToImageUrl[rawCat] ||
+          statusToImageUrl[rawStatus] ||
+          statusToImageUrl.new;
+
       return (
         <div className="relative flex items-center justify-center flex-shrink-0">
           <img src={imageUrl} className="w-16 h-auto max-w-16 min-w-16" alt="vehicle status" />

@@ -16,6 +16,7 @@ export const useLiveDeviceData = () => {
       { overspeed: store.deviceData?.overspeedCount || 0 },
       { idle: store.deviceData?.idleCount || 0 },
       { stopped: store.deviceData?.stoppedCount || 0 },
+      { offline: store.deviceData?.offlineCount || 0 },
       { inactive: store.deviceData?.inactiveCount || 0 },
       { new: store.deviceData?.newCount || 0 },
     ],

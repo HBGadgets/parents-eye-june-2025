@@ -35,7 +35,7 @@ export interface DeviceData {
 export interface DeviceFilters {
   page: number;
   limit: number;
-  filter: "all" | "running" | "idle" | "stopped" | "inactive" | "new" | "overspeed";
+  filter: "all" | "running" | "idle" | "stopped" | "inactive" | "new" | "overspeed" | "offline";
   searchTerm: string;
   branchId?: string;
   schoolId?: string;
@@ -54,6 +54,7 @@ export interface AllDeviceResponse {
   stoppedCount: number;
   inactiveCount: number;
   newCount: number;
+  offlineCount?: number;
   remainingCount: number;
   totalCountCheck: number;
 }

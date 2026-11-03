@@ -54,7 +54,15 @@ import { toast } from "sonner";
 import type { BleDevice } from "@/interface/ble";
 
 type ViewState = "split" | "tableExpanded" | "mapExpanded";
-type StatusFilter = "all" | "running" | "idle" | "stopped" | "inactive" | "new";
+type StatusFilter =
+  | "all"
+  | "running"
+  | "idle"
+  | "stopped"
+  | "inactive"
+  | "new"
+  | "overspeed"
+  | "offline";
 
 // Local storage key for subscription popup
 const SUBSCRIPTION_POPUP_KEY = "subscription_popup_shown";
@@ -195,6 +203,11 @@ export default function DashboardClient() {
       default:
         "bg-white text-[#ee6464] border border-[#ee6464] hover:bg-[#ee6464] hover:text-white",
       active: "bg-[#ee6464] text-white border border-[#ee6464]",
+    },
+    Offline: {
+      default:
+        "bg-white text-[#8B4513] border border-[#8B4513] hover:bg-[#8B4513] hover:text-white",
+      active: "bg-[#8B4513] text-white border border-[#8B4513]",
     },
     Inactive: {
       default:
@@ -857,7 +870,24 @@ export default function DashboardClient() {
 
   const displayedCounts = useMemo(() => {
     if (showGeotag) return [];
-    return counts;
+    const order = [
+      "total",
+      "running",
+      "overspeed",
+      "idle",
+      "stopped",
+      "offline",
+      "inactive",
+      "new",
+    ];
+    return [...counts].sort((a, b) => {
+      const keyA = Object.keys(a)[0];
+      const keyB = Object.keys(b)[0];
+      const idxA = order.indexOf(keyA);
+      const idxB = order.indexOf(keyB);
+      if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+      return 0;
+    });
   }, [showGeotag, counts]);
 
   // Server side pagination table instance

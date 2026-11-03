@@ -26,6 +26,7 @@ export type VehicleStatus =
   | "idle"
   | "stopped"
   | "inactive"
+  | "offline"
   | "overspeeding"
   | "overspeed"
   | "new"
@@ -49,6 +50,7 @@ export const useVehicleStatus = ({
     const thirtyFiveHoursInMs = 35 * 60 * 60 * 1000;
 
     const rawCat = (category || "").toLowerCase();
+    if (rawCat === "offline") return "offline";
     if (rawCat === "inactive") return "inactive";
     if (timeDifference > thirtyFiveHoursInMs) return "inactive";
 
@@ -60,6 +62,7 @@ export const useVehicleStatus = ({
       "idle",
       "stopped",
       "inactive",
+      "offline",
       "overspeeding",
       "overspeed",
       "new",
