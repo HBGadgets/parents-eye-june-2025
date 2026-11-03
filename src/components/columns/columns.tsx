@@ -597,7 +597,7 @@ export const getLiveVehicleColumns = (userRole: string = "", customColors: Recor
         running: `/BUS/side-view/green.svg`,
         idle: `/BUS/side-view/yellow.svg`,
         stopped: `/BUS/side-view/red.svg`,
-        inactive: `/BUS/side-view/blue.svg`,
+        inactive: `/BUS/side-view/grey.svg`,
         offline: `/BUS/side-view/brown.svg`,
         overspeed: `/BUS/side-view/orange.svg`,
         new: `/BUS/side-view/blue.svg`,
@@ -605,9 +605,38 @@ export const getLiveVehicleColumns = (userRole: string = "", customColors: Recor
 
       const rawCat = String(row.original.category || "").toLowerCase();
       const rawStatus = String(row.original.status || "").toLowerCase();
-      const showOffline = rawStatus === "offline" || rawCat === "offline";
 
-      const imageUrl = showOffline
+      const lastUpdateTime = row.original.lastUpdate
+        ? new Date(row.original.lastUpdate).getTime()
+        : 0;
+      const currentTime = new Date().getTime();
+      const timeDifference = lastUpdateTime ? currentTime - lastUpdateTime : 0;
+      const thirtyFiveHoursInMs = 35 * 60 * 60 * 1000;
+
+      const isNew =
+        rawCat === "new" ||
+        rawCat.includes("new") ||
+        rawStatus === "new" ||
+        rawStatus.includes("new");
+
+      const isInactive =
+        !isNew &&
+        (rawCat === "inactive" ||
+          rawCat.includes("inact") ||
+          rawStatus === "inactive" ||
+          rawStatus.includes("inact") ||
+          (timeDifference > 0 && timeDifference > thirtyFiveHoursInMs));
+
+      const isOffline =
+        !isNew &&
+        !isInactive &&
+        (rawStatus === "offline" || rawCat === "offline");
+
+      const imageUrl = isNew
+        ? `/BUS/side-view/blue.svg`
+        : isInactive
+        ? `/BUS/side-view/grey.svg`
+        : isOffline
         ? `/BUS/side-view/brown.svg`
         : statusToImageUrl[rawCat] ||
           statusToImageUrl[rawStatus] ||
@@ -631,7 +660,7 @@ export const getLiveVehicleColumns = (userRole: string = "", customColors: Recor
             className="w-16 h-auto max-w-16 min-w-16"
             alt="vehicle status"
           />
-          {showOffline && (
+          {isOffline && (
             <div className="absolute -top-1 -right-1" title="Offline">
               <WifiOff className="w-5 h-5 text-red-500 bg-white rounded-full p-0.5 shadow-sm" />
             </div>

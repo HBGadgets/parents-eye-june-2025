@@ -569,6 +569,7 @@ const SingleDeviceLiveTrack: React.FC<SingleDeviceLiveTrackProps> = ({
     const thirtyFiveHoursInMs = 35 * 60 * 60 * 1000;
 
     const rawCat = (vehicle.category || "").toLowerCase();
+    if (rawCat === "new" || rawCat.includes("new")) return "new";
     if (rawCat === "inactive") return "inactive";
     if (timeDifference > thirtyFiveHoursInMs) return "inactive";
 

@@ -164,8 +164,21 @@ const VehicleBusMarker = React.memo(
       const rawCat = (vehicle.category || "").toLowerCase();
       const rawStatus = (vehicle.status || "").toLowerCase();
 
+      // Check if vehicle is new first
+      if (rawCat.includes("new") || rawStatus.includes("new")) {
+        return "new";
+      }
+
+      // Check if vehicle is inactive first
+      if (
+        rawCat.includes("inact") ||
+        rawStatus.includes("inact") ||
+        timeDifference > thirtyFiveHoursInMs
+      ) {
+        return "inactive";
+      }
+
       if (rawCat.includes("offline") || rawStatus.includes("offline")) return "offline";
-      if (timeDifference > thirtyFiveHoursInMs) return "inactive";
 
       // Check for overspeeding
       const speedLimit = parseFloat(vehicle.speedLimit) || 60;
@@ -214,7 +227,7 @@ const VehicleBusMarker = React.memo(
         running: "/BUS/top-view/green.svg",
         idle: "/BUS/top-view/yellow.svg",
         stopped: "/BUS/top-view/red.svg",
-        inactive: "/BUS/top-view/blue.svg",
+        inactive: "/BUS/top-view/gray.svg",
         offline: "/BUS/top-view/brown.png",
         overspeeding: "/BUS/top-view/orange.svg",
         overspeed: "/BUS/top-view/orange.svg",

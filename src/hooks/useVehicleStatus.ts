@@ -50,9 +50,9 @@ export const useVehicleStatus = ({
     const thirtyFiveHoursInMs = 35 * 60 * 60 * 1000;
 
     const rawCat = (category || "").toLowerCase();
+    if (rawCat === "new" || rawCat.includes("new")) return "new";
+    if (rawCat === "inactive" || rawCat.includes("inact") || timeDifference > thirtyFiveHoursInMs) return "inactive";
     if (rawCat === "offline") return "offline";
-    if (rawCat === "inactive") return "inactive";
-    if (timeDifference > thirtyFiveHoursInMs) return "inactive";
 
     const parsedSpeedLimit = parseFloat(speedLimit) || 60;
     if (speed > parsedSpeedLimit || rawCat.includes("overspeed")) return "overspeeding";
