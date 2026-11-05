@@ -57,6 +57,9 @@ export interface BleDevice {
   branchId?: BleBranchInfo | string;
   supervisorId?: BleSupervisorInfo | string;
   childId?: BleChildInfo | string;
+  geofenceId?: any;
+  geofence?: any;
+  geofenceName?: string;
 }
 
 export interface GetBleDevicesResponse {

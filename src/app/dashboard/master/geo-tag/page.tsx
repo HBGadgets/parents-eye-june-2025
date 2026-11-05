@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { bleService } from "@/services/api/bleService";
 import { BleDevice } from "@/interface/ble";
 import { getBleDeviceColumns } from "@/components/columns/columns";
@@ -15,7 +15,33 @@ import {
   DialogTitle,
   DialogFooter,
   DialogDescription,
+  DialogClose,
 } from "@/components/ui/dialog";
+import dynamic from "next/dynamic";
+import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
+import { useGeofenceStore } from "@/store/geofenceStore";
+import type { Branch, Geofence, School } from "@/interface/modal";
+import type { BleGeofenceItem } from "@/components/geofence-manager/ChildGeofencesViewer";
+import "@/components/geofence-manager/style.css";
+
+const GeofenceManager = dynamic(
+  () => import("@/components/geofence-manager/GeofenceManager"),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="w-full h-full flex items-center justify-center bg-slate-900/10 min-h-[400px]">
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-emerald-600"></div>
+      </div>
+    ),
+  }
+);
+
+const ChildGeofencesViewer = dynamic(
+  () => import("@/components/geofence-manager/ChildGeofencesViewer"),
+  {
+    ssr: false,
+  }
+);
 import {
   Select,
   SelectContent,
@@ -33,7 +59,10 @@ import {
   ListFilter,
   Pencil,
   Loader2,
+  Shield,
+  MapPin,
 } from "lucide-react";
+import { geofenceService } from "@/services/api/geofenceSerevice";
 import { useExport } from "@/hooks/useExport";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -91,6 +120,23 @@ export default function GeoTagMasterPage() {
   const [editSubscriptionEndDate, setEditSubscriptionEndDate] = useState<string>("");
   const [editStatus, setEditStatus] = useState<"active" | "inactive">("active");
   const [isSaving, setIsSaving] = useState<boolean>(false);
+
+  // Geofence modal states (implemented as it is in /dashboard/school/geofence)
+  const [isGeofenceOpen, setIsGeofenceOpen] = useState<boolean>(false);
+  const [geofenceMode, setGeofenceMode] = useState<"add" | "edit">("add");
+  const [geofenceId, setGeofenceId] = useState<string | null>(null);
+  const [geofenceSchoolId, setGeofenceSchoolId] = useState<School | null>(null);
+  const [geofenceBranchId, setGeofenceBranchId] = useState<Branch | null>(null);
+  const [selectedGeofence, setSelectedGeofence] = useState<Geofence | null>(null);
+  const [selectedDeviceForGeofence, setSelectedDeviceForGeofence] = useState<any | null>(null);
+
+  // Child Geofences Map & List Viewer modal
+  const [isViewGeofencesOpen, setIsViewGeofencesOpen] = useState<boolean>(false);
+  const [selectedDeviceForView, setSelectedDeviceForView] = useState<any | null>(null);
+  const [returnToViewerDevice, setReturnToViewerDevice] = useState<any | null>(null);
+  const returnToViewerDeviceRef = useRef<any | null>(null);
+
+  const setEditData = useGeofenceStore((state) => state.setRowData);
 
   // Edit modal branch options
   const { data: editBranchData = [] } = useBranchDropdown(
@@ -256,6 +302,14 @@ export default function GeoTagMasterPage() {
         childId: tag.childId,
         category: tag.category || "BLE",
         model: tag.model || "GeoTag",
+        geofence: tag.geofence || tag.geofenceId,
+        geofenceId: tag.geofenceId,
+        geofenceName:
+          typeof tag.geofence === "object"
+            ? tag.geofence?.geofenceName || tag.geofence?.name
+            : typeof tag.geofenceId === "object"
+            ? tag.geofenceId?.geofenceName || tag.geofenceId?.name
+            : undefined,
         rawBleDevice: tag,
       };
     });
@@ -429,15 +483,206 @@ export default function GeoTagMasterPage() {
     return options;
   }, [editingDevice, branchStudents]);
 
-  // Columns: Replace History action button with Edit button
+  // Open Geofence Dialog (matching /dashboard/school/geofence)
+  const handleOpenAssignGeofence = useCallback(
+    (dev: any, fromViewer: boolean = false) => {
+      if (!fromViewer) {
+        returnToViewerDeviceRef.current = null;
+        setReturnToViewerDevice(null);
+      }
+      setIsViewGeofencesOpen(false);
+      setSelectedDeviceForView(null);
+
+      const raw = dev?.rawBleDevice || dev;
+      setSelectedDeviceForGeofence(raw);
+
+      const s = typeof raw?.schoolId === "object" ? raw.schoolId : null;
+      const b = typeof raw?.branchId === "object" ? raw.branchId : null;
+
+      setGeofenceSchoolId(s);
+      setGeofenceBranchId(b);
+
+      const lat =
+        Number(raw?.lastLocation?.lat) ||
+        Number(dev?.latitude) ||
+        Number(dev?.lat) ||
+        21.1286677;
+      const lng =
+        Number(raw?.lastLocation?.lng) ||
+        Number(dev?.longitude) ||
+        Number(dev?.lng) ||
+        79.1038211;
+
+      const currentGf = raw?.geofence || raw?.geofenceId;
+      if (currentGf && typeof currentGf === "object" && currentGf._id) {
+        setGeofenceMode("edit");
+        setGeofenceId(currentGf._id);
+        setSelectedGeofence(currentGf);
+      } else {
+        setGeofenceMode("add");
+        setGeofenceId(null);
+        const newInitialData: any = {
+          geofenceName: raw?.name ? `${raw.name} Geofence` : "New Geofence",
+          area: {
+            center: [lat, lng],
+            radius: 200,
+          },
+          schoolId: s?._id || (typeof raw?.schoolId === "string" ? raw.schoolId : undefined),
+          branchId: b?._id || (typeof raw?.branchId === "string" ? raw.branchId : undefined),
+        };
+        setSelectedGeofence(newInitialData);
+      }
+
+      setIsGeofenceOpen(true);
+    },
+    [setEditData]
+  );
+
+  const handleGeofenceSuccess = useCallback(
+    async (resData?: any) => {
+      const devToRestore = returnToViewerDeviceRef.current || returnToViewerDevice;
+      setIsGeofenceOpen(false);
+
+      const targetDeviceId =
+        selectedDeviceForGeofence?._id ||
+        selectedDeviceForGeofence?.deviceId ||
+        selectedDeviceForGeofence?.id;
+
+      const createdGfId =
+        resData?._id ||
+        resData?.data?._id ||
+        resData?.geofence?._id ||
+        geofenceId;
+
+      if (targetDeviceId && createdGfId) {
+        try {
+          await bleService.updateBleDeviceAssignment(targetDeviceId, {
+            geofenceId: createdGfId,
+            geofence: createdGfId,
+          });
+          toast.success("Geofence assigned to GeoTag successfully");
+        } catch (err: any) {
+          console.warn("Could not bind geofence to GeoTag:", err);
+          toast.success("Geofence saved successfully");
+        }
+      } else {
+        toast.success("Geofence saved successfully");
+      }
+
+      setSelectedGeofence(null);
+      setGeofenceId(null);
+      setSelectedDeviceForGeofence(null);
+      fetchDevices();
+
+      // Return to ChildGeofencesViewer with updated fences
+      if (devToRestore) {
+        returnToViewerDeviceRef.current = null;
+        setReturnToViewerDevice(null);
+        setSelectedDeviceForView(devToRestore);
+        setIsViewGeofencesOpen(true);
+      }
+    },
+    [geofenceId, selectedDeviceForGeofence, fetchDevices, returnToViewerDevice]
+  );
+
+  // Open Child Geofences Viewer on geofence click
+  const handleOpenViewGeofences = useCallback((dev: any) => {
+    setSelectedDeviceForView(dev);
+    setIsViewGeofencesOpen(true);
+  }, []);
+
+  // Edit a specific geofence from ChildGeofencesViewer
+  const handleEditChildGeofence = useCallback(
+    (fence: BleGeofenceItem, dev: any) => {
+      // Remember device so closing or saving the editor returns back to ChildGeofencesViewer
+      const rawDev = dev?.rawBleDevice || dev;
+      returnToViewerDeviceRef.current = rawDev;
+      setReturnToViewerDevice(rawDev);
+      setIsViewGeofencesOpen(false);
+      setSelectedDeviceForView(null);
+
+      setSelectedDeviceForGeofence(rawDev);
+
+      const s =
+        typeof fence.schoolId === "object"
+          ? fence.schoolId
+          : typeof rawDev?.schoolId === "object"
+          ? rawDev.schoolId
+          : null;
+      const b =
+        typeof fence.branchId === "object"
+          ? fence.branchId
+          : typeof rawDev?.branchId === "object"
+          ? rawDev.branchId
+          : null;
+
+      setGeofenceSchoolId(s);
+      setGeofenceBranchId(b);
+
+      const lat = Number(fence.center?.lat) || 21.1286677;
+      const lng = Number(fence.center?.lng) || 79.1038211;
+
+      setGeofenceMode("edit");
+      setGeofenceId(fence._id);
+
+      const initialData: any = {
+        _id: fence._id,
+        id: fence._id,
+        name: fence.name,
+        geofenceName: fence.name,
+        area: {
+          center: [lat, lng],
+          radius: fence.radius || 200,
+        },
+        center: { lat, lng },
+        radius: fence.radius || 200,
+        alarmRules: fence.alarmRules || "both",
+        boundaryToleranceMeter: fence.boundaryToleranceMeter ?? 5,
+        cooldownMinutes: fence.cooldownMinutes ?? 2,
+        schoolId:
+          s?._id ||
+          (typeof fence.schoolId === "string" ? fence.schoolId : undefined),
+        branchId:
+          b?._id ||
+          (typeof fence.branchId === "string" ? fence.branchId : undefined),
+        childId:
+          typeof fence.childId === "object"
+            ? fence.childId?._id
+            : fence.childId || rawDev?.childId,
+        devices: fence.devices || (rawDev ? [rawDev] : []),
+        remark: fence.remark || "",
+      };
+
+      setSelectedGeofence(initialData);
+
+      // Open GeofenceManager in edit mode
+      setIsGeofenceOpen(true);
+    },
+    []
+  );
+
+  // Add new geofence from ChildGeofencesViewer
+  const handleAddNewGeofenceFromViewer = useCallback(
+    (dev: any) => {
+      const rawDev = dev?.rawBleDevice || dev;
+      returnToViewerDeviceRef.current = rawDev;
+      setReturnToViewerDevice(rawDev);
+      handleOpenAssignGeofence(rawDev, true);
+    },
+    [handleOpenAssignGeofence]
+  );
+
+  // Columns: Table action buttons (Edit + Assign Geofence + Clickable Geofence View)
   const columns = useMemo(
     () =>
       getBleDeviceColumns(
         undefined,
         undefined,
-        (dev) => handleOpenEdit(dev)
+        (dev) => handleOpenEdit(dev),
+        (dev) => handleOpenAssignGeofence(dev),
+        (dev) => handleOpenViewGeofences(dev)
       ),
-    [handleOpenEdit]
+    [handleOpenEdit, handleOpenAssignGeofence, handleOpenViewGeofences]
   );
 
   const { tableElement } = CustomTableServerSidePagination({
@@ -891,6 +1136,75 @@ export default function GeoTagMasterPage() {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Geofence Map Dialog - Implemented as it is in /dashboard/school/geofence */}
+      <Dialog
+        open={isGeofenceOpen}
+        onOpenChange={(isOpen) => {
+          setIsGeofenceOpen(isOpen);
+          if (!isOpen) {
+            setSelectedGeofence(null);
+            setGeofenceId(null);
+            setSelectedDeviceForGeofence(null);
+
+            const devToReturn = returnToViewerDeviceRef.current || returnToViewerDevice;
+            if (devToReturn) {
+              returnToViewerDeviceRef.current = null;
+              setReturnToViewerDevice(null);
+              setSelectedDeviceForView(devToReturn);
+              setIsViewGeofencesOpen(true);
+            }
+          }
+        }}
+      >
+        <DialogContent
+          className="w-screen h-screen max-w-none max-h-none p-0 rounded-none !m-0 !left-0 !top-0 !transform-none !translate-x-0 !translate-y-0"
+          showCloseButton={false}
+        >
+          <VisuallyHidden>
+            <DialogTitle>
+              {geofenceMode === "add" ? "Add Geofence" : "Edit Geofence"}
+            </DialogTitle>
+          </VisuallyHidden>
+          <DialogClose asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="absolute top-4 right-4 z-[1000] cursor-pointer"
+            >
+              <X className="h-6 w-6" />
+            </Button>
+          </DialogClose>
+
+          {/* Add key prop to force remount */}
+          <GeofenceManager
+            key={geofenceId || selectedDeviceForGeofence?._id || "new"}
+            mode={geofenceMode}
+            targetType="geotag"
+            geofenceDevice={selectedDeviceForGeofence}
+            initialData={selectedGeofence}
+            geofenceId={geofenceId}
+            geofenceRouteId={null}
+            geofenceSchoolId={geofenceSchoolId}
+            geofenceBranchId={geofenceBranchId}
+            onSuccess={handleGeofenceSuccess}
+          />
+        </DialogContent>
+      </Dialog>
+
+      {/* Child Geofences Map & List Viewer Dialog */}
+      <ChildGeofencesViewer
+        isOpen={isViewGeofencesOpen}
+        onClose={() => {
+          setIsViewGeofencesOpen(false);
+          setSelectedDeviceForView(null);
+          returnToViewerDeviceRef.current = null;
+          setReturnToViewerDevice(null);
+        }}
+        device={selectedDeviceForView}
+        onEditGeofence={handleEditChildGeofence}
+        onAddNewGeofence={handleAddNewGeofenceFromViewer}
+      />
     </div>
   );
 }

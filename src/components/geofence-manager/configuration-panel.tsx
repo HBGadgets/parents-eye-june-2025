@@ -9,6 +9,13 @@ import { Save, ExternalLink } from "lucide-react";
 import { Branch, Geofence, Route, School } from "@/interface/modal";
 import { useRouteDropdown } from "@/hooks/useDropdown";
 import { Combobox } from "@/components/ui/combobox";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { TimePicker12 } from "../time-picker-12h";
 import { useGeofenceStore } from "@/store/geofenceStore";
 import { toast } from "sonner";
@@ -40,21 +47,31 @@ interface Props {
   saveGeofences: () => void;
   isLoading: boolean;
   tempGeofence: any;
-  selectedRoute: Route | null;
-  handleRouteSelect?: (route: Route | null) => void;
   selectedSchool: School | null;
   handleSchoolSelect: (school: School | null) => void;
   selectedBranch: Branch | null;
   handleBranchSelect: (branch: Branch | null) => void;
-  pickupTime: Date | undefined;
-  setPickupTime: (time: Date | undefined) => void;
-  dropTime: Date | undefined;
-  setDropTime: (time: Date | undefined) => void;
+  targetType?: "route" | "geotag";
+  selectedGeoTag?: any | null;
+  handleGeoTagSelect?: (geoTag: any | null) => void;
+  geoTagList?: any[];
+  alarmRules?: "both" | "enter" | "exit";
+  setAlarmRules?: (val: "both" | "enter" | "exit") => void;
+  boundaryToleranceMeter?: number;
+  setBoundaryToleranceMeter?: (val: number) => void;
+  cooldownMinutes?: number;
+  setCooldownMinutes?: (val: number) => void;
   role: string;
   schools: School[];
   branches: Branch[];
   schoolId?: string;
   branchId?: string;
+  selectedRoute?: Route | null;
+  handleRouteSelect?: (route: Route | null) => void;
+  pickupTime?: Date | undefined;
+  setPickupTime?: (time: Date | undefined) => void;
+  dropTime?: Date | undefined;
+  setDropTime?: (time: Date | undefined) => void;
 }
 
 function parseTimeStringToDate(timeString: string): Date | null {
@@ -96,6 +113,16 @@ const GeofenceConfigurationPanel: React.FC<Props> = ({
   selectedRoute,
   selectedSchool,
   selectedBranch,
+  targetType = "route",
+  selectedGeoTag,
+  handleGeoTagSelect,
+  geoTagList = [],
+  alarmRules = "both",
+  setAlarmRules,
+  boundaryToleranceMeter = 5,
+  setBoundaryToleranceMeter,
+  cooldownMinutes = 2,
+  setCooldownMinutes,
   locationSearchQuery,
   setLocationSearchQuery,
   searchResults,
@@ -122,9 +149,17 @@ const GeofenceConfigurationPanel: React.FC<Props> = ({
   const lastInitializedId = useRef<string | null>(null);
   const routeInitialized = useRef<boolean>(false);
 
-  const { data: routesData = [] } = useRouteDropdown(
+  const { data: rawRoutesData } = useRouteDropdown(
     selectedBranch?._id || (role === "branch" ? branchId : undefined),
     !!(selectedBranch?._id || (role === "branch" ? branchId : undefined))
+  );
+
+  const routesData: any[] = useMemo(
+    () =>
+      Array.isArray(rawRoutesData)
+        ? rawRoutesData
+        : (rawRoutesData as any)?.data || [],
+    [rawRoutesData]
   );
 
   const schoolItems = useMemo(
@@ -145,6 +180,22 @@ const GeofenceConfigurationPanel: React.FC<Props> = ({
     [branches]
   );
 
+  const geoTagItems = useMemo(
+    () =>
+      (geoTagList || []).map((device: any) => {
+        const devName = device.name || device.sn || "BLE GeoTag";
+        const child =
+          typeof device.childId === "object"
+            ? device.childId?.childName
+            : undefined;
+        return {
+          label: child ? `${devName} (${child})` : devName,
+          value: device._id || device.deviceId || device.sn,
+        };
+      }),
+    [geoTagList]
+  );
+
   const routeItems = useMemo(
     () =>
       routesData.map((route) => ({
@@ -155,9 +206,14 @@ const GeofenceConfigurationPanel: React.FC<Props> = ({
     [routesData]
   );
 
-  // Main initialization - only depends on editRowData._id
+  // Main initialization - only depends on editRowData._id (for route geofences)
   useEffect(() => {
-    if (editRowData && editRowData._id !== lastInitializedId.current) {
+    if (
+      targetType !== "geotag" &&
+      editRowData &&
+      editRowData._id &&
+      editRowData._id !== lastInitializedId.current
+    ) {
       // console.log("=== 🚀 INITIALIZING EDIT MODE ===");
       // console.log("EditRowData:", editRowData);
       // console.log(
@@ -191,12 +247,12 @@ const GeofenceConfigurationPanel: React.FC<Props> = ({
       // Times
       if (editRowData.pickupTime) {
         const pickupDate = parseTimeStringToDate(editRowData.pickupTime);
-        if (pickupDate) setPickupTime(pickupDate);
+        if (pickupDate) setPickupTime?.(pickupDate);
       }
 
       if (editRowData.dropTime) {
         const dropDate = parseTimeStringToDate(editRowData.dropTime);
-        if (dropDate) setDropTime(dropDate);
+        if (dropDate) setDropTime?.(dropDate);
       }
 
       // School
@@ -332,23 +388,51 @@ const GeofenceConfigurationPanel: React.FC<Props> = ({
             </div>
           )}
 
-          {handleRouteSelect && (
+          {targetType === "geotag" ? (
             <div className="space-y-2">
-              <Label>Route</Label>
+              <Label>GeoTag</Label>
               <Combobox
-                items={routeItems}
-                value={selectedRoute?._id}
+                items={geoTagItems}
+                value={
+                  selectedGeoTag?._id ||
+                  selectedGeoTag?.deviceId ||
+                  selectedGeoTag?.sn
+                }
                 onValueChange={(value) => {
-                  const route = routesData.find((r) => r._id === value) || null;
-                  handleRouteSelect(route);
+                  const tag =
+                    (geoTagList || []).find(
+                      (g: any) =>
+                        g._id === value ||
+                        g.deviceId === value ||
+                        g.sn === value
+                    ) || null;
+                  handleGeoTagSelect?.(tag);
                 }}
-                placeholder="Select route"
-                searchPlaceholder="Search school..."
-                emptyMessage="No route found"
+                placeholder="Select GeoTag"
+                searchPlaceholder="Search GeoTag..."
+                emptyMessage="No GeoTag found"
                 width="w-[140px]"
-                disabled={!(selectedBranch || (role === "branch" ? branchId : undefined))}
               />
             </div>
+          ) : (
+            handleRouteSelect && (
+              <div className="space-y-2">
+                <Label>Route</Label>
+                <Combobox
+                  items={routeItems}
+                  value={selectedRoute?._id}
+                  onValueChange={(value) => {
+                    const route = routesData.find((r) => r._id === value) || null;
+                    handleRouteSelect(route);
+                  }}
+                  placeholder="Select route"
+                  searchPlaceholder="Search school..."
+                  emptyMessage="No route found"
+                  width="w-[140px]"
+                  disabled={!(selectedBranch || (role === "branch" ? branchId : undefined))}
+                />
+              </div>
+            )
           )}
         </div>
 
@@ -399,16 +483,78 @@ const GeofenceConfigurationPanel: React.FC<Props> = ({
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label>Pickup time</Label>
-            <TimePicker12 date={pickupTime} setDate={setPickupTime} />
+        {targetType === "geotag" ? (
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Alarm Rules</Label>
+              <Select
+                value={alarmRules || "both"}
+                onValueChange={(val: "both" | "enter" | "exit") =>
+                  setAlarmRules?.(val)
+                }
+              >
+                <SelectTrigger className="w-full h-9 text-sm">
+                  <SelectValue placeholder="Select alarm rule" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="both">Both (Enter & Exit Alerts)</SelectItem>
+                  <SelectItem value="enter">Entry Alerts Only</SelectItem>
+                  <SelectItem value="exit">Exit Alerts Only</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Tolerance & Cooldown</Label>
+              <div className="flex items-center gap-2">
+                <div className="flex-1">
+                  <Input
+                    type="number"
+                    min="0"
+                    max="500"
+                    value={boundaryToleranceMeter ?? 5}
+                    onChange={(e) =>
+                      setBoundaryToleranceMeter?.(Number(e.target.value) || 0)
+                    }
+                    placeholder="5m"
+                    className="h-9 text-xs"
+                    title="Boundary Tolerance (meters)"
+                  />
+                </div>
+                <div className="flex-1">
+                  <Input
+                    type="number"
+                    min="0"
+                    max="120"
+                    value={cooldownMinutes ?? 2}
+                    onChange={(e) =>
+                      setCooldownMinutes?.(Number(e.target.value) || 0)
+                    }
+                    placeholder="2min"
+                    className="h-9 text-xs"
+                    title="Cooldown (minutes)"
+                  />
+                </div>
+              </div>
+            </div>
           </div>
-          <div className="space-y-2">
-            <Label>Drop time</Label>
-            <TimePicker12 date={dropTime} setDate={setDropTime} />
+        ) : (
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Pickup time</Label>
+              <TimePicker12
+                date={pickupTime}
+                setDate={setPickupTime || (() => {})}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Drop time</Label>
+              <TimePicker12
+                date={dropTime}
+                setDate={setDropTime || (() => {})}
+              />
+            </div>
           </div>
-        </div>
+        )}
 
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-1">

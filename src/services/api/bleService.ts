@@ -166,6 +166,9 @@ export const bleService = {
       childId?: string | null;
       subscriptionEndDate?: string | null;
       status?: string;
+      geofenceId?: string | null;
+      geofenceIds?: string[] | null;
+      geofence?: string | null;
     }
   ) => {
     const res: any = await api.put(
@@ -175,9 +178,110 @@ export const bleService = {
     return res?.data ?? res;
   },
 
+  createBleGeofence: async (payload: {
+    name: string;
+    fenceType?: "circle" | "polygon";
+    center: { lat: number; lng: number };
+    radius: number;
+    alarmRules?: "both" | "enter" | "exit";
+    schoolId?: string | null;
+    branchId?: string | null;
+    childId?: string | null;
+    deviceIds?: (string | number)[];
+    boundaryToleranceMeter?: number;
+    cooldownMinutes?: number;
+    remark?: string;
+  }) => {
+    try {
+      const res: any = await api.post("/api/geofences", payload);
+      return res?.data ?? res;
+    } catch (err: any) {
+      if (err?.response?.status === 404) {
+        const token =
+          Cookies.get("token") ||
+          (typeof window !== "undefined" ? localStorage.getItem("token") : null);
+        const mainBase =
+          process.env.NEXT_PUBLIC_API_BASE_URL || "https://parent.parentseye.in/api";
+        const fallbackRes: any = await axios.post(
+          `${mainBase}/geofence`,
+          {
+            geofenceName: payload.name,
+            area: {
+              center: [payload.center.lat, payload.center.lng],
+              radius: payload.radius,
+            },
+            schoolId: payload.schoolId || undefined,
+            branchId: payload.branchId || undefined,
+          },
+          {
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+          }
+        );
+        return fallbackRes?.data ?? fallbackRes;
+      }
+      throw err;
+    }
+  },
+
+  updateBleGeofence: async (id: string, payload: any) => {
+    try {
+      const res: any = await api.put(`/api/geofences/${encodeURIComponent(id)}`, payload);
+      return res?.data ?? res;
+    } catch (err: any) {
+      if (err?.response?.status === 404) {
+        const token =
+          Cookies.get("token") ||
+          (typeof window !== "undefined" ? localStorage.getItem("token") : null);
+        const mainBase =
+          process.env.NEXT_PUBLIC_API_BASE_URL || "https://parent.parentseye.in/api";
+        const fallbackRes: any = await axios.put(
+          `${mainBase}/geofence/${encodeURIComponent(id)}`,
+          {
+            geofenceName: payload.name || payload.geofenceName,
+            area: {
+              center: [
+                payload.center?.lat || payload.latitude,
+                payload.center?.lng || payload.longitude,
+              ],
+              radius: payload.radius,
+            },
+            schoolId: payload.schoolId || undefined,
+            branchId: payload.branchId || undefined,
+          },
+          {
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+          }
+        );
+        return fallbackRes?.data ?? fallbackRes;
+      }
+      throw err;
+    }
+  },
+
   syncBleDevices: async () => {
     const res: any = await api.get("/api/ble-devices/sync");
     return res?.data ?? res;
+  },
+
+  getBleGeofences: async (params?: Record<string, any>) => {
+    try {
+      const res: any = await api.get("/api/geofences", { params });
+      return res?.data ?? res;
+    } catch (err: any) {
+      if (err?.response?.status === 404) {
+        const token =
+          Cookies.get("token") ||
+          (typeof window !== "undefined" ? localStorage.getItem("token") : null);
+        const mainBase =
+          process.env.NEXT_PUBLIC_API_BASE_URL || "https://parent.parentseye.in/api";
+        const fallbackRes: any = await axios.get(`${mainBase}/geofence`, {
+          params,
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        return fallbackRes?.data ?? fallbackRes;
+      }
+      throw err;
+    }
   },
 };
 

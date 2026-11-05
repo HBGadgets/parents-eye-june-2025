@@ -22,7 +22,8 @@ export function TimePicker12({ date, setDate }: TimePickerProps) {
   React.useEffect(() => {
     if (date) {
       const hours = date.getHours();
-      setPeriod(hours >= 12 ? "PM" : "AM");
+      const newPeriod: Period = hours >= 12 ? "PM" : "AM";
+      setPeriod((prev) => (prev !== newPeriod ? newPeriod : prev));
     }
   }, [date]);
 

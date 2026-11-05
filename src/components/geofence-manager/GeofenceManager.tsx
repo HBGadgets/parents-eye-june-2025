@@ -13,7 +13,8 @@ import { toast } from "sonner";
 import { RotateCcw, Undo, X } from "lucide-react";
 import GeofenceConfigurationPanel from "./configuration-panel";
 import { Branch, Geofence, Route, School } from "@/interface/modal";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
+import { bleService } from "@/services/api/bleService";
 import "./style.css";
 import { parseTimeString } from "@/util/timeUtils";
 // import { useInfiniteRouteData } from "@/hooks/useInfiniteRouteData";
@@ -25,15 +26,17 @@ import { reverseGeocodeMapTiler } from "@/hooks/useReverseGeocoding";
 import { geofenceSchema } from "@/schemas/geofence.schema";
 
 // Fix for default markers in Leaflet
-delete (L.Icon.Default.prototype as any)._getIconUrl;
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl:
-    "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png",
-  iconUrl:
-    "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png",
-  shadowUrl:
-    "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png",
-});
+if (typeof window !== "undefined") {
+  delete (L.Icon.Default.prototype as any)._getIconUrl;
+  L.Icon.Default.mergeOptions({
+    iconRetinaUrl:
+      "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png",
+    iconUrl:
+      "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png",
+    shadowUrl:
+      "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png",
+  });
+}
 
 // Types
 interface GeofenceData {
@@ -47,11 +50,21 @@ interface GeofenceData {
     center?: number[];
     radius?: number;
   };
-  pickupTime?: Date;
-  dropTime?: Date;
+  center?: {
+    lat: number | string;
+    lng: number | string;
+  };
+  alarmRules?: "both" | "enter" | "exit";
+  boundaryToleranceMeter?: number;
+  cooldownMinutes?: number;
+  devices?: any[];
+  pickupTime?: Date | string;
+  dropTime?: Date | string;
   schoolId?: string;
   branchId?: string;
   routeObjId?: string;
+  address?: string;
+  [key: string]: any;
 }
 
 type DecodedToken = {
@@ -63,11 +76,13 @@ type DecodedToken = {
 interface GeofenceManagerProps {
   mode?: "add" | "edit";
   initialData?: GeofenceData | null;
-  onSuccess?: () => void;
+  onSuccess?: (data?: any) => void;
   geofenceId?: string | null;
   geofenceRouteId?: Route | null;
   geofenceSchoolId?: School | null;
   geofenceBranchId?: Branch | null;
+  targetType?: "route" | "geotag";
+  geofenceDevice?: any | null;
 }
 
 const GeofenceManager: React.FC<GeofenceManagerProps> = ({
@@ -78,11 +93,14 @@ const GeofenceManager: React.FC<GeofenceManagerProps> = ({
   geofenceRouteId,
   geofenceSchoolId,
   geofenceBranchId,
+  targetType = "route",
+  geofenceDevice = null,
 }) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<L.Map | null>(null);
   const geofenceLayerGroup = useRef<L.LayerGroup | null>(null);
   const tempLayerGroup = useRef<L.LayerGroup | null>(null);
+  const lastLoadedEditId = useRef<string | null>(null);
 
   const [geofences, setGeofences] = useState<GeofenceData[]>([]);
   const [locationSearchQuery, setLocationSearchQuery] = useState("");
@@ -105,6 +123,14 @@ const GeofenceManager: React.FC<GeofenceManagerProps> = ({
   const [selectedSchool, setSelectedSchool] = useState<School | null>(null);
   const [selectedBranch, setSelectedBranch] = useState<Branch | null>(null);
   const [selectedRoute, setSelectedRoute] = useState<Route | null>(null);
+  const [selectedGeoTag, setSelectedGeoTag] = useState<any | null>(
+    geofenceDevice || null
+  );
+  const [alarmRules, setAlarmRules] = useState<"both" | "enter" | "exit">(
+    "both"
+  );
+  const [boundaryToleranceMeter, setBoundaryToleranceMeter] = useState<number>(5);
+  const [cooldownMinutes, setCooldownMinutes] = useState<number>(2);
 
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [pickupTime, setPickupTime] = useState<Date | undefined>(undefined);
@@ -185,6 +211,37 @@ const GeofenceManager: React.FC<GeofenceManagerProps> = ({
     role === "branchGroup"
   );
 
+  // Fetch GeoTags via bleService.getBleDevices (GET API)
+  const { data: bleDevices = [] } = useQuery({
+    queryKey: [
+      "ble-devices-for-geofence",
+      selectedSchool?._id || schoolId,
+      selectedBranch?._id || branchId,
+    ],
+    queryFn: async () => {
+      try {
+        const res = await bleService.getBleDevices({
+          limit: 500,
+          schoolId: selectedSchool?._id || schoolId || undefined,
+          branchId:
+            selectedBranch?._id || (role === "branch" ? branchId : undefined),
+        });
+        return res?.devices || [];
+      } catch (err) {
+        console.error("Failed to fetch BLE GeoTags:", err);
+        return [];
+      }
+    },
+    enabled: targetType === "geotag",
+    refetchOnWindowFocus: false,
+  });
+
+  useEffect(() => {
+    if (geofenceDevice) {
+      setSelectedGeoTag(geofenceDevice);
+    }
+  }, [geofenceDevice]);
+
   // Route data with proper dependencies
   // const { data: routeData } = useInfiniteRouteData({
   //   schoolId: selectedSchool?._id || schoolId,
@@ -230,17 +287,23 @@ const GeofenceManager: React.FC<GeofenceManagerProps> = ({
     }
   }, [mode, currentCoords.lat, currentCoords.lng]);
 
-  // Populate form with initial data when in edit mode
+  // Populate form with initial data when in edit mode (runs once per editId)
   useEffect(() => {
+    const editId = initialData?._id || initialData?.id || geofenceId;
     if (
       mode === "edit" &&
       initialData &&
-      schools.length > 0 &&
-      branches.length > 0
+      editId &&
+      editId !== lastLoadedEditId.current &&
+      ((schools.length > 0 && branches.length > 0) || targetType === "geotag")
     ) {
-      let lat, lng;
+      lastLoadedEditId.current = editId;
+      let lat: number, lng: number;
       if (initialData.area?.center && initialData.area.center.length >= 2) {
         [lat, lng] = initialData.area.center;
+      } else if (initialData.center?.lat != null && initialData.center?.lng != null) {
+        lat = Number(initialData.center.lat);
+        lng = Number(initialData.center.lng);
       } else {
         lat = 21.1286677;
         lng = 79.1038211;
@@ -248,23 +311,44 @@ const GeofenceManager: React.FC<GeofenceManagerProps> = ({
 
       setCurrentCoords({ lat, lng });
 
-      if (initialData.geofenceName) {
-        setCurrentGeofenceName(initialData.geofenceName);
+      const resolvedFenceName =
+        initialData.geofenceName || initialData.name || "";
+      if (resolvedFenceName) {
+        setCurrentGeofenceName(resolvedFenceName);
       }
 
-      if (initialData.area?.radius) {
-        setCurrentRadius(initialData.area.radius);
+      const resolvedRadius =
+        initialData.radius || initialData.area?.radius || 200;
+      if (resolvedRadius) {
+        setCurrentRadius(resolvedRadius);
+      }
+
+      if (initialData.alarmRules) {
+        setAlarmRules(initialData.alarmRules);
+      }
+      if (initialData.boundaryToleranceMeter != null) {
+        setBoundaryToleranceMeter(initialData.boundaryToleranceMeter);
+      }
+      if (initialData.cooldownMinutes != null) {
+        setCooldownMinutes(initialData.cooldownMinutes);
+      }
+      if (initialData.devices && initialData.devices.length > 0 && !selectedGeoTag) {
+        setSelectedGeoTag(initialData.devices[0]);
       }
 
       setTempGeofence({
         type: "radius",
-        geofenceName: initialData.geofenceName,
-        name: initialData.geofenceName,
+        geofenceName: resolvedFenceName,
+        name: resolvedFenceName,
         coordinates: [[lng, lat]],
-        radius: initialData.area.radius,
+        radius: resolvedRadius,
         pickupTime: initialData.pickupTime,
         dropTime: initialData.dropTime,
       });
+
+      if (map.current) {
+        map.current.setView([lat, lng], 15);
+      }
 
       // Set address
       if (initialData.address) {
@@ -309,7 +393,7 @@ const GeofenceManager: React.FC<GeofenceManagerProps> = ({
         setSelectedSchool(geofenceSchoolId);
         setSchoolId(geofenceSchoolId._id);
       } else if (initialData.schoolId) {
-        const school = schools.find((s) => s._id === initialData.schoolId);
+        const school = schools.find((s: any) => s._id === initialData.schoolId);
         if (school) {
           setSelectedSchool(school);
           setSchoolId(school._id);
@@ -320,7 +404,7 @@ const GeofenceManager: React.FC<GeofenceManagerProps> = ({
         setSelectedBranch(geofenceBranchId);
         setBranchId(geofenceBranchId._id);
       } else if (initialData.branchId) {
-        const branch = branches.find((b) => b._id === initialData.branchId);
+        const branch = branches.find((b: any) => b._id === initialData.branchId);
         if (branch) {
           setSelectedBranch(branch);
           setBranchId(branch._id);
@@ -349,23 +433,41 @@ const GeofenceManager: React.FC<GeofenceManagerProps> = ({
     // routeData,
   ]);
 
-  // Clear form when switching to add mode
+  // Clear form / set defaults when switching to add mode
   useEffect(() => {
     if (mode === "add") {
-      setCurrentGeofenceName("");
-      setCurrentRadius(100);
-      setSelectedSchool(null);
-      setSelectedBranch(null);
+      lastLoadedEditId.current = null;
+      setCurrentGeofenceName(initialData?.geofenceName || "");
+      setCurrentRadius(initialData?.area?.radius || 100);
+      setSelectedSchool(geofenceSchoolId || null);
+      setSelectedBranch(geofenceBranchId || null);
       setSelectedRoute(null);
-      setSchoolId(undefined);
-      setBranchId(undefined);
+      setSchoolId(geofenceSchoolId?._id);
+      setBranchId(geofenceBranchId?._id);
       setPickupTime(undefined);
       setDropTime(undefined);
-      setTempGeofence(null);
-      setCurrentCoords({ lat: 21.1286677, lng: 79.1038211 });
+
+      const lat = initialData?.area?.center?.[0] ?? 21.1286677;
+      const lng = initialData?.area?.center?.[1] ?? 79.1038211;
+      setCurrentCoords({ lat, lng });
+
+      if (initialData?.area?.center) {
+        setTempGeofence({
+          type: "radius",
+          geofenceName: initialData.geofenceName || "",
+          name: initialData.geofenceName || "",
+          coordinates: [[lng, lat]],
+          radius: initialData.area?.radius || 100,
+        });
+      } else {
+        setTempGeofence(null);
+      }
 
       if (map.current) {
-        map.current.setView([21.1286677, 79.1038211], 12);
+        map.current.setView(
+          [lat, lng],
+          initialData?.area?.center ? 15 : 12
+        );
       }
     }
   }, [mode]);
@@ -435,13 +537,15 @@ const GeofenceManager: React.FC<GeofenceManagerProps> = ({
             geofence.coordinates[0][1],
             geofence.coordinates[0][0],
           ];
+          const isCurrentActive = activeGeofence === geofence.id;
           const circle = L.circle(center, {
             radius: geofence.radius,
             fillColor: "#8b5cf6",
-            fillOpacity: 0.3,
+            fillOpacity: isCurrentActive ? 0.35 : 0.25,
             color: "#7c3aed",
-            weight: 2,
-            opacity: activeGeofence === geofence.id ? 1 : 0.8,
+            weight: isCurrentActive ? 3 : 2,
+            opacity: isCurrentActive ? 1 : 0.8,
+            className: isCurrentActive ? "geofence-pulse-circle-purple" : "",
           });
 
           circle.bindPopup(
@@ -455,7 +559,7 @@ const GeofenceManager: React.FC<GeofenceManagerProps> = ({
     }
   }, [geofences, activeGeofence]);
 
-  // Update temporary geofence on map
+  // Update temporary geofence on map with pulse effect
   useEffect(() => {
     if (!map.current || !tempLayerGroup.current) return;
 
@@ -474,22 +578,55 @@ const GeofenceManager: React.FC<GeofenceManagerProps> = ({
           tempGeofence.coordinates[0][0],
         ];
 
+        // 1. Center pulsing beacon waves under pin
+        const beaconIcon = L.divIcon({
+          className: "geofence-center-pulse-container",
+          html: `
+            <div class="geofence-pulse-beacon">
+              <div class="geofence-pulse-beacon-wave"></div>
+              <div class="geofence-pulse-beacon-wave delay"></div>
+            </div>
+          `,
+          iconSize: [48, 48],
+          iconAnchor: [24, 24],
+        });
+        const beaconMarker = L.marker(center, {
+          icon: beaconIcon,
+          interactive: false,
+        });
+        tempLayerGroup.current.addLayer(beaconMarker);
+
+        // 2. Standard location pin marker
         const marker = L.marker(center);
         tempLayerGroup.current.addLayer(marker);
 
+        // 3. Main pulsing geofence circle
         const circle = L.circle(center, {
           radius: tempGeofence.radius,
           fillColor: "#f59e0b",
-          fillOpacity: 0.3,
+          fillOpacity: 0.28,
           color: "#d97706",
-          weight: 2,
-          opacity: 0.8,
+          weight: 2.5,
+          opacity: 0.9,
+          className: "geofence-pulse-circle",
+        });
+
+        // 4. Subtle secondary outer radar ring
+        const radarCircle = L.circle(center, {
+          radius: tempGeofence.radius * 1.025,
+          fillOpacity: 0,
+          color: "#f59e0b",
+          weight: 1.5,
+          opacity: 0.7,
+          className: "geofence-pulse-radar",
+          interactive: false,
         });
 
         circle.bindPopup(
           `<strong>${tempGeofence.name}</strong><br/>Radius: ${tempGeofence.radius}m`
         );
         tempLayerGroup.current.addLayer(circle);
+        tempLayerGroup.current.addLayer(radarCircle);
       }
     } catch (error) {
       console.error("Error updating temporary geofence:", error);
@@ -648,6 +785,58 @@ const GeofenceManager: React.FC<GeofenceManagerProps> = ({
     setSelectedRoute(route);
   };
 
+  const handleGeoTagSelect = (tag: any | null) => {
+    setSelectedGeoTag(tag);
+    if (!tag) return;
+
+    if (!currentGeofenceName || currentGeofenceName.endsWith("Perimeter")) {
+      const name = tag.name || tag.sn || "GeoTag";
+      setCurrentGeofenceName(`${name} Perimeter`);
+    }
+
+    const lat =
+      Number(tag.lastLocation?.lat) ||
+      Number(tag.latitude) ||
+      Number(tag.lat);
+    const lng =
+      Number(tag.lastLocation?.lng) ||
+      Number(tag.longitude) ||
+      Number(tag.lng);
+
+    if (!isNaN(lat) && !isNaN(lng) && lat !== 0 && lng !== 0) {
+      setCurrentCoords({ lat, lng });
+      setTempGeofence({
+        type: "radius",
+        geofenceName: currentGeofenceName || `${tag.name || tag.sn} Perimeter`,
+        name: currentGeofenceName || `${tag.name || tag.sn} Perimeter`,
+        coordinates: [[lng, lat]],
+        radius: currentRadius || 100,
+      });
+      if (map.current) {
+        map.current.setView([lat, lng], 16);
+      }
+    }
+
+    if (tag.schoolId) {
+      const sId =
+        typeof tag.schoolId === "object" ? tag.schoolId._id : tag.schoolId;
+      const s = schools.find((x: any) => x._id === sId);
+      if (s) {
+        setSelectedSchool(s);
+        setSchoolId(s._id);
+      }
+    }
+    if (tag.branchId) {
+      const bId =
+        typeof tag.branchId === "object" ? tag.branchId._id : tag.branchId;
+      const b = branches.find((x: any) => x._id === bId);
+      if (b) {
+        setSelectedBranch(b);
+        setBranchId(b._id);
+      }
+    }
+  };
+
   const formatTime = (date?: Date) => {
     if (!date) return "";
     return date.toLocaleTimeString([], {
@@ -668,19 +857,87 @@ const saveGeofences = async () => {
   try {
     const lat = tempGeofence.coordinates?.[0]?.[1] || currentCoords.lat;
     const lng = tempGeofence.coordinates?.[0]?.[0] || currentCoords.lng;
+    const fenceRadius = tempGeofence.radius || currentRadius || 100;
+    const fenceName = (
+      currentGeofenceName ||
+      tempGeofence.geofenceName ||
+      tempGeofence.name ||
+      "Geofence Boundary"
+    ).trim();
 
-   const payloadForValidation = {
-     geofenceName: tempGeofence.geofenceName || tempGeofence.name || "",
-     latitude: lat,
-     longitude: lng,
-     radius: tempGeofence.radius || currentRadius,
-     schoolId: selectedSchool?._id || schoolId,
-     branchId: selectedBranch?._id || (role === "branch" ? branchId : undefined),
-     routeObjId: selectedRoute?._id,
-     pickupTime: pickupTime ? formatTime(pickupTime) : "",
-     dropTime: dropTime ? formatTime(dropTime) : undefined,
-   };
+    if (!fenceName || fenceName.length < 2) {
+      toast.error("Please enter a valid geofence name");
+      setIsLoading(false);
+      return;
+    }
 
+    if (isNaN(lat) || isNaN(lng) || lat === 0 || lng === 0) {
+      toast.error("Please select a valid location on the map");
+      setIsLoading(false);
+      return;
+    }
+
+    let address = "";
+    try {
+      address = await reverseGeocodeMapTiler(lat, lng);
+    } catch {
+      // ignore
+    }
+
+    // GeoTag Mode: Send exact payload to POST /api/geofences
+    if (targetType === "geotag") {
+      const targetDeviceId =
+        selectedGeoTag?._id || selectedGeoTag?.deviceId || selectedGeoTag?.sn;
+      const targetChildId =
+        typeof selectedGeoTag?.childId === "object"
+          ? selectedGeoTag?.childId?._id
+          : selectedGeoTag?.childId || null;
+
+      const payload = {
+        name: fenceName,
+        fenceType: "circle" as const,
+        center: { lat, lng },
+        radius: fenceRadius,
+        alarmRules: alarmRules || "both",
+        schoolId: selectedSchool?._id || schoolId || null,
+        branchId: selectedBranch?._id || (role === "branch" ? branchId : null),
+        childId: targetChildId,
+        deviceIds: targetDeviceId ? [targetDeviceId] : [],
+        boundaryToleranceMeter: boundaryToleranceMeter ?? 5,
+        cooldownMinutes: cooldownMinutes ?? 2,
+        remark: address || "School boundary",
+      };
+
+      if (mode === "add") {
+        const resData = await bleService.createBleGeofence(payload);
+        toast.success("Geofence created successfully");
+        setTempGeofence(null);
+        queryClient.invalidateQueries({ queryKey: ["geofence"] });
+        queryClient.invalidateQueries({ queryKey: ["ble-devices"] });
+        onSuccess?.(resData);
+      } else if (mode === "edit" && geofenceId) {
+        const resData = await bleService.updateBleGeofence(geofenceId, payload);
+        toast.success("Geofence updated successfully");
+        setTempGeofence(null);
+        queryClient.invalidateQueries({ queryKey: ["geofence"] });
+        queryClient.invalidateQueries({ queryKey: ["ble-devices"] });
+        onSuccess?.(resData);
+      }
+      return;
+    }
+
+    // Default Route Mode (used in /dashboard/school/geofence) - 100% UNCHANGED
+    const payloadForValidation = {
+      geofenceName: fenceName,
+      latitude: lat,
+      longitude: lng,
+      radius: fenceRadius,
+      schoolId: selectedSchool?._id || schoolId,
+      branchId: selectedBranch?._id || (role === "branch" ? branchId : undefined),
+      routeObjId: selectedRoute?._id,
+      pickupTime: pickupTime ? formatTime(pickupTime) : "",
+      dropTime: dropTime ? formatTime(dropTime) : undefined,
+    };
 
     // ✅ ZOD VALIDATION
     const parsed = geofenceSchema.safeParse(payloadForValidation);
@@ -692,9 +949,6 @@ const saveGeofences = async () => {
       setIsLoading(false);
       return;
     }
-
-    // ✅ Reverse geocode only after validation
-    const address = await reverseGeocodeMapTiler(lat, lng);
 
     const savedGeofence = {
       geofenceName: parsed.data.geofenceName,
@@ -716,18 +970,18 @@ const saveGeofences = async () => {
 
     if (mode === "add") {
       createGeofence(savedGeofence, {
-        onSuccess: () => {
+        onSuccess: (resData?: any) => {
           setTempGeofence(null);
-          onSuccess?.();
+          onSuccess?.(resData);
         },
       });
     } else if (mode === "edit" && geofenceId) {
       updateGeofence(
         { id: geofenceId, payload: savedGeofence },
         {
-          onSuccess: () => {
+          onSuccess: (resData?: any) => {
             setTempGeofence(null);
-            onSuccess?.();
+            onSuccess?.(resData);
           },
         }
       );
@@ -777,6 +1031,16 @@ const saveGeofences = async () => {
         handleSchoolSelect={handleSchoolSelect}
         selectedBranch={selectedBranch}
         handleBranchSelect={handleBranchSelect}
+        targetType={targetType}
+        selectedGeoTag={selectedGeoTag}
+        handleGeoTagSelect={handleGeoTagSelect}
+        geoTagList={bleDevices}
+        alarmRules={alarmRules}
+        setAlarmRules={setAlarmRules}
+        boundaryToleranceMeter={boundaryToleranceMeter}
+        setBoundaryToleranceMeter={setBoundaryToleranceMeter}
+        cooldownMinutes={cooldownMinutes}
+        setCooldownMinutes={setCooldownMinutes}
         selectedRoute={selectedRoute}
         handleRouteSelect={handleRouteSelect}
         role={role}

@@ -128,23 +128,6 @@ export function Navbar() {
     }
   }, [pathname]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const getSectionFirstUrl = React.useCallback(
-    (section: string) => {
-      if (navigationMap[section]) return navigationMap[section];
-      const items = getAccessibleSidebarItems(
-        section,
-        (role as UserRole) || null,
-        access,
-        fullAccess
-      );
-      if (items && items.length > 0) {
-        return items[0].url;
-      }
-      return "#";
-    },
-    [access, fullAccess, role]
-  );
-
   const handleNavClick = React.useCallback(
     (section: string) => {
       setMobileMenuOpen(false);
@@ -209,12 +192,22 @@ export function Navbar() {
                   className="cursor-pointer font-semibold text-yellow-900 hover:bg-yellow-500/20 focus:bg-yellow-500/20"
                   asChild
                 >
-                  <Link
-                    href={getSectionFirstUrl(section)}
-                    onClick={() => handleNavClick(section)}
-                  >
-                    {section}
-                  </Link>
+                  {SHOW_SIDEBAR_SECTIONS.includes(section) ? (
+                    <button
+                      type="button"
+                      className="w-full text-left"
+                      onClick={() => handleNavClick(section)}
+                    >
+                      {section}
+                    </button>
+                  ) : (
+                    <Link
+                      href={navigationMap[section] || "#"}
+                      onClick={() => handleNavClick(section)}
+                    >
+                      {section}
+                    </Link>
+                  )}
                 </DropdownMenuItem>
               ))}
             </DropdownMenuContent>
@@ -267,30 +260,40 @@ export function Navbar() {
                   <NavigationMenuLink
                     asChild
                     className={cn(
-                      "text-xs xl:text-sm px-1.5 sm:px-2 xl:px-2.5 py-1 xl:py-1.5 whitespace-nowrap font-semibold hover:font-bold transition-colors duration-200 focus:font-bold rounded-md",
+                      "text-xs xl:text-sm px-1.5 sm:px-2 xl:px-2.5 py-1 xl:py-1.5 whitespace-nowrap font-semibold hover:font-bold transition-colors duration-200 focus:font-bold rounded-md cursor-pointer",
                       isActive
                         ? "bg-yellow-500/30 text-yellow-950 font-bold"
                         : "hover:bg-yellow-500/20 text-yellow-900"
                     )}
                   >
-                    <Link
-                      href={getSectionFirstUrl(section)}
-                      onClick={() => handleNavClick(section)}
-                    >
-                      {section === "Incident Management" ? (
-                        <>
-                          <span className="hidden xl:inline">Incident Management</span>
-                          <span className="xl:hidden">Incident</span>
-                        </>
-                      ) : section === "Basic Maintenance" ? (
-                        <>
-                          <span className="hidden xl:inline">Basic Maintenance</span>
-                          <span className="xl:hidden">Basic Maint.</span>
-                        </>
-                      ) : (
-                        section
-                      )}
-                    </Link>
+                    {SHOW_SIDEBAR_SECTIONS.includes(section) ? (
+                      <button
+                        type="button"
+                        onClick={() => handleNavClick(section)}
+                        className="cursor-pointer"
+                      >
+                        {section}
+                      </button>
+                    ) : (
+                      <Link
+                        href={navigationMap[section] || "#"}
+                        onClick={() => handleNavClick(section)}
+                      >
+                        {section === "Incident Management" ? (
+                          <>
+                            <span className="hidden xl:inline">Incident Management</span>
+                            <span className="xl:hidden">Incident</span>
+                          </>
+                        ) : section === "Basic Maintenance" ? (
+                          <>
+                            <span className="hidden xl:inline">Basic Maintenance</span>
+                            <span className="xl:hidden">Basic Maint.</span>
+                          </>
+                        ) : (
+                          section
+                        )}
+                      </Link>
+                    )}
                   </NavigationMenuLink>
                 </NavigationMenuItem>
               );

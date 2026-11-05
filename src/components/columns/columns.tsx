@@ -18,7 +18,7 @@ import {
   TripReport,
   Incident,
 } from "@/interface/modal";
-import { Eye, EyeOff, Locate, Music, WifiOff, Copy, Check, MapPin, History, Pencil, ExternalLink } from "lucide-react";
+import { Eye, EyeOff, Locate, Music, WifiOff, Copy, Check, MapPin, History, Pencil, ExternalLink, Shield } from "lucide-react";
 import { FaPlus, FaMinus } from "react-icons/fa";
 import {
   GeofenceGroup,
@@ -986,7 +986,9 @@ export const getLiveVehicleColumns = (userRole: string = "", customColors: Recor
 export const getBleDeviceColumns = (
   onLiveTrack?: (device: any) => void,
   onHistoryPlayback?: (device: any) => void,
-  onEdit?: (device: any) => void
+  onEdit?: (device: any) => void,
+  onAssignGeofence?: (device: any) => void,
+  onViewGeofences?: (device: any) => void
 ): ColumnDef<any>[] => [
   {
     id: "status",
@@ -1147,6 +1149,73 @@ export const getBleDeviceColumns = (
         <span className="text-xs font-medium text-slate-700">{branch}</span>
       ) : (
         <span className="text-gray-400 text-xs">-</span>
+      );
+    },
+    meta: {
+      wrapConfig: { wrap: "break-word", maxWidth: "160px" },
+    },
+    enableSorting: true,
+  },
+  {
+    id: "geofence",
+    header: "Geofence",
+    accessorFn: (row: any) => {
+      const raw = row?.rawBleDevice || row?.original?.rawBleDevice || row;
+      const gf = raw?.geofence || raw?.geofenceId || row?.geofence;
+      if (typeof gf === "object") return gf?.geofenceName || gf?.name || "-";
+      return row?.geofenceName || (typeof gf === "string" && gf !== "none" ? gf : "-");
+    },
+    cell: ({ row }: any) => {
+      const raw = row.original?.rawBleDevice || row.original;
+      const gf = raw?.geofence || raw?.geofenceId || row.original?.geofence;
+      const gfName =
+        typeof gf === "object"
+          ? gf?.geofenceName || gf?.name
+          : row.original?.geofenceName ||
+            (typeof gf === "string" && gf !== "none" ? gf : null);
+
+      if (!gfName || gfName === "-") {
+        if (onViewGeofences) {
+          return (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onViewGeofences(row.original);
+              }}
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs text-slate-500 hover:text-emerald-700 hover:bg-emerald-50 border border-dashed border-slate-300 hover:border-emerald-300 transition-all cursor-pointer group"
+              title="Click to view & add child geofences"
+            >
+              <MapPin className="w-3 h-3 text-slate-400 group-hover:text-emerald-600 transition-colors" />
+              <span className="text-[11px] font-medium">View / Assign</span>
+            </button>
+          );
+        }
+        return <span className="text-gray-400 text-xs">-</span>;
+      }
+
+      if (onViewGeofences) {
+        return (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onViewGeofences(row.original);
+            }}
+            title="Click to view & edit child geofences on map"
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 hover:border-emerald-300 transition-all shadow-xs cursor-pointer group text-left max-w-[200px]"
+          >
+            <MapPin className="w-3 h-3 text-emerald-600 flex-shrink-0 group-hover:scale-110 transition-transform" />
+            <span className="truncate">{gfName}</span>
+          </button>
+        );
+      }
+
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 whitespace-nowrap">
+          <MapPin className="w-3 h-3 text-emerald-600" />
+          {gfName}
+        </span>
       );
     },
     meta: {
@@ -1353,7 +1422,7 @@ export const getBleDeviceColumns = (
     },
     enableSorting: true,
   },
-  ...(onLiveTrack || onHistoryPlayback || onEdit
+  ...(onLiveTrack || onHistoryPlayback || onEdit || onAssignGeofence
     ? [
         {
           id: "actions",
@@ -1362,6 +1431,20 @@ export const getBleDeviceColumns = (
             const dev = row.original;
             return (
               <div className="flex items-center justify-center gap-1.5">
+                {onAssignGeofence && (
+                  <button
+                    type="button"
+                    title="Assign Geofence"
+                    className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-md hover:bg-emerald-600 hover:text-white transition-all shadow-sm cursor-pointer whitespace-nowrap"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onAssignGeofence(dev);
+                    }}
+                  >
+                    <Shield className="w-3.5 h-3.5" />
+                    <span>Assign Geofence</span>
+                  </button>
+                )}
                 {onEdit && (
                   <button
                     type="button"
