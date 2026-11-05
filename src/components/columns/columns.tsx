@@ -18,7 +18,7 @@ import {
   TripReport,
   Incident,
 } from "@/interface/modal";
-import { Eye, EyeOff, Locate, Music, WifiOff, Copy, Check, MapPin, History, Pencil, ExternalLink, Shield } from "lucide-react";
+import { Eye, EyeOff, Locate, Music, WifiOff, Copy, Check, MapPin, History, Pencil, ExternalLink, Shield, BellRing } from "lucide-react";
 import { FaPlus, FaMinus } from "react-icons/fa";
 import {
   GeofenceGroup,
@@ -988,7 +988,8 @@ export const getBleDeviceColumns = (
   onHistoryPlayback?: (device: any) => void,
   onEdit?: (device: any) => void,
   onAssignGeofence?: (device: any) => void,
-  onViewGeofences?: (device: any) => void
+  onViewGeofences?: (device: any) => void,
+  onViewAlertHistory?: (device: any) => void
 ): ColumnDef<any>[] => [
   {
     id: "status",
@@ -1187,7 +1188,7 @@ export const getBleDeviceColumns = (
               title="Click to view & add child geofences"
             >
               <MapPin className="w-3 h-3 text-slate-400 group-hover:text-emerald-600 transition-colors" />
-              <span className="text-[11px] font-medium">View / Assign</span>
+              <span className="text-[11px] font-medium">View Geofences</span>
             </button>
           );
         }
@@ -1222,6 +1223,39 @@ export const getBleDeviceColumns = (
       wrapConfig: { wrap: "break-word", maxWidth: "160px" },
     },
     enableSorting: true,
+  },
+  {
+    id: "alertHistory",
+    header: "Geofence Alerts",
+    cell: ({ row }: any) => {
+      const dev = row.original;
+      if (onViewAlertHistory) {
+        return (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onViewAlertHistory(dev);
+            }}
+            title="View geofence entry & exit alert history"
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-900 border border-amber-200 hover:bg-amber-100 hover:border-amber-300 transition-colors shadow-xs cursor-pointer group whitespace-nowrap focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:outline-hidden"
+          >
+            <BellRing className="w-3 h-3 text-amber-600 group-hover:scale-110 transition-transform flex-shrink-0" />
+            <span>Alert History</span>
+          </button>
+        );
+      }
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-slate-100 text-slate-600 border border-slate-200 whitespace-nowrap">
+          <BellRing className="w-3 h-3 text-slate-400" />
+          <span>Alerts</span>
+        </span>
+      );
+    },
+    meta: {
+      wrapConfig: { wrap: "nowrap" },
+    },
+    enableSorting: false,
   },
   {
     id: "battery",

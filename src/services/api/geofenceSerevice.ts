@@ -63,6 +63,19 @@ export const geofenceService = {
     return res.data;
   },
 
+  deleteGeofenceById: async (id: string) => {
+    try {
+      const res = await api.delete(`/api/geofences/${encodeURIComponent(id)}`);
+      return res?.data ?? res;
+    } catch (err: any) {
+      if (err?.response?.status === 404) {
+        const res = await api.delete(`/geofence`, { data: { ids: [id] } });
+        return res?.data ?? res;
+      }
+      throw err;
+    }
+  },
+
   getStopChildren: async (geofenceId: string | number) => {
     try {
       const res = await api.get(`/stop-children/${geofenceId}`);

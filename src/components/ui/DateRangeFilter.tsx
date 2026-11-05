@@ -30,6 +30,28 @@ const formatTo12Hr = (time24: string): string => {
   return `${hours12}:${minutes.toString().padStart(2, "0")} ${ampm}`;
 };
 
+const toInputDateFormat = (d: Date): string => {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const normalizeDate = (d: Date): Date => {
+  const n = new Date(d);
+  n.setHours(0, 0, 0, 0);
+  return n;
+};
+
+const isSameDay = (d1: Date | null | undefined, d2: Date | null | undefined): boolean => {
+  if (!d1 || !d2) return false;
+  return (
+    d1.getFullYear() === d2.getFullYear() &&
+    d1.getMonth() === d2.getMonth() &&
+    d1.getDate() === d2.getDate()
+  );
+};
+
 const DateRangeFilter: React.FC<DateRangeFilterProps> = ({
   onDateRangeChange,
   title = "Select Date Range",
@@ -41,6 +63,7 @@ const DateRangeFilter: React.FC<DateRangeFilterProps> = ({
   const [currentMonth, setCurrentMonth] = useState<Date>(new Date());
   const [selectedStartDate, setSelectedStartDate] = useState<Date | null>(null);
   const [selectedEndDate, setSelectedEndDate] = useState<Date | null>(null);
+  const [hoverDate, setHoverDate] = useState<Date | null>(null);
   const [isSelecting, setIsSelecting] = useState<boolean>(false);
   const [startTime, setStartTime] = useState<string>("00:00");
   const [endTime, setEndTime] = useState<string>("23:59");
@@ -50,7 +73,9 @@ const DateRangeFilter: React.FC<DateRangeFilterProps> = ({
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Only update if props are provided
+    // Only update from incoming props if the user is not actively picking on the calendar
+    if (isSelecting) return;
+
     if (defaultStartDate !== undefined) {
       setSelectedStartDate(defaultStartDate);
       // Update calendar month to show the selected date
@@ -95,8 +120,7 @@ const DateRangeFilter: React.FC<DateRangeFilterProps> = ({
         }
       }
     }
-    setIsSelecting(false);
-  }, [defaultStartDate, defaultEndDate, showTime]);
+  }, [defaultStartDate, defaultEndDate, showTime, isSelecting]);
 
   const months = [
     "Jan",
@@ -258,65 +282,93 @@ const DateRangeFilter: React.FC<DateRangeFilterProps> = ({
   const handleDateClick = (date: Date) => {
     if (isDateDisabled(date)) return; // Prevent clicking disabled dates
 
-    if (!isSelecting) {
-      setSelectedStartDate(date);
-      setSelectedEndDate(date);
-      setIsSelecting(true);
-      applySelectedRange(date, date);
-    } else {
-      let newStart = selectedStartDate;
-      let newEnd = selectedEndDate;
-      let newEndTime = endTime;
+    const clickedDate = normalizeDate(date);
 
-      if (date < selectedStartDate!) {
-        newStart = date;
-        newEnd = selectedStartDate;
-        setSelectedStartDate(date);
-        setSelectedEndDate(selectedStartDate);
-      } else {
-        // Check if the range exceeds max days limit
-        if (maxDays && getDaysBetween(selectedStartDate!, date) > maxDays) {
-          // Set end date to maximum allowed
-          const maxEnd = getMaxEndDate(selectedStartDate!);
-          newEnd = maxEnd;
-          setSelectedEndDate(maxEnd);
+    if (!isSelecting || !selectedStartDate || (selectedStartDate && selectedEndDate && !isSelecting)) {
+      // First click: select start date
+      setSelectedStartDate(clickedDate);
+      setSelectedEndDate(null);
+      setIsSelecting(true);
+      setHoverDate(null);
+      setError(null);
+    } else {
+      // Second click: select end date and complete the range
+      let newStart = normalizeDate(selectedStartDate);
+      let newEnd = clickedDate;
+
+      if (newEnd < newStart) {
+        const temp = newStart;
+        newStart = newEnd;
+        newEnd = temp;
+      }
+
+      // Check if the range exceeds max days limit
+      if (maxDays && getDaysBetween(newStart, newEnd) > maxDays) {
+        newEnd = getMaxEndDate(newStart);
+      }
+
+      let newEndTime = endTime;
+      if (showTime) {
+        const isToday = newEnd.toDateString() === new Date().toDateString();
+        if (isToday) {
+          const now = new Date();
+          newEndTime = `${now.getHours().toString().padStart(2, "0")}:${now
+            .getMinutes()
+            .toString()
+            .padStart(2, "0")}`;
+          setEndTime(newEndTime);
         } else {
-          newEnd = date;
-          setSelectedEndDate(date);
-          if (showTime) {
-            const isToday = date.toDateString() === new Date().toDateString();
-            if (isToday) {
-              const now = new Date();
-              newEndTime = `${now.getHours().toString().padStart(2, "0")}:${now
-                .getMinutes()
-                .toString()
-                .padStart(2, "0")}`;
-              setEndTime(newEndTime);
-            } else {
-              newEndTime = "23:59";
-              setEndTime("23:59");
-            }
-          }
+          newEndTime = "23:59";
+          setEndTime("23:59");
         }
       }
+
+      setSelectedStartDate(newStart);
+      setSelectedEndDate(newEnd);
       setIsSelecting(false);
+      setHoverDate(null);
+      setError(null);
       applySelectedRange(newStart, newEnd, startTime, newEndTime);
-      setIsOpen(false);
+      if (!showTime) {
+        setIsOpen(false);
+      }
     }
   };
 
-  const isDateInRange = (date: Date): boolean =>
-    !!selectedStartDate &&
-    !!selectedEndDate &&
-    date >= selectedStartDate! &&
-    date <= selectedEndDate!;
+  const isDateInRange = (date: Date): boolean => {
+    const dTime = normalizeDate(date).getTime();
+    if (selectedStartDate && selectedEndDate) {
+      const sTime = normalizeDate(selectedStartDate).getTime();
+      const eTime = normalizeDate(selectedEndDate).getTime();
+      const minT = Math.min(sTime, eTime);
+      const maxT = Math.max(sTime, eTime);
+      return dTime >= minT && dTime <= maxT;
+    }
+    if (isSelecting && selectedStartDate && hoverDate) {
+      const sTime = normalizeDate(selectedStartDate).getTime();
+      const hTime = normalizeDate(hoverDate).getTime();
+      const minT = Math.min(sTime, hTime);
+      const maxT = Math.max(sTime, hTime);
+      return dTime >= minT && dTime <= maxT;
+    }
+    return false;
+  };
 
-  const isDateSelected = (date: Date): boolean =>
-    selectedStartDate?.toDateString() === date.toDateString() ||
-    selectedEndDate?.toDateString() === date.toDateString();
+  const isDateSelected = (date: Date): boolean => {
+    return isSameDay(selectedStartDate, date) || isSameDay(selectedEndDate, date);
+  };
 
   const handleApply = () => {
-    applySelectedRange(selectedStartDate, selectedEndDate);
+    let start = selectedStartDate;
+    let end = selectedEndDate;
+    if (start && !end) {
+      end = new Date(start);
+    } else if (end && !start) {
+      start = new Date(end);
+    }
+    applySelectedRange(start, end, startTime, endTime);
+    setIsSelecting(false);
+    setHoverDate(null);
     setIsOpen(false);
   };
 
@@ -324,6 +376,7 @@ const DateRangeFilter: React.FC<DateRangeFilterProps> = ({
     setSelectedStartDate(null);
     setSelectedEndDate(null);
     setIsSelecting(false);
+    setHoverDate(null);
     setStartTime("00:00");
     setEndTime("23:59");
     setError(null);
@@ -365,6 +418,7 @@ const DateRangeFilter: React.FC<DateRangeFilterProps> = ({
         setSelectedStartDate(startDate);
         setSelectedEndDate(finalEnd);
         setIsSelecting(false);
+        setHoverDate(null);
         if (updateMonth) setCurrentMonth(startDate);
         applySelectedRange(startDate, finalEnd);
         setIsOpen(false);
@@ -407,6 +461,7 @@ const DateRangeFilter: React.FC<DateRangeFilterProps> = ({
         setSelectedStartDate(null);
         setSelectedEndDate(null);
         setIsSelecting(false);
+        setHoverDate(null);
       },
     },
   ];
@@ -518,7 +573,7 @@ const DateRangeFilter: React.FC<DateRangeFilterProps> = ({
   }: {
     show: boolean;
     items: unknown[];
-    onSelect: (item: unknown) => void;
+    onSelect: (item: any) => void;
     current: unknown;
   }) =>
     show && (
@@ -547,7 +602,17 @@ const DateRangeFilter: React.FC<DateRangeFilterProps> = ({
     );
 
   return (
-    <Popover open={isOpen} onOpenChange={setIsOpen} modal={true}>
+    <Popover
+      open={isOpen}
+      onOpenChange={(open) => {
+        setIsOpen(open);
+        if (!open) {
+          setIsSelecting(false);
+          setHoverDate(null);
+        }
+      }}
+      modal={true}
+    >
       <PopoverTrigger asChild>
         <Button
           variant="outline"
@@ -560,6 +625,8 @@ const DateRangeFilter: React.FC<DateRangeFilterProps> = ({
                 selectedEndDate,
                 endTime
               )}`
+              : selectedStartDate
+              ? `${formatDate(selectedStartDate, startTime)} - ...`
               : title}
           </span>
         </Button>
@@ -573,12 +640,12 @@ const DateRangeFilter: React.FC<DateRangeFilterProps> = ({
                 <Button
                   key={preset.label}
                   variant="ghost"
-                  disabled={preset.disabled}
+                  disabled={Boolean(preset.disabled)}
                   className={cn(
                     "w-full justify-start h-7 px-2 text-xs font-normal cursor-pointer",
                     isPresetActive(preset.label) &&
                     "bg-accent text-accent-foreground",
-                    preset.disabled && "opacity-50 cursor-not-allowed"
+                    preset.disabled ? "opacity-50 cursor-not-allowed" : false
                   )}
                   onClick={preset.action}
                 >
@@ -682,7 +749,12 @@ const DateRangeFilter: React.FC<DateRangeFilterProps> = ({
               ))}
             </div>
 
-            <div className="grid grid-cols-7 gap-1">
+            <div
+              className="grid grid-cols-7 gap-1"
+              onMouseLeave={() => {
+                if (isSelecting) setHoverDate(null);
+              }}
+            >
               {getDaysInMonth(currentMonth).map((date, index) => {
                 const isCurrentMonth =
                   date.getMonth() === currentMonth.getMonth();
@@ -693,20 +765,26 @@ const DateRangeFilter: React.FC<DateRangeFilterProps> = ({
                 return (
                   <Button
                     key={index}
+                    type="button"
                     variant="ghost"
                     size="sm"
                     disabled={disabled}
                     onClick={() => handleDateClick(date)}
+                    onMouseEnter={() => {
+                      if (isSelecting) {
+                        setHoverDate(date);
+                      }
+                    }}
                     className={cn(
-                      "h-7 w-7 p-0 text-xs font-normal cursor-pointer",
+                      "h-7 w-7 p-0 text-xs font-normal cursor-pointer transition-none",
                       !isCurrentMonth && "text-muted-foreground opacity-50",
                       isSelected &&
-                      "bg-primary hover:bg-primary hover:text-white text-white hover:scale-105",
+                        "bg-primary hover:bg-primary hover:text-white text-white font-semibold rounded-md",
                       inRange &&
-                      !isSelected &&
-                      "bg-[#dbeafe] text-accent-foreground",
+                        !isSelected &&
+                        "bg-amber-100 dark:bg-amber-950/60 text-amber-900 dark:text-amber-100 rounded-none",
                       disabled &&
-                      "opacity-30 cursor-not-allowed hover:bg-transparent"
+                        "opacity-30 cursor-not-allowed hover:bg-transparent"
                     )}
                   >
                     {date.getDate()}
@@ -762,6 +840,58 @@ const DateRangeFilter: React.FC<DateRangeFilterProps> = ({
           </div>
         )}
 
+        {/* Manual Date Input Fields */}
+        <div className="flex items-center gap-3 px-3 py-2 border-t bg-slate-50/70 dark:bg-slate-900/50">
+          <div className="flex items-center gap-1.5 flex-1">
+            <Label className="text-[11px] text-muted-foreground whitespace-nowrap">From:</Label>
+            <Input
+              type="date"
+              max={selectedEndDate ? toInputDateFormat(selectedEndDate) : toInputDateFormat(new Date())}
+              value={selectedStartDate ? toInputDateFormat(selectedStartDate) : ""}
+              onChange={(e) => {
+                if (!e.target.value) {
+                  setSelectedStartDate(null);
+                  return;
+                }
+                const d = new Date(e.target.value);
+                if (!isNaN(d.getTime())) {
+                  const today = new Date();
+                  today.setHours(23, 59, 59, 999);
+                  const validDate = d > today ? new Date() : d;
+                  setSelectedStartDate(validDate);
+                  setCurrentMonth(new Date(validDate));
+                  setError(null);
+                }
+              }}
+              className="h-7 text-xs bg-background"
+            />
+          </div>
+          <div className="flex items-center gap-1.5 flex-1">
+            <Label className="text-[11px] text-muted-foreground whitespace-nowrap">To:</Label>
+            <Input
+              type="date"
+              min={selectedStartDate ? toInputDateFormat(selectedStartDate) : undefined}
+              max={toInputDateFormat(new Date())}
+              value={selectedEndDate ? toInputDateFormat(selectedEndDate) : ""}
+              onChange={(e) => {
+                if (!e.target.value) {
+                  setSelectedEndDate(null);
+                  return;
+                }
+                const d = new Date(e.target.value);
+                if (!isNaN(d.getTime())) {
+                  const today = new Date();
+                  today.setHours(23, 59, 59, 999);
+                  const validDate = d > today ? new Date() : d;
+                  setSelectedEndDate(validDate);
+                  setError(null);
+                }
+              }}
+              className="h-7 text-xs bg-background"
+            />
+          </div>
+        </div>
+
         {error && (
           <div className="px-4 py-2 text-xs text-destructive bg-destructive/10 border-t">
             {error}
@@ -773,7 +903,11 @@ const DateRangeFilter: React.FC<DateRangeFilterProps> = ({
             variant="outline"
             size="sm"
             className="cursor-pointer"
-            onClick={() => setIsOpen(false)}
+            onClick={() => {
+              setIsSelecting(false);
+              setHoverDate(null);
+              setIsOpen(false);
+            }}
           >
             Cancel
           </Button>

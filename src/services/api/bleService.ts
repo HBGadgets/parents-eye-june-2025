@@ -258,6 +258,27 @@ export const bleService = {
     }
   },
 
+  deleteBleGeofence: async (id: string) => {
+    try {
+      const res: any = await api.delete(`/api/geofences/${encodeURIComponent(id)}`);
+      return res?.data ?? res;
+    } catch (err: any) {
+      if (err?.response?.status === 404) {
+        const token =
+          Cookies.get("token") ||
+          (typeof window !== "undefined" ? localStorage.getItem("token") : null);
+        const mainBase =
+          process.env.NEXT_PUBLIC_API_BASE_URL || "https://parent.parentseye.in/api";
+        const fallbackRes: any = await axios.delete(`${mainBase}/geofence`, {
+          data: { ids: [id] },
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        return fallbackRes?.data ?? fallbackRes;
+      }
+      throw err;
+    }
+  },
+
   syncBleDevices: async () => {
     const res: any = await api.get("/api/ble-devices/sync");
     return res?.data ?? res;
@@ -275,6 +296,27 @@ export const bleService = {
         const mainBase =
           process.env.NEXT_PUBLIC_API_BASE_URL || "https://parent.parentseye.in/api";
         const fallbackRes: any = await axios.get(`${mainBase}/geofence`, {
+          params,
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        return fallbackRes?.data ?? fallbackRes;
+      }
+      throw err;
+    }
+  },
+
+  getBleGeofenceAlerts: async (params?: Record<string, any>) => {
+    try {
+      const res: any = await api.get("/api/geofences/alerts", { params });
+      return res?.data ?? res;
+    } catch (err: any) {
+      if (err?.response?.status === 404) {
+        const token =
+          Cookies.get("token") ||
+          (typeof window !== "undefined" ? localStorage.getItem("token") : null);
+        const mainBase =
+          process.env.NEXT_PUBLIC_API_BASE_URL || "https://parent.parentseye.in/api";
+        const fallbackRes: any = await axios.get(`${mainBase}/geofence/alerts`, {
           params,
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });

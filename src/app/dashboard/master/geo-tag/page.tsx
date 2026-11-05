@@ -42,6 +42,19 @@ const ChildGeofencesViewer = dynamic(
     ssr: false,
   }
 );
+
+const GeofenceAlertHistoryView = dynamic(
+  () => import("@/components/geofence-manager/GeofenceAlertHistoryView"),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex flex-col items-center justify-center p-12 text-slate-400 gap-2">
+        <Loader2 className="w-8 h-8 animate-spin text-amber-600" />
+        <span className="text-sm">Loading alert history...</span>
+      </div>
+    ),
+  }
+);
 import {
   Select,
   SelectContent,
@@ -61,6 +74,7 @@ import {
   Loader2,
   Shield,
   MapPin,
+  BellRing,
 } from "lucide-react";
 import { geofenceService } from "@/services/api/geofenceSerevice";
 import { useExport } from "@/hooks/useExport";
@@ -135,6 +149,10 @@ export default function GeoTagMasterPage() {
   const [selectedDeviceForView, setSelectedDeviceForView] = useState<any | null>(null);
   const [returnToViewerDevice, setReturnToViewerDevice] = useState<any | null>(null);
   const returnToViewerDeviceRef = useRef<any | null>(null);
+
+  // Active view: "devices" | "alerts"
+  const [activeView, setActiveView] = useState<"devices" | "alerts">("devices");
+  const [selectedDeviceForAlerts, setSelectedDeviceForAlerts] = useState<any | null>(null);
 
   const setEditData = useGeofenceStore((state) => state.setRowData);
 
@@ -522,7 +540,7 @@ export default function GeoTagMasterPage() {
         setGeofenceMode("add");
         setGeofenceId(null);
         const newInitialData: any = {
-          geofenceName: raw?.name ? `${raw.name} Geofence` : "New Geofence",
+          geofenceName: "",
           area: {
             center: [lat, lng],
             radius: 200,
@@ -672,17 +690,24 @@ export default function GeoTagMasterPage() {
     [handleOpenAssignGeofence]
   );
 
-  // Columns: Table action buttons (Edit + Assign Geofence + Clickable Geofence View)
+  // Open Geofence Alert History on page view
+  const handleOpenAlertHistory = useCallback((dev: any) => {
+    setSelectedDeviceForAlerts(dev);
+    setActiveView("alerts");
+  }, []);
+
+  // Columns: Table action buttons (Edit + Clickable Geofence View + Alert History)
   const columns = useMemo(
     () =>
       getBleDeviceColumns(
         undefined,
         undefined,
         (dev) => handleOpenEdit(dev),
-        (dev) => handleOpenAssignGeofence(dev),
-        (dev) => handleOpenViewGeofences(dev)
+        undefined,
+        (dev) => handleOpenViewGeofences(dev),
+        (dev) => handleOpenAlertHistory(dev)
       ),
-    [handleOpenEdit, handleOpenAssignGeofence, handleOpenViewGeofences]
+    [handleOpenEdit, handleOpenViewGeofences, handleOpenAlertHistory]
   );
 
   const { tableElement } = CustomTableServerSidePagination({
@@ -784,8 +809,18 @@ export default function GeoTagMasterPage() {
 
   return (
     <div className="flex flex-col flex-1 min-h-0 space-y-4 p-4 md:p-6 bg-slate-50/50 dark:bg-slate-900/50">
-      {/* Search Bar & Action Controls Tile */}
-      <div className="flex flex-col sm:flex-row items-center gap-3 bg-white dark:bg-slate-800 p-3 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
+      {activeView === "alerts" ? (
+        <GeofenceAlertHistoryView
+          filterDevice={selectedDeviceForAlerts}
+          onBack={() => {
+            setActiveView("devices");
+            setSelectedDeviceForAlerts(null);
+          }}
+        />
+      ) : (
+        <>
+          {/* Search Bar & Action Controls Tile */}
+          <div className="flex flex-col sm:flex-row items-center gap-3 bg-white dark:bg-slate-800 p-3 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
         <div className="relative flex-1 w-full">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
           <Input
@@ -900,6 +935,20 @@ export default function GeoTagMasterPage() {
             Refresh
           </Button>
 
+          {/* View Geofence Alerts on Page */}
+          <Button
+            variant="outline"
+            onClick={() => {
+              setSelectedDeviceForAlerts(null);
+              setActiveView("alerts");
+            }}
+            className="gap-2 h-10 cursor-pointer"
+            title="View Geofence Alert History"
+          >
+            <BellRing className="h-4 w-4 text-amber-600" />
+            Alert History
+          </Button>
+
           {/* Export Popover */}
           <Popover>
             <PopoverTrigger asChild>
@@ -941,6 +990,8 @@ export default function GeoTagMasterPage() {
       <div className="flex-1 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden p-2">
         {tableElement}
       </div>
+      </>
+      )}
 
       {/* Edit GeoTag Dialog */}
       <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
@@ -1204,6 +1255,8 @@ export default function GeoTagMasterPage() {
         device={selectedDeviceForView}
         onEditGeofence={handleEditChildGeofence}
         onAddNewGeofence={handleAddNewGeofenceFromViewer}
+        onGeofenceCreated={() => fetchDevices()}
+        onGeofenceDeleted={() => fetchDevices()}
       />
     </div>
   );
