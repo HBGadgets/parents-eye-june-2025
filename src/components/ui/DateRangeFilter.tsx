@@ -72,11 +72,34 @@ const DateRangeFilter: React.FC<DateRangeFilterProps> = ({
   const [showMonthSelector, setShowMonthSelector] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
+  const lastSyncedStartPropRef = React.useRef<number | null | undefined>(undefined);
+  const lastSyncedEndPropRef = React.useRef<number | null | undefined>(undefined);
+
   useEffect(() => {
-    // Only update from incoming props if the user is not actively picking on the calendar
+    const startPropTime = defaultStartDate
+      ? defaultStartDate.getTime()
+      : defaultStartDate === null
+      ? null
+      : undefined;
+    const endPropTime = defaultEndDate
+      ? defaultEndDate.getTime()
+      : defaultEndDate === null
+      ? null
+      : undefined;
+
+    const startChanged = startPropTime !== lastSyncedStartPropRef.current;
+    const endChanged = endPropTime !== lastSyncedEndPropRef.current;
+
+    // If incoming default dates haven't changed externally, don't overwrite user selection
+    if (!startChanged && !endChanged) return;
+
+    // If user is actively clicking a range on the calendar, don't overwrite
     if (isSelecting) return;
 
-    if (defaultStartDate !== undefined) {
+    lastSyncedStartPropRef.current = startPropTime;
+    lastSyncedEndPropRef.current = endPropTime;
+
+    if (startChanged && defaultStartDate !== undefined) {
       setSelectedStartDate(defaultStartDate);
       // Update calendar month to show the selected date
       if (defaultStartDate) {
@@ -91,7 +114,7 @@ const DateRangeFilter: React.FC<DateRangeFilterProps> = ({
         }
       }
     }
-    if (defaultEndDate !== undefined) {
+    if (endChanged && defaultEndDate !== undefined) {
       setSelectedEndDate(defaultEndDate);
       if (showTime && defaultEndDate) {
         const isToday =
@@ -120,7 +143,7 @@ const DateRangeFilter: React.FC<DateRangeFilterProps> = ({
         }
       }
     }
-  }, [defaultStartDate, defaultEndDate, showTime, isSelecting]);
+  }, [defaultStartDate, defaultEndDate, showTime]);
 
   const months = [
     "Jan",
@@ -252,6 +275,12 @@ const DateRangeFilter: React.FC<DateRangeFilterProps> = ({
       finalStart = new Date(finalEnd);
     }
 
+    if (finalStart && finalEnd && finalStart > finalEnd) {
+      const temp = finalStart;
+      finalStart = finalEnd;
+      finalEnd = temp;
+    }
+
     if (finalStart) {
       if (showTime) {
         const [hours, minutes] = currentStartTime.split(":").map(Number);
@@ -270,12 +299,9 @@ const DateRangeFilter: React.FC<DateRangeFilterProps> = ({
       }
     }
 
-    if (finalStart && finalEnd && finalStart > finalEnd) {
-      setError("Start time must be before end time");
-      return;
-    }
-
     setError(null);
+    lastSyncedStartPropRef.current = finalStart?.getTime();
+    lastSyncedEndPropRef.current = finalEnd?.getTime();
     onDateRangeChange?.(finalStart, finalEnd);
   };
 
@@ -363,8 +389,17 @@ const DateRangeFilter: React.FC<DateRangeFilterProps> = ({
     let end = selectedEndDate;
     if (start && !end) {
       end = new Date(start);
+      setSelectedEndDate(end);
     } else if (end && !start) {
       start = new Date(end);
+      setSelectedStartDate(start);
+    }
+    if (start && end && start > end) {
+      const temp = start;
+      start = end;
+      end = temp;
+      setSelectedStartDate(start);
+      setSelectedEndDate(end);
     }
     applySelectedRange(start, end, startTime, endTime);
     setIsSelecting(false);
@@ -380,6 +415,8 @@ const DateRangeFilter: React.FC<DateRangeFilterProps> = ({
     setStartTime("00:00");
     setEndTime("23:59");
     setError(null);
+    lastSyncedStartPropRef.current = null;
+    lastSyncedEndPropRef.current = null;
     onDateRangeChange?.(null, null);
     setIsOpen(false);
   };
@@ -420,7 +457,23 @@ const DateRangeFilter: React.FC<DateRangeFilterProps> = ({
         setIsSelecting(false);
         setHoverDate(null);
         if (updateMonth) setCurrentMonth(startDate);
-        applySelectedRange(startDate, finalEnd);
+
+        let targetEndTime = endTime;
+        if (showTime) {
+          const isToday = finalEnd.toDateString() === new Date().toDateString();
+          if (isToday) {
+            const now = new Date();
+            targetEndTime = `${now.getHours().toString().padStart(2, "0")}:${now
+              .getMinutes()
+              .toString()
+              .padStart(2, "0")}`;
+          } else {
+            targetEndTime = "23:59";
+          }
+          setEndTime(targetEndTime);
+        }
+
+        applySelectedRange(startDate, finalEnd, startTime, targetEndTime);
         setIsOpen(false);
       },
     };
@@ -846,14 +899,15 @@ const DateRangeFilter: React.FC<DateRangeFilterProps> = ({
             <Label className="text-[11px] text-muted-foreground whitespace-nowrap">From:</Label>
             <Input
               type="date"
-              max={selectedEndDate ? toInputDateFormat(selectedEndDate) : toInputDateFormat(new Date())}
+              max={toInputDateFormat(new Date())}
               value={selectedStartDate ? toInputDateFormat(selectedStartDate) : ""}
               onChange={(e) => {
                 if (!e.target.value) {
                   setSelectedStartDate(null);
                   return;
                 }
-                const d = new Date(e.target.value);
+                const [y, m, day] = e.target.value.split("-").map(Number);
+                const d = new Date(y, m - 1, day);
                 if (!isNaN(d.getTime())) {
                   const today = new Date();
                   today.setHours(23, 59, 59, 999);
@@ -870,7 +924,6 @@ const DateRangeFilter: React.FC<DateRangeFilterProps> = ({
             <Label className="text-[11px] text-muted-foreground whitespace-nowrap">To:</Label>
             <Input
               type="date"
-              min={selectedStartDate ? toInputDateFormat(selectedStartDate) : undefined}
               max={toInputDateFormat(new Date())}
               value={selectedEndDate ? toInputDateFormat(selectedEndDate) : ""}
               onChange={(e) => {
@@ -878,7 +931,8 @@ const DateRangeFilter: React.FC<DateRangeFilterProps> = ({
                   setSelectedEndDate(null);
                   return;
                 }
-                const d = new Date(e.target.value);
+                const [y, m, day] = e.target.value.split("-").map(Number);
+                const d = new Date(y, m - 1, day);
                 if (!isNaN(d.getTime())) {
                   const today = new Date();
                   today.setHours(23, 59, 59, 999);

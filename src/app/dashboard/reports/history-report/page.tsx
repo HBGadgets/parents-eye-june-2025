@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import FullScreenSpinner from "@/components/RouteLoader";
 import { formatDateToYYYYMMDD } from "@/util/formatDate";
+import { formatLocalToIso } from "@/util/dateFormatters";
 import { api } from "@/services/apiService";
 import TripsSidebar from "@/components/history/sliding-side-bar";
 import { Menu, Gauge, Clock, MapPinOff, Save, Check, RotateCcw, ZoomIn, List, Activity, Search, MapPin, Eye, BatteryCharging, Car, ExternalLink } from "lucide-react";
@@ -717,12 +718,18 @@ function HistoryReportContent() {
 
   const handleDateFilter = useCallback(
     (startDate: Date | null, endDate: Date | null) => {
-      if (!startDate || !endDate) return;
-      const fromIso = startDate.toISOString();
-      const toIso = endDate.toISOString();
+      if (!startDate || !endDate) {
+        setFromDate(null);
+        setToDate(null);
+        setDefaultDateRange(null);
+        return;
+      }
+      const fromIso = formatLocalToIso(startDate);
+      const toIso = formatLocalToIso(endDate);
 
       setFromDate(fromIso);
       setToDate(toIso);
+      setDefaultDateRange({ startDate, endDate });
 
       const targetId = selectedVehicle || uniqueIdFromUrl;
       if (targetId && hasGenerated) {
@@ -843,8 +850,8 @@ function HistoryReportContent() {
     end.setHours(23, 59, 59, 999);
 
     return {
-      from: start.toISOString(),
-      to: end.toISOString(),
+      from: formatLocalToIso(start),
+      to: formatLocalToIso(end),
       startDate: start,
       endDate: end,
     };
@@ -895,6 +902,7 @@ function HistoryReportContent() {
   };
 
   const hasSyncedFromUrl = useRef(false);
+  const hasInitializedDate = useRef(false);
 
   const handleModeChange = (mode: "VEHICLE" | "BLE") => {
     if (deviceType === mode) return;
@@ -914,18 +922,18 @@ function HistoryReportContent() {
     }
   };
 
-  // Ensure default date range is initialized on initial page load
+  // Ensure default date range is initialized once on initial page load
   useEffect(() => {
-    if (!defaultDateRange) {
-      const today = getTodayUtcRange();
-      setFromDate(today.from);
-      setToDate(today.to);
-      setDefaultDateRange({
-        startDate: today.startDate,
-        endDate: today.endDate,
-      });
-    }
-  }, [defaultDateRange]);
+    if (hasInitializedDate.current) return;
+    hasInitializedDate.current = true;
+    const today = getTodayUtcRange();
+    setFromDate(today.from);
+    setToDate(today.to);
+    setDefaultDateRange({
+      startDate: today.startDate,
+      endDate: today.endDate,
+    });
+  }, []);
 
   // Sync uniqueId from URL with dropdown selection and set today's date (only once on initial mount)
   useEffect(() => {
@@ -1182,7 +1190,6 @@ function HistoryReportContent() {
               <DateRangeFilter
                 onDateRangeChange={handleDateFilter}
                 title="Select Date Range"
-                maxDays={7}
                 defaultStartDate={defaultDateRange?.startDate}
                 defaultEndDate={defaultDateRange?.endDate}
                 showTime={true}

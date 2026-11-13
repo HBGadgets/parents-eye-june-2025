@@ -48,6 +48,11 @@ export const useHistoryReport = (
 
         const formatToLocalLocationTime = (dateOrStr?: string | Date | number): string => {
           if (!dateOrStr) return "";
+          if (typeof dateOrStr === "string" && dateOrStr.includes("T")) {
+            const [datePart, timePart] = dateOrStr.replace("Z", "").split("T");
+            const cleanTime = (timePart || "00:00:00").split(".")[0];
+            return `${datePart} ${cleanTime}`;
+          }
           const d = new Date(dateOrStr);
           if (isNaN(d.getTime())) return "";
           const YYYY = d.getFullYear();

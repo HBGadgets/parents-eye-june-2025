@@ -61,3 +61,17 @@ export const getDateRangeForDay = (dateStr: string) => {
     to: `${dateStr}T23:59:59.000Z`,
   };
 };
+
+export const formatLocalToIso = (date: Date): string => {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const pad3 = (n: number) => String(n).padStart(3, "0");
+  const year = date.getFullYear();
+  const month = pad(date.getMonth() + 1);
+  const day = pad(date.getDate());
+  const hours = pad(date.getHours());
+  const minutes = pad(date.getMinutes());
+  const seconds = pad(date.getSeconds());
+  const ms = pad3(date.getMilliseconds());
+  return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}.${ms}Z`;
+};
+
