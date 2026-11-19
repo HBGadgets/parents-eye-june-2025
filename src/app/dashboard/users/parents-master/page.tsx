@@ -307,6 +307,8 @@ export default function ParentsMaster() {
       password?: string;
       schoolId?: string;
       branchId?: string;
+      icardAssigned?: boolean;
+      vehicleTrack?: boolean;
     }) => {
       try {
         const payload = { ...data };
@@ -357,6 +359,16 @@ export default function ParentsMaster() {
         header: "Branch",
         formatter: (_: any, row: any) =>
           typeof row.branchId === "object" ? row.branchId?.branchName : "--",
+      },
+      {
+        key: "icardAssigned",
+        header: "iCard Assigned",
+        formatter: (val: any) => (val ? "Yes" : "No"),
+      },
+      {
+        key: "vehicleTrack",
+        header: "Vehicle Track",
+        formatter: (val: any) => (val ? "Yes" : "No"),
       },
       {
         key: "isActive",
@@ -533,7 +545,12 @@ export default function ParentsMaster() {
 
       {/* Dialog with Form */}
       {showAddParent && (
-        <div className="fixed inset-0 bg-black/40 flex justify-center items-center z-50">
+        <div
+          className="fixed inset-0 bg-black/50 backdrop-blur-xs flex justify-center items-center z-50 p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) closeModal();
+          }}
+        >
           <AddParentForm
             onSubmit={handleFormSubmit}
             onClose={closeModal}

@@ -98,6 +98,8 @@ export interface Parent {
   schoolId?: School;
   branchId?: Branch;
   isActive?: boolean;
+  icardAssigned?: boolean;
+  vehicleTrack?: boolean;
   createdAt: string;
   updatedAt?: string;
 }

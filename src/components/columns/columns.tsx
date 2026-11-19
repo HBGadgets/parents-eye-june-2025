@@ -1622,8 +1622,50 @@ export const getParentsColumns = (
       accessorFn: (row: Parent) => row.branchId?.branchName ?? "—",
     },
     {
-      id: "registerationDate",
-      headers: "Registeration Date",
+      id: "icardAssigned",
+      header: "iCard Assigned",
+      accessorFn: (row: Parent) => row.icardAssigned,
+      cell: ({ row }) => {
+        const isAssigned = row.original.icardAssigned ?? false;
+        return (
+          <div className="flex items-center justify-center">
+            <span
+              className={`px-2 py-0.5 rounded-full text-[11px] font-semibold border ${
+                isAssigned
+                  ? "bg-green-50 text-green-700 border-green-200"
+                  : "bg-gray-100 text-gray-600 border-gray-200"
+              }`}
+            >
+              {isAssigned ? "Yes" : "No"}
+            </span>
+          </div>
+        );
+      },
+    },
+    {
+      id: "vehicleTrack",
+      header: "Vehicle Track",
+      accessorFn: (row: Parent) => row.vehicleTrack,
+      cell: ({ row }) => {
+        const isTracking = row.original.vehicleTrack ?? false;
+        return (
+          <div className="flex items-center justify-center">
+            <span
+              className={`px-2 py-0.5 rounded-full text-[11px] font-semibold border ${
+                isTracking
+                  ? "bg-green-50 text-green-700 border-green-200"
+                  : "bg-gray-100 text-gray-600 border-gray-200"
+              }`}
+            >
+              {isTracking ? "Yes" : "No"}
+            </span>
+          </div>
+        );
+      },
+    },
+    {
+      id: "registrationDate",
+      header: "Registration Date",
       accessorFn: (row: Parent) => new Date(row.createdAt).toLocaleDateString(),
     },
     {
