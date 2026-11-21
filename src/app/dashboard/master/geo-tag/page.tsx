@@ -166,45 +166,98 @@ export default function GeoTagMasterPage() {
   const [branchSupervisors, setBranchSupervisors] = useState<any[]>([]);
   const [branchStudents, setBranchStudents] = useState<any[]>([]);
   const [isLoadingBranchData, setIsLoadingBranchData] = useState<boolean>(false);
+  const [isLoadingStudents, setIsLoadingStudents] = useState<boolean>(false);
+  const [childSearch, setChildSearch] = useState<string>("");
+  const [debouncedChildSearch, setDebouncedChildSearch] = useState<string>("");
 
+  // Debounce student search in edit modal
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedChildSearch(childSearch);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [childSearch]);
+
+  // Reset student search when modal closes
+  useEffect(() => {
+    if (!isEditModalOpen) {
+      setChildSearch("");
+      setDebouncedChildSearch("");
+    }
+  }, [isEditModalOpen]);
+
+  // Fetch supervisors when branch changes (without hardcoded limit)
   useEffect(() => {
     if (!isEditModalOpen || !editBranchId || editBranchId === "none") {
       setBranchSupervisors([]);
-      setBranchStudents([]);
       return;
     }
 
     let isMounted = true;
     setIsLoadingBranchData(true);
 
-    Promise.allSettled([
-      supervisorService.getSupervisor({ branchId: editBranchId, limit: 100 }),
-      studentService.getStudents({ branchId: editBranchId, limit: 100 }),
-    ]).then(([supResult, stuResult]) => {
-      if (!isMounted) return;
-      if (supResult.status === "fulfilled") {
-        const resSup: any = supResult.value;
+    supervisorService
+      .getSupervisor({ branchId: editBranchId })
+      .then((res: any) => {
+        if (!isMounted) return;
         const sups =
-          resSup?.data ||
-          resSup?.supervisors ||
-          (Array.isArray(resSup) ? resSup : []);
+          res?.data ||
+          res?.supervisors ||
+          (Array.isArray(res) ? res : []);
         setBranchSupervisors(Array.isArray(sups) ? sups : []);
-      }
-      if (stuResult.status === "fulfilled") {
-        const resStu: any = stuResult.value;
-        const stus =
-          resStu?.children ||
-          resStu?.data ||
-          (Array.isArray(resStu) ? resStu : []);
-        setBranchStudents(Array.isArray(stus) ? stus : []);
-      }
-      setIsLoadingBranchData(false);
-    });
+      })
+      .catch((err) => {
+        console.error("Failed to load supervisors:", err);
+        if (isMounted) setBranchSupervisors([]);
+      })
+      .finally(() => {
+        if (isMounted) setIsLoadingBranchData(false);
+      });
 
     return () => {
       isMounted = false;
     };
   }, [isEditModalOpen, editBranchId]);
+
+  // Fetch students when branch or debounced search changes (without hardcoded limit)
+  useEffect(() => {
+    if (!isEditModalOpen || !editBranchId || editBranchId === "none") {
+      setBranchStudents([]);
+      return;
+    }
+
+    let isMounted = true;
+    setIsLoadingStudents(true);
+
+    const params: any = {
+      branchId: editBranchId,
+    };
+    if (debouncedChildSearch.trim()) {
+      params.search = debouncedChildSearch.trim();
+    }
+
+    studentService
+      .getStudents(params)
+      .then((res: any) => {
+        if (!isMounted) return;
+        const stus =
+          res?.children ||
+          res?.data ||
+          (Array.isArray(res) ? res : []);
+        setBranchStudents(Array.isArray(stus) ? stus : []);
+      })
+      .catch((err) => {
+        console.error("Failed to load students for branch:", err);
+        if (isMounted) setBranchStudents([]);
+      })
+      .finally(() => {
+        if (isMounted) setIsLoadingStudents(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isEditModalOpen, editBranchId, debouncedChildSearch]);
 
   // Debounce search
   useEffect(() => {
@@ -360,6 +413,8 @@ export default function GeoTagMasterPage() {
     setEditBranchId(bId || "none");
     setEditSupervisorId(supId || "none");
     setEditChildId(chId || "none");
+    setChildSearch("");
+    setDebouncedChildSearch("");
     setEditStatus(raw?.status === "inactive" ? "inactive" : "active");
 
     if (raw?.subscriptionEndDate) {
@@ -433,73 +488,155 @@ export default function GeoTagMasterPage() {
   // Dropdown options for Edit Modal
   const editSchoolOptions: ComboboxItem[] = useMemo(() => {
     const options: ComboboxItem[] = [{ label: "None (Unassigned)", value: "none" }];
+    const seenIds = new Set<string>(["none"]);
+
     if (editingDevice?.schoolId) {
       const rawSchool = editingDevice.schoolId;
       const sId = typeof rawSchool === "object" ? rawSchool._id : rawSchool;
       const sName = typeof rawSchool === "object" ? rawSchool.schoolName : undefined;
-      if (sId && !schoolData.some((s: any) => s._id === sId)) {
+      if (sId && sId !== "none" && !schoolData.some((s: any) => s._id === sId)) {
         options.push({ label: sName || "Current School", value: sId });
+        seenIds.add(sId);
       }
     }
     (schoolData || []).forEach((s: any) => {
-      options.push({ label: s.schoolName, value: s._id });
+      if (s?._id && !seenIds.has(s._id)) {
+        seenIds.add(s._id);
+        options.push({ label: s.schoolName, value: s._id });
+      }
     });
     return options;
   }, [editingDevice, schoolData]);
 
   const editBranchOptions: ComboboxItem[] = useMemo(() => {
     const options: ComboboxItem[] = [{ label: "None (Unassigned)", value: "none" }];
-    if (editingDevice?.branchId) {
+    if (!editSchoolId || editSchoolId === "none") {
+      return options;
+    }
+
+    const seenIds = new Set<string>(["none"]);
+    const origSchoolId = editingDevice?.schoolId
+      ? typeof editingDevice.schoolId === "object"
+        ? editingDevice.schoolId._id
+        : editingDevice.schoolId
+      : null;
+
+    // Only include original branch if the currently selected school matches the original school
+    if (origSchoolId && editSchoolId === origSchoolId && editingDevice?.branchId) {
       const rawBranch = editingDevice.branchId;
       const bId = typeof rawBranch === "object" ? rawBranch._id : rawBranch;
       const bName = typeof rawBranch === "object" ? rawBranch.branchName : undefined;
-      if (bId && !editBranchData.some((b: any) => b._id === bId)) {
+      if (bId && bId !== "none" && !editBranchData.some((b: any) => b._id === bId)) {
         options.push({ label: bName || "Current Branch", value: bId });
+        seenIds.add(bId);
       }
     }
+
     (editBranchData || []).forEach((b: any) => {
-      options.push({ label: b.branchName, value: b._id });
+      if (b?._id && !seenIds.has(b._id)) {
+        seenIds.add(b._id);
+        options.push({ label: b.branchName, value: b._id });
+      }
     });
     return options;
-  }, [editingDevice, editBranchData]);
+  }, [editingDevice, editBranchData, editSchoolId]);
 
   const supervisorOptions: ComboboxItem[] = useMemo(() => {
     const options: ComboboxItem[] = [{ label: "None (Unassigned)", value: "none" }];
-    if (editingDevice?.supervisorId) {
+    if (!editBranchId || editBranchId === "none") {
+      return options;
+    }
+
+    const seenIds = new Set<string>(["none"]);
+    const origSchoolId = editingDevice?.schoolId
+      ? typeof editingDevice.schoolId === "object"
+        ? editingDevice.schoolId._id
+        : editingDevice.schoolId
+      : null;
+    const origBranchId = editingDevice?.branchId
+      ? typeof editingDevice.branchId === "object"
+        ? editingDevice.branchId._id
+        : editingDevice.branchId
+      : null;
+
+    // Only include original supervisor if both school and branch match the original assignment
+    const isOriginalBranchSelected =
+      origSchoolId &&
+      origBranchId &&
+      editSchoolId === origSchoolId &&
+      editBranchId === origBranchId;
+
+    if (isOriginalBranchSelected && editingDevice?.supervisorId) {
       const rawSup = editingDevice.supervisorId;
       const supId = typeof rawSup === "object" ? rawSup._id : rawSup;
       const supName = typeof rawSup === "object" ? rawSup.supervisorName : undefined;
-      if (supId && !branchSupervisors.some((s: any) => s._id === supId)) {
+      if (supId && supId !== "none" && !branchSupervisors.some((s: any) => s._id === supId)) {
         options.push({ label: supName || "Current Supervisor", value: supId });
+        seenIds.add(supId);
       }
     }
+
     branchSupervisors.forEach((s: any) => {
-      options.push({ label: s.supervisorName, value: s._id });
+      if (s?._id && !seenIds.has(s._id)) {
+        seenIds.add(s._id);
+        options.push({ label: s.supervisorName, value: s._id });
+      }
     });
     return options;
-  }, [editingDevice, branchSupervisors]);
+  }, [editingDevice, branchSupervisors, editSchoolId, editBranchId]);
 
   const studentOptions: ComboboxItem[] = useMemo(() => {
     const options: ComboboxItem[] = [{ label: "None (Unassigned)", value: "none" }];
-    if (editingDevice?.childId) {
+    if (!editBranchId || editBranchId === "none") {
+      return options;
+    }
+
+    const seenIds = new Set<string>(["none"]);
+    const origSchoolId = editingDevice?.schoolId
+      ? typeof editingDevice.schoolId === "object"
+        ? editingDevice.schoolId._id
+        : editingDevice.schoolId
+      : null;
+    const origBranchId = editingDevice?.branchId
+      ? typeof editingDevice.branchId === "object"
+        ? editingDevice.branchId._id
+        : editingDevice.branchId
+      : null;
+
+    // Only include original child if both school and branch match the original assignment
+    const isOriginalBranchSelected =
+      origSchoolId &&
+      origBranchId &&
+      editSchoolId === origSchoolId &&
+      editBranchId === origBranchId;
+
+    if (isOriginalBranchSelected && editingDevice?.childId) {
       const rawChild = editingDevice.childId;
       const chId = typeof rawChild === "object" ? rawChild._id : rawChild;
       const chName =
         typeof rawChild === "object"
-          ? `${rawChild.childName}${rawChild.className ? ` (${rawChild.className})` : ""}`
+          ? `${rawChild.childName || "Student"}${rawChild.className ? ` (${rawChild.className})` : ""}`
           : undefined;
-      if (chId && !branchStudents.some((c: any) => c._id === chId)) {
+      if (chId && chId !== "none") {
         options.push({ label: chName || "Current Child", value: chId });
+        seenIds.add(chId);
       }
     }
+
     branchStudents.forEach((c: any) => {
+      if (!c?._id || seenIds.has(c._id)) return;
+      seenIds.add(c._id);
+      const studentLabel = `${c.childName || "Student"}${
+        c.className ? ` (${c.className}${c.section ? `-${c.section}` : ""})` : ""
+      }${c.rollNumber ? ` • Roll ${c.rollNumber}` : ""}`;
       options.push({
-        label: `${c.childName || "Student"}${c.className ? ` (${c.className})` : ""}`,
+        label: studentLabel,
         value: c._id,
       });
     });
+
     return options;
-  }, [editingDevice, branchStudents]);
+  }, [editingDevice, branchStudents, editSchoolId, editBranchId]);
 
   // Open Geofence Dialog (matching /dashboard/school/geofence)
   const handleOpenAssignGeofence = useCallback(
@@ -1066,6 +1203,10 @@ export default function GeoTagMasterPage() {
                     setEditBranchId("none");
                     setEditSupervisorId("none");
                     setEditChildId("none");
+                    setChildSearch("");
+                    setDebouncedChildSearch("");
+                    setBranchStudents([]);
+                    setBranchSupervisors([]);
                   }}
                   placeholder="Select School"
                   searchPlaceholder="Search school..."
@@ -1085,6 +1226,10 @@ export default function GeoTagMasterPage() {
                     setEditBranchId(newBranch);
                     setEditSupervisorId("none");
                     setEditChildId("none");
+                    setChildSearch("");
+                    setDebouncedChildSearch("");
+                    setBranchStudents([]);
+                    setBranchSupervisors([]);
                   }}
                   disabled={!editSchoolId || editSchoolId === "none"}
                   placeholder={
@@ -1129,7 +1274,7 @@ export default function GeoTagMasterPage() {
                   <Label className="text-xs font-semibold text-slate-700 dark:text-slate-200">
                     Assigned Child / Student
                   </Label>
-                  {isLoadingBranchData && (
+                  {isLoadingStudents && (
                     <Loader2 className="w-3 h-3 animate-spin text-blue-600" />
                   )}
                 </div>
@@ -1143,8 +1288,15 @@ export default function GeoTagMasterPage() {
                       ? "Select Branch first"
                       : "Select Child (Optional)"
                   }
-                  searchPlaceholder="Search child..."
+                  searchPlaceholder="Search child by name, class, roll..."
+                  emptyMessage={
+                    isLoadingStudents
+                      ? "Searching students..."
+                      : "No child found"
+                  }
                   width="w-full"
+                  searchValue={childSearch}
+                  onSearchChange={setChildSearch}
                 />
               </div>
             </div>

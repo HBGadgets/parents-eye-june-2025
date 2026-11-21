@@ -69,7 +69,30 @@ export const useHistoryReport = (
           endLocationTime: formatToLocalLocationTime(filters.to),
         };
 
-        const bleRes: any = await bleService.getDeviceHistory(targetDeviceId, params);
+        let bleRes: any = null;
+        try {
+          bleRes = await bleService.getDeviceHistory(targetDeviceId, params);
+        } catch (err: any) {
+          console.warn("[useHistoryReport] GeoTag history fetch error:", err);
+          const status = err?.response?.status || err?.status;
+          const msg = (err?.response?.data?.message || err?.message || "").toLowerCase();
+          if (
+            status === 404 ||
+            status === 400 ||
+            msg.includes("not found") ||
+            msg.includes("no history") ||
+            msg.includes("no data") ||
+            msg.includes("no records")
+          ) {
+            return {
+              deviceDataByTrips: [],
+              isBle: true,
+              rawBleHistory: null,
+            };
+          }
+          throw err;
+        }
+
         const rawItems: any[] = Array.isArray(bleRes?.history)
           ? bleRes.history
           : Array.isArray(bleRes?.data?.history)
@@ -198,10 +221,30 @@ export const useHistoryReport = (
         };
       }
 
-      return reportService.getHistoryReport({
-        ...filters,
-        period: "Custom",
-      });
+      try {
+        return await reportService.getHistoryReport({
+          ...filters,
+          period: "Custom",
+        });
+      } catch (err: any) {
+        console.warn("[useHistoryReport] vehicle history fetch error:", err);
+        const status = err?.response?.status || err?.status;
+        const msg = (err?.response?.data?.message || err?.message || "").toLowerCase();
+        if (
+          status === 404 ||
+          status === 400 ||
+          msg.includes("not found") ||
+          msg.includes("no history") ||
+          msg.includes("no data") ||
+          msg.includes("no records")
+        ) {
+          return {
+            deviceDataByTrips: [],
+            data: [],
+          };
+        }
+        throw err;
+      }
     },
     enabled: enabled && !!filters.uniqueId && !!filters.from && !!filters.to,
     staleTime: 10 * 60 * 1000,

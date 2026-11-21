@@ -160,12 +160,17 @@ export function Combobox({
     [isOpenControlled, controlledOnOpenChange]
   );
 
-  const currentSearchValue =
-    searchValue !== undefined ? searchValue : internalSearchValue;
-  const setSearchValue =
-    searchValue !== undefined
-      ? onSearchChange || (() => {})
-      : setInternalSearchValue;
+  const isSearchControlled = searchValue !== undefined;
+  const currentSearchValue = isSearchControlled
+    ? searchValue
+    : internalSearchValue;
+
+  const handleSearchValueChange = (search: string) => {
+    if (!isSearchControlled) {
+      setInternalSearchValue(search);
+    }
+    onSearchChange?.(search);
+  };
 
   // Single select handler
   const handleSingleSelect = React.useCallback(
@@ -299,10 +304,6 @@ export function Combobox({
     [onReachEnd, isLoadingMore]
   );
 
-  const handleSearchValueChange = (search: string) => {
-    setSearchValue(search);
-  };
-
   // Reset search when dropdown closes
   React.useEffect(() => {
     if (!open && !onSearchChange) {
@@ -405,27 +406,6 @@ export function Combobox({
 
             const searchLower = String(search).trim().toLowerCase();
             if (!searchLower) return 1;
-
-            const item = items.find((item) => {
-              const labelStr = String(item.label || "").toLowerCase();
-              const valueStr = String(item.value || "").toLowerCase();
-              const targetVal = String(value || "").toLowerCase();
-              return (
-                targetVal === labelStr ||
-                targetVal === valueStr ||
-                targetVal === `${labelStr} ${valueStr}`.trim()
-              );
-            });
-
-            if (item) {
-              const labelMatch = String(item.label || "")
-                .toLowerCase()
-                .includes(searchLower);
-              const valueMatch = String(item.value || "")
-                .toLowerCase()
-                .includes(searchLower);
-              if (labelMatch || valueMatch) return 1;
-            }
 
             return String(value || "").toLowerCase().includes(searchLower)
               ? 1

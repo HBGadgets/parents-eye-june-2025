@@ -230,7 +230,7 @@ function HistoryReportContent() {
     to: undefined,
   });
 
-  const { data: historyReport, isFetching } = useHistoryReport(
+  const { data: historyReport, isFetching, isError } = useHistoryReport(
     apiFilters,
     hasGenerated
   );
@@ -711,9 +711,54 @@ function HistoryReportContent() {
     [activePlayback]
   );
 
+  const clearPlaybackState = useCallback(() => {
+    setTrips([]);
+    setBasePlayback([]);
+    setActivePlayback([]);
+    setIsRangeFiltered(false);
+    setSelectedTripIndex(null);
+    setPlaybackProgress(0);
+    setThrottledProgress(0);
+  }, []);
+
   const handleVehicleChange = (vehicleId?: string) => {
     console.log("Vehicle change to:", vehicleId);
     setSelectedVehicle(vehicleId || "");
+    clearPlaybackState();
+
+    if (vehicleId && hasGenerated) {
+      const foundBle = (bleDevicesData?.devices || []).find(
+        (d: any) =>
+          String(d.deviceId) === String(vehicleId) ||
+          String(d.sn).toLowerCase() === String(vehicleId).toLowerCase() ||
+          String(d.uniqueId).toLowerCase() === String(vehicleId).toLowerCase() ||
+          String(d._id) === String(vehicleId)
+      );
+      const isVehicleBle =
+        isGeoTagMode ||
+        Boolean((foundBle as any)?.isBle) ||
+        String(vehicleId).startsWith("GeoTag-");
+
+      const resolvedDeviceId = isVehicleBle
+        ? (foundBle as any)?.deviceId != null
+          ? String((foundBle as any).deviceId)
+          : undefined
+        : undefined;
+
+      const { from: todayFrom, to: todayTo } = getTodayUtcRange();
+      const finalFrom = fromDate || todayFrom;
+      const finalTo = toDate || todayTo;
+
+      setApiFilters({
+        uniqueId: resolvedDeviceId || String(vehicleId),
+        deviceId: resolvedDeviceId,
+        from: finalFrom,
+        to: finalTo,
+        period: "Custom",
+        isBle: isVehicleBle,
+        deviceCategory: isVehicleBle ? "BLE" : undefined,
+      });
+    }
   };
 
   const handleDateFilter = useCallback(
@@ -733,6 +778,8 @@ function HistoryReportContent() {
 
       const targetId = selectedVehicle || uniqueIdFromUrl;
       if (targetId && hasGenerated) {
+        clearPlaybackState();
+
         const foundBle = (bleDevicesData?.devices || []).find(
           (d: any) =>
             String(d.deviceId) === String(targetId) ||
@@ -757,7 +804,7 @@ function HistoryReportContent() {
         });
       }
     },
-    [selectedVehicle, uniqueIdFromUrl, hasGenerated, isCurrentBle, bleDevicesData, selectedVehicleObj]
+    [selectedVehicle, uniqueIdFromUrl, hasGenerated, isCurrentBle, bleDevicesData, selectedVehicleObj, clearPlaybackState]
   );
 
   const { odometerDistance, summedDistance } = useMemo(() => {
@@ -871,6 +918,8 @@ function HistoryReportContent() {
     if (!selectedVehicle) {
       setSelectedVehicle(finalUniqueId);
     }
+
+    clearPlaybackState();
 
     const { from: todayFrom, to: todayTo } = getTodayUtcRange();
     const finalFrom = fromDate || todayFrom;
@@ -996,6 +1045,11 @@ function HistoryReportContent() {
   }, [isGeoTagMode, selectedVehicle, bleDropdownItems]);
 
   useEffect(() => {
+    if (isError) {
+      clearPlaybackState();
+      return;
+    }
+
     if (!historyReport) return;
     const history =
       historyReport.deviceDataByTrips ||
@@ -1003,7 +1057,10 @@ function HistoryReportContent() {
       (Array.isArray(historyReport.data) ? historyReport.data : null) ||
       (Array.isArray(historyReport) ? historyReport : null);
 
-    if (!history) return;
+    if (!history || (Array.isArray(history) && history.length === 0)) {
+      clearPlaybackState();
+      return;
+    }
 
     // Ensure history is trips array (array of arrays)
     const normalizedTrips: any[][] = Array.isArray(history)
@@ -1014,6 +1071,11 @@ function HistoryReportContent() {
         : [history]
       : [];
 
+    if (normalizedTrips.length === 0 || normalizedTrips.every((t) => t.length === 0)) {
+      clearPlaybackState();
+      return;
+    }
+
     setTrips(normalizedTrips);
     const flat = normalizedTrips.flat();
     setBasePlayback(flat);
@@ -1022,7 +1084,7 @@ function HistoryReportContent() {
     setSelectedTripIndex(null);
     setPlaybackProgress(0);
     setThrottledProgress(0);
-  }, [historyReport]);
+  }, [historyReport, isError, clearPlaybackState]);
 
   const handleRangeSelect = useCallback(
     (startIndex: number, endIndex: number) => {
@@ -1239,7 +1301,7 @@ function HistoryReportContent() {
                   <MapPinOff className="w-16 h-16 text-gray-400 mb-4" />
                   <h3 className="text-xl font-semibold text-gray-700">No History Available</h3>
                   <p className="text-gray-500 mt-2 text-center max-w-md px-4">
-                    No playback data found for the selected vehicle and date range.
+                    No playback data found for the selected {isGeoTagMode ? "GeoTag" : "vehicle"} and date range.
                     <br />Please try adjusting your filters.
                   </p>
                 </div>
