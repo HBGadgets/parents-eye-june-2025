@@ -158,7 +158,8 @@ export const getCategoryColumns = (
 export const getRouteColumns = (
   onEdit: (row: Route) => void,
   onDelete: (row: Route) => void,
-  role?: string
+  role?: string,
+  canManageRoutes: boolean = true
 ): ColumnDef<Route>[] => {
   const isSuperAdmin =
     role === "superAdmin" || role?.toLowerCase() === "superadmin";
@@ -211,7 +212,10 @@ export const getRouteColumns = (
       accessorFn: (row: Route) =>
         `${row.routeCompletionTime ? `${row.routeCompletionTime} Min` : "—"}`,
     },
-    {
+  ];
+
+  if (canManageRoutes) {
+    columns.push({
       header: "Action",
       cell: ({ row }) => {
         const data = row.original;
@@ -243,8 +247,8 @@ export const getRouteColumns = (
         );
       },
       enableSorting: false,
-    },
-  ];
+    });
+  }
 
   return columns;
 };

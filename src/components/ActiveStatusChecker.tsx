@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef } from "react";
 import Cookies from "js-cookie";
 import { checkUserActiveStatus } from "@/services/userService";
+import { useAuthStore } from "@/store/authStore";
 import { performLogout } from "@/util/logout";
 import {
   AlertDialog,
@@ -60,7 +61,26 @@ export function ActiveStatusChecker() {
 
         const active = isResponseActive(response);
 
-        if (!active) {
+        if (active) {
+          const responseAccess = response?.access ?? response?.data?.access;
+          const responseFullAccess =
+            response?.fullAccess ?? response?.data?.fullAccess;
+          const responseRole = response?.role ?? response?.data?.role;
+
+          if (
+            responseAccess !== undefined ||
+            responseFullAccess !== undefined ||
+            responseRole !== undefined
+          ) {
+            useAuthStore
+              .getState()
+              .updatePermissions(
+                responseAccess,
+                responseFullAccess,
+                responseRole
+              );
+          }
+        } else {
           const apiMsg =
             response?.message ||
             response?.data?.message ||

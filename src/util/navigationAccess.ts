@@ -263,6 +263,8 @@ export const getAccessibleSidebarItems = (
   return baseItems
     .filter((item) => {
       if (!item.key) return true;
+      // Keep Routes module visible; route/routes false only hides Add/Edit/Delete buttons
+      if (item.url === "/dashboard/master/route") return true;
       if (Array.isArray(item.key)) {
         return item.key.some((k) => sectionPermissions?.[k] === true);
       }

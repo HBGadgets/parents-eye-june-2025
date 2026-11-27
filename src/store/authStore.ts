@@ -85,6 +85,11 @@ interface AuthState {
     role?: string,
     username?: string
   ) => void;
+  updatePermissions: (
+    access?: UserAccessPermissions | null,
+    fullAccess?: boolean,
+    role?: string
+  ) => void;
   logout: () => void;
 }
 
@@ -203,6 +208,36 @@ export const useAuthStore = create<AuthState>((set) => ({
       username: resolvedUsername,
       access: access || null,
       fullAccess: isFullAccess,
+    });
+  },
+
+  updatePermissions: (
+    access?: UserAccessPermissions | null,
+    fullAccess?: boolean,
+    role?: string
+  ) => {
+    set((state) => {
+      const resolvedRole = role ?? state.role;
+      const isFullAccess = fullAccess ?? state.fullAccess;
+      const resolvedAccess = access !== undefined ? access : state.access;
+
+      if (typeof window !== "undefined") {
+        if (resolvedAccess) {
+          localStorage.setItem("userAccess", JSON.stringify(resolvedAccess));
+        } else if (access === null) {
+          localStorage.removeItem("userAccess");
+        }
+        localStorage.setItem("fullAccess", String(isFullAccess));
+        if (resolvedRole) {
+          localStorage.setItem("userRole", resolvedRole);
+        }
+      }
+
+      return {
+        role: resolvedRole,
+        fullAccess: isFullAccess,
+        access: resolvedAccess,
+      };
     });
   },
 

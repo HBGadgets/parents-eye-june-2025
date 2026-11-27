@@ -122,6 +122,7 @@ const DEFAULT_ACCESS: UserAccessPermissions = {
     studentDetails: true,
     parentsMaster: true,
     routes: true,
+    route: true,
     routeRoster: true,
     geofence: true,
     model: false,
@@ -185,8 +186,17 @@ export const ModuleAccessModal: React.FC<ModuleAccessModalProps> = ({
     if (!isOpen || !targetId) return;
 
     if (initialAccess && Object.keys(initialAccess).length > 0) {
+      const resolvedRoutes =
+        initialAccess.master?.routes !== undefined && initialAccess.master?.route !== undefined
+          ? initialAccess.master.routes && initialAccess.master.route
+          : initialAccess.master?.routes ?? initialAccess.master?.route ?? true;
       setAccess({
-        master: { ...DEFAULT_ACCESS.master, ...initialAccess.master },
+        master: {
+          ...DEFAULT_ACCESS.master,
+          ...initialAccess.master,
+          routes: resolvedRoutes,
+          route: resolvedRoutes,
+        },
         school: {
           ...DEFAULT_ACCESS.school,
           ...initialAccess.school,
@@ -213,8 +223,17 @@ export const ModuleAccessModal: React.FC<ModuleAccessModalProps> = ({
 
         const fetched = res?.access || res?.data?.access || res?.data || res;
         if (fetched && typeof fetched === "object") {
+          const resolvedRoutes =
+            fetched.master?.routes !== undefined && fetched.master?.route !== undefined
+              ? fetched.master.routes && fetched.master.route
+              : fetched.master?.routes ?? fetched.master?.route ?? true;
           setAccess({
-            master: { ...DEFAULT_ACCESS.master, ...fetched.master },
+            master: {
+              ...DEFAULT_ACCESS.master,
+              ...fetched.master,
+              routes: resolvedRoutes,
+              route: resolvedRoutes,
+            },
             school: {
               ...DEFAULT_ACCESS.school,
               ...fetched.school,
@@ -244,6 +263,7 @@ export const ModuleAccessModal: React.FC<ModuleAccessModalProps> = ({
       const updatedCategory = {
         ...(prev[category] || {}),
         [feature]: value,
+        ...(category === "master" && feature === "routes" ? { route: value } : {}),
       };
 
       const updatedUsers =
@@ -267,6 +287,9 @@ export const ModuleAccessModal: React.FC<ModuleAccessModalProps> = ({
     getSchemaForCategory(category, targetType).forEach((item) => {
       updatedCategory[item.key] = value;
     });
+    if (category === "master") {
+      updatedCategory.route = value;
+    }
 
     setAccess((prev) => ({
       ...prev,
@@ -292,6 +315,9 @@ export const ModuleAccessModal: React.FC<ModuleAccessModalProps> = ({
       getSchemaForCategory(cat, targetType).forEach((item) => {
         newAccess[cat]![item.key] = value;
       });
+      if (cat === "master") {
+        newAccess[cat]!.route = value;
+      }
     });
     newAccess.users = {
       ...(newAccess.users || {}),
@@ -306,6 +332,10 @@ export const ModuleAccessModal: React.FC<ModuleAccessModalProps> = ({
     try {
       const payloadToSave: UserAccessPermissions = {
         ...access,
+        master: {
+          ...(access.master || {}),
+          ...(access.master?.routes !== undefined ? { route: access.master.routes } : {}),
+        },
         users: {
           ...(access.users || {}),
           ...(access.school?.driverApprove !== undefined ? { driverApprove: access.school.driverApprove } : {}),

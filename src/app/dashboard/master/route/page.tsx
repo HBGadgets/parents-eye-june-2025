@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { routeService } from "@/services/api/routeService";
 import { toast } from "sonner";
+import { useAuthStore } from "@/store/authStore";
 
 type DecodedToken = {
   role: string;
@@ -54,8 +55,17 @@ export default function RoutePage() {
   const [filterBranchId, setFilterBranchId] = useState<string>();
 
   const [decodedToken, setDecodedToken] = useState<DecodedToken>({ role: "" });
+  const { access, fullAccess, role: authRole } = useAuthStore();
 
   const role = decodedToken.role || "";
+  const effectiveRole = authRole || role;
+
+  const canManageRoutes = useMemo(() => {
+    if (effectiveRole === "superAdmin" || fullAccess) return true;
+    const masterAccess = access?.master;
+    if (!masterAccess) return true;
+    return masterAccess.route !== false && masterAccess.routes !== false;
+  }, [effectiveRole, fullAccess, access]);
 
   useEffect(() => {
     const token = Cookies.get("token");
@@ -289,8 +299,8 @@ export default function RoutePage() {
   };
 
   const columns = useMemo(
-    () => getRouteColumns(handleEdit, handleDelete, role),
-    [handleEdit, handleDelete, role]
+    () => getRouteColumns(handleEdit, handleDelete, role, canManageRoutes),
+    [handleEdit, handleDelete, role, canManageRoutes]
   );
 
   const { table, tableElement } = CustomTableServerSidePagination({
@@ -395,17 +405,19 @@ export default function RoutePage() {
           </div>
         </div>
 
-        <Button
-          className="cursor-pointer"
-          onClick={() => {
-            setEditRoute(null);
-            setSchoolId(undefined);
-            setBranchId(undefined);
-            setShowForm(true);
-          }}
-        >
-          Add Route
-        </Button>
+        {canManageRoutes && (
+          <Button
+            className="cursor-pointer"
+            onClick={() => {
+              setEditRoute(null);
+              setSchoolId(undefined);
+              setBranchId(undefined);
+              setShowForm(true);
+            }}
+          >
+            Add Route
+          </Button>
+        )}
       </div>
 
       <div className="flex-1 min-h-0 pb-3">{tableElement}</div>
